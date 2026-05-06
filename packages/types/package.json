@@ -1,0 +1,28 @@
+{
+  "name": "@enagar/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared domain types — Tenant, Citizen, Service, Application, Grievance, Payment, LLM provider, etc.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./llm": "./src/llm.ts",
+    "./tenant": "./src/tenant.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'",
+    "build": "tsc",
+    "clean": "rimraf dist .turbo"
+  },
+  "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "eslint": "^8.57.1",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "API · NestJS dev (debug)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@enagar/api", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Citizen PWA · Next.js dev (debug)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@enagar/citizen-pwa", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "RAG Indexer · uvicorn (debug)",
+      "module": "uvicorn",
+      "args": ["enagar_rag_indexer.main:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}/services/rag-indexer",
+      "console": "integratedTerminal"
+    }
+  ]
+}

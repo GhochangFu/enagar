@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "enagar-rag-indexer"
+version = "0.0.0"
+description = "RAG knowledge-base indexer for the Sahayak chatbot. Crawls government PDFs/CSVs, extracts + chunks, embeds, upserts into Qdrant."
+authors = ["eNagarSeba <enagar@example.gov.in>"]
+license = "AGPL-3.0-or-later"
+readme = "README.md"
+packages = [{ include = "enagar_rag_indexer", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.30.6" }
+qdrant-client = "^1.11.2"
+sentence-transformers = "^3.1.1"
+httpx = "^0.27.2"
+pydantic = "^2.9.2"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-asyncio = "^0.24.0"
+ruff = "^0.6.8"
+mypy = "^1.11.2"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true

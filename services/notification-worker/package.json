@@ -1,0 +1,27 @@
+{
+  "name": "@enagar/notification-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "BullMQ worker — SMS, email, WhatsApp, and push fan-out. Phase 1/2.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "echo '@enagar/notification-worker: Phase-1/2 stub'",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@enagar/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "@types/node": "^20.16.10",
+    "eslint": "^8.57.1",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  }
+}

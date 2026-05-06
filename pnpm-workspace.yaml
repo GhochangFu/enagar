@@ -1,0 +1,6 @@
+# PNPM workspace definition for the eNagarSeba monorepo.
+# Each glob below is scaffolded incrementally during Phase 0 and beyond.
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/*"

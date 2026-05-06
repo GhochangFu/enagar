@@ -1,0 +1,28 @@
+node_modules
+dist
+build
+out
+.next
+.expo
+.turbo
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+poetry.lock
+*.md.snap
+*.py
+**/__pycache__/**
+**/.venv/**
+
+# Generated files
+**/generated/**
+**/__generated__/**
+apps/api/src/**/openapi-spec.json
+packages/sdk/src/generated/**
+
+# Native build outputs
+android/build
+android/app/build
+ios/build
+ios/Pods

@@ -1,0 +1,10 @@
+# Default — everything routes to the platform lead until the team grows.
+*    @bappa
+
+# Phase-7 (Sahayak AI) and ADR-0008 surface need an extra eye for PII.
+/apps/api/src/modules/chatbot/    @bappa
+/services/rag-indexer/            @bappa
+/docs/ADRs/                       @bappa
+/AGENT.md                         @bappa
+/ARCHITECTURE.md                  @bappa
+/ROADMAP.md                       @bappa

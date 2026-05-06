@@ -1,0 +1,24 @@
+{
+  "name": "@enagar/staff-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Field-staff mobile app (Expo) — grievance verification, asset capture, route. Phase 4.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "echo '@enagar/staff-mobile: Phase-4 stub — see ROADMAP.md'",
+    "build": "echo 'noop (stub)'",
+    "lint": "echo 'noop (stub)'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'",
+    "clean": "rimraf .expo dist .turbo"
+  },
+  "dependencies": {
+    "@enagar/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "@types/node": "^20.16.10",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  }
+}

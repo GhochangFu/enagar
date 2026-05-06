@@ -1,0 +1,920 @@
+# ROADMAP.md — eNagarSeba Delivery Plan
+
+> **Audience**: Tech leads, engineering managers, the AI agent, and the WB Department of Urban Development & Municipal Affairs (DoUD&MA) sponsor.
+> **Format**: Phase-wise plan. Each phase lists Goal, Scope, Key Deliverables, Out-of-Scope, Dependencies, Risks, Exit Criteria, and a _suggested_ sprint breakdown. **Sprint detailing is deferred** — we will plan each phase's sprints in a dedicated session before that phase begins.
+> **Pace assumption**: 2-week sprints. A phase typically spans 1–4 sprints depending on size. Calendar weeks are _indicative_ — actual schedule depends on team size and parallelism.
+
+---
+
+## Phase Map at a Glance
+
+```
+   Phase 0     Phase 1     Phase 2     Phase 3     Phase 4     Phase 5     Phase 6
+ Foundation   Tenant &   Service &   Payments,  Grievances  Citizen     Admin
+ & Discovery  Identity   Workflow   Receipts &  & SLA       Mobile +    Portals
+              Core       Engine     Finance     Engine      PWA Polish  (State +
+                                                                        Tenant)
+   2 wk        4 wk        6 wk        4 wk        3 wk        4 wk        5 wk
+
+   Phase 7     Phase 8     Phase 9     Phase 10    Phase 11    Phase 12
+ Sahayak AI   Bookings,  Field       Pilot       State-wide  Beyond
+ (RAG + LLM   Smart City  Officer /  Hardening    Rollout     MVP
+  Adapter)    & Tenders   Enforcement & Pilot                 (WhatsApp,
+                          App        Launch                  Voice, IoT)
+   4 wk        4 wk        2 wk        3 wk       continuous   continuous
+```
+
+**Total core build (Phase 0 → 10): ~41 weeks (~10 months)** with a team of 6–8 engineers + 1 PM + 1 designer + 1 QA. Phases overlap where dependencies allow (notes per phase).
+
+---
+
+## Phase 0 — Foundation & Discovery
+
+> "Decide everything that, if changed later, would force us to throw work away."
+
+### Goal
+
+Convert the current scratch-pad repo into a real, multi-app monorepo with CI, infrastructure-as-code, decided technology choices, and a baseline design system. Lock the **product charter** with the DoUD&MA sponsor.
+
+### Scope
+
+- Stakeholder workshops and field interviews (1 borough each in 3 ULBs of varying size — a corporation, a municipality, a notified-area authority).
+- Ratify the seven open ADRs from `AGENT.md` §7.
+- Stand up the monorepo, CI, dev infrastructure, design system.
+- Translate the prototype's design into a tokenised, accessible design system (no business logic yet).
+
+### Key Deliverables
+
+1. **Charter & Stakeholder Map** (`docs/charter.md`): vision, success metrics, KPIs, escalation lanes.
+2. **Decided ADRs** (`docs/ADRs/ADR-0001` … `ADR-0007`): DB engine, backend framework, mobile-first vs PWA, workflow engine, hosting target, payment gateway adapter strategy, KB authoring format.
+3. **Monorepo skeleton** with PNPM + Turborepo:
+   - All `apps/*` and `packages/*` folders scaffolded with package.json + minimal index.
+   - ESLint, Prettier, TypeScript, Husky pre-commit, lint-staged, semantic-release configured.
+4. **CI pipeline** (GitHub Actions): lint, type-check, unit test, build, Trivy scan, Renovate config.
+5. **Local-dev infrastructure** (`infrastructure/docker-compose.yml`): postgres + redis + qdrant + ollama + minio + keycloak + meilisearch + mailhog. One command (`pnpm dev:up`) starts everything.
+6. **Design system** (`packages/ui` + `packages/ui-native`):
+   - Tokens (colour, type scale, spacing, radius, shadow) — sourced from the prototype's blue `#0F4C75` family, plus per-tenant overrides via CSS vars.
+   - Core components (Button, Card, Input, Select, Modal, Toast, BottomSheet, Tabs, Badge, Avatar, Skeleton). 30 components target.
+   - Storybook deployed to GitHub Pages for design review.
+7. **Domain glossary** (`docs/glossary.md`) — every entity, every status, every revenue head, every role.
+8. **Threat model** (`docs/security/threat-model.md`) — STRIDE per domain; informs Phase 1 onward.
+9. **Service catalogue audit** — confirm the 76 services in the prototype against actual ULB by-laws; trim, add, correct fees.
+
+### Out of Scope
+
+- Any production code in `apps/api` or `apps/mobile` beyond a "hello world" route.
+- Real database tables.
+- Customer-facing UI flows.
+
+### Dependencies
+
+- DoUD&MA sponsor available for charter sign-off.
+- Access to 3 sample ULBs for field interviews.
+
+### Risks
+
+- Late ratification of ADRs → cascades into Phase 1 delay. _Mitigation_: hard deadline of Phase 0 mid-point.
+- Service catalogue gaps discovered later. _Mitigation_: catalogue audit is a Phase 0 deliverable.
+
+### Exit Criteria
+
+- All 7 ADRs ratified and merged.
+- `pnpm install && pnpm dev:up && pnpm dev` boots every app to a hello screen.
+- CI green on a freshly cloned repo.
+- Storybook published with ≥ 30 components.
+- Charter signed.
+
+### Suggested Sprint Slice
+
+- **Sprint 0.1**: Charter, ADRs, repo skeleton, CI.
+- **Sprint 0.2**: Design system, local-dev infra, threat model, catalogue audit.
+
+---
+
+## Phase 1 — Tenant & Identity Core
+
+> "Everything else stands on this foundation. Get tenancy right, or rip it out later."
+
+### Goal
+
+Make the platform multi-tenant from the first byte. Citizens and staff can register, log in, switch municipalities, and prove their identity — all under enforced row-level isolation.
+
+### Scope
+
+- `tenants`, `citizens`, `users`, `roles`, `wards`, `address_master` tables with RLS.
+- Authentication flow: OTP (citizen), username + password + MFA (staff), DigiLocker (optional Aadhaar verification).
+- Keycloak realm per environment with OIDC clients for each app.
+- JWT issuance with `tenant_id`, `roles`, `citizen_id` claims.
+- Tenant picker / tenant switcher on citizen apps.
+- Seed data for 8 sample tenants (the prototype's `MUNICIPALITIES` constant).
+- Mobile + PWA splash, language picker, login, OTP, tenant select screens — wired to real APIs.
+
+### Key Deliverables
+
+1. **Database** (Phase 1.1):
+   - Tables with RLS: `tenants`, `tenant_config`, `citizens`, `users` (staff), `roles`, `user_roles`, `wards`, `boroughs`, `localities`, `notifications` skeleton.
+   - Prisma schema + initial migration.
+   - **CI test**: every tenant-scoped table has an RLS policy; build fails otherwise.
+2. **API endpoints** (subset of `ARCHITECTURE.md` §5):
+   - `POST /auth/send-otp`, `POST /auth/verify-otp`, `POST /auth/refresh`, `POST /auth/logout`
+   - `POST /citizen/register`, `GET /citizen/profile`, `PATCH /citizen/profile`, `PATCH /citizen/language`, `POST /citizen/select-tenant`
+   - `GET /tenants`, `GET /tenants/:id/config`
+   - `POST /auth/aadhaar-link` (DigiLocker OIDC)
+3. **Keycloak realm** with roles `citizen`, `tenant_clerk`, `tenant_admin`, `state_admin`, plus realm seed via Terraform / Keycloak CLI.
+4. **JWT tenant-binding middleware**: every request sets `app.tenant_id` PG session var from JWT before any query.
+5. **Mobile + PWA screens** (real, not mock):
+   - Splash → Language → Login (mobile + OTP) → OTP verify → Tenant picker → Empty Home.
+   - Encrypted token storage (Expo SecureStore / IndexedDB with crypto).
+6. **i18n machinery**: en / bn / hi message catalogues in `packages/i18n`; CI lint for missing keys.
+7. **Tenant theming**: `packages/tenant-theme` reads `tenants.theme_color` → emits CSS vars at runtime.
+8. **Tenant onboarding script** (CLI): `pnpm seed:tenant --code KMC --name "Kolkata Municipal Corporation" …` — proves zero-code onboarding from the start.
+
+### Out of Scope
+
+- Service catalogue, applications, payments, grievances — none yet.
+- Real Aadhaar verification (DigiLocker stub OK in dev).
+- Admin portal screens.
+
+### Dependencies
+
+- Phase 0 complete (monorepo, design system, ADRs).
+- DigiLocker sandbox credentials from MeitY.
+
+### Risks
+
+- RLS misconfiguration → cross-tenant leak. _Mitigation_: automated tenant-isolation tests, dedicated security review at end of phase.
+- Keycloak learning curve. _Mitigation_: 2-day spike at start of phase.
+
+### Exit Criteria
+
+- Two test citizens in two different tenants cannot see each other's profile in any way (manual + automated).
+- 8 tenants seeded; switching between them in the app picks up correct theme + name + ward count.
+- OWASP ZAP scan: no critical / high findings on auth endpoints.
+- Keycloak MFA enforced for `*_admin` roles.
+
+### Suggested Sprint Slice
+
+- **Sprint 1.1**: DB schema + RLS + Prisma + CI tests for tenant isolation.
+- **Sprint 1.2**: Keycloak realm + auth endpoints + JWT middleware.
+- **Sprint 1.3**: Mobile/PWA splash → tenant select screens, real APIs.
+- **Sprint 1.4**: i18n + theming + onboarding CLI + security review.
+
+### Parallelism
+
+- Can overlap last 2 weeks with the start of Phase 2 once DB schema is stable.
+
+---
+
+## Phase 2 — Service & Workflow Engine (the heart of plug-and-play)
+
+> "After this phase, adding a new service is a form-fill, not a code change."
+
+### Goal
+
+Build the data model and runtime that lets a tenant admin define a service end-to-end (form schema, fee, SLA, required docs, workflow stages, revenue head) and have it instantly available on the citizen apps — without a redeploy.
+
+### Scope
+
+- **Global Service Library** schema + 76-service seed.
+- **Tenant Service Catalogue** layered on top with override semantics.
+- **Form-Schema** (JSON-Schema variant tailored for our field types).
+- **Form Renderer** (`packages/forms`): same library renders web (React) and mobile (RN). Fields supported in v1: text, number, date, radio, select, multiselect, textarea, file, section, conditional show-if.
+- **Workflow / Stage Engine** (`packages/workflow` + `services/workflow-engine` worker):
+  - State-machine schema: stages, transitions, role assignments, SLA per stage, on-enter / on-exit hooks, escalation rules.
+  - Runtime: `applications` and `application_timeline` tables; clerk action API.
+- **Application APIs**: create, list, detail, upload-doc, cancel, comment.
+- **Citizen UI**: Services tab → category → service detail → multi-step form → review → success → My Applications → Application detail with live timeline (mirrors the prototype's flow exactly, but data-driven).
+- **Document storage**: MinIO with virus scan via BullMQ + ClamAV.
+- **Address / Holding-number lookup** API + UI — used by property tax / water / conservancy.
+
+### Key Deliverables
+
+1. **DB schema additions**:
+   - `revenue_heads` (state-wide master)
+   - `services` (per-tenant with override flag), `global_services` (state-wide library)
+   - `service_categories` (state-wide), `service_documents`, `service_form_versions`
+   - `workflows`, `workflow_stages`, `workflow_transitions`, `role_stage_map`
+   - `applications`, `application_timeline`, `application_documents`, `application_comments`
+   - `holdings` (property), `address_master`
+2. **Form-Schema spec** (`docs/form-schema.md`) + Zod validators + JSON-Schema export.
+3. **Workflow-Schema spec** (`docs/workflow-schema.md`) + visual representation.
+4. **`packages/forms`**: render + validate + draft-save (auto-save every 30 s to local DB → background sync).
+5. **`packages/workflow`**: pure state-machine evaluator + escalation calculator (no I/O, easy to test).
+6. **API endpoints**: full set in `ARCHITECTURE.md` §5 → Services & Applications.
+7. **Citizen flow on PWA + RN**: services list → detail → form → review → submit → My Applications → Application detail (matches the prototype 1:1 in UX).
+8. **Document upload pipeline**: pre-signed MinIO URLs, ClamAV scan job, MIME validation, max-10 MB enforcement.
+9. **Test fixture**: 76 seed services across 8 tenants, with at least 5 services having full form schemas (Birth Cert, Trade Licence, Property Tax, Water Connection, Building Plan).
+10. **Performance benchmark**: list services for a tenant in < 100 ms (P95) cold cache.
+
+### Out of Scope
+
+- **Payments** (mocked "paid = true" for now).
+- **Form Builder admin UI** (deferred to Phase 6).
+- **Workflow visual designer** (deferred to Phase 6).
+- Grievances (Phase 4).
+- AI / chatbot.
+
+### Dependencies
+
+- Phase 1 complete (tenants, citizens, auth).
+- Decision on workflow engine (ADR-004) — affects Phase 6 admin UI complexity.
+
+### Risks
+
+- Form-schema spec under-designed for edge cases (conditional logic, computed fees). _Mitigation_: dogfood with 5 real services before declaring v1.
+- Workflow engine too rigid. _Mitigation_: keep escalations and timers as runtime config, not code.
+
+### Exit Criteria
+
+- A citizen can complete an end-to-end Birth Certificate application: pick service → fill form → upload doc → submit → see "Document Verification" stage → see SLA-due timer.
+- Adding a 77th service requires only a database insert (verified by recording the exact SQL).
+- Switching a service's form schema between v1 and v2 does not break in-flight applications (snapshot semantics confirmed).
+- 100 % API coverage with integration tests including tenant-leak attempts.
+
+### Suggested Sprint Slice
+
+- **Sprint 2.1**: DB schema + revenue heads + service catalogue layering.
+- **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
+- **Sprint 2.3**: Workflow engine + applications + timeline.
+- **Sprint 2.4**: Document upload pipeline + holding lookup.
+- **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
+- **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
+
+### Parallelism
+
+- Form-schema and workflow can be designed in parallel by two engineers.
+- UI work can begin once API contracts (OpenAPI) are frozen — usually mid-Sprint 2.3.
+
+---
+
+## Phase 3 — Payments, Receipts & Finance
+
+> "If we can't take ₹50 reliably, we can't run a municipality."
+
+### Goal
+
+Reliable, idempotent, gateway-agnostic payments tied to applications, plus the finance-side primitives: receipts, GL postings, deposits, refunds, and challans.
+
+### Scope
+
+- Payment gateway adapter pattern (`IPaymentGateway`); first concrete adapter (Razorpay or PayU per ADR-006).
+- Payment lifecycle: initiate → redirect / SDK → webhook → settle → receipt PDF.
+- **Idempotency keys** on `POST /payments/initiate`.
+- Deposits as first-class entities (EMD, security deposit, hall booking deposit).
+- Daily job: identify deposits past `expected_release_at` in `HELD` → create refund task.
+- Challans: enforcement-issued, citizen-paid; pay-by-challan-number flow.
+- Fines as a distinct path (citizen pays without an application).
+- GL posting: every settled payment auto-posts to `gl_account` based on `revenue_head_code`.
+- Receipt PDF generation (HTML → PDF via Playwright in worker).
+
+### Key Deliverables
+
+1. **DB additions**:
+   - `payments` (extended), `deposits`, `challans`, `gl_postings`, `refunds`.
+2. **`IPaymentGateway` interface** + Razorpay/PayU adapter.
+3. **Endpoints**: `POST /payments/initiate`, `POST /payments/webhook`, `GET /payments`, `GET /payments/:id/receipt`, `GET /challans/:no`, `POST /challans/:no/pay`.
+4. **Webhook signature verification** + replay protection (Redis nonce store).
+5. **Receipt PDF service** with QR code linking back to verification URL.
+6. **Refund engine**: daily job, finance-officer approval, idempotent gateway refund call.
+7. **Reconciliation report** (CSV + PDF) — daily, per tenant, downloadable from admin portal API.
+8. **Citizen UI**: Payment screen integrated into Apply flow (steps 1 → 2 → 3 in prototype), My Payments screen, Receipt download.
+9. **Failure handling**: timeout, gateway-down, partial-success — every state is recoverable.
+
+### Out of Scope
+
+- Tenant admin UI for finance (Phase 6).
+- Auto-disburse of refunds (manual approve in v1).
+- Smart parking pay-as-you-go (Phase 8).
+
+### Dependencies
+
+- Phase 2 complete (applications carry the amount payable).
+- Gateway sandbox credentials.
+
+### Risks
+
+- Gateway downtime during pilot → bad first impression. _Mitigation_: graceful degradation, retry queue, transparent status banner.
+- Webhook signature spoofing. _Mitigation_: strict signature verification + IP allow-list.
+
+### Exit Criteria
+
+- 1,000 simulated payments — zero double-charges, zero orphan applications, every transaction in `gl_postings`.
+- Refund flow: deposit → release-eligible → approved → refunded → citizen sees credit-back.
+- Receipt PDF QR code resolves to a public verification page.
+- PCI-DSS scope minimised (no card data ever touches our servers).
+
+### Suggested Sprint Slice
+
+- **Sprint 3.1**: Payment lifecycle + gateway adapter + idempotency.
+- **Sprint 3.2**: Receipts + GL postings + reconciliation report.
+- **Sprint 3.3**: Deposits + refunds + challans.
+- **Sprint 3.4**: Citizen payment UI + failure-handling polish.
+
+---
+
+## Phase 4 — Grievances & SLA Engine
+
+> "A grievance with no timeline is a grievance ignored."
+
+### Goal
+
+End-to-end grievance management: file → categorise → route to ward / department → track → escalate → resolve → rate → reopen if needed.
+
+### Scope
+
+- Grievance taxonomy (10 categories from prototype, sub-categories editable per tenant).
+- Auto-routing rules: by category × ward × priority → role.
+- SLA engine: hours-to-resolve per (category, priority); breach → escalation chain.
+- Photo + GPS attachment.
+- Anonymous submission (with optional later claim by citizen).
+- Reopen flow (one-time within 7 days of resolution).
+- Citizen-side rating + feedback.
+- Staff-side action API (assign / comment / mark in-progress / resolve / close).
+
+### Key Deliverables
+
+1. **DB additions**:
+   - `grievances`, `grievance_timeline`, `grievance_attachments`, `grievance_routing_rules`, `sla_policies`.
+2. **Routing engine**: deterministic rule evaluation; tenant admin configurable in Phase 6.
+3. **SLA engine**: hourly tick (BullMQ delayed job) — flags breaches, sends notifications, escalates.
+4. **API endpoints**: full grievances set per `ARCHITECTURE.md` §5.
+5. **Citizen UI**: Grievance tab → category → form → success → My Grievances → Grievance detail (matches prototype).
+6. **Staff actions** (used later by Field Officer App in Phase 9 — but the API exists now).
+7. **Public dashboard endpoint** (anonymised, aggregated) — feeds the open data API in Phase 12.
+
+### Out of Scope
+
+- Field Officer app UI (Phase 9).
+- Tenant-admin routing-rule configurator (Phase 6).
+- Predictive SLA breach (Phase 12).
+
+### Dependencies
+
+- Phase 1 (citizens), Phase 2 (timeline pattern reused).
+- Phone-camera + GPS permissions on mobile app.
+
+### Risks
+
+- SLA breaches not visible enough → no behavioural change. _Mitigation_: proactive push + daily clerk dashboard.
+
+### Exit Criteria
+
+- Citizen can file → track → see SLA timer → rate, end-to-end.
+- A breached SLA triggers an escalation push to the next role within 1 minute of breach.
+- 80 % of seeded grievances auto-route to the correct role without human intervention (validated with 200-grievance fixture).
+
+### Suggested Sprint Slice
+
+- **Sprint 4.1**: DB + APIs + SLA engine.
+- **Sprint 4.2**: Citizen UI + auto-routing.
+- **Sprint 4.3**: Escalations + reopen + rating + hardening.
+
+---
+
+## Phase 5 — Citizen Mobile + PWA Polish
+
+> "Make the prototype real, on both surfaces."
+
+### Goal
+
+Two production-quality citizen surfaces — React Native (Expo) and Next.js PWA — that share `packages/forms`, `packages/sdk`, `packages/i18n`, and `packages/ui*`. Feature parity with the prototype + offline drafts + push notifications + deep links.
+
+### Scope
+
+- RN app: build for Android first (target API 30+), then iOS.
+- PWA: installable, standalone display, service worker, offline shell.
+- Push notifications: FCM (Android), APNs (iOS), Web Push (PWA).
+- Deep links: docket numbers, payment results, notifications.
+- Offline form drafts via local SQLite (RN) / IndexedDB (PWA), background sync on reconnect.
+- Notification centre, mark-all-read, type filters (matches prototype).
+- Profile screen, language switcher, change-municipality, logout.
+- Accessibility audit (axe-core PWA, RN built-in checks).
+- Performance: First Contentful Paint < 2 s on a Moto G7 over 4G.
+
+### Key Deliverables
+
+1. RN app on Play Internal track + iOS TestFlight.
+2. PWA at `https://app.enagarseba.wb.gov.in` (or pilot subdomain).
+3. Notification worker (`services/notification-worker`): FCM + APNs + Web Push + SMS + email + WhatsApp stub.
+4. Offline form draft engine in `packages/forms` (storage-agnostic).
+5. Performance budget enforced in CI (Lighthouse PWA score ≥ 90 on every PR).
+6. Accessibility report (axe-core baseline saved).
+7. App store / Play Store metadata, screenshots, privacy declaration.
+
+### Out of Scope
+
+- Sahayak AI chatbot beyond a "Coming Soon" tile (Phase 7).
+- Field officer roles (Phase 9).
+- Real Aadhaar e-KYC (Phase 11 readiness).
+
+### Dependencies
+
+- Phases 2–4 backend complete.
+- FCM project, APNs cert, Web Push VAPID keys provisioned.
+
+### Risks
+
+- App store review delays. _Mitigation_: start TestFlight + Play Internal ASAP; production review window planned for Phase 10.
+- iOS PassKey / OTP autofill quirks. _Mitigation_: dedicated 2-day spike.
+
+### Exit Criteria
+
+- Pilot user can: install app → log in → switch tenant → apply → pay → track → file grievance → receive push on status change. Offline.
+- Lighthouse PWA score ≥ 90.
+- Average API call < 500 ms over 4G.
+
+### Suggested Sprint Slice
+
+- **Sprint 5.1**: RN app shell + screen porting (Splash → Tenant select → Home).
+- **Sprint 5.2**: RN apply / payments / grievance flows + offline drafts.
+- **Sprint 5.3**: PWA equivalent (sharing screens via `packages/forms` + `packages/ui`).
+- **Sprint 5.4**: Push, deep links, accessibility, perf, store metadata.
+
+---
+
+## Phase 6 — Admin Portals (State + Tenant)
+
+> "Where the plug-and-play promise gets real."
+
+### Goal
+
+Two Next.js portals that let admins configure everything _without_ talking to engineers. Tenant Admin = the day-to-day driver. State Super-Admin = the platform operator.
+
+### Scope
+
+**Tenant Admin Portal** (`apps/admin-tenant`):
+
+- Dashboard: live KPIs, SLA compliance, revenue, open grievances heatmap.
+- Service catalogue: inherit / override / disable / add. Inline form-schema builder (drag-drop, preview-on-phone-frame).
+- Workflow / stage designer: visual state-machine editor, role assignments, SLA per stage, escalation rules.
+- Fee-rule engine: flat / slab / zone / time-of-day / property-attribute (built-up area, ARV).
+- Document checklist editor.
+- Bookable assets manager + calendar (halls, auditoria, parks, equipment, blackout dates).
+- Tax / tariff master (property, water, conservancy, sewerage).
+- Address master (wards → boroughs → mouzas → localities) — bulk CSV import.
+- Revenue head & GL mapping.
+- Notification template editor (push / SMS / email / WhatsApp; en / bn / hi; with variable preview).
+- Knowledge-Base CMS (Markdown WYSIWYG + .docx upload + auto-convert; tags; publish / unpublish; auto-trigger RAG re-index).
+- Staff & roles: invite, assign role, map roles to workflow stages.
+- Branding: theme colour, logo, hero imagery, languages enabled.
+- Feature flags.
+- Maintenance / banners.
+- Reports: SLA, revenue, top services, grievance heatmap — CSV / PDF export.
+
+**State Super-Admin Portal** (`apps/admin-state`):
+
+- Tenant onboarding wizard (zero-code: name, code, district, wards, theme, languages, gateways, default services to inherit → activate).
+- Tenant directory + drill-down.
+- Global Service Library curator.
+- State-wide KPI dashboards.
+- Audit log search across tenants.
+- Tenant impersonation (logged) for support.
+- State-level integration management (DigiLocker, Aadhaar, master payment partners, SMS DLT).
+- Cross-tenant analytics + leaderboards (publishable as transparency reports).
+
+### Key Deliverables
+
+1. Two production portals, both behind Keycloak with MFA.
+2. **Form-Schema Builder** (`packages/forms` extended): drag-drop palette → JSON-Schema → live preview on phone-frame component (the same one in `index.html`).
+3. **Workflow Designer**: visual state-machine editor (React Flow or X6) → JSON → executed by Phase 2 engine.
+4. **Fee-Rule Engine**: declarative rules editor → safe expression evaluator (no `eval`).
+5. **KB CMS**: in-portal Markdown editor + `.docx` upload + Mammoth conversion + tag taxonomy + publish.
+6. **Tenant impersonation**: state-admin generates a short-lived JWT scoped to one tenant; every request audited.
+7. **Reports**: PDF (Playwright-rendered) + CSV per tenant; downloadable.
+
+### Out of Scope
+
+- AI / chatbot (Phase 7).
+- Predictive analytics (Phase 12).
+
+### Dependencies
+
+- Phases 2–5 complete.
+- Form-renderer in `packages/forms` mature enough that the builder can preview against it without divergence.
+
+### Risks
+
+- Form-schema builder UX is famously hard. _Mitigation_: borrow from established libraries (FormKit, RJSF, FormIO) for v1; build custom only what we must.
+- Workflow designer scope creep. _Mitigation_: lock v1 to linear-stage-with-branch; defer complex parallelism to v2.
+
+### Exit Criteria
+
+- A tenant admin can, with zero engineering involvement: add a brand-new service, design its form, define its 4-stage workflow, assign it to staff roles, set a fee, set an SLA, publish KB articles for it — and a citizen sees it in the app within 5 minutes.
+- A state admin can onboard a 9th municipality entirely through the wizard.
+- All admin actions are in the audit log.
+
+### Suggested Sprint Slice
+
+- **Sprint 6.1**: Tenant Admin Portal shell, dashboard, service catalogue list/edit.
+- **Sprint 6.2**: Form-Schema Builder + Workflow Designer.
+- **Sprint 6.3**: Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads.
+- **Sprint 6.4**: Notification templates, KB CMS, branding, feature flags, staff & roles.
+- **Sprint 6.5**: State Super-Admin Portal + tenant onboarding wizard + impersonation + cross-tenant analytics.
+
+### Parallelism
+
+- Two engineers can split: one on form/workflow builders, one on configuration CRUD. Mid-phase merge.
+
+---
+
+## Phase 7 — Sahayak AI (RAG + KB Indexing + LLM Adapter)
+
+> "Citizens type 'how to apply for water connection in bengali' — they get the right answer, in their tenant's words."
+
+### Goal
+
+Production-grade RAG chatbot grounded in each tenant's actual KB + the citizen's own application context. Inference via the `ILLMProvider` adapter (per [ADR-0008](./docs/ADRs/ADR-0008-llm-provider-adapter.md)) — OpenAI / Gemini in production, Ollama as optional fallback. PII redacted before egress. Streaming responses. Multilingual (en / bn / hi).
+
+### Scope
+
+- `services/rag-indexer` (Python): nightly + on-demand indexer.
+  - Loaders: Markdown, PDF (pdfplumber), DOCX (Mammoth → Markdown), HTML, plain text, **services table snapshot**.
+  - Chunking: ~500 tokens, 50 overlap.
+  - Embeddings: `paraphrase-multilingual-MiniLM-L12-v2` — runs **on-prem** (CPU); embeddings never leave the platform.
+  - Qdrant: collection per tenant (`kb_kmc`, `kb_hmc` …) — **on-prem**.
+- **`packages/types`** + **`apps/api/src/modules/chatbot`**: `ILLMProvider` interface and three concrete implementations (`OpenAIProvider`, `GeminiProvider`, `OllamaProvider`), each conforming to the same streaming contract.
+- **`apps/api/src/modules/chatbot/redaction.ts`**: mandatory PII-redaction layer (mobile, Aadhaar last-4, holding number, docket, citizen name, address) with reverse-substitution map kept server-side only.
+- **`apps/api/src/modules/chatbot/audit.ts`**: per-call audit record (provider, model, tokens, latency, redaction count, query hash) — raw query text never logged.
+- Query pipeline: detect lang → embed → Qdrant top-K with `tenant_id` filter → BM25 rerank → augment with citizen context → **redact** → `ILLMProvider.stream()` → de-redact → SSE stream to client.
+- Hard guardrails:
+  - Reply **only** in user's language.
+  - Cite sources (KB article slugs).
+  - Refuse out-of-scope.
+  - Never invent fees / SLAs (numeric fact-check against services table).
+  - Sanitise prompt-injection attempts.
+- Per-tenant `tenants.config.chatbot` settings: provider override, model override, monthly token budget, DPA-signed flag (runtime guard).
+- Per-tenant cost telemetry: `llm_tokens_total{tenant,provider,direction}` Prometheus counter; daily aggregation; 80 %-of-budget alert.
+- Per-response thumbs-up / thumbs-down feedback → reviewer queue.
+- Session history (per citizen, 30-day retention).
+- Citizen-facing **consent screen** on first chatbot session: "Your queries are processed by OpenAI / Google after PII redaction. You may opt out and use KB-search-only mode."
+- Mobile + PWA chatbot UI (matches prototype's gradient-bubble style).
+
+### Key Deliverables
+
+1. RAG indexer service (Python, FastAPI for on-demand triggers + cron for nightly).
+2. Qdrant collections per tenant (on-prem).
+3. `ILLMProvider` interface + `OpenAIProvider` + `GeminiProvider` + `OllamaProvider` implementations, conformance-tested against a shared suite.
+4. PII-redaction layer with adversarial test fixtures (≥ 25 cases).
+5. Chatbot NestJS module with SSE streaming + audit + cost telemetry.
+6. System prompt template per `ARCHITECTURE.md` §4.
+7. Mobile + PWA chat UI with consent screen, suggestions, voice-input placeholder, image-attach placeholder.
+8. Feedback loop: thumbs ↔ analytics dashboard.
+9. Per-tenant cost dashboard panel in State Super-Admin.
+10. Provider-failover behaviour: if active provider returns 5xx three times in 60 s, automatically fail over to the configured secondary and alert.
+11. Cost / latency benchmark with realistic 50-tenant-day fixture; document P50 / P95 first-token and end-to-end times for each provider.
+
+### Out of Scope
+
+- Voice input (Phase 12).
+- WhatsApp channel (Phase 12).
+- Fine-tuning models (Phase 12+).
+- Anthropic / Claude provider (deferred — adapter accommodates trivially).
+
+### Dependencies
+
+- Phases 1, 2, 4 (citizen, applications, grievances exist for context augmentation).
+- Phase 6 KB CMS (so tenant admins can publish KB articles).
+- **Phase 0 follow-up**: Data Processing Agreements (DPAs) signed with OpenAI and Google before pilot.
+- **Phase 0 follow-up**: privacy-policy disclosure of cross-border processing.
+
+### Risks
+
+- Hallucinated fees / timelines. _Mitigation_: strict prompt + automatic post-response numeric fact-check against the services table.
+- Prompt injection. _Mitigation_: input sanitiser + system-prompt isolation + adversarial test suite.
+- Provider outage / pricing change. _Mitigation_: adapter pattern allows hot-swap; secondary provider configured per tenant; cost telemetry + budget caps.
+- DPA non-compliance discovered late. _Mitigation_: runtime guard refuses to call any provider without `dpa_signed = true` in tenant config.
+- PII leak via redaction bypass. _Mitigation_: dedicated adversarial test fixtures; quarterly third-party review.
+
+### Exit Criteria
+
+- Bengali query "আমি কীভাবে জন্ম সার্টিফিকেট পাবো?" gets a correct, cited, in-language answer in < 3 s end-to-end (P95).
+- Adversarial prompt-injection test suite passes 100 %.
+- Adversarial PII-redaction fixture suite (25+ cases) passes 100 %.
+- Citizen with an in-flight Birth Cert application sees personalised response: "Your application WBM/KMC/BC/2026/00342 is currently in Document Verification."
+- Cost dashboard correctly attributes ₹ to tenant + provider; budget alert fires at 80 %.
+- Provider failover validated under chaos test (kill primary, verify secondary takes over within 5 s).
+
+### Suggested Sprint Slice
+
+- **Sprint 7.1**: RAG indexer + Qdrant + embedding benchmark.
+- **Sprint 7.2**: `ILLMProvider` interface + OpenAI / Gemini / Ollama implementations + PII redaction + audit.
+- **Sprint 7.3**: Chatbot service + streaming + guardrails + failover + cost telemetry.
+- **Sprint 7.4**: Mobile + PWA UI + consent screen + feedback loop + adversarial testing.
+
+---
+
+## Phase 8 — Bookings, Smart-City & Tender Modules
+
+> "The long tail of revenue heads — designed to land _after_ the core is stable."
+
+### Goal
+
+Productionise the specialty modules already modelled in `ARCHITECTURE.md` §10: bookable assets with calendar, smart-city pricing hooks, tenders with EMD/security deposit lifecycle.
+
+### Scope
+
+- **Bookings**: hall, auditorium, park, ground, equipment.
+  - Calendar UI (citizen + admin).
+  - GiST exclusion-constraint anti-double-booking (already in arch).
+  - Deposit + cancellation policy + booking confirmation PDF.
+- **Smart-City Services**:
+  - Smart Parking: zone × time-of-day pricing, sensor stub adapter, reserve-and-pay flow.
+  - EV Charging: per-kWh metering, slot reservation.
+  - IoT Smart Water Meter: prepaid recharge UI.
+  - Smart Waste Bin Subscription.
+  - GIS data licensing portal.
+  - Rooftop solar / telecom NOC application flow (uses generic application engine).
+- **Tenders & Deposits** (citizen-facing):
+  - Tender list + form purchase + EMD payment.
+  - Vendor / contractor empanelment.
+  - Refund-of-deposit application.
+- **Advertisement & Media**: hoarding tax calculator (ward × size × duration), digital billboard application, LED slot booking calendar.
+- **Welfare**: pension applications + monthly disbursement-status view.
+- **Health**: ambulance / hearse / crematorium booking (booking engine reused).
+
+### Key Deliverables
+
+1. **Pricing-Rule Engine** (extended from Phase 6 fee engine): zone, time, vehicle, kWh, hoarding-rate matrix.
+2. **Booking calendar UI** (citizen + tenant admin).
+3. **Smart-Parking adapter**: stub of Modbus/MQTT sensor source — plug-in for real telemetry in pilot.
+4. **Tenders module**: list + EMD + vendor registration.
+5. **Hoarding-rate calculator** (UI + API).
+6. **Welfare disbursement status** (read-only, monthly Excel import in v1; integrated with PFMS in v2).
+
+### Out of Scope
+
+- Real IoT integration (relies on hardware procurement; covered in Phase 12 pilot).
+- Auction engine for scrap sale (manual bid recording in v1; full engine v2).
+- e-Tender e-procurement (out of scope; integrate with state e-tender portal via deep link).
+
+### Dependencies
+
+- Phase 2 (workflow / forms).
+- Phase 3 (payments / deposits).
+- Phase 6 (fee-rule engine).
+
+### Risks
+
+- Calendar UX complexity. _Mitigation_: borrow from FullCalendar / React Big Calendar for v1.
+- Pricing-rule engine becoming a DSL. _Mitigation_: cap expressions to whitelisted operators; no Turing-complete logic.
+
+### Exit Criteria
+
+- Citizen can book a community hall on a specific date, pay, get confirmation PDF; admin sees the booking on their calendar; the slot is unbookable for anyone else.
+- Smart parking flow works end-to-end with the stub sensor.
+- A tender list page renders 5 active tenders; user buys form + pays EMD.
+
+### Suggested Sprint Slice
+
+- **Sprint 8.1**: Bookings calendar + booking flow + deposit linkage.
+- **Sprint 8.2**: Smart-Parking + EV-Charging + IoT-Water-Meter (stubbed adapters).
+- **Sprint 8.3**: Tenders + Vendor empanelment + Advertisement / Hoarding.
+- **Sprint 8.4**: Welfare + Health bookings + hardening.
+
+---
+
+## Phase 9 — Field Officer / Enforcement App
+
+> "The clerk's view, but in the field, on a phone."
+
+### Goal
+
+A scoped Expo app for inspectors, sanitation officers, enforcement staff, and registrars to do their bit of the workflow on the move. Same JWT realm, different role, different navigation.
+
+### Scope
+
+- Login as staff (Keycloak, MFA).
+- Role-aware home: "My queue" of applications / grievances assigned to me.
+- Application detail with available actions: comment, mark in-progress, request more info, recommend approval, approve / reject.
+- Grievance detail with: assign / mark in progress / resolve + photo evidence + GPS pin.
+- **Challan issue** flow:
+  - Pick violation type (revenue head category).
+  - Capture photo + GPS automatically.
+  - Enter offender name / mobile (citizen may not be registered).
+  - Generate challan number, send SMS to mobile.
+  - Bluetooth thermal-printer support for paper challan (optional).
+- Offline mode: queue actions when no network, sync on reconnect.
+- Geofencing: officer's actions logged with GPS for audit.
+
+### Key Deliverables
+
+1. `apps/staff-mobile` Expo app on Play Internal.
+2. Role-scoped JWT (e.g. only sees grievances in their ward).
+3. Challan-issue flow integrated with `challans` table from Phase 3.
+4. Offline action queue (SQLite + background sync).
+5. Bluetooth printer adapter (optional, library evaluation in this phase).
+6. Pilot training pack (PDF + 2 short videos) for inspectors.
+
+### Out of Scope
+
+- Tenant admin UI changes (already handled in Phase 6).
+- Multi-language support beyond Bengali + English (Hindi optional).
+
+### Dependencies
+
+- Phases 1, 2, 3, 4 — all action APIs exist.
+
+### Risks
+
+- Inspector device fragmentation. _Mitigation_: target Android 9+ baseline.
+- Offline conflict resolution. _Mitigation_: last-write-wins is acceptable; document the rule in the app.
+
+### Exit Criteria
+
+- A sanitation inspector can resolve a grievance in the field with photo + GPS, fully offline, and the resolution syncs cleanly when back online.
+- Enforcement officer issues a challan offline; SMS sends to citizen on next connection.
+
+### Suggested Sprint Slice
+
+- **Sprint 9.1**: App shell + role-scoped queue + grievance / application actions + offline queue.
+- **Sprint 9.2**: Challan-issue + camera/GPS + (optional) Bluetooth printer + pilot pack.
+
+---
+
+## Phase 10 — Pilot Hardening & Launch
+
+> "The work between 'demo-ready' and 'production-ready' is bigger than the demo work."
+
+### Goal
+
+Take the platform from feature-complete to production-resilient, secure, observable, and supportable. Launch the pilot with 1 corporation + 1 municipality.
+
+### Scope
+
+- **Security**: full pen-test (external + internal), MASVS L2 sign-off, OWASP ASVS L2 sign-off, secrets rotation drill, threat-model review.
+- **Performance**: load-test 5,000 concurrent citizens, 1,000 RPS sustained on hot endpoints, P95 < 500 ms.
+- **Resilience**: chaos engineering — kill DB, kill Redis, kill Ollama, kill MinIO; verify graceful degradation and recovery.
+- **Observability**: every service has dashboards, alerts, runbooks. SLOs defined.
+- **DR**: nightly Postgres + MinIO snapshots; quarterly DR drill rehearsed once.
+- **Compliance**: DPDP Act consent ledger, data export endpoint, account deletion endpoint, GDPR-style RoPA documented.
+- **Operations**: support helpdesk wired in (Zammad / OSTicket — open source); on-call rotation; incident-response playbook.
+- **Training**: tenant admin training (1 day per ULB), inspector training (half day), citizen-facing FAQ video.
+- **Pilot launch**: 1 corporation + 1 small municipality + 1 notified-area authority; soft-launch to 10,000 citizens for 4 weeks.
+- **Hot-fix loop**: weekly retrospective + 48-hour patch cycle during pilot.
+
+### Key Deliverables
+
+1. Pen-test report + remediation log.
+2. SLO document (`docs/slo.md`).
+3. Runbooks (`docs/playbooks/*.md`): on-call, incident, DR, tenant-onboarding, payment-failure-triage, RAG-index-rebuild.
+4. Loadtest report (k6) with proven 1,000 RPS.
+5. DR drill report.
+6. Admin + inspector training materials.
+7. Citizen FAQ video + microsite.
+8. Public launch communications kit.
+9. Pilot retrospective document at +4 weeks.
+
+### Out of Scope
+
+- State-wide rollout (Phase 11).
+
+### Dependencies
+
+- Phases 0–9 complete.
+- 3 ULBs onboarded, MoUs signed.
+
+### Risks
+
+- Pen-test finds critical issues. _Mitigation_: 2-week buffer baked in.
+- Pilot ULB staff resistance. _Mitigation_: training, hand-holding, escalation hotline to project team.
+
+### Exit Criteria
+
+- Pen-test: zero criticals, all highs remediated.
+- 30-day pilot uptime ≥ 99.9 % across all hot paths.
+- ≥ 70 % citizen satisfaction (in-app rating).
+- ≤ 2 % SLA breaches in pilot ULBs.
+
+### Suggested Sprint Slice
+
+- **Sprint 10.1**: Security + perf + resilience hardening.
+- **Sprint 10.2**: Observability + DR + compliance + helpdesk.
+- **Sprint 10.3**: Training + pilot launch + retrospective.
+
+---
+
+## Phase 11 — State-Wide Rollout
+
+> "From 3 ULBs to 125+, without breaking what works."
+
+### Goal
+
+Onboard every WB ULB in waves, with infrastructure scaling, regional support, and continuous configuration improvements.
+
+### Scope
+
+- **Wave plan**: corporations first (high impact, well-staffed), then municipalities, then notified-area authorities.
+- **Infrastructure scale-up**: K8s cluster sizing, Postgres read replicas, Qdrant horizontal scaling, MinIO erasure-coded cluster, Ollama-pool with multiple workers.
+- **Regional support hubs**: divisional team setup for tenant onboarding / training / first-line support.
+- **Onboarding factory**: standardised checklist (tenant config form → service inheritance → KB seeding → staff invites → DLT sender ID → gateway sub-merchant → branding) — target: 1 ULB onboarded per day per support engineer.
+- **Continuous improvement**: monthly release train, fortnightly tenant-feedback loop, quarterly security audit.
+
+### Key Deliverables
+
+1. Wave-onboarding plan with calendar.
+2. Infra scaling plan + executed.
+3. Regional hub SOPs.
+4. Per-quarter platform release.
+5. Per-month tenant-feedback report.
+
+### Out of Scope
+
+- New product features (covered by Phase 12 cadence).
+
+### Dependencies
+
+- Phase 10 complete.
+- Continuous DoUD&MA sponsorship for ULB MoUs.
+
+### Risks
+
+- Onboarding bottleneck. _Mitigation_: invest in self-service onboarding wizard improvements.
+- ULB-specific configuration drift. _Mitigation_: enforce that all customisation is data-driven; periodic audits.
+
+### Exit Criteria
+
+- 100 % of WB ULBs live within 12 months of pilot launch.
+- 99.9 % uptime sustained.
+- ≥ 1 million active citizen accounts.
+
+### Suggested Sprint Slice (continuous)
+
+- **Sprint 11.x**: a wave per sprint, with a parallel platform-team sprint for fixes & scale work.
+
+---
+
+## Phase 12 — Beyond MVP (Continuous)
+
+> "The roadmap that begins after we stop calling it a roadmap."
+
+### Goal
+
+Strategic capability additions, post-pilot, in approximate order of citizen impact.
+
+### Scope (each is its own mini-phase, prioritised quarterly)
+
+1. **WhatsApp Business API channel** — same RAG backend, new front door. Massive adoption multiplier in WB. _Effort: ~2 sprints._
+2. **Voice-first chatbot** — Whisper.cpp self-hosted (with Bengali fine-tune), streaming voice → text → RAG → text → TTS (Coqui XTTS). Critical for low-literacy users. _Effort: ~4 sprints._
+3. **Predictive SLA-breach alerts** — historical-data ML model flagging applications likely to breach 24 h before deadline; alert clerks proactively. _Effort: ~3 sprints._
+4. **Open Data API** — anonymised, aggregated grievance trends, revenue, service uptake; for researchers, journalists, NGOs. _Effort: ~2 sprints._
+5. **IoT integrations** — water-tanker GPS, garbage-truck route tracking, IoT water-meter live consumption, smart streetlight fault auto-detection. _Effort: ~6+ sprints, hardware-dependent._
+6. **Offline-first form filling at full fidelity** — already partially done in Phase 5; harden for low-connectivity wards with full-screen offline-first mode + paper-form OCR fallback.
+7. **Aadhaar e-Sign integration** — for high-trust services (mutation, marriage registration).
+8. **Real-time disaster-response module** — hooks into State Disaster Management Authority feeds.
+9. **Citizen reputation / civic-points** — gamified engagement (rate your ULB, top-rated ward of the month).
+10. **Cross-ULB portability** — citizen moves house from KMC to HMC; profile, holding, family graph migrates with consent.
+11. **Whole-of-government interoperability** — DigiLocker outbound, MyScheme.gov.in cross-link, MeriPehchan SSO.
+12. **Regional language expansion** — Nepali (Darjeeling region), Santali (tribal districts) — same i18n machinery.
+13. **PFMS / Treasury integration** — automatic GL-to-treasury posting for disbursement-side flows (welfare pensions, refunds).
+14. **Citizen-led mapping** — crowdsourced street furniture / pothole / bin-fill-level reporting that augments the IoT data.
+
+### Out of Scope (intentionally deferred until later)
+
+- Anything that depends on hardware not yet procured.
+- Anything that requires legislative change (e.g. fully digital approval certification with legal e-Sign — depends on policy).
+
+### Cadence
+
+- Quarterly road-mapping with the DoUD&MA sponsor + tenant council (representative committee of municipal commissioners).
+- Monthly platform release.
+- Continuous tenant-led configuration improvements.
+
+---
+
+## Cross-Phase Workstreams (run in parallel throughout)
+
+| Workstream                     | Description                                                        | Cadence                         |
+| ------------------------------ | ------------------------------------------------------------------ | ------------------------------- |
+| **Design & UX research**       | Field studies, usability testing, screen-by-screen iteration       | Continuous                      |
+| **Service-catalogue curation** | Adding services, refining fees / SLAs / docs based on ULB feedback | Continuous                      |
+| **Knowledge-base authoring**   | KB articles per tenant, reviewed for accuracy                      | Per-tenant onboarding + monthly |
+| **Security & compliance**      | Quarterly pen-test, monthly dependency scan, annual ASVS audit     | Quarterly / monthly / annually  |
+| **Observability tuning**       | Dashboards, alerts, SLO refinement                                 | Per release                     |
+| **Documentation**              | API docs, admin manuals, citizen FAQs                              | Per feature                     |
+| **Translation QA**             | Bengali + Hindi review by native speakers; especially legal terms  | Per release                     |
+| **Accessibility audit**        | axe-core CI + quarterly manual audit                               | CI + quarterly                  |
+| **Tenant-feedback loop**       | Tenant council meetings, survey instrumentation                    | Fortnightly / monthly           |
+
+---
+
+## Decision Log Pointer
+
+All ratified architecture decisions live in `docs/ADRs/` from Phase 0 onward. ADRs supersede this file when in conflict; this file gets updated in the same PR as the ADR.
+
+---
+
+## Glossary Pointer
+
+See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introduced inline.
+
+---
+
+## Status
+
+**Current state**: Pre-Phase 0. Repo contains only `ARCHITECTURE.md`, `AGENT.md`, `ROADMAP.md`, `index.html`, `MunicipalApp.jsx`. No code, no infrastructure, no tenants.
+
+**Next action**: Schedule the Phase 0 kick-off — sponsor charter sign-off, ADR ratification workshop (1 day), and team / partner provisioning. Sprints for Phase 0 will be scoped in that workshop.
+
+---
+
+_Living document. Edit freely; commit messages must reference the ADR or sprint that motivated the change._

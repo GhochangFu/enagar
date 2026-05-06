@@ -1,0 +1,50 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": { "source.fixAll": "explicit" }
+  },
+  "eslint.workingDirectories": [
+    { "pattern": "apps/*" },
+    { "pattern": "packages/*" },
+    { "pattern": "services/*" }
+  ],
+  "eslint.validate": ["javascript", "typescript", "typescriptreact", "javascriptreact"],
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "tailwindCSS.experimental.configFile": {
+    "apps/citizen-pwa/tailwind.config.ts": "apps/citizen-pwa/**",
+    "packages/ui/tailwind.config.ts": "packages/ui/**"
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "files.exclude": {
+    "**/.turbo": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/.tsbuildinfo": true
+  },
+  "search.exclude": {
+    "**/pnpm-lock.yaml": true,
+    "**/poetry.lock": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/.turbo": true
+  },
+  "git.branchProtection": ["main"],
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, pnpm-lock.yaml, .npmrc, .nvmrc",
+    "tsconfig.json": "tsconfig.*.json",
+    ".eslintrc.json": ".eslintignore, .prettierrc.json, .prettierignore, .editorconfig",
+    "README.md": "AGENT.md, ROADMAP.md, ARCHITECTURE.md"
+  }
+}

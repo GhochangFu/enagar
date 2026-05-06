@@ -1,0 +1,72 @@
+# ---- Node / PNPM ----
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Build outputs ----
+dist/
+build/
+out/
+.next/
+.expo/
+.expo-shared/
+.turbo/
+.cache/
+coverage/
+
+# ---- TypeScript ----
+*.tsbuildinfo
+
+# ---- Test artefacts ----
+playwright-report/
+test-results/
+.nyc_output/
+
+# ---- Env / secrets ----
+.env
+.env.local
+.env.*.local
+!.env.example
+!infrastructure/.env.example
+
+# ---- Editor / OS ----
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ---- Mobile / Native ----
+ios/Pods/
+ios/build/
+android/.gradle/
+android/build/
+android/app/build/
+*.apk
+*.aab
+*.ipa
+
+# ---- Database / Storage local volumes ----
+infrastructure/data/
+infrastructure/volumes/
+
+# ---- AI / RAG local artefacts ----
+services/rag-indexer/.venv/
+services/rag-indexer/__pycache__/
+services/rag-indexer/.pytest_cache/
+*.pyc
+qdrant-storage/
+ollama-models/
+
+# ---- Misc ----
+*.log
+*.pid
+*.seed
+*.pid.lock

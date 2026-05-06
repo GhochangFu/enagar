@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default brand (KMC blue). Overridden per-tenant by @enagar/tenant-theme. */
+  --brand-rgb: 15 76 117;
+  --brand-fg-rgb: 255 255 255;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+  -webkit-font-smoothing: antialiased;
+}

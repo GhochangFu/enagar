@@ -1,0 +1,2349 @@
+import {
+  Home, Grid3x3, User, Bell, Search, ChevronRight,
+  FileText, AlertCircle, MapPin, Phone, Mail, Shield,
+  Droplet, Trash2, Construction, Lightbulb, HeartPulse, TreePine, Building2,
+  CheckCircle2, Clock, XCircle, Send, ArrowLeft, Star, Camera, Calendar,
+  IndianRupee, Download, LogOut, Sparkles, Receipt, BadgeCheck,
+  Briefcase, Zap, Languages, Settings, HelpCircle, Info, Fingerprint, Wifi, BatteryFull, Signal, Upload, Image as ImageIcon, ChevronDown, Megaphone, ScrollText, MapPinned,
+  CircleDot, FileCheck, Wallet, BookOpen, Award, Hammer, Loader2
+} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+
+// ======================== MOCK DATA & CONFIG ========================
+
+const MUNICIPALITIES = [
+  { id: 'kmc', name: 'Kolkata Municipal Corporation', shortName: 'KMC', wards: 144, district: 'Kolkata', logo: '🏛️', theme: '#0F4C75' },
+  { id: 'hmc', name: 'Howrah Municipal Corporation', shortName: 'HMC', wards: 66, district: 'Howrah', logo: '🌉', theme: '#1B5E20' },
+  { id: 'cmc', name: 'Chandannagar Municipal Corporation', shortName: 'CMC', wards: 33, district: 'Hooghly', logo: '⛩️', theme: '#6A1B9A' },
+  { id: 'bmc', name: 'Bidhannagar Municipal Corporation', shortName: 'BMC', wards: 41, district: 'North 24 Pgs', logo: '🏙️', theme: '#0277BD' },
+  { id: 'smc', name: 'Siliguri Municipal Corporation', shortName: 'SMC', wards: 47, district: 'Darjeeling', logo: '🏔️', theme: '#2E7D32' },
+  { id: 'amc', name: 'Asansol Municipal Corporation', shortName: 'AMC', wards: 106, district: 'Paschim Bardhaman', logo: '⚒️', theme: '#BF360C' },
+  { id: 'dmc', name: 'Durgapur Municipal Corporation', shortName: 'DMC', wards: 43, district: 'Paschim Bardhaman', logo: '🏭', theme: '#37474F' },
+  { id: 'shmc', name: 'South Dum Dum Municipality', shortName: 'SDDM', wards: 35, district: 'North 24 Pgs', logo: '🏘️', theme: '#4527A0' },
+];
+
+const I18N = {
+  en: {
+    welcome: 'Welcome to', appName: 'eNagarSeba', tagline: 'Your Municipality, At Your Fingertips',
+    selectMunicipality: 'Select Your Municipality', searchMuni: 'Search municipalities...',
+    home: 'Home', services: 'Services', grievance: 'Grievance', chatbot: 'Sahayak AI', profile: 'Profile',
+    goodMorning: 'Good Morning', goodAfternoon: 'Good Afternoon', goodEvening: 'Good Evening',
+    quickActions: 'Quick Actions', popularServices: 'Popular Services', myStuff: 'My Activity',
+    myApplications: 'My Applications', myPayments: 'My Payments', myGrievances: 'My Grievances',
+    myCertificates: 'My Certificates', announcements: 'Announcements', viewAll: 'View All',
+    apply: 'Apply Now', track: 'Track Status', payNow: 'Pay Now', fileGrievance: 'File a Grievance',
+    askSahayak: 'Ask Sahayak AI', emergencyServices: 'Emergency Services',
+    fees: 'Fees', sla: 'Processing Time', documents: 'Required Documents', eligibility: 'Eligibility',
+    submit: 'Submit', saveDraft: 'Save Draft', preview: 'Preview', back: 'Back', next: 'Next',
+    docketNo: 'Docket No.', applicationNo: 'Application No.', status: 'Status', submittedOn: 'Submitted on',
+    pendingAt: 'Pending at', timeline: 'Timeline', remarks: 'Remarks',
+    chatPlaceholder: 'Ask about services, fees, status...', send: 'Send',
+    welcomeChat: 'Namaste! I am Sahayak, your municipal AI assistant. How can I help you today?',
+    enterMobile: 'Enter Mobile Number', getOtp: 'Get OTP', verifyOtp: 'Verify OTP', enterOtp: 'Enter 6-digit OTP',
+    resendOtp: 'Resend OTP', login: 'Login', register: 'Register', logout: 'Logout',
+    notifications: 'Notifications', noNotifications: 'No notifications yet',
+    profileTitle: 'My Profile', editProfile: 'Edit Profile', settings: 'Settings', helpSupport: 'Help & Support',
+    language: 'Language', changeMuni: 'Change Municipality', aboutApp: 'About App',
+  },
+  bn: {
+    welcome: 'স্বাগতম', appName: 'ই-নাগরসেবা', tagline: 'আপনার পৌরসভা, আপনার হাতের মুঠোয়',
+    selectMunicipality: 'আপনার পৌরসভা নির্বাচন করুন', searchMuni: 'পৌরসভা খুঁজুন...',
+    home: 'হোম', services: 'পরিষেবা', grievance: 'অভিযোগ', chatbot: 'সহায়ক AI', profile: 'প্রোফাইল',
+    goodMorning: 'সুপ্রভাত', goodAfternoon: 'শুভ অপরাহ্ন', goodEvening: 'শুভ সন্ধ্যা',
+    quickActions: 'দ্রুত পদক্ষেপ', popularServices: 'জনপ্রিয় পরিষেবা', myStuff: 'আমার কার্যকলাপ',
+    myApplications: 'আমার আবেদন', myPayments: 'আমার পেমেন্ট', myGrievances: 'আমার অভিযোগ',
+    myCertificates: 'আমার সার্টিফিকেট', announcements: 'ঘোষণা', viewAll: 'সব দেখুন',
+    apply: 'এখনই আবেদন করুন', track: 'স্ট্যাটাস ট্র্যাক করুন', payNow: 'এখন পেমেন্ট করুন', fileGrievance: 'অভিযোগ দায়ের করুন',
+    askSahayak: 'সহায়ক AI কে জিজ্ঞেস করুন', emergencyServices: 'জরুরি পরিষেবা',
+    fees: 'ফি', sla: 'প্রক্রিয়াকরণ সময়', documents: 'প্রয়োজনীয় নথি', eligibility: 'যোগ্যতা',
+    submit: 'জমা দিন', saveDraft: 'খসড়া সংরক্ষণ করুন', preview: 'পূর্বরূপ', back: 'পিছনে', next: 'পরবর্তী',
+    docketNo: 'ডকেট নং', applicationNo: 'আবেদন নং', status: 'অবস্থা', submittedOn: 'জমা দেওয়া হয়েছে',
+    pendingAt: 'অপেক্ষারত', timeline: 'সময়রেখা', remarks: 'মন্তব্য',
+    chatPlaceholder: 'পরিষেবা, ফি, স্ট্যাটাস সম্পর্কে জিজ্ঞাসা করুন...', send: 'পাঠান',
+    welcomeChat: 'নমস্কার! আমি সহায়ক, আপনার পৌর AI সহকারী। আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
+    enterMobile: 'মোবাইল নম্বর লিখুন', getOtp: 'OTP নিন', verifyOtp: 'OTP যাচাই করুন', enterOtp: '৬-সংখ্যার OTP লিখুন',
+    resendOtp: 'OTP পুনরায় পাঠান', login: 'লগইন', register: 'নিবন্ধন', logout: 'লগআউট',
+    notifications: 'বিজ্ঞপ্তি', noNotifications: 'কোনো বিজ্ঞপ্তি নেই',
+    profileTitle: 'আমার প্রোফাইল', editProfile: 'প্রোফাইল সম্পাদনা করুন', settings: 'সেটিংস', helpSupport: 'সাহায্য ও সহায়তা',
+    language: 'ভাষা', changeMuni: 'পৌরসভা পরিবর্তন করুন', aboutApp: 'অ্যাপ সম্পর্কে',
+  },
+  hi: {
+    welcome: 'स्वागत है', appName: 'ई-नगरसेवा', tagline: 'आपकी नगरपालिका, आपकी उंगलियों पर',
+    selectMunicipality: 'अपनी नगरपालिका चुनें', searchMuni: 'नगरपालिका खोजें...',
+    home: 'होम', services: 'सेवाएं', grievance: 'शिकायत', chatbot: 'सहायक AI', profile: 'प्रोफ़ाइल',
+    goodMorning: 'शुभ प्रभात', goodAfternoon: 'शुभ अपराह्न', goodEvening: 'शुभ संध्या',
+    quickActions: 'त्वरित कार्य', popularServices: 'लोकप्रिय सेवाएं', myStuff: 'मेरी गतिविधि',
+    myApplications: 'मेरे आवेदन', myPayments: 'मेरे भुगतान', myGrievances: 'मेरी शिकायतें',
+    myCertificates: 'मेरे प्रमाणपत्र', announcements: 'घोषणाएं', viewAll: 'सभी देखें',
+    apply: 'अभी आवेदन करें', track: 'स्थिति ट्रैक करें', payNow: 'अभी भुगतान करें', fileGrievance: 'शिकायत दर्ज करें',
+    askSahayak: 'सहायक AI से पूछें', emergencyServices: 'आपातकालीन सेवाएं',
+    fees: 'शुल्क', sla: 'प्रसंस्करण समय', documents: 'आवश्यक दस्तावेज', eligibility: 'पात्रता',
+    submit: 'जमा करें', saveDraft: 'ड्राफ्ट सहेजें', preview: 'पूर्वावलोकन', back: 'वापस', next: 'अगला',
+    docketNo: 'डॉकेट नं.', applicationNo: 'आवेदन नं.', status: 'स्थिति', submittedOn: 'जमा किया गया',
+    pendingAt: 'लंबित', timeline: 'समयरेखा', remarks: 'टिप्पणी',
+    chatPlaceholder: 'सेवाओं, शुल्क, स्थिति के बारे में पूछें...', send: 'भेजें',
+    welcomeChat: 'नमस्ते! मैं सहायक हूं, आपका नगरपालिका AI सहायक। मैं आपकी कैसे मदद कर सकता हूं?',
+    enterMobile: 'मोबाइल नंबर दर्ज करें', getOtp: 'OTP प्राप्त करें', verifyOtp: 'OTP सत्यापित करें', enterOtp: '6-अंकीय OTP दर्ज करें',
+    resendOtp: 'OTP पुनः भेजें', login: 'लॉगिन', register: 'पंजीकरण', logout: 'लॉगआउट',
+    notifications: 'सूचनाएं', noNotifications: 'अभी तक कोई सूचना नहीं',
+    profileTitle: 'मेरी प्रोफ़ाइल', editProfile: 'प्रोफ़ाइल संपादित करें', settings: 'सेटिंग्स', helpSupport: 'सहायता और समर्थन',
+    language: 'भाषा', changeMuni: 'नगरपालिका बदलें', aboutApp: 'ऐप के बारे में',
+  }
+};
+
+const SERVICE_CATEGORIES = [
+  { id: 'cert', name: 'Certificates & Registration', nameBn: 'সার্টিফিকেট ও নিবন্ধন', nameHi: 'प्रमाणपत्र और पंजीकरण', icon: BadgeCheck, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', text: 'text-blue-700' },
+  { id: 'tax', name: 'Taxes & Property', nameBn: 'কর ও সম্পত্তি', nameHi: 'कर और संपत्ति', icon: Building2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  { id: 'water', name: 'Water & Sanitation', nameBn: 'জল ও স্যানিটেশন', nameHi: 'जल और स्वच्छता', icon: Droplet, color: 'from-cyan-500 to-cyan-600', bg: 'bg-cyan-50', text: 'text-cyan-700' },
+  { id: 'building', name: 'Building & Planning', nameBn: 'নির্মাণ ও পরিকল্পনা', nameHi: 'निर्माण और योजना', icon: Construction, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', text: 'text-amber-700' },
+  { id: 'health', name: 'Health & Emergency', nameBn: 'স্বাস্থ্য ও জরুরি', nameHi: 'स्वास्थ्य और आपातकाल', icon: HeartPulse, color: 'from-rose-500 to-rose-600', bg: 'bg-rose-50', text: 'text-rose-700' },
+  { id: 'infra', name: 'Infrastructure', nameBn: 'অবকাঠামো', nameHi: 'अवसंरचना', icon: Hammer, color: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', text: 'text-orange-700' },
+  { id: 'welfare', name: 'Welfare & Social', nameBn: 'কল্যাণ ও সামাজিক', nameHi: 'कल्याण और सामाजिक', icon: HeartPulse, color: 'from-pink-500 to-pink-600', bg: 'bg-pink-50', text: 'text-pink-700' },
+  { id: 'adv', name: 'Advertisement & Media', nameBn: 'বিজ্ঞাপন ও মিডিয়া', nameHi: 'विज्ञापन और मीडिया', icon: Megaphone, color: 'from-fuchsia-500 to-fuchsia-600', bg: 'bg-fuchsia-50', text: 'text-fuchsia-700' },
+  { id: 'rent', name: 'Bookings & Rentals', nameBn: 'বুকিং ও ভাড়া', nameHi: 'बुकिंग और किराया', icon: Calendar, color: 'from-indigo-500 to-indigo-600', bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  { id: 'smart', name: 'Smart City Services', nameBn: 'স্মার্ট সিটি পরিষেবা', nameHi: 'स्मार्ट सिटी सेवाएं', icon: Zap, color: 'from-sky-500 to-sky-600', bg: 'bg-sky-50', text: 'text-sky-700' },
+  { id: 'fines', name: 'Fines & Penalties', nameBn: 'জরিমানা ও শাস্তি', nameHi: 'जुर्माना और शास्ति', icon: AlertCircle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', text: 'text-red-700' },
+  { id: 'tender', name: 'Tenders & Deposits', nameBn: 'টেন্ডার ও আমানত', nameHi: 'निविदा और जमा', icon: Briefcase, color: 'from-slate-500 to-slate-600', bg: 'bg-slate-50', text: 'text-slate-700' },
+  { id: 'info', name: 'Info & RTI', nameBn: 'তথ্য ও RTI', nameHi: 'सूचना और RTI', icon: BookOpen, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', text: 'text-teal-700' },
+  { id: 'misc', name: 'NOC & Permissions', nameBn: 'NOC ও অনুমতি', nameHi: 'NOC और अनुमतियां', icon: ScrollText, color: 'from-violet-500 to-violet-600', bg: 'bg-violet-50', text: 'text-violet-700' },
+];
+
+const SERVICES = [
+  // ============== CERTIFICATES & REGISTRATION ==============
+  { id: 'birth-cert', categoryId: 'cert', name: 'Birth Certificate', icon: '👶', fees: 50, sla: '7 days', popular: true,
+    description: 'Apply for a birth certificate for births registered within municipal limits.',
+    documents: ['Hospital discharge summary', 'Parents\' Aadhaar', 'Address proof', 'Marriage certificate (optional)'],
+    eligibility: 'Birth must have occurred within municipality jurisdiction. Application within 21 days is free.',
+    fields: [
+      { name: 'childName', label: 'Child\'s Full Name', type: 'text', required: true },
+      { name: 'dob', label: 'Date of Birth', type: 'date', required: true },
+      { name: 'gender', label: 'Gender', type: 'radio', options: ['Male', 'Female', 'Other'], required: true },
+      { name: 'placeOfBirth', label: 'Place of Birth (Hospital/Home)', type: 'text', required: true },
+      { name: 'fatherName', label: 'Father\'s Name', type: 'text', required: true },
+      { name: 'motherName', label: 'Mother\'s Name', type: 'text', required: true },
+      { name: 'address', label: 'Permanent Address', type: 'textarea', required: true },
+      { name: 'wardNo', label: 'Ward Number', type: 'number', required: true },
+      { name: 'hospitalDoc', label: 'Hospital Discharge Document', type: 'file', required: true },
+    ]
+  },
+  { id: 'death-cert', categoryId: 'cert', name: 'Death Certificate', icon: '📄', fees: 50, sla: '7 days',
+    description: 'Apply for a death certificate for deaths registered within municipal limits.', documents: ['Medical certificate', 'ID proof of deceased', 'Applicant ID'], eligibility: 'Death within municipality limits.', fields: [] },
+  { id: 'marriage-reg', categoryId: 'cert', name: 'Marriage Registration', icon: '💍', fees: 200, sla: '15 days',
+    description: 'Register your marriage with the municipality.', documents: ['Aadhaar of both parties', 'Marriage photos', 'Witness IDs'], eligibility: 'Both parties must be of legal age.', fields: [] },
+  { id: 'trade-license', categoryId: 'cert', name: 'Trade License', icon: '🏪', fees: 1500, sla: '21 days', popular: true,
+    description: 'Apply for new trade license or renewal for your business.',
+    documents: ['Aadhaar', 'Address proof of premises', 'Rent agreement / ownership proof', 'Recent photo'],
+    eligibility: 'Business operating within municipality. Renewal annually.', fields: [] },
+
+  // ============== TAXES & PROPERTY ==============
+  { id: 'prop-tax', categoryId: 'tax', name: 'Property Tax Payment', icon: '🏠', fees: 0, sla: 'Instant', popular: true,
+    description: 'Pay your annual property tax online with instant receipt.', documents: ['Holding number', 'Last receipt'], eligibility: 'Property owners in municipality.', fields: [] },
+  { id: 'mutation', categoryId: 'tax', name: 'Property Mutation', icon: '🔄', fees: 500, sla: '30 days',
+    description: 'Transfer property ownership records.', documents: ['Sale deed', 'Latest tax receipt', 'Aadhaar'], eligibility: 'Verified property transfer.', fields: [] },
+  { id: 'water-tax', categoryId: 'tax', name: 'Water Tax', icon: '💧', fees: 0, sla: 'Instant',
+    description: 'Pay annual water tax linked to property holding.', documents: ['Holding number'], eligibility: 'Property owners with assessed water tax.', fields: [] },
+  { id: 'conservancy-tax', categoryId: 'tax', name: 'Conservancy Tax (Solid Waste)', icon: '🗑️', fees: 0, sla: 'Instant',
+    description: 'Pay annual conservancy tax for door-to-door waste collection.', documents: ['Holding number'], eligibility: 'All property holders.', fields: [] },
+  { id: 'self-assess', categoryId: 'tax', name: 'Self Assessment of Property Tax', icon: '📊', fees: 0, sla: '21 days',
+    description: 'Submit self-assessment under SAS scheme for new properties or revaluation.', documents: ['Property documents', 'Built-up area details', 'Photos'], eligibility: 'Property owners.', fields: [] },
+
+  // ============== WATER & SANITATION ==============
+  { id: 'water-conn', categoryId: 'water', name: 'New Water Connection', icon: '💧', fees: 2500, sla: '21 days', popular: true,
+    description: 'Apply for new municipal water connection.', documents: ['Property tax receipt', 'Aadhaar', 'Building plan approval'], eligibility: 'Property owners with valid holding.', fields: [] },
+  { id: 'water-bill', categoryId: 'water', name: 'Water Supply Bill', icon: '💦', fees: 0, sla: 'Instant',
+    description: 'Pay your monthly water supply charges.', documents: ['Connection number'], eligibility: 'Existing connection holders.', fields: [] },
+  { id: 'sewerage-conn', categoryId: 'water', name: 'Sewerage Connection', icon: '🚿', fees: 3500, sla: '30 days',
+    description: 'Apply for new sewerage line connection to municipal network.', documents: ['Property documents', 'Building plan', 'Site sketch'], eligibility: 'Properties on streets with sewerage main line.', fields: [] },
+  { id: 'sewerage-bill', categoryId: 'water', name: 'Sewerage Charges', icon: '🛁', fees: 0, sla: 'Instant',
+    description: 'Pay monthly sewerage charges.', documents: ['Connection number'], eligibility: 'Existing sewerage connection holders.', fields: [] },
+  { id: 'swm-fee', categoryId: 'water', name: 'Solid Waste Management Fee', icon: '♻️', fees: 0, sla: 'Instant',
+    description: 'Monthly user fee for door-to-door garbage collection (separate from conservancy tax).', documents: ['Property ID'], eligibility: 'All residents and commercial premises.', fields: [] },
+  { id: 'public-toilet', categoryId: 'water', name: 'Public Toilet Pass', icon: '🚻', fees: 100, sla: 'Instant',
+    description: 'Monthly pass for unlimited use of municipal public toilets.', documents: ['Aadhaar'], eligibility: 'Any resident or daily commuter.', fields: [] },
+  { id: 'septic-cleaning', categoryId: 'water', name: 'Septic Tank Cleaning', icon: '🚛', fees: 1200, sla: '5 days',
+    description: 'Book municipal vacuum truck for septic tank cleaning.', documents: ['Address proof'], eligibility: 'Any resident.', fields: [] },
+
+  // ============== BUILDING & PLANNING ==============
+  { id: 'building-plan', categoryId: 'building', name: 'Building Plan Approval', icon: '🏗️', fees: 5000, sla: '60 days',
+    description: 'Submit building plans for municipal approval.', documents: ['Architect-signed drawings', 'Land documents', 'NOCs'], eligibility: 'Land owners with clear title.', fields: [] },
+  { id: 'completion', categoryId: 'building', name: 'Completion Certificate', icon: '🏢', fees: 1000, sla: '30 days',
+    description: 'Get completion certificate for finished construction.', documents: ['Approved plan', 'Photos', 'Architect certificate'], eligibility: 'Construction must match approved plan.', fields: [] },
+  { id: 'occupancy', categoryId: 'building', name: 'Occupancy Certificate', icon: '🔑', fees: 1500, sla: '30 days',
+    description: 'Apply for Occupancy Certificate (OC) — mandatory before moving in or selling property.', documents: ['Completion certificate', 'Approved plan', 'Tax receipts', 'Photos'], eligibility: 'Buildings with valid completion certificate.', fields: [] },
+  { id: 'plan-revise', categoryId: 'building', name: 'Plan Revision', icon: '📐', fees: 2500, sla: '45 days',
+    description: 'Apply for revision of an approved building plan.', documents: ['Original plan', 'Revised drawings'], eligibility: 'Original plan holder.', fields: [] },
+
+  // ============== HEALTH & EMERGENCY ==============
+  { id: 'health-license', categoryId: 'health', name: 'Health Trade License', icon: '🏥', fees: 800, sla: '15 days',
+    description: 'License for food, medical, or health-related business.', documents: ['Trade license', 'FSSAI (if food)', 'Medical NOC'], eligibility: 'Health-trade operators.', fields: [] },
+  { id: 'fogging', categoryId: 'health', name: 'Mosquito Fogging Request', icon: '🦟', fees: 0, sla: '3 days',
+    description: 'Request mosquito control fogging in your locality.', documents: ['Address only'], eligibility: 'Any resident.', fields: [] },
+  { id: 'ambulance', categoryId: 'health', name: 'Ambulance Booking', icon: '🚑', fees: 500, sla: 'Instant',
+    description: 'Book municipal ambulance for non-emergency medical transport (free for emergencies).', documents: ['Aadhaar'], eligibility: 'Any resident; emergencies free.', fields: [] },
+  { id: 'hearse', categoryId: 'health', name: 'Hearse Van Booking', icon: '⚰️', fees: 800, sla: 'Instant',
+    description: 'Book municipal hearse van for transport of mortal remains. Subsidized for BPL families.', documents: ['Death certificate / hospital pass'], eligibility: 'Any resident.', fields: [] },
+  { id: 'crematorium', categoryId: 'health', name: 'Crematorium / Burial Ground Booking', icon: '🕯️', fees: 500, sla: 'Instant',
+    description: 'Reserve a slot at municipal crematorium or burial ground.', documents: ['Death certificate'], eligibility: 'Any resident.', fields: [] },
+
+  // ============== INFRASTRUCTURE ==============
+  { id: 'road-repair', categoryId: 'infra', name: 'Road Repair Request', icon: '🛣️', fees: 0, sla: '7 days',
+    description: 'Report potholes or damaged roads in your area.', documents: ['Photos preferred'], eligibility: 'Any resident.', fields: [] },
+  { id: 'streetlight', categoryId: 'infra', name: 'Streetlight Repair', icon: '💡', fees: 0, sla: '5 days',
+    description: 'Report non-functional or damaged streetlights.', documents: ['Photo + location'], eligibility: 'Any resident.', fields: [] },
+  { id: 'tree-pruning', categoryId: 'infra', name: 'Tree Pruning Request', icon: '🌳', fees: 0, sla: '10 days',
+    description: 'Request pruning of municipal trees that pose safety risks.', documents: ['Photo + location'], eligibility: 'Any resident.', fields: [] },
+
+  // ============== WELFARE & SOCIAL ==============
+  { id: 'pension', categoryId: 'welfare', name: 'Old Age Pension', icon: '👴', fees: 0, sla: '45 days',
+    description: 'Apply for old age pension scheme.', documents: ['Aadhaar', 'Bank passbook', 'Age proof', 'Income certificate'], eligibility: 'Age 60+, BPL.', fields: [] },
+  { id: 'widow-pension', categoryId: 'welfare', name: 'Widow Pension', icon: '🤝', fees: 0, sla: '45 days',
+    description: 'Apply for widow pension scheme.', documents: ['Aadhaar', 'Bank passbook', 'Death certificate of spouse', 'Income certificate'], eligibility: 'Widows below income limit.', fields: [] },
+  { id: 'disability-pension', categoryId: 'welfare', name: 'Disability Pension', icon: '♿', fees: 0, sla: '45 days',
+    description: 'Apply for disability pension.', documents: ['Aadhaar', 'Disability certificate (40%+)', 'Bank passbook'], eligibility: 'Persons with 40%+ disability.', fields: [] },
+
+  // ============== ADVERTISEMENT & MEDIA ==============
+  { id: 'ad-hoarding', categoryId: 'adv', name: 'Hoarding Permission & Tax', icon: '🪧', fees: 5000, sla: '15 days', popular: true,
+    description: 'Apply for permission to install a hoarding and pay annual hoarding tax. Rates vary by ward and size.',
+    documents: ['Site ownership / lease', 'Structural stability certificate', 'Design with dimensions', 'Trade license'],
+    eligibility: 'Registered advertising agencies and property owners.', fields: [] },
+  { id: 'ad-billboard', categoryId: 'adv', name: 'Digital Billboard Fees', icon: '📺', fees: 25000, sla: '21 days',
+    description: 'Annual fees and permission for LED / digital billboard installation.',
+    documents: ['Electrical safety certificate', 'Site plan', 'Content guidelines undertaking'],
+    eligibility: 'Permitted only on approved arterial roads and commercial zones.', fields: [] },
+  { id: 'ad-mobile', categoryId: 'adv', name: 'Mobile Advertisement Fees', icon: '🚐', fees: 2000, sla: '7 days',
+    description: 'Permission and fees for mobile / vehicle-mounted advertisements (rickshaw boards, LED vans, mic announcements).',
+    documents: ['Vehicle RC', 'Trade license', 'Content sample'],
+    eligibility: 'Registered advertising agencies.', fields: [] },
+  { id: 'ad-led', categoryId: 'adv', name: 'LED Display Slot Booking', icon: '💡', fees: 15000, sla: '5 days',
+    description: 'Book ad slots on municipal LED screens at busy junctions and markets.',
+    documents: ['Ad creative (video/image)', 'Trade license'],
+    eligibility: 'Any business with valid trade license.', fields: [] },
+  { id: 'ad-wifi', categoryId: 'adv', name: 'Public WiFi Ad Slots', icon: '📶', fees: 5000, sla: '5 days',
+    description: 'Sponsor login splash pages on municipal free public WiFi network.',
+    documents: ['Trade license', 'Content creative'], eligibility: 'Registered advertisers only.', fields: [] },
+  { id: 'ad-bus-shelter', categoryId: 'adv', name: 'Bus Shelter / Kiosk Ads', icon: '🚏', fees: 8000, sla: '10 days',
+    description: 'Annual lease for advertising space on bus shelters and municipal kiosks.',
+    documents: ['Trade license', 'Design proof'], eligibility: 'Advertising agencies.', fields: [] },
+
+  // ============== BOOKINGS & RENTALS ==============
+  { id: 'community-hall', categoryId: 'rent', name: 'Community Hall Booking', icon: '🏛️', fees: 5000, sla: '3 days', popular: true,
+    description: 'Book municipal community hall for weddings, functions, and gatherings. Rates vary by hall and day type.',
+    documents: ['Aadhaar', 'Event details', 'Refundable security deposit ₹5,000'],
+    eligibility: 'Any resident; first-come-first-served subject to availability.', fields: [] },
+  { id: 'auditorium', categoryId: 'rent', name: 'Municipal Auditorium Booking', icon: '🎭', fees: 15000, sla: '7 days',
+    description: 'Book municipal auditorium for cultural programs, conferences, or stage shows.',
+    documents: ['Aadhaar / org letter', 'Event details', 'Refundable security deposit ₹15,000'],
+    eligibility: 'Registered organizations and individuals.', fields: [] },
+  { id: 'market-shop', categoryId: 'rent', name: 'Municipal Market Shop Rent', icon: '🛍️', fees: 0, sla: 'Instant',
+    description: 'Pay monthly rent for allotted municipal market shop.',
+    documents: ['Allotment letter', 'Last receipt'], eligibility: 'Existing market shop allottees.', fields: [] },
+  { id: 'stall-daily', categoryId: 'rent', name: 'Daily / Weekly Market Stall', icon: '🏬', fees: 100, sla: 'Instant',
+    description: 'Book a stall in daily haat or weekly market. Rates vary by market.',
+    documents: ['Aadhaar', 'Vendor ID (if applicable)'], eligibility: 'Verified vendors.', fields: [] },
+  { id: 'parking-lease', categoryId: 'rent', name: 'Parking Lot Lease (Annual)', icon: '🅿️', fees: 50000, sla: '30 days',
+    description: 'Annual lease for operating a municipal parking lot. Awarded by tender.',
+    documents: ['Trade license', 'EMD receipt', 'Past experience proof'],
+    eligibility: 'Tender qualified operators only.', fields: [] },
+  { id: 'park-booking', categoryId: 'rent', name: 'Municipal Park / Lawn Booking', icon: '🌷', fees: 2000, sla: '3 days',
+    description: 'Book municipal park lawn for private functions, photoshoots, or filming.',
+    documents: ['Aadhaar / org letter', 'Event details'], eligibility: 'Any resident.', fields: [] },
+  { id: 'equipment-hire', categoryId: 'rent', name: 'Equipment Hiring (JCB / Generator / Mics)', icon: '🛠️', fees: 0, sla: '2 days',
+    description: 'Hire municipal equipment — JCB, generator, public address system, water tankers. Rates per item per day.',
+    documents: ['Aadhaar / org letter'], eligibility: 'Any resident or organization.', fields: [] },
+  { id: 'sport-ground', categoryId: 'rent', name: 'Sports Ground / Stadium Booking', icon: '🏟️', fees: 3000, sla: '5 days',
+    description: 'Book municipal stadium or sports ground for tournaments, practice, or events.',
+    documents: ['Org letter', 'Event details'], eligibility: 'Registered clubs and schools.', fields: [] },
+
+  // ============== SMART CITY SERVICES ==============
+  { id: 'smart-parking', categoryId: 'smart', name: 'Smart Parking Booking', icon: '🚗', fees: 30, sla: 'Instant', popular: true,
+    description: 'Real-time on-street parking — find, reserve, and pay by the hour. Sensor-based availability.',
+    documents: ['Vehicle number'], eligibility: 'Any vehicle owner.', fields: [] },
+  { id: 'ev-charging', categoryId: 'smart', name: 'EV Charging Station', icon: '🔌', fees: 0, sla: 'Instant',
+    description: 'Locate, reserve, and pay for charging at municipal EV charging stations. Pricing per kWh.',
+    documents: ['Vehicle number'], eligibility: 'EV owners.', fields: [] },
+  { id: 'iot-water', categoryId: 'smart', name: 'IoT Water Meter Recharge', icon: '📊', fees: 0, sla: 'Instant',
+    description: 'Top up your prepaid IoT smart water meter. Live usage and leak alerts in app.',
+    documents: ['Meter ID'], eligibility: 'Households with installed smart meter.', fields: [] },
+  { id: 'smart-waste', categoryId: 'smart', name: 'Smart Waste Bin Subscription', icon: '🗑️', fees: 200, sla: 'Instant',
+    description: 'Premium smart waste collection — sensor-based bins, on-demand pickup, segregation tracking.',
+    documents: ['Address proof'], eligibility: 'Households and commercial premises.', fields: [] },
+  { id: 'gis-data', categoryId: 'smart', name: 'GIS Data Access License', icon: '🗺️', fees: 10000, sla: '15 days',
+    description: 'License for ward-level GIS map and spatial data. For researchers, planners, fintechs.',
+    documents: ['Org letter', 'Use-case description', 'Data privacy undertaking'],
+    eligibility: 'Registered organizations only.', fields: [] },
+  { id: 'land-lease', categoryId: 'smart', name: 'Municipal Land Lease', icon: '📍', fees: 100000, sla: '60 days',
+    description: 'Apply for long-term lease of municipal land plots. Awarded by tender / public auction.',
+    documents: ['Org documents', 'EMD', 'Project plan', 'Solvency certificate'],
+    eligibility: 'Tender qualified parties.', fields: [] },
+  { id: 'rooftop-solar', categoryId: 'smart', name: 'Rooftop Solar Leasing', icon: '☀️', fees: 0, sla: '30 days',
+    description: 'Lease your rooftop to municipality / partners for solar panel installation, or get NOC for own installation.',
+    documents: ['Property documents', 'Holding number', 'Building stability certificate'],
+    eligibility: 'Property owners with min 500 sqft rooftop.', fields: [] },
+  { id: 'telecom-noc', categoryId: 'smart', name: 'Telecom Tower Permission', icon: '📡', fees: 25000, sla: '30 days',
+    description: 'Apply for permission to install telecom tower / small cell on private or municipal property.',
+    documents: ['Site lease deed', 'Structural certificate', 'EMF compliance', 'Neighbour NOC'],
+    eligibility: 'Licensed telecom operators only.', fields: [] },
+
+  // ============== FINES & PENALTIES ==============
+  { id: 'fine-water-late', categoryId: 'fines', name: 'Water Bill Late Payment', icon: '⏰', fees: 0, sla: 'Instant',
+    description: 'Pay water bill late payment penalty (2% per month on outstanding).',
+    documents: ['Connection number'], eligibility: 'Connection holders with overdue bills.', fields: [] },
+  { id: 'fine-tax-late', categoryId: 'fines', name: 'Property Tax Late Penalty', icon: '⏱️', fees: 0, sla: 'Instant',
+    description: 'Pay late penalty on overdue property tax (2% per month interest).',
+    documents: ['Holding number'], eligibility: 'Property owners with overdue tax.', fields: [] },
+  { id: 'fine-encroach', categoryId: 'fines', name: 'Encroachment Penalty', icon: '🚧', fees: 0, sla: 'Instant',
+    description: 'Pay penalty against encroachment notice issued by municipality.',
+    documents: ['Notice number'], eligibility: 'Notice recipients.', fields: [] },
+  { id: 'fine-illegal-const', categoryId: 'fines', name: 'Illegal Construction Fine', icon: '🏚️', fees: 0, sla: 'Instant',
+    description: 'Pay compounding fee or penalty for unauthorized construction. Subject to building rules.',
+    documents: ['Notice number', 'Property documents'], eligibility: 'Notice recipients.', fields: [] },
+  { id: 'fine-sanitation', categoryId: 'fines', name: 'Sanitation Violation Fine', icon: '🧹', fees: 500, sla: 'Instant',
+    description: 'Pay fine for sanitation violations (₹500–₹2,000 depending on type).',
+    documents: ['Notice / Challan number'], eligibility: 'Cited individuals or establishments.', fields: [] },
+  { id: 'fine-trade', categoryId: 'fines', name: 'Trade License Violation', icon: '⚠️', fees: 1000, sla: 'Instant',
+    description: 'Pay penalty for operating without valid trade license or for violation of license terms.',
+    documents: ['Trade license / Notice'], eligibility: 'Cited businesses.', fields: [] },
+  { id: 'fine-dump', categoryId: 'fines', name: 'Solid Waste Dumping Fine', icon: '🗑️', fees: 1000, sla: 'Instant',
+    description: 'Pay penalty for dumping waste in unauthorized locations or non-segregation.',
+    documents: ['Challan number'], eligibility: 'Cited individuals or establishments.', fields: [] },
+  { id: 'fine-noise', categoryId: 'fines', name: 'Noise Pollution Fine', icon: '🔊', fees: 1000, sla: 'Instant',
+    description: 'Pay fine for noise pollution violations beyond permitted decibel limits.',
+    documents: ['Notice number'], eligibility: 'Cited individuals or events.', fields: [] },
+
+  // ============== TENDERS & DEPOSITS ==============
+  { id: 'tender-form', categoryId: 'tender', name: 'Tender Form Purchase', icon: '📋', fees: 500, sla: 'Instant',
+    description: 'Purchase official tender documents for active municipal tenders.',
+    documents: ['Trade license', 'GST'], eligibility: 'Registered contractors / firms.', fields: [] },
+  { id: 'tender-emd', categoryId: 'tender', name: 'EMD (Earnest Money Deposit)', icon: '💼', fees: 0, sla: 'Instant',
+    description: 'Submit EMD against participation in a municipal tender. Refundable to unsuccessful bidders within 30 days of award.',
+    documents: ['Tender reference', 'Bidder PAN'], eligibility: 'Tender participants.', fields: [] },
+  { id: 'security-deposit', categoryId: 'tender', name: 'Contractor Security Deposit', icon: '🔒', fees: 0, sla: '5 days',
+    description: 'Submit security deposit by successful tender awardee. Refundable on satisfactory completion + defect liability.',
+    documents: ['Work order', 'Contract'], eligibility: 'Awarded contractors.', fields: [] },
+  { id: 'deposit-refund', categoryId: 'tender', name: 'Refundable Deposit Return', icon: '↩️', fees: 0, sla: '15 days',
+    description: 'Apply for refund of EMD, security deposit, or other refundable deposits.',
+    documents: ['Original receipt', 'Bank details', 'NOC / clearance'], eligibility: 'Original depositor.', fields: [] },
+  { id: 'scrap-sale', categoryId: 'tender', name: 'Sale of Municipal Scrap', icon: '🔩', fees: 100, sla: 'Instant',
+    description: 'Bid in online auctions for municipal scrap (vehicles, metal, paper, e-waste).',
+    documents: ['Trade license / GST', 'PAN'], eligibility: 'Registered buyers.', fields: [] },
+  { id: 'vendor-reg', categoryId: 'tender', name: 'Vendor / Contractor Registration', icon: '🪪', fees: 2500, sla: '21 days',
+    description: 'Register as an empanelled municipal vendor or contractor for future tenders.',
+    documents: ['PAN', 'GST', 'Trade license', 'Past work proof', 'Solvency certificate'],
+    eligibility: 'Registered firms / individuals with relevant experience.', fields: [] },
+
+  // ============== INFO & RTI ==============
+  { id: 'rti', categoryId: 'info', name: 'RTI Application', icon: '📜', fees: 10, sla: '30 days', popular: true,
+    description: 'File a Right to Information application with the municipality. Reply within 30 days as per RTI Act, 2005.',
+    documents: ['Aadhaar (Indian citizens only)'], eligibility: 'Indian citizens. BPL applicants exempt from fee.', fields: [] },
+  { id: 'doc-search', categoryId: 'info', name: 'Old Document Search', icon: '🔎', fees: 200, sla: '7 days',
+    description: 'Search and retrieve copies of old municipal records — old assessments, building plans, mutation records.',
+    documents: ['Reference details (year, holding, name)'], eligibility: 'Concerned parties.', fields: [] },
+  { id: 'birth-search', categoryId: 'info', name: 'Old Birth Record Search', icon: '👶', fees: 100, sla: '7 days',
+    description: 'Search and retrieve birth records older than 1 year.',
+    documents: ['Approximate date', 'Parents\' names', 'Place'], eligibility: 'Family members.', fields: [] },
+  { id: 'death-search', categoryId: 'info', name: 'Old Death Record Search', icon: '📖', fees: 100, sla: '7 days',
+    description: 'Search and retrieve death records older than 1 year.',
+    documents: ['Approximate date', 'Name of deceased', 'Place'], eligibility: 'Family members or legal heirs.', fields: [] },
+  { id: 'cert-copy', categoryId: 'info', name: 'Certified Copy Issuance', icon: '🖋️', fees: 150, sla: '7 days',
+    description: 'Get certified true copy of any previously issued municipal certificate or document.',
+    documents: ['Reference number', 'Aadhaar'], eligibility: 'Original certificate holders.', fields: [] },
+
+  // ============== NOC & PERMISSIONS ==============
+  { id: 'event-noc', categoryId: 'misc', name: 'Event Permission NOC', icon: '🎉', fees: 1500, sla: '7 days',
+    description: 'Get permission for public events, processions, or gatherings.',
+    documents: ['Event details', 'Venue NOC', 'Organizer ID'], eligibility: 'Registered organizations or individuals.', fields: [] },
+  { id: 'pandal-noc', categoryId: 'misc', name: 'Pandal / Puja NOC', icon: '🪔',  fees: 500, sla: '5 days',
+    description: 'Get NOC for puja pandals, kalipuja, durgapuja, and religious processions.',
+    documents: ['Site sketch', 'Committee details', 'Fire NOC undertaking'],
+    eligibility: 'Registered puja committees.', fields: [] },
+  { id: 'roadcut-noc', categoryId: 'misc', name: 'Road Cutting NOC', icon: '🚧', fees: 5000, sla: '10 days',
+    description: 'Permission for road cutting for utility lines, repairs, or new connections. Includes restoration deposit.',
+    documents: ['Purpose certificate', 'Site plan', 'Restoration deposit'],
+    eligibility: 'Utility agencies and authorized contractors.', fields: [] },
+  { id: 'tree-cut-noc', categoryId: 'misc', name: 'Tree Cutting Permission', icon: '🪓', fees: 2000, sla: '15 days',
+    description: 'Permission to cut or transplant a tree on private land. Compensatory plantation mandatory.',
+    documents: ['Property documents', 'Photos of tree', 'Reason'],
+    eligibility: 'Property owners. Subject to forest dept approval for protected species.', fields: [] },
+];
+
+const GRIEVANCE_CATEGORIES = [
+  { id: 'sanitation', name: 'Sanitation & Waste', icon: Trash2, color: 'bg-emerald-100 text-emerald-700', sub: ['Garbage not collected', 'Overflowing dustbins', 'Illegal dumping', 'Drain blockage', 'Sewer overflow'] },
+  { id: 'water', name: 'Water Supply', icon: Droplet, color: 'bg-cyan-100 text-cyan-700', sub: ['No water supply', 'Low pressure', 'Contaminated water', 'Leakage', 'Illegal connection'] },
+  { id: 'roads', name: 'Roads & Infrastructure', icon: Construction, color: 'bg-orange-100 text-orange-700', sub: ['Potholes', 'Damaged road', 'Broken footpath', 'Drainage issue', 'Construction debris'] },
+  { id: 'lights', name: 'Street Lighting', icon: Lightbulb, color: 'bg-amber-100 text-amber-700', sub: ['Light not working', 'Dim lighting', 'Electrical hazard'] },
+  { id: 'health', name: 'Public Health & Safety', icon: HeartPulse, color: 'bg-rose-100 text-rose-700', sub: ['Mosquito breeding', 'Stray animals', 'Dead animal removal', 'Unsafe building', 'Food safety'] },
+  { id: 'tax', name: 'Property & Taxation', icon: Building2, color: 'bg-blue-100 text-blue-700', sub: ['Incorrect tax', 'Mutation delay', 'Duplicate billing', 'Payment not updated'] },
+  { id: 'encroach', name: 'Encroachment & Illegal', icon: Shield, color: 'bg-red-100 text-red-700', sub: ['Illegal construction', 'Public land encroachment', 'Unauthorized vendors', 'Noise pollution'] },
+  { id: 'env', name: 'Environment', icon: TreePine, color: 'bg-green-100 text-green-700', sub: ['Tree cutting', 'Pollution', 'Waterlogging', 'Industrial waste'] },
+  { id: 'service', name: 'Service Delivery', icon: Briefcase, color: 'bg-violet-100 text-violet-700', sub: ['Application delay', 'Staff misbehavior', 'Corruption', 'System error'] },
+  { id: 'emergency', name: 'Emergency', icon: AlertCircle, color: 'bg-red-200 text-red-800', sub: ['Fire hazard', 'Building collapse risk', 'Flooding', 'Short circuit'] },
+];
+
+const STATUS_CONFIG = {
+  'Submitted': { color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', icon: FileText },
+  'Under Review': { color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', icon: Clock },
+  'Document Verification': { color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500', icon: FileCheck },
+  'Inspection Required': { color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500', icon: Search },
+  'Payment Pending': { color: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', icon: Wallet },
+  'Approved': { color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: CheckCircle2 },
+  'Rejected': { color: 'bg-red-100 text-red-700', dot: 'bg-red-500', icon: XCircle },
+  'Completed': { color: 'bg-teal-100 text-teal-700', dot: 'bg-teal-500', icon: BadgeCheck },
+  'Certificate Issued': { color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: Award },
+  'Assigned': { color: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500', icon: User },
+  'In Progress': { color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', icon: Loader2 },
+  'Resolved': { color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: CheckCircle2 },
+};
+
+const SAMPLE_APPLICATIONS = [
+  { id: 'WBM/KMC/BC/2026/00342', service: 'Birth Certificate', icon: '👶', submittedOn: '12 Apr 2026', status: 'Document Verification', pendingAt: 'Registrar Office, Ward 64', fees: 50, paid: true,
+    timeline: [
+      { status: 'Submitted', date: '12 Apr 2026, 10:23 AM', desc: 'Application submitted online', done: true },
+      { status: 'Payment Received', date: '12 Apr 2026, 10:25 AM', desc: 'UPI payment ₹50 — TXN 4429187', done: true },
+      { status: 'Under Review', date: '13 Apr 2026, 09:15 AM', desc: 'Initial review by Junior Officer', done: true },
+      { status: 'Document Verification', date: '15 Apr 2026, 02:40 PM', desc: 'Hospital records being cross-verified', done: true, current: true },
+      { status: 'Approval Pending', date: 'Expected by 19 Apr 2026', desc: 'With Sub-Registrar for approval', done: false },
+      { status: 'Certificate Issued', date: 'Expected by 21 Apr 2026', desc: 'Digital certificate via DigiLocker', done: false },
+    ]
+  },
+  { id: 'WBM/KMC/PT/2026/87122', service: 'Property Tax Payment', icon: '🏠', submittedOn: '08 Apr 2026', status: 'Completed', pendingAt: '—', fees: 4280, paid: true,
+    timeline: [
+      { status: 'Submitted', date: '08 Apr 2026, 06:12 PM', desc: 'Self-assessment submitted', done: true },
+      { status: 'Payment Received', date: '08 Apr 2026, 06:14 PM', desc: 'UPI ₹4,280 — TXN 4391762', done: true },
+      { status: 'Completed', date: '08 Apr 2026, 06:14 PM', desc: 'Receipt generated', done: true, current: true },
+    ]
+  },
+  { id: 'WBM/KMC/TL/2026/01198', service: 'Trade License', icon: '🏪', submittedOn: '02 Apr 2026', status: 'Inspection Required', pendingAt: 'Inspector, Ward 64 Zone', fees: 1500, paid: true,
+    timeline: [
+      { status: 'Submitted', date: '02 Apr 2026', desc: 'Application + payment', done: true },
+      { status: 'Under Review', date: '03 Apr 2026', desc: 'Documents verified', done: true },
+      { status: 'Inspection Required', date: '08 Apr 2026', desc: 'Field inspection scheduled for 22 Apr', done: true, current: true },
+      { status: 'Approval', date: 'After inspection', desc: 'License generation', done: false },
+    ]
+  },
+];
+
+const SAMPLE_GRIEVANCES = [
+  { id: 'GRV/KMC/2026/SAN/4421', category: 'Sanitation & Waste', sub: 'Garbage not collected', filed: '20 Apr 2026', status: 'In Progress', location: 'Ward 64, Lake Gardens', priority: 'Medium', sla: '48 hrs',
+    timeline: [
+      { status: 'Submitted', date: '20 Apr 2026, 08:15 AM', desc: 'Docket generated', done: true },
+      { status: 'Assigned', date: '20 Apr 2026, 09:30 AM', desc: 'Assigned to Sanitation Inspector — Ward 64', done: true },
+      { status: 'In Progress', date: '20 Apr 2026, 11:45 AM', desc: 'Field team dispatched', done: true, current: true },
+      { status: 'Resolution Expected', date: '22 Apr 2026', desc: 'Within SLA', done: false },
+    ]
+  },
+  { id: 'GRV/KMC/2026/INF/3987', category: 'Roads & Infrastructure', sub: 'Potholes', filed: '15 Apr 2026', status: 'Resolved', location: 'Lake Road junction', priority: 'High', sla: '72 hrs',
+    timeline: [
+      { status: 'Submitted', date: '15 Apr 2026', desc: 'Docket + 3 photos', done: true },
+      { status: 'Assigned', date: '15 Apr 2026', desc: 'Roads Engineer, Borough VIII', done: true },
+      { status: 'In Progress', date: '16 Apr 2026', desc: 'Repair team on site', done: true },
+      { status: 'Resolved', date: '17 Apr 2026', desc: 'Pothole filled. Resolution photo uploaded.', done: true, current: true },
+    ]
+  },
+];
+
+const ANNOUNCEMENTS = [
+  { id: 1, title: 'Property Tax — 5% rebate for early payment', date: '25 Apr 2026', body: 'Pay your annual property tax before 30 June 2026 and avail 5% rebate. Pay online for instant receipt.', tag: 'Important' },
+  { id: 2, title: 'Mosquito control drive — May 2026', date: '22 Apr 2026', body: 'Borough-wise fogging schedule released. Check the Health section for your ward\'s date.', tag: 'Health' },
+  { id: 3, title: 'New Water Connection — fee revised', date: '15 Apr 2026', body: 'Effective 1 May 2026: revised fee structure for new domestic water connections.', tag: 'Update' },
+];
+
+// ======================== KNOWLEDGE BASE FOR RAG CHATBOT ========================
+// In production, this would be retrieved from Qdrant vector DB based on semantic similarity to user query.
+// For demo, we pass the full KB as context to simulate RAG retrieval + generation.
+
+const RAG_KNOWLEDGE_BASE = `
+# West Bengal Municipal Services — Knowledge Base
+
+## About eNagarSeba
+eNagarSeba is the unified citizen mobile app for all municipalities in West Bengal. Each municipality is a separate tenant with its own services, fees, SLA timelines, and workflows.
+
+## Birth Certificate
+- Fee: ₹50 (free if applied within 21 days of birth)
+- Processing time: 7 working days
+- Documents required: Hospital discharge summary, Parents' Aadhaar, Address proof, Marriage certificate (optional)
+- Eligibility: Birth must have occurred within the municipality limits
+- Process: Apply online → Document verification → Approval by Sub-Registrar → Digital certificate via DigiLocker
+- Late fee (after 1 year): ₹100 + magistrate order required
+
+## Death Certificate
+- Fee: ₹50
+- Processing time: 7 working days
+- Documents: Medical/cremation certificate, ID proof of deceased, Applicant ID
+- Death must have occurred within municipality jurisdiction
+
+## Marriage Registration
+- Fee: ₹200
+- Processing time: 15 days
+- Documents: Aadhaar of both parties, marriage photos, two witness IDs
+- Both parties must be of legal age (groom 21+, bride 18+)
+
+## Trade License
+- New license fee: ₹1,500 (varies by trade type and area)
+- Renewal fee: ₹1,000
+- Processing: 21 days for new, 7 days for renewal
+- Documents: Aadhaar, premises address proof, rent agreement/ownership, recent photo
+- Annual renewal mandatory before 31 March every year
+- Late renewal: 25% penalty
+
+## Property Tax
+- Calculated on Annual Rateable Value (ARV) basis
+- Payment due: 30 June (annual) or quarterly
+- 5% rebate for full payment before due date
+- Late payment: 2% interest per month
+- Self-Assessment Scheme (SAS) available
+- Mutation fee: ₹500, processing 30 days
+
+## Water Connection
+- New domestic connection: ₹2,500
+- New commercial connection: ₹7,500
+- Processing: 21 days
+- Documents: Property tax receipt, Aadhaar, building plan approval
+- Monthly water charges based on tariff slab
+
+## Building Plan Approval
+- Fee: ₹5,000 base + per-sqft charges
+- Processing: 60 days for residential, 90 days for commercial
+- Documents: Architect-signed drawings, land documents, fire NOC, environment NOC (if applicable)
+- Validity: 5 years from sanction
+
+## Mosquito Fogging
+- FREE service
+- Request via app, schedule confirmed within 3 days
+- Borough-wise drives every 15 days during monsoon
+
+## Old Age Pension
+- ₹1,000 per month
+- Eligibility: Age 60+, BPL, no government pension
+- Documents: Aadhaar, bank passbook, age proof, income certificate
+- Processing: 45 days, then monthly transfer to bank
+
+## Advertisement Tax & Hoarding
+- Hoarding permission: ₹5,000+ per year (varies by ward, size, location)
+- Digital billboard: ₹25,000+ per year, mandatory electrical safety certificate
+- Mobile / vehicle ads: ₹2,000 per month
+- LED display slot booking: ₹15,000 per slot
+- Bus shelter / kiosk ads: ₹8,000 per year
+- Public WiFi splash ads: ₹5,000 per month
+- Permitted only on approved roads and commercial zones
+- Content must comply with municipal advertising bylaws
+
+## Conservancy Tax (Solid Waste)
+- Annual tax linked to property holding
+- Funds door-to-door garbage collection and street sweeping
+- Pay along with property tax for 5% rebate
+- Solid Waste Management user fee is separate (monthly)
+
+## Water Tax & Sewerage
+- Water tax: annual, based on property ARV
+- Sewerage connection: ₹3,500 one-time
+- Sewerage charges: monthly, billed with water
+- Septic tank cleaning by municipal vacuum truck: ₹1,200, 5-day booking
+
+## Public Toilet Pass
+- Monthly pass: ₹100 for unlimited use
+- Free for sanitation workers and verified BPL holders
+- Available at all 24x7 public toilets
+
+## Bookings & Rentals (Revenue from Assets)
+- Community hall: ₹5,000+ per day, refundable security ₹5,000
+- Auditorium: ₹15,000+ per day, refundable security ₹15,000
+- Park / lawn for events: ₹2,000 per day
+- Sports ground / stadium: ₹3,000 per day
+- Market shop monthly rent: as per allotment letter
+- Daily / weekly haat stall: ₹100 per day
+- Parking lot annual lease: ₹50,000+ (by tender)
+- Equipment hire (JCB, generator, PA system, water tanker): variable per item per day
+- Booking via app, 50% advance, balance on use day
+- Cancellation policy: 100% refund 7 days prior, 50% within 7 days, no refund within 24 hrs
+
+## Smart City Services
+- Smart Parking: ₹20–₹50 per hour, real-time sensor-based, reserve via app
+- EV Charging: per kWh, slot reservation, all major connector types
+- IoT Smart Water Meter: prepaid recharge, leak alerts, live consumption tracking
+- Smart Waste Bin Subscription: ₹200/month, segregation tracked
+- GIS Data License: ₹10,000+ per dataset for researchers and planners
+- Rooftop Solar: lease your rooftop OR get NOC for own installation, min 500 sqft
+- Telecom Tower NOC: ₹25,000 per tower, EMF compliance mandatory
+- Land Lease: ₹100,000+, by public tender / auction
+
+## Ambulance & Hearse
+- Municipal ambulance: ₹500 for non-emergency transport, FREE for emergencies, 24x7
+- Hearse van: ₹800, subsidized for BPL families
+- Crematorium / burial ground booking: ₹500 per slot
+
+## Fines & Penalties
+- Water bill late payment: 2% per month interest
+- Property tax late payment: 2% per month interest
+- Trade license violation: ₹1,000–₹5,000
+- Sanitation violation: ₹500–₹2,000
+- Solid waste illegal dumping: ₹1,000+
+- Encroachment penalty: based on area encroached and notice
+- Illegal construction: compounding fee or demolition order
+- Noise pollution: ₹1,000 per violation
+- All fines payable online with challan / notice number
+
+## Tenders & Deposits
+- Tender form: ₹500 per tender
+- EMD: 2-5% of estimated tender value, refundable to unsuccessful bidders within 30 days of award
+- Security Deposit (successful bidder): 5-10% of contract value, refundable on completion + defect liability period (usually 12 months)
+- Vendor / Contractor empanelment: ₹2,500, 21 day processing
+- Scrap auctions: online, EMD ₹5,000–₹50,000 depending on lot size
+- All deposit refunds processed within 15 days of clearance
+
+## RTI & Information Services
+- RTI fee: ₹10 (free for BPL applicants)
+- Reply within 30 days as per RTI Act 2005
+- Old document search: ₹200, 7 days
+- Old birth / death record search: ₹100, 7 days
+- Certified copy issuance: ₹150, 7 days
+- First Appellate Authority is the Municipal Commissioner / Chairperson
+
+## Grievance Redressal
+- File via app under appropriate category
+- Docket number generated instantly
+- SLA: 48-72 hrs depending on category
+- Track via "My Grievances"
+- Citizen can rate resolution and reopen if unsatisfied
+- Emergency grievances: 24 hr SLA
+
+## Payments
+- UPI, Debit/Credit Card, Net Banking, Wallet supported
+- Receipt generated instantly, downloadable as PDF
+- All payments linked to citizen ID, application ID, and transaction ID
+- Refunds processed within 7 working days for failed transactions
+
+## How to track an application
+- Open "My Applications" from Home or Profile
+- Click on application — see full timeline with current status
+- Each status has timestamp, officer in charge, and remarks
+- Push notifications sent on every status change
+
+## Office hours
+- Municipal offices: 10 AM – 5:30 PM, Mon–Sat (closed on 2nd Saturday and government holidays)
+- Helpline: 1800-345-3344 (toll-free)
+- Online services: 24x7 via this app
+
+## Languages supported
+- English, Bengali (বাংলা), Hindi (हिन्दी)
+
+## Data privacy
+- All data stored on government servers within India
+- AI processing happens on-premises (no data sent to third parties)
+- Aadhaar masked except last 4 digits
+
+## Emergency contacts
+- Fire: 101 / 1800-345-3344
+- Disaster Management: 1070
+- Women's helpline: 1091
+- Citizen helpline: 1800-345-3344
+`;
+
+// ======================== MAIN APP ========================
+
+export default function MunicipalApp() {
+  const [screen, setScreen] = useState('splash'); // splash, language, login, otp, muniSelect, main
+  const [tab, setTab] = useState('home'); // home, services, grievance, chatbot, profile
+  const [subScreen, setSubScreen] = useState(null); // serviceCategory, serviceDetail, applyForm, myApplications, applicationDetail, etc.
+  const [subScreenData, setSubScreenData] = useState(null);
+  const [lang, setLang] = useState('en');
+  const [muni, setMuni] = useState(null);
+  const [user, setUser] = useState(null);
+  const [mobile, setMobile] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showSplash, setShowSplash] = useState(true);
+  const [applications, setApplications] = useState(SAMPLE_APPLICATIONS);
+  const [grievances, setGrievances] = useState(SAMPLE_GRIEVANCES);
+  const [notifications, setNotifications] = useState([
+    { id: 1, title: 'Application status updated', body: 'Your Birth Certificate application is now in Document Verification stage.', time: '2 hrs ago', read: false, type: 'application' },
+    { id: 2, title: 'Grievance assigned', body: 'GRV/KMC/2026/SAN/4421 has been assigned to Sanitation Inspector, Ward 64.', time: '5 hrs ago', read: false, type: 'grievance' },
+    { id: 3, title: 'Payment successful', body: 'Property tax payment of ₹4,280 received. Receipt available.', time: '1 day ago', read: true, type: 'payment' },
+    { id: 4, title: 'Mosquito fogging — Ward 64', body: 'Scheduled for 26 Apr 2026, 6 AM – 9 AM. Please keep windows closed.', time: '2 days ago', read: true, type: 'announcement' },
+  ]);
+
+  const t = I18N[lang];
+
+  // Splash auto-advance
+  useEffect(() => {
+    if (screen === 'splash') {
+      const timer = setTimeout(() => setScreen('language'), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [screen]);
+
+  // Apply Google Fonts
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+    return () => { document.head.removeChild(link); };
+  }, []);
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return t.goodMorning;
+    if (h < 17) return t.goodAfternoon;
+    return t.goodEvening;
+  };
+
+  const navigate = (sub, data = null) => {
+    setSubScreen(sub);
+    setSubScreenData(data);
+  };
+
+  const goBack = () => {
+    setSubScreen(null);
+    setSubScreenData(null);
+  };
+
+  // Body font based on language
+  const bodyFont = lang === 'bn' ? "'Noto Sans Bengali', sans-serif" : lang === 'hi' ? "'Noto Sans Devanagari', sans-serif" : "'Plus Jakarta Sans', sans-serif";
+
+  // ======================== SCREENS ========================
+
+  const SplashScreen = () => (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0F4C75] via-[#3282B8] to-[#0F4C75] text-white overflow-hidden">
+      {/* Decorative shapes */}
+      <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+      <div className="absolute bottom-0 left-0 w-72 h-72 bg-orange-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+      <div className="absolute top-1/3 left-10 w-2 h-2 bg-white rounded-full animate-pulse"></div>
+      <div className="absolute top-2/3 right-20 w-1 h-1 bg-white rounded-full animate-pulse"></div>
+      
+      <div className="relative z-10 flex flex-col items-center animate-fade-in">
+        <div className="w-24 h-24 rounded-3xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-5xl mb-6 shadow-2xl">
+          🏛️
+        </div>
+        <div className="text-xs font-semibold tracking-[0.3em] text-white/70 mb-2">GOVERNMENT OF WEST BENGAL</div>
+        <div className="text-4xl font-extrabold tracking-tight mb-2">eNagarSeba</div>
+        <div className="text-sm text-white/80 mb-12 px-8 text-center">{t.tagline}</div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{animationDelay:'0ms'}}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{animationDelay:'150ms'}}></div>
+          <div className="w-2 h-2 rounded-full bg-white animate-bounce" style={{animationDelay:'300ms'}}></div>
+        </div>
+      </div>
+      <div className="absolute bottom-8 text-xs text-white/60">Powered by Department of Urban Development & MA</div>
+    </div>
+  );
+
+  const LanguageScreen = () => (
+    <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white flex flex-col">
+      <div className="px-6 pt-16 pb-8">
+        <div className="text-5xl mb-6">🌐</div>
+        <h1 className="text-3xl font-extrabold text-slate-900 leading-tight">Choose your<br/>language</h1>
+        <p className="text-slate-500 mt-2 text-sm">আপনার ভাষা বেছে নিন · अपनी भाषा चुनें</p>
+      </div>
+      <div className="px-6 space-y-3 flex-1">
+        {[
+          { code: 'en', name: 'English', native: 'English', flag: '🔤' },
+          { code: 'bn', name: 'Bengali', native: 'বাংলা', flag: '🪷' },
+          { code: 'hi', name: 'Hindi', native: 'हिन्दी', flag: '🕉️' },
+        ].map(l => (
+          <button key={l.code} onClick={() => setLang(l.code)}
+            className={`w-full p-5 rounded-2xl border-2 transition-all flex items-center gap-4 text-left ${
+              lang === l.code ? 'border-[#0F4C75] bg-[#0F4C75]/5 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}>
+            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">{l.flag}</div>
+            <div className="flex-1">
+              <div className="font-bold text-slate-900">{l.native}</div>
+              <div className="text-xs text-slate-500">{l.name}</div>
+            </div>
+            {lang === l.code && <CheckCircle2 className="w-6 h-6 text-[#0F4C75]" />}
+          </button>
+        ))}
+      </div>
+      <div className="p-6">
+        <button onClick={() => setScreen('login')}
+          className="w-full py-4 bg-[#0F4C75] text-white rounded-2xl font-bold shadow-lg shadow-[#0F4C75]/20 active:scale-[0.98] transition-transform">
+          Continue · এগিয়ে যান · आगे बढ़ें
+        </button>
+      </div>
+    </div>
+  );
+
+  const LoginScreen = () => (
+    <div className="absolute inset-0 bg-white flex flex-col">
+      <div className="relative h-56 bg-gradient-to-br from-[#0F4C75] via-[#1e5a8a] to-[#3282B8] overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
+        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-orange-400/20 rounded-full blur-2xl"></div>
+        <div className="relative h-full flex flex-col justify-end px-6 pb-6 text-white">
+          <div className="text-3xl mb-2">🏛️</div>
+          <h1 className="text-2xl font-extrabold leading-tight">{t.welcome}<br/>eNagarSeba</h1>
+          <p className="text-sm text-white/80 mt-1">{t.tagline}</p>
+        </div>
+      </div>
+      <div className="flex-1 px-6 pt-8">
+        <div className="text-xs font-bold text-slate-400 tracking-wider mb-3">SIGN IN WITH</div>
+        <label className="block">
+          <div className="text-sm font-semibold text-slate-700 mb-2">{t.enterMobile}</div>
+          <div className="flex items-center bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3 focus-within:border-[#0F4C75] transition-colors">
+            <span className="text-slate-700 font-semibold mr-2">+91</span>
+            <input type="tel" maxLength={10} value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g,''))}
+              placeholder="98XX XXX XXX" className="flex-1 bg-transparent outline-none text-slate-900 font-medium" />
+          </div>
+        </label>
+
+        <button onClick={() => mobile.length === 10 && setScreen('otp')} disabled={mobile.length !== 10}
+          className="w-full mt-6 py-4 bg-[#0F4C75] text-white rounded-2xl font-bold shadow-lg shadow-[#0F4C75]/20 disabled:opacity-40 disabled:shadow-none active:scale-[0.98] transition-transform">
+          {t.getOtp}
+        </button>
+
+        <div className="flex items-center my-6">
+          <div className="flex-1 h-px bg-slate-200"></div>
+          <span className="px-4 text-xs text-slate-400 font-semibold">OR</span>
+          <div className="flex-1 h-px bg-slate-200"></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button className="py-3 border-2 border-slate-200 rounded-xl font-semibold text-sm text-slate-700 flex items-center justify-center gap-2">
+            <Fingerprint className="w-4 h-4" /> Aadhaar
+          </button>
+          <button className="py-3 border-2 border-slate-200 rounded-xl font-semibold text-sm text-slate-700 flex items-center justify-center gap-2">
+            <Mail className="w-4 h-4" /> Email
+          </button>
+        </div>
+      </div>
+      <div className="p-6 text-center text-xs text-slate-500">
+        By continuing you agree to <span className="text-[#0F4C75] font-semibold">Terms</span> & <span className="text-[#0F4C75] font-semibold">Privacy Policy</span>
+      </div>
+    </div>
+  );
+
+  const OtpScreen = () => {
+    const [digits, setDigits] = useState(['','','','','','']);
+    const inputRefs = useRef([]);
+
+    const handleDigit = (i, val) => {
+      if (!/^\d?$/.test(val)) return;
+      const newDigits = [...digits];
+      newDigits[i] = val;
+      setDigits(newDigits);
+      if (val && i < 5) inputRefs.current[i+1]?.focus();
+    };
+
+    const code = digits.join('');
+
+    return (
+      <div className="absolute inset-0 bg-white flex flex-col">
+        <div className="px-6 pt-12 pb-4">
+          <button onClick={() => setScreen('login')} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="px-6 flex-1">
+          <div className="w-16 h-16 rounded-2xl bg-[#0F4C75]/10 flex items-center justify-center text-2xl mb-6">🔐</div>
+          <h1 className="text-2xl font-extrabold text-slate-900 leading-tight">{t.verifyOtp}</h1>
+          <p className="text-slate-500 mt-2 text-sm">{t.enterOtp}<br/>sent to <span className="font-semibold text-slate-700">+91 {mobile.replace(/(\d{5})/, '$1 ')}</span></p>
+
+          <div className="flex justify-between gap-2 mt-8">
+            {digits.map((d, i) => (
+              <input key={i} ref={el => inputRefs.current[i] = el} type="tel" maxLength={1} value={d} onChange={e => handleDigit(i, e.target.value)}
+                className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 ${d ? 'border-[#0F4C75] bg-[#0F4C75]/5' : 'border-slate-200 bg-slate-50'} focus:border-[#0F4C75] outline-none transition-colors`} />
+            ))}
+          </div>
+
+          <div className="mt-6 text-center text-sm">
+            <span className="text-slate-500">Didn't receive? </span>
+            <button className="font-bold text-[#0F4C75]">{t.resendOtp}</button>
+          </div>
+
+          <button onClick={() => {
+            if (code.length === 6) {
+              setUser({ name: 'Shamba Banerjee', mobile, email: 'shamba@example.com', address: '12B, Lake Gardens, Kolkata 700045', dob: '15 Aug 1990', gender: 'Male' });
+              setScreen('muniSelect');
+            }
+          }} disabled={code.length !== 6}
+            className="w-full mt-8 py-4 bg-[#0F4C75] text-white rounded-2xl font-bold shadow-lg shadow-[#0F4C75]/20 disabled:opacity-40 active:scale-[0.98] transition-transform">
+            Verify & Continue
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const MuniSelectScreen = () => {
+    const [search, setSearch] = useState('');
+    const filtered = MUNICIPALITIES.filter(m => 
+      m.name.toLowerCase().includes(search.toLowerCase()) || m.district.toLowerCase().includes(search.toLowerCase())
+    );
+
+    return (
+      <div className="absolute inset-0 bg-slate-50 flex flex-col">
+        <div className="bg-white px-6 pt-12 pb-4 border-b border-slate-100">
+          {muni && (
+            <button onClick={() => setSubScreen(null) || setScreen('main')} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <h1 className="text-2xl font-extrabold text-slate-900">{t.selectMunicipality}</h1>
+          <p className="text-slate-500 text-sm mt-1">Each municipality has its own services & rules</p>
+          <div className="mt-4 flex items-center bg-slate-100 rounded-xl px-4 py-3">
+            <Search className="w-5 h-5 text-slate-400 mr-2" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.searchMuni}
+              className="flex-1 bg-transparent outline-none text-sm font-medium" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 pb-32 space-y-2">
+          {filtered.map(m => (
+            <button key={m.id} onClick={() => { setMuni(m); setScreen('main'); }}
+              className="w-full bg-white rounded-2xl p-4 flex items-center gap-3 border border-slate-100 hover:border-slate-300 active:scale-[0.99] transition-all text-left">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{backgroundColor: m.theme + '15'}}>
+                {m.logo}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-900 text-sm truncate">{m.name}</div>
+                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                  <MapPin className="w-3 h-3" />
+                  {m.district} · {m.wards} wards
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ======================== MAIN APP TABS ========================
+
+  const Header = ({ title, subtitle, showBack, onBack, action, gradient = false }) => (
+    <div className={`px-5 pt-12 pb-4 ${gradient ? 'bg-gradient-to-br from-[#0F4C75] to-[#1e5a8a] text-white' : 'bg-white border-b border-slate-100'} relative overflow-hidden`}>
+      {gradient && (
+        <>
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="absolute -bottom-20 -left-10 w-40 h-40 bg-orange-400/10 rounded-full blur-2xl"></div>
+        </>
+      )}
+      <div className="relative flex items-center gap-3">
+        {showBack && (
+          <button onClick={onBack} className={`w-9 h-9 rounded-full flex items-center justify-center ${gradient ? 'bg-white/15' : 'bg-slate-100'}`}>
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
+        <div className="flex-1 min-w-0">
+          {subtitle && <div className={`text-xs font-semibold ${gradient ? 'text-white/70' : 'text-slate-500'}`}>{subtitle}</div>}
+          <div className="text-xl font-extrabold truncate">{title}</div>
+        </div>
+        {action}
+      </div>
+    </div>
+  );
+
+  // -------- HOME TAB --------
+  const HomeTab = () => {
+    const unreadCount = notifications.filter(n => !n.read).length;
+    const popularServices = SERVICES.filter(s => s.popular);
+
+    return (
+      <div className="pb-24">
+        {/* Header with greeting */}
+        <div className="relative bg-gradient-to-br from-[#0F4C75] via-[#1e5a8a] to-[#3282B8] text-white px-5 pt-12 pb-6 overflow-hidden">
+          <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-orange-400/15 rounded-full blur-3xl"></div>
+          
+          <div className="relative">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center text-xl">{muni?.logo}</div>
+                <div>
+                  <div className="text-[11px] text-white/70 font-medium">{muni?.shortName} · Ward 64</div>
+                  <button onClick={() => setScreen('muniSelect')} className="text-sm font-bold flex items-center gap-1">
+                    {muni?.shortName} <ChevronDown className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              <button onClick={() => navigate('notifications')} className="relative w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center">
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <div className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-orange-500 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-[#0F4C75]">{unreadCount}</div>
+                )}
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <div className="text-sm text-white/80">{greeting()},</div>
+              <div className="text-2xl font-extrabold mt-0.5">{user?.name}</div>
+            </div>
+
+            {/* AI Chatbot promo card */}
+            <button onClick={() => setTab('chatbot')} className="w-full mt-5 bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-3 flex items-center gap-3 active:scale-[0.99] transition-transform text-left">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-bold">{t.askSahayak}</div>
+                <div className="text-[11px] text-white/70">AI assistant · 24x7 · 3 languages</div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-white/60" />
+            </button>
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="px-5 -mt-4 relative z-10">
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-100 p-4 grid grid-cols-4 gap-2">
+            {[
+              { icon: FileText, label: t.myApplications, count: applications.length, color: 'bg-blue-50 text-blue-600', action: () => navigate('myApplications') },
+              { icon: AlertCircle, label: t.myGrievances, count: grievances.length, color: 'bg-orange-50 text-orange-600', action: () => navigate('myGrievances') },
+              { icon: Receipt, label: t.myPayments, count: 8, color: 'bg-emerald-50 text-emerald-600', action: () => navigate('myPayments') },
+              { icon: Award, label: t.myCertificates, count: 2, color: 'bg-violet-50 text-violet-600', action: () => navigate('myCertificates') },
+            ].map((a, i) => (
+              <button key={i} onClick={a.action} className="flex flex-col items-center gap-1.5 p-2 rounded-xl active:bg-slate-50">
+                <div className={`relative w-11 h-11 rounded-xl ${a.color} flex items-center justify-center`}>
+                  <a.icon className="w-5 h-5" />
+                  {a.count > 0 && (
+                    <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-orange-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center border-2 border-white">{a.count}</div>
+                  )}
+                </div>
+                <div className="text-[10px] font-semibold text-slate-700 text-center leading-tight">{a.label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Popular Services */}
+        <div className="px-5 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-base font-extrabold text-slate-900">{t.popularServices}</div>
+              <div className="text-xs text-slate-500">Most accessed this week</div>
+            </div>
+            <button onClick={() => setTab('services')} className="text-xs font-bold text-[#0F4C75]">{t.viewAll}</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {popularServices.slice(0,4).map(s => {
+              const cat = SERVICE_CATEGORIES.find(c => c.id === s.categoryId);
+              return (
+                <button key={s.id} onClick={() => navigate('serviceDetail', s)}
+                  className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-slate-200 active:scale-[0.98] transition-all text-left">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-11 h-11 rounded-xl ${cat?.bg} flex items-center justify-center text-xl`}>{s.icon}</div>
+                    <div className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{s.sla}</div>
+                  </div>
+                  <div className="font-bold text-sm text-slate-900 leading-tight">{s.name}</div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    {s.fees > 0 ? `Fee ₹${s.fees}` : 'Free service'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Service categories */}
+        <div className="px-5 mt-6">
+          <div className="text-base font-extrabold text-slate-900 mb-3">All Categories</div>
+          <div className="grid grid-cols-4 gap-3">
+            {SERVICE_CATEGORIES.map(c => (
+              <button key={c.id} onClick={() => { setTab('services'); navigate('serviceCategory', c); }}
+                className="flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${c.color} flex items-center justify-center shadow-sm`}>
+                  <c.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-[10px] font-semibold text-slate-700 text-center leading-tight">{c.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Announcements */}
+        <div className="px-5 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-orange-500" />
+              {t.announcements}
+            </div>
+            <button className="text-xs font-bold text-[#0F4C75]">{t.viewAll}</button>
+          </div>
+          <div className="space-y-3">
+            {ANNOUNCEMENTS.map(a => (
+              <div key={a.id} className="bg-white rounded-2xl p-4 border border-slate-100">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="font-bold text-sm text-slate-900 leading-tight flex-1">{a.title}</div>
+                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full whitespace-nowrap">{a.tag}</span>
+                </div>
+                <div className="text-xs text-slate-500 leading-relaxed mt-1.5">{a.body}</div>
+                <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                  <Calendar className="w-3 h-3" /> {a.date}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Emergency */}
+        <div className="px-5 mt-6">
+          <div className="bg-gradient-to-br from-red-500 to-orange-500 rounded-2xl p-4 text-white relative overflow-hidden">
+            <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                <Phone className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-white/80">{t.emergencyServices}</div>
+                <div className="text-base font-extrabold">1800-345-3344</div>
+                <div className="text-[10px] text-white/70 mt-0.5">Toll-free · 24x7</div>
+              </div>
+              <button className="px-4 py-2 bg-white text-red-600 rounded-xl font-bold text-xs">Call</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // -------- SERVICES TAB --------
+  const ServicesTab = () => {
+    const [searchQ, setSearchQ] = useState('');
+    const filtered = SERVICES.filter(s => s.name.toLowerCase().includes(searchQ.toLowerCase()));
+
+    return (
+      <div className="pb-24">
+        <Header title={t.services} subtitle={muni?.shortName} />
+        <div className="px-5 pt-4">
+          <div className="flex items-center bg-slate-100 rounded-xl px-4 py-3">
+            <Search className="w-5 h-5 text-slate-400 mr-2" />
+            <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Search services..."
+              className="flex-1 bg-transparent outline-none text-sm font-medium" />
+          </div>
+
+          {!searchQ && (
+            <div className="mt-5">
+              <div className="text-sm font-bold text-slate-900 mb-3">Categories</div>
+              <div className="grid grid-cols-2 gap-3">
+                {SERVICE_CATEGORIES.map(c => {
+                  const count = SERVICES.filter(s => s.categoryId === c.id).length;
+                  return (
+                    <button key={c.id} onClick={() => navigate('serviceCategory', c)}
+                      className="bg-white rounded-2xl p-4 border border-slate-100 active:scale-[0.98] transition-transform text-left">
+                      <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${c.color} flex items-center justify-center mb-3`}>
+                        <c.icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="font-bold text-sm text-slate-900 leading-tight">{c.name}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{count} services</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {searchQ && (
+            <div className="mt-5 space-y-2">
+              <div className="text-xs font-bold text-slate-500">{filtered.length} results</div>
+              {filtered.map(s => (
+                <button key={s.id} onClick={() => navigate('serviceDetail', s)}
+                  className="w-full bg-white rounded-2xl p-3 border border-slate-100 flex items-center gap-3 text-left active:scale-[0.99] transition-transform">
+                  <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-xl">{s.icon}</div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-slate-900">{s.name}</div>
+                    <div className="text-[11px] text-slate-500">{s.fees > 0 ? `₹${s.fees}` : 'Free'} · {s.sla}</div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const ServiceCategoryScreen = ({ category }) => {
+    const services = SERVICES.filter(s => s.categoryId === category.id);
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <div className={`bg-gradient-to-br ${category.color} text-white px-5 pt-12 pb-6 relative overflow-hidden`}>
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+          <button onClick={goBack} className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center mb-4">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <category.icon className="w-8 h-8 mb-2" />
+          <div className="text-2xl font-extrabold">{category.name}</div>
+          <div className="text-xs text-white/80 mt-1">{services.length} services available</div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 pb-24">
+          {services.map(s => (
+            <button key={s.id} onClick={() => navigate('serviceDetail', s)}
+              className="w-full bg-white rounded-2xl p-4 border border-slate-100 flex items-center gap-3 text-left active:scale-[0.99] transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-2xl">{s.icon}</div>
+              <div className="flex-1">
+                <div className="font-bold text-sm text-slate-900">{s.name}</div>
+                <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{s.description}</div>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    {s.fees > 0 ? `₹${s.fees}` : 'FREE'}
+                  </span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5" /> {s.sla}
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const ServiceDetailScreen = ({ service }) => {
+    const cat = SERVICE_CATEGORIES.find(c => c.id === service.categoryId);
+    return (
+      <div className="absolute inset-0 bg-white z-20 flex flex-col">
+        <div className={`relative bg-gradient-to-br ${cat?.color || 'from-slate-700 to-slate-900'} text-white px-5 pt-12 pb-8 overflow-hidden`}>
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+          <button onClick={goBack} className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center mb-4">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl">{service.icon}</div>
+            <div className="flex-1">
+              <div className="text-xs font-bold text-white/70 uppercase tracking-wider">{cat?.name}</div>
+              <div className="text-xl font-extrabold leading-tight">{service.name}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+              <IndianRupee className="w-4 h-4 text-emerald-600 mb-1" />
+              <div className="text-[10px] font-bold text-emerald-700/70 uppercase tracking-wider">{t.fees}</div>
+              <div className="text-xl font-extrabold text-emerald-900 mt-0.5">{service.fees > 0 ? `₹${service.fees}` : 'Free'}</div>
+            </div>
+            <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
+              <Clock className="w-4 h-4 text-blue-600 mb-1" />
+              <div className="text-[10px] font-bold text-blue-700/70 uppercase tracking-wider">{t.sla}</div>
+              <div className="text-xl font-extrabold text-blue-900 mt-0.5">{service.sla}</div>
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">About</div>
+            <p className="text-sm text-slate-700 leading-relaxed">{service.description}</p>
+          </div>
+
+          <div className="mb-5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t.documents}</div>
+            <div className="space-y-2">
+              {service.documents.map((d, i) => (
+                <div key={i} className="flex items-center gap-3 bg-slate-50 rounded-xl p-3">
+                  <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-slate-200">{i+1}</div>
+                  <div className="text-sm text-slate-700 flex-1">{d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t.eligibility}</div>
+            <p className="text-sm text-slate-700 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-3">{service.eligibility}</p>
+          </div>
+
+          <div className="mb-5 bg-slate-50 rounded-2xl p-4">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Application Process</div>
+            <div className="space-y-3">
+              {['Fill online application form', 'Upload required documents', 'Pay fees online (UPI/Card/NB)', 'Track status in My Applications', 'Receive certificate via DigiLocker'].map((step, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#0F4C75] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i+1}</div>
+                  <div className="text-sm text-slate-700 pt-0.5">{step}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 bg-white border-t border-slate-100 grid grid-cols-2 gap-3">
+          <button onClick={() => navigate('myApplications')} className="py-3.5 border-2 border-[#0F4C75] text-[#0F4C75] rounded-2xl font-bold text-sm">
+            {t.track}
+          </button>
+          <button onClick={() => navigate('applyForm', service)} className="py-3.5 bg-[#0F4C75] text-white rounded-2xl font-bold text-sm shadow-lg shadow-[#0F4C75]/20">
+            {t.apply}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const ApplyFormScreen = ({ service }) => {
+    const [formData, setFormData] = useState({});
+    const [step, setStep] = useState(1); // 1: form, 2: preview, 3: payment, 4: success
+    const fields = service.fields && service.fields.length > 0 ? service.fields : [
+      { name: 'fullName', label: 'Full Name', type: 'text', required: true },
+      { name: 'address', label: 'Address', type: 'textarea', required: true },
+      { name: 'wardNo', label: 'Ward Number', type: 'number', required: true },
+      { name: 'doc', label: 'Supporting Document', type: 'file', required: true },
+    ];
+
+    const handleSubmit = () => {
+      if (step === 1) setStep(2);
+      else if (step === 2) setStep(service.fees > 0 ? 3 : 4);
+      else if (step === 3) {
+        // Simulate payment
+        setStep(4);
+      }
+    };
+
+    if (step === 4) {
+      const newAppId = `WBM/${muni?.shortName}/${service.id.slice(0,3).toUpperCase()}/2026/${Math.floor(Math.random()*90000+10000)}`;
+      return (
+        <div className="absolute inset-0 bg-white z-30 flex flex-col items-center justify-center px-6 text-center">
+          <div className="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center mb-6 animate-bounce-once">
+            <CheckCircle2 className="w-14 h-14 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-extrabold text-slate-900">Application Submitted!</div>
+          <div className="text-sm text-slate-500 mt-2 px-4">Your application has been received and is being processed.</div>
+          
+          <div className="w-full bg-slate-50 rounded-2xl p-4 mt-6 border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.applicationNo}</div>
+            <div className="text-sm font-extrabold text-[#0F4C75] mt-0.5 break-all">{newAppId}</div>
+            <div className="border-t border-slate-200 my-3"></div>
+            <div className="grid grid-cols-2 gap-2 text-left">
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase">Service</div>
+                <div className="text-xs font-bold text-slate-900">{service.name}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase">SLA</div>
+                <div className="text-xs font-bold text-slate-900">{service.sla}</div>
+              </div>
+            </div>
+          </div>
+
+          <button onClick={() => { goBack(); navigate('myApplications'); }} className="w-full mt-6 py-4 bg-[#0F4C75] text-white rounded-2xl font-bold">
+            Track Application
+          </button>
+          <button onClick={goBack} className="w-full mt-2 py-3 text-slate-600 font-semibold text-sm">
+            Back to Services
+          </button>
+        </div>
+      );
+    }
+
+    if (step === 3) {
+      return (
+        <div className="absolute inset-0 bg-slate-50 z-30 flex flex-col">
+          <Header title="Payment" showBack onBack={() => setStep(2)} />
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="bg-white rounded-2xl p-5 border border-slate-100 mb-4">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount Payable</div>
+              <div className="text-3xl font-extrabold text-[#0F4C75] mt-1">₹{service.fees.toLocaleString('en-IN')}</div>
+              <div className="text-xs text-slate-500 mt-1">{service.name}</div>
+            </div>
+
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Payment Method</div>
+            <div className="space-y-2">
+              {[
+                { id: 'upi', name: 'UPI', desc: 'Pay via any UPI app', icon: '📱', recommended: true },
+                { id: 'card', name: 'Debit / Credit Card', desc: 'Visa, Mastercard, RuPay', icon: '💳' },
+                { id: 'nb', name: 'Net Banking', desc: 'All major banks', icon: '🏦' },
+                { id: 'wallet', name: 'Wallet', desc: 'Paytm, PhonePe, Amazon Pay', icon: '💰' },
+              ].map(m => (
+                <button key={m.id} className="w-full bg-white rounded-2xl p-4 border border-slate-100 flex items-center gap-3 text-left active:scale-[0.99] transition-transform">
+                  <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center text-2xl">{m.icon}</div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                      {m.name}
+                      {m.recommended && <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">RECOMMENDED</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{m.desc}</div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300" />
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-500 bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+              <Shield className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div>Secure payment · 256-bit encryption · Govt of WB authorised gateway</div>
+            </div>
+          </div>
+          <div className="p-5 bg-white border-t border-slate-100">
+            <button onClick={handleSubmit} className="w-full py-4 bg-[#0F4C75] text-white rounded-2xl font-bold shadow-lg shadow-[#0F4C75]/20">
+              Pay ₹{service.fees.toLocaleString('en-IN')}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 2) {
+      return (
+        <div className="absolute inset-0 bg-slate-50 z-30 flex flex-col">
+          <Header title="Review Application" showBack onBack={() => setStep(1)} />
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="bg-white rounded-2xl p-4 mb-4 border border-slate-100 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-2xl">{service.icon}</div>
+              <div className="flex-1">
+                <div className="font-bold text-sm text-slate-900">{service.name}</div>
+                <div className="text-xs text-slate-500">{muni?.shortName}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-100">
+              {fields.map((f, i) => (
+                <div key={i} className="p-4">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{f.label}</div>
+                  <div className="text-sm font-semibold text-slate-900 mt-0.5 break-words">
+                    {f.type === 'file' ? '📎 Document uploaded' : (formData[f.name] || '—')}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 bg-amber-50 rounded-2xl p-4 border border-amber-100 flex gap-3">
+              <Info className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800 leading-relaxed">
+                Please verify all details. Once submitted, modifications require re-submission. False information may lead to rejection and legal consequences.
+              </div>
+            </div>
+          </div>
+          <div className="p-5 bg-white border-t border-slate-100 grid grid-cols-2 gap-3">
+            <button onClick={() => setStep(1)} className="py-3.5 border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-sm">
+              Edit
+            </button>
+            <button onClick={handleSubmit} className="py-3.5 bg-[#0F4C75] text-white rounded-2xl font-bold text-sm shadow-lg shadow-[#0F4C75]/20">
+              Confirm & {service.fees > 0 ? 'Pay' : 'Submit'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-30 flex flex-col">
+        <Header title="Apply" subtitle={service.name} showBack onBack={goBack} />
+        <div className="px-5 pt-3 pb-2 bg-white border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            {[1,2,service.fees>0?3:null].filter(Boolean).map((s, i, arr) => (
+              <React.Fragment key={s}>
+                <div className={`flex items-center gap-2 ${step >= s ? 'text-[#0F4C75]' : 'text-slate-300'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= s ? 'bg-[#0F4C75] text-white' : 'bg-slate-100'}`}>
+                    {s}
+                  </div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider">
+                    {s === 1 ? 'Fill' : s === 2 ? 'Review' : 'Pay'}
+                  </div>
+                </div>
+                {i < arr.length - 1 && <div className={`flex-1 h-0.5 ${step > s ? 'bg-[#0F4C75]' : 'bg-slate-200'}`}></div>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {fields.map((f, i) => (
+            <div key={i}>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                {f.label} {f.required && <span className="text-red-500">*</span>}
+              </label>
+              {f.type === 'text' || f.type === 'number' ? (
+                <input type={f.type} value={formData[f.name] || ''} onChange={e => setFormData({...formData, [f.name]: e.target.value})}
+                  className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium focus:border-[#0F4C75] outline-none" />
+              ) : f.type === 'date' ? (
+                <input type="date" value={formData[f.name] || ''} onChange={e => setFormData({...formData, [f.name]: e.target.value})}
+                  className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium focus:border-[#0F4C75] outline-none" />
+              ) : f.type === 'textarea' ? (
+                <textarea rows={3} value={formData[f.name] || ''} onChange={e => setFormData({...formData, [f.name]: e.target.value})}
+                  className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium focus:border-[#0F4C75] outline-none resize-none" />
+              ) : f.type === 'radio' ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {f.options.map(o => (
+                    <button key={o} onClick={() => setFormData({...formData, [f.name]: o})}
+                      className={`py-3 rounded-xl text-sm font-semibold border-2 transition-colors ${formData[f.name] === o ? 'border-[#0F4C75] bg-[#0F4C75]/5 text-[#0F4C75]' : 'border-slate-200 bg-white text-slate-600'}`}>
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              ) : f.type === 'file' ? (
+                <button onClick={() => setFormData({...formData, [f.name]: 'document.pdf'})}
+                  className={`w-full p-4 rounded-xl border-2 border-dashed flex flex-col items-center gap-2 ${formData[f.name] ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 bg-slate-50'}`}>
+                  {formData[f.name] ? (
+                    <>
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                      <div className="text-xs font-bold text-emerald-700">{formData[f.name]}</div>
+                      <div className="text-[10px] text-emerald-600">Tap to replace</div>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6 text-slate-400" />
+                      <div className="text-xs font-bold text-slate-700">Tap to upload</div>
+                      <div className="text-[10px] text-slate-500">PDF/JPG · Max 5MB</div>
+                    </>
+                  )}
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <div className="text-[11px] text-slate-500 bg-blue-50 rounded-xl p-3 border border-blue-100 flex gap-2">
+            <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>Your draft is auto-saved. You can return anytime to complete the application.</div>
+          </div>
+        </div>
+        <div className="p-5 bg-white border-t border-slate-100 grid grid-cols-2 gap-3">
+          <button className="py-3.5 border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-sm">
+            {t.saveDraft}
+          </button>
+          <button onClick={handleSubmit} className="py-3.5 bg-[#0F4C75] text-white rounded-2xl font-bold text-sm shadow-lg shadow-[#0F4C75]/20">
+            {t.preview}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // -------- MY APPLICATIONS --------
+  const MyApplicationsScreen = () => (
+    <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+      <Header title={t.myApplications} subtitle={`${applications.length} total`} showBack onBack={goBack} />
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 pb-8">
+        {applications.map(a => {
+          const cfg = STATUS_CONFIG[a.status] || STATUS_CONFIG['Submitted'];
+          return (
+            <button key={a.id} onClick={() => navigate('applicationDetail', a)}
+              className="w-full bg-white rounded-2xl p-4 border border-slate-100 active:scale-[0.99] transition-transform text-left">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-2xl flex-shrink-0">{a.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="font-bold text-sm text-slate-900">{a.service}</div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${cfg.color}`}>{a.status}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono mb-1.5 truncate">{a.id}</div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{a.submittedOn}</span>
+                    {a.fees > 0 && <span className="flex items-center gap-1"><Receipt className="w-3 h-3" />₹{a.fees}</span>}
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const ApplicationDetailScreen = ({ application }) => {
+    const cfg = STATUS_CONFIG[application.status] || STATUS_CONFIG['Submitted'];
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title="Application" subtitle={application.service} showBack onBack={goBack} />
+        <div className="flex-1 overflow-y-auto px-5 py-4 pb-8">
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 mb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-2xl">{application.icon}</div>
+              <div className="flex-1">
+                <div className="font-bold text-base text-slate-900">{application.service}</div>
+                <div className="text-[11px] text-slate-500 font-mono mt-0.5 break-all">{application.id}</div>
+              </div>
+            </div>
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${cfg.color}`}>
+              <cfg.icon className="w-4 h-4" />
+              <div className="text-xs font-bold">{application.status}</div>
+            </div>
+            {application.pendingAt !== '—' && (
+              <div className="mt-3 text-[11px] text-slate-500 flex items-center gap-1">
+                <CircleDot className="w-3 h-3" />
+                {t.pendingAt}: <span className="font-semibold text-slate-700">{application.pendingAt}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-white rounded-xl p-3 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-500 uppercase">Fees</div>
+              <div className="text-sm font-extrabold text-slate-900">₹{application.fees}</div>
+              <div className="text-[10px] font-bold text-emerald-600 mt-0.5">PAID</div>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-500 uppercase">Filed</div>
+              <div className="text-sm font-extrabold text-slate-900 leading-tight">{application.submittedOn.split(' ').slice(0,2).join(' ')}</div>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-500 uppercase">Steps</div>
+              <div className="text-sm font-extrabold text-slate-900">{application.timeline.filter(t => t.done).length}/{application.timeline.length}</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-slate-100">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Clock className="w-3 h-3" />
+              {t.timeline}
+            </div>
+            <div className="relative">
+              {application.timeline.map((step, i) => {
+                const stepCfg = STATUS_CONFIG[step.status];
+                const Icon = stepCfg?.icon || CircleDot;
+                return (
+                  <div key={i} className="relative flex gap-3 pb-5 last:pb-0">
+                    {/* Vertical line */}
+                    {i < application.timeline.length - 1 && (
+                      <div className={`absolute left-[15px] top-8 bottom-0 w-0.5 ${step.done ? 'bg-[#0F4C75]' : 'bg-slate-200'}`}></div>
+                    )}
+                    {/* Icon */}
+                    <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      step.current ? 'bg-[#0F4C75] ring-4 ring-[#0F4C75]/20' : step.done ? 'bg-[#0F4C75]' : 'bg-slate-200'
+                    }`}>
+                      {step.done ? (
+                        step.current ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-white" />
+                      ) : (
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 pt-0.5">
+                      <div className={`text-sm font-bold ${step.done ? 'text-slate-900' : 'text-slate-400'}`}>{step.status}</div>
+                      <div className={`text-[11px] mt-0.5 ${step.done ? 'text-slate-500' : 'text-slate-400'}`}>{step.date}</div>
+                      <div className={`text-xs mt-1 ${step.done ? 'text-slate-600' : 'text-slate-400'}`}>{step.desc}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <button className="py-3 bg-white border-2 border-slate-200 rounded-xl font-bold text-sm text-slate-700 flex items-center justify-center gap-2">
+              <Download className="w-4 h-4" /> Receipt
+            </button>
+            <button onClick={() => setTab('chatbot')} className="py-3 bg-[#0F4C75] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+              <Sparkles className="w-4 h-4" /> Ask AI
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // -------- GRIEVANCE TAB --------
+  const GrievanceTab = () => (
+    <div className="pb-24">
+      <Header title={t.grievance} subtitle={muni?.shortName} action={
+        <button onClick={() => navigate('myGrievances')} className="px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1">
+          <FileText className="w-3.5 h-3.5" /> Mine
+        </button>
+      } />
+      <div className="px-5 pt-4">
+        <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-5 text-white relative overflow-hidden mb-5">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="relative">
+            <div className="text-2xl mb-2">📢</div>
+            <div className="text-lg font-extrabold leading-tight">Voice your concerns</div>
+            <div className="text-xs text-white/80 mt-1">All grievances tracked with docket number & SLA timeline</div>
+          </div>
+        </div>
+
+        <div className="text-sm font-bold text-slate-900 mb-3">Choose a category</div>
+        <div className="grid grid-cols-2 gap-3">
+          {GRIEVANCE_CATEGORIES.map(c => (
+            <button key={c.id} onClick={() => navigate('grievanceForm', c)}
+              className="bg-white rounded-2xl p-4 border border-slate-100 active:scale-[0.98] transition-transform text-left">
+              <div className={`w-11 h-11 rounded-xl ${c.color} flex items-center justify-center mb-2`}>
+                <c.icon className="w-5 h-5" />
+              </div>
+              <div className="font-bold text-sm text-slate-900 leading-tight">{c.name}</div>
+              <div className="text-[10px] text-slate-500 mt-1">{c.sub.length} sub-types</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const GrievanceFormScreen = ({ category }) => {
+    const [subCat, setSubCat] = useState(null);
+    const [desc, setDesc] = useState('');
+    const [priority, setPriority] = useState('Medium');
+    const [submitted, setSubmitted] = useState(false);
+
+    const handleFile = () => {
+      if (!subCat || !desc.trim()) return;
+      const newGrv = {
+        id: `GRV/${muni?.shortName}/2026/${category.id.toUpperCase().slice(0,3)}/${Math.floor(Math.random()*9000+1000)}`,
+        category: category.name,
+        sub: subCat,
+        filed: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        status: 'Submitted',
+        location: user?.address.split(',').slice(0,2).join(',') || '',
+        priority,
+        sla: priority === 'High' ? '24 hrs' : '48 hrs',
+        timeline: [
+          { status: 'Submitted', date: 'Just now', desc: 'Docket generated', done: true, current: true },
+        ]
+      };
+      setGrievances([newGrv, ...grievances]);
+      setSubmitted(newGrv);
+    };
+
+    if (submitted) {
+      return (
+        <div className="absolute inset-0 bg-white z-30 flex flex-col items-center justify-center px-6 text-center">
+          <div className="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
+            <CheckCircle2 className="w-14 h-14 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-extrabold text-slate-900">Grievance Filed</div>
+          <div className="text-sm text-slate-500 mt-2">Your concern is now in the system. We'll keep you updated.</div>
+          <div className="w-full bg-slate-50 rounded-2xl p-4 mt-6 border border-slate-100 text-left">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.docketNo}</div>
+            <div className="text-sm font-extrabold text-orange-600 mt-0.5 break-all">{submitted.id}</div>
+            <div className="border-t border-slate-200 my-3"></div>
+            <div className="text-xs text-slate-500">SLA: <span className="font-bold text-slate-900">{submitted.sla}</span></div>
+            <div className="text-xs text-slate-500 mt-1">Priority: <span className="font-bold text-slate-900">{submitted.priority}</span></div>
+          </div>
+          <button onClick={() => { setSubmitted(false); goBack(); navigate('myGrievances'); }} className="w-full mt-6 py-4 bg-[#0F4C75] text-white rounded-2xl font-bold">
+            Track Grievance
+          </button>
+          <button onClick={() => { setSubmitted(false); goBack(); }} className="w-full mt-2 py-3 text-slate-600 font-semibold text-sm">
+            Done
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title="File Grievance" subtitle={category.name} showBack onBack={goBack} />
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className={`rounded-2xl p-4 mb-4 ${category.color}`}>
+            <div className="flex items-center gap-2">
+              <category.icon className="w-5 h-5" />
+              <div className="font-bold text-sm">{category.name}</div>
+            </div>
+          </div>
+
+          <label className="block text-xs font-bold text-slate-700 mb-2">Sub-category <span className="text-red-500">*</span></label>
+          <div className="space-y-2 mb-4">
+            {category.sub.map(s => (
+              <button key={s} onClick={() => setSubCat(s)}
+                className={`w-full p-3 rounded-xl border-2 text-left text-sm font-medium transition-colors ${subCat === s ? 'border-[#0F4C75] bg-[#0F4C75]/5 text-[#0F4C75]' : 'border-slate-200 bg-white text-slate-700'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <label className="block text-xs font-bold text-slate-700 mb-2">Describe the issue <span className="text-red-500">*</span></label>
+          <textarea rows={4} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Provide as much detail as possible..."
+            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium focus:border-[#0F4C75] outline-none resize-none mb-4" />
+
+          <label className="block text-xs font-bold text-slate-700 mb-2">Priority</label>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {['Low', 'Medium', 'High'].map(p => (
+              <button key={p} onClick={() => setPriority(p)}
+                className={`py-3 rounded-xl text-sm font-semibold border-2 ${priority === p ? 'border-[#0F4C75] bg-[#0F4C75]/5 text-[#0F4C75]' : 'border-slate-200 bg-white text-slate-600'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button className="bg-white border-2 border-dashed border-slate-300 rounded-xl py-4 flex flex-col items-center gap-1 text-slate-500">
+              <Camera className="w-5 h-5" />
+              <span className="text-xs font-bold">Photo</span>
+            </button>
+            <button className="bg-white border-2 border-dashed border-slate-300 rounded-xl py-4 flex flex-col items-center gap-1 text-slate-500">
+              <MapPinned className="w-5 h-5" />
+              <span className="text-xs font-bold">GPS Location</span>
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl p-3 border border-slate-100 flex items-start gap-3">
+            <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
+            <div className="flex-1">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Auto-detected location</div>
+              <div className="text-xs text-slate-700 font-medium mt-0.5">Lake Gardens, Ward 64, {muni?.shortName}</div>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 bg-white border-t border-slate-100">
+          <button onClick={handleFile} disabled={!subCat || !desc.trim()}
+            className="w-full py-4 bg-[#0F4C75] text-white rounded-2xl font-bold disabled:opacity-40 shadow-lg shadow-[#0F4C75]/20">
+            File Grievance
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const MyGrievancesScreen = () => (
+    <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+      <Header title={t.myGrievances} subtitle={`${grievances.length} total`} showBack onBack={goBack} />
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        {grievances.length === 0 ? (
+          <div className="text-center py-20 text-slate-400 text-sm">No grievances filed yet</div>
+        ) : grievances.map(g => {
+          const cfg = STATUS_CONFIG[g.status] || STATUS_CONFIG['Submitted'];
+          return (
+            <button key={g.id} onClick={() => navigate('grievanceDetail', g)}
+              className="w-full bg-white rounded-2xl p-4 border border-slate-100 active:scale-[0.99] transition-transform text-left">
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="font-bold text-sm text-slate-900">{g.sub}</div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${cfg.color}`}>{g.status}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 mb-2">{g.category}</div>
+              <div className="text-[11px] text-orange-600 font-mono mb-2 truncate">{g.id}</div>
+              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{g.filed}</span>
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{g.sla}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                  g.priority === 'High' ? 'bg-red-100 text-red-700' : g.priority === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                }`}>{g.priority.toUpperCase()}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const GrievanceDetailScreen = ({ grievance }) => {
+    const cfg = STATUS_CONFIG[grievance.status] || STATUS_CONFIG['Submitted'];
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title="Grievance" subtitle={grievance.id} showBack onBack={goBack} />
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 mb-4">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{grievance.category}</div>
+            <div className="font-bold text-base text-slate-900 mb-2">{grievance.sub}</div>
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl ${cfg.color}`}>
+              <cfg.icon className="w-3.5 h-3.5" />
+              <div className="text-xs font-bold">{grievance.status}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-100">
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase">Location</div>
+                <div className="text-xs font-semibold text-slate-700 mt-0.5">{grievance.location}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase">SLA</div>
+                <div className="text-xs font-semibold text-slate-700 mt-0.5">{grievance.sla}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-slate-100">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">{t.timeline}</div>
+            <div className="relative">
+              {grievance.timeline.map((step, i) => (
+                <div key={i} className="relative flex gap-3 pb-5 last:pb-0">
+                  {i < grievance.timeline.length - 1 && (
+                    <div className={`absolute left-[15px] top-8 bottom-0 w-0.5 ${step.done ? 'bg-orange-500' : 'bg-slate-200'}`}></div>
+                  )}
+                  <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    step.current ? 'bg-orange-500 ring-4 ring-orange-500/20' : step.done ? 'bg-orange-500' : 'bg-slate-200'
+                  }`}>
+                    {step.done ? (
+                      step.current ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-white" />
+                    ) : (
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 pt-0.5">
+                    <div className={`text-sm font-bold ${step.done ? 'text-slate-900' : 'text-slate-400'}`}>{step.status}</div>
+                    <div className={`text-[11px] mt-0.5 ${step.done ? 'text-slate-500' : 'text-slate-400'}`}>{step.date}</div>
+                    <div className={`text-xs mt-1 ${step.done ? 'text-slate-600' : 'text-slate-400'}`}>{step.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {grievance.status === 'Resolved' && (
+            <div className="mt-4 bg-white rounded-2xl p-4 border border-slate-100">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Rate the resolution</div>
+              <div className="flex justify-center gap-2 mb-3">
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} className="w-10 h-10 flex items-center justify-center">
+                    <Star className={`w-7 h-7 ${n <= 4 ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+                  </button>
+                ))}
+              </div>
+              <button className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm">Submit Feedback</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // -------- CHATBOT TAB (RAG) --------
+  const ChatbotTab = () => {
+    const [messages, setMessages] = useState([
+      { role: 'assistant', content: t.welcomeChat, suggestions: ['How to apply for Birth Certificate?', 'Property tax payment process', 'Track my application', 'File a grievance'] }
+    ]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, loading]);
+
+    const sendMessage = async (text) => {
+      const userMsg = text || input.trim();
+      if (!userMsg || loading) return;
+      setInput('');
+      const newMessages = [...messages, { role: 'user', content: userMsg }];
+      setMessages(newMessages);
+      setLoading(true);
+
+      try {
+        // ===== RAG SIMULATION =====
+        // In production: 
+        // 1. Embed query with sentence-transformers
+        // 2. Search Qdrant vector DB for top-K relevant chunks (filtered by tenant_id = muni.id)
+        // 3. Pass retrieved context + query to local Llama 3 via Ollama
+        // 4. Stream response back
+        // For this prototype, we send the full KB as context to demonstrate the flow.
+
+        const userContext = `
+USER CONTEXT:
+- Citizen: ${user?.name} (${user?.mobile})
+- Municipality: ${muni?.name} (${muni?.shortName})
+- Ward: 64
+- Language preference: ${lang === 'en' ? 'English' : lang === 'bn' ? 'Bengali' : 'Hindi'}
+
+CITIZEN'S APPLICATIONS:
+${applications.map(a => `- ${a.id}: ${a.service} — Status: ${a.status} (filed ${a.submittedOn}, pending at ${a.pendingAt})`).join('\n')}
+
+CITIZEN'S GRIEVANCES:
+${grievances.map(g => `- ${g.id}: ${g.sub} (${g.category}) — Status: ${g.status}`).join('\n')}
+`;
+
+        const systemPrompt = `You are Sahayak, an AI assistant for the eNagarSeba mobile app — the unified citizen services platform for West Bengal municipalities.
+
+You help citizens with: service information, application status, fees, processes, grievance guidance, and general municipal queries.
+
+GUIDELINES:
+- Be warm, respectful, and concise (2-4 sentences typically)
+- Reply in the user's language: ${lang === 'en' ? 'English' : lang === 'bn' ? 'Bengali (বাংলা)' : 'Hindi (हिन्दी)'}
+- Use the knowledge base below as your primary source
+- Reference the citizen's actual applications/grievances when relevant
+- For application status questions, cite the docket/application number
+- If asked something not in the knowledge base, acknowledge limits and suggest contacting helpline 1800-345-3344
+- Never invent fees or timelines — stick to what's in the knowledge base
+- Use ₹ for currency, never $
+- Keep formatting simple — short paragraphs, no markdown headers
+
+KNOWLEDGE BASE:
+${RAG_KNOWLEDGE_BASE}
+
+${userContext}`;
+
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 600,
+            system: systemPrompt,
+            messages: newMessages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }))
+          })
+        });
+
+        const data = await response.json();
+        const reply = data.content?.find(c => c.type === 'text')?.text || "I'm having trouble right now. Please try again or call our helpline 1800-345-3344.";
+        
+        setMessages([...newMessages, { role: 'assistant', content: reply }]);
+      } catch (err) {
+        setMessages([...newMessages, { role: 'assistant', content: "I'm experiencing connectivity issues. Please check your network or call our 24x7 helpline at 1800-345-3344." }]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="absolute inset-0 flex flex-col bg-gradient-to-b from-slate-50 to-white">
+        {/* Chatbot Header */}
+        <div className="bg-white border-b border-slate-100 px-5 pt-12 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-500 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></div>
+            </div>
+            <div className="flex-1">
+              <div className="font-extrabold text-slate-900 flex items-center gap-2">
+                Sahayak AI
+                <span className="text-[9px] font-bold bg-gradient-to-r from-orange-500 to-pink-500 text-white px-1.5 py-0.5 rounded-full">RAG</span>
+              </div>
+              <div className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                Online · {muni?.shortName} knowledge loaded
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ paddingBottom: '120px' }}>
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] ${m.role === 'user' ? '' : 'flex gap-2'}`}>
+                {m.role === 'assistant' && (
+                  <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-1">
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                  </div>
+                )}
+                <div className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                    m.role === 'user'
+                      ? 'bg-[#0F4C75] text-white rounded-tr-md'
+                      : 'bg-white border border-slate-100 text-slate-800 rounded-tl-md shadow-sm'
+                  }`} style={{ whiteSpace: 'pre-wrap' }}>
+                    {m.content}
+                  </div>
+                  {m.suggestions && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {m.suggestions.map(s => (
+                        <button key={s} onClick={() => sendMessage(s)}
+                          className="text-xs bg-white border border-slate-200 rounded-full px-3 py-1.5 font-semibold text-slate-700 hover:border-[#0F4C75] hover:text-[#0F4C75] transition-colors">
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex items-start gap-2">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-1">
+                <Sparkles className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}}></div>
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}}></div>
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}}></div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="absolute bottom-16 left-0 right-0 p-3 bg-white border-t border-slate-100">
+          <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-2">
+            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500">
+              <ImageIcon className="w-4 h-4" />
+            </button>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()}
+              placeholder={t.chatPlaceholder} className="flex-1 bg-transparent outline-none text-sm font-medium" />
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
+              className="w-9 h-9 bg-[#0F4C75] rounded-xl flex items-center justify-center text-white disabled:opacity-40 active:scale-90 transition-transform">
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // -------- PROFILE TAB --------
+  const ProfileTab = () => (
+    <div className="pb-24">
+      <div className="relative bg-gradient-to-br from-[#0F4C75] via-[#1e5a8a] to-[#3282B8] text-white px-5 pt-12 pb-16 overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-orange-400/15 rounded-full blur-3xl"></div>
+        <div className="relative">
+          <div className="text-xl font-extrabold mb-5">{t.profileTitle}</div>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/30 flex items-center justify-center text-3xl font-extrabold">
+              {user?.name?.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xl font-extrabold truncate">{user?.name}</div>
+              <div className="text-xs text-white/80 mt-0.5">+91 {user?.mobile?.replace(/(\d{5})/, '$1 ')}</div>
+              <button className="mt-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold flex items-center gap-1">
+                <BadgeCheck className="w-3 h-3" /> Verified Citizen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 -mt-10 relative z-10">
+        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-100 grid grid-cols-3">
+          <div className="p-3 text-center border-r border-slate-100">
+            <div className="text-xl font-extrabold text-slate-900">{applications.length}</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Apps</div>
+          </div>
+          <div className="p-3 text-center border-r border-slate-100">
+            <div className="text-xl font-extrabold text-slate-900">{grievances.length}</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Grievances</div>
+          </div>
+          <div className="p-3 text-center">
+            <div className="text-xl font-extrabold text-emerald-600">2</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Certificates</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 mt-5">
+        <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-100">
+          {[
+            { icon: User, label: t.editProfile, color: 'text-blue-600 bg-blue-50' },
+            { icon: Building2, label: t.changeMuni, sub: muni?.shortName, color: 'text-emerald-600 bg-emerald-50', action: () => setScreen('muniSelect') },
+            { icon: Languages, label: t.language, sub: lang === 'en' ? 'English' : lang === 'bn' ? 'বাংলা' : 'हिन्दी', color: 'text-violet-600 bg-violet-50' },
+            { icon: Bell, label: t.notifications, color: 'text-orange-600 bg-orange-50', action: () => navigate('notifications') },
+            { icon: Award, label: t.myCertificates, color: 'text-amber-600 bg-amber-50' },
+            { icon: Receipt, label: t.myPayments, color: 'text-pink-600 bg-pink-50', action: () => navigate('myPayments') },
+          ].map((item, i) => (
+            <button key={i} onClick={item.action} className="w-full p-4 flex items-center gap-3 active:bg-slate-50 transition-colors">
+              <div className={`w-10 h-10 rounded-xl ${item.color} flex items-center justify-center`}>
+                <item.icon className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-bold text-sm text-slate-900">{item.label}</div>
+                {item.sub && <div className="text-[11px] text-slate-500 mt-0.5">{item.sub}</div>}
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300" />
+            </button>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-100 mt-3">
+          {[
+            { icon: HelpCircle, label: t.helpSupport, color: 'text-slate-600 bg-slate-100' },
+            { icon: Info, label: t.aboutApp, color: 'text-slate-600 bg-slate-100' },
+            { icon: Shield, label: 'Privacy Policy', color: 'text-slate-600 bg-slate-100' },
+            { icon: Settings, label: t.settings, color: 'text-slate-600 bg-slate-100' },
+          ].map((item, i) => (
+            <button key={i} className="w-full p-4 flex items-center gap-3 active:bg-slate-50 transition-colors">
+              <div className={`w-10 h-10 rounded-xl ${item.color} flex items-center justify-center`}>
+                <item.icon className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left font-bold text-sm text-slate-900">{item.label}</div>
+              <ChevronRight className="w-5 h-5 text-slate-300" />
+            </button>
+          ))}
+        </div>
+
+        <button onClick={() => { setUser(null); setMuni(null); setScreen('login'); }}
+          className="w-full mt-4 p-4 bg-red-50 text-red-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-red-100">
+          <LogOut className="w-4 h-4" />
+          {t.logout}
+        </button>
+
+        <div className="text-center text-[10px] text-slate-400 mt-5 pb-4">
+          eNagarSeba v2.6.0 · Build 2026.04.28<br/>
+          © Govt of West Bengal · Made in India 🇮🇳
+        </div>
+      </div>
+    </div>
+  );
+
+  // -------- NOTIFICATIONS --------
+  const NotificationsScreen = () => {
+    const TYPE_ICONS = {
+      application: { icon: FileText, color: 'bg-blue-100 text-blue-600' },
+      grievance: { icon: AlertCircle, color: 'bg-orange-100 text-orange-600' },
+      payment: { icon: Receipt, color: 'bg-emerald-100 text-emerald-600' },
+      announcement: { icon: Megaphone, color: 'bg-violet-100 text-violet-600' },
+    };
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title={t.notifications} subtitle={`${notifications.filter(n => !n.read).length} unread`} showBack onBack={goBack}
+          action={<button onClick={() => setNotifications(notifications.map(n => ({...n, read: true})))} className="text-xs font-bold text-[#0F4C75]">Mark all read</button>}
+        />
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {notifications.map(n => {
+            const type = TYPE_ICONS[n.type] || TYPE_ICONS.announcement;
+            return (
+              <button key={n.id} onClick={() => setNotifications(notifications.map(x => x.id === n.id ? {...x, read: true} : x))}
+                className={`w-full rounded-2xl p-4 flex gap-3 text-left active:scale-[0.99] transition-transform ${n.read ? 'bg-white' : 'bg-blue-50/50 border border-blue-100'}`}>
+                <div className={`w-10 h-10 rounded-xl ${type.color} flex items-center justify-center flex-shrink-0`}>
+                  <type.icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className={`font-bold text-sm ${n.read ? 'text-slate-700' : 'text-slate-900'}`}>{n.title}</div>
+                    {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1.5"></div>}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.body}</div>
+                  <div className="text-[10px] text-slate-400 mt-1 font-medium">{n.time}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // -------- MY PAYMENTS --------
+  const MyPaymentsScreen = () => {
+    const payments = [
+      { id: 'TXN4429187', service: 'Birth Certificate', date: '12 Apr 2026', amount: 50, method: 'UPI', status: 'Success' },
+      { id: 'TXN4391762', service: 'Property Tax', date: '08 Apr 2026', amount: 4280, method: 'UPI', status: 'Success' },
+      { id: 'TXN4382109', service: 'Trade License', date: '02 Apr 2026', amount: 1500, method: 'Net Banking', status: 'Success' },
+      { id: 'TXN4291045', service: 'Water Bill', date: '28 Mar 2026', amount: 320, method: 'Card', status: 'Success' },
+    ];
+    const total = payments.reduce((s, p) => s + p.amount, 0);
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title={t.myPayments} showBack onBack={goBack} />
+        <div className="px-5 pt-4 pb-3">
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="text-xs font-semibold text-white/80">Total paid this year</div>
+            <div className="text-3xl font-extrabold mt-1">₹{total.toLocaleString('en-IN')}</div>
+            <div className="text-xs text-white/80 mt-1">{payments.length} successful transactions</div>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 space-y-2 pb-4">
+          {payments.map(p => (
+            <div key={p.id} className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-slate-900 truncate">{p.service}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{p.date} · {p.method} · {p.id}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-extrabold text-slate-900">₹{p.amount.toLocaleString('en-IN')}</div>
+                <button className="text-[10px] font-bold text-[#0F4C75] mt-0.5">Receipt ↓</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // -------- MY CERTIFICATES --------
+  const MyCertificatesScreen = () => {
+    const certs = [
+      { name: 'Property Tax Certificate', date: '08 Apr 2026', service: 'Property Tax 2026-27', icon: '🏠' },
+      { name: 'Trade License Certificate', date: '12 Mar 2025', service: 'Annual Trade License', icon: '🏪' },
+    ];
+    return (
+      <div className="absolute inset-0 bg-slate-50 z-20 flex flex-col">
+        <Header title={t.myCertificates} subtitle={`${certs.length} certificates`} showBack onBack={goBack} />
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {certs.map((c, i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl">{c.icon}</div>
+              <div className="flex-1">
+                <div className="font-bold text-sm text-slate-900">{c.name}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{c.service}</div>
+                <div className="text-[10px] text-slate-400 mt-1">Issued {c.date}</div>
+              </div>
+              <button className="px-3 py-2 bg-[#0F4C75] text-white rounded-xl text-xs font-bold flex items-center gap-1">
+                <Download className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex gap-3 items-start mt-4">
+            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-blue-800 leading-relaxed">
+              All certificates are also available in your <span className="font-bold">DigiLocker</span> account, automatically synced upon issuance.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ======================== ROUTING ========================
+  const renderTabContent = () => {
+    if (subScreen === 'serviceCategory') return <ServiceCategoryScreen category={subScreenData} />;
+    if (subScreen === 'serviceDetail') return <ServiceDetailScreen service={subScreenData} />;
+    if (subScreen === 'applyForm') return <ApplyFormScreen service={subScreenData} />;
+    if (subScreen === 'myApplications') return <MyApplicationsScreen />;
+    if (subScreen === 'applicationDetail') return <ApplicationDetailScreen application={subScreenData} />;
+    if (subScreen === 'grievanceForm') return <GrievanceFormScreen category={subScreenData} />;
+    if (subScreen === 'myGrievances') return <MyGrievancesScreen />;
+    if (subScreen === 'grievanceDetail') return <GrievanceDetailScreen grievance={subScreenData} />;
+    if (subScreen === 'notifications') return <NotificationsScreen />;
+    if (subScreen === 'myPayments') return <MyPaymentsScreen />;
+    if (subScreen === 'myCertificates') return <MyCertificatesScreen />;
+
+    if (tab === 'home') return <HomeTab />;
+    if (tab === 'services') return <ServicesTab />;
+    if (tab === 'grievance') return <GrievanceTab />;
+    if (tab === 'chatbot') return <ChatbotTab />;
+    if (tab === 'profile') return <ProfileTab />;
+    return <HomeTab />;
+  };
+
+  // ======================== APP SHELL ========================
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 sm:p-8" style={{ fontFamily: bodyFont }}>
+      {/* Phone frame for desktop */}
+      <div className="relative w-full max-w-[400px] aspect-[9/19.5] sm:aspect-[9/19.5] bg-black rounded-[44px] p-[10px] shadow-2xl shadow-slate-900/30">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50 flex items-center justify-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+          <div className="w-12 h-1 rounded-full bg-slate-800"></div>
+        </div>
+        <div className="relative w-full h-full bg-white rounded-[36px] overflow-hidden">
+          {/* Status bar */}
+          <div className="absolute top-0 left-0 right-0 h-9 px-7 flex items-center justify-between text-[11px] font-bold text-slate-900 z-40 pointer-events-none">
+            <div>9:41</div>
+            <div className="flex items-center gap-1">
+              <Signal className="w-3 h-3" strokeWidth={2.5} />
+              <Wifi className="w-3 h-3" strokeWidth={2.5} />
+              <BatteryFull className="w-4 h-4" strokeWidth={2.5} />
+            </div>
+          </div>
+
+          {/* Screen content */}
+          <div className="relative w-full h-full overflow-hidden">
+            {screen === 'splash' && <SplashScreen />}
+            {screen === 'language' && <LanguageScreen />}
+            {screen === 'login' && <LoginScreen />}
+            {screen === 'otp' && <OtpScreen />}
+            {screen === 'muniSelect' && <MuniSelectScreen />}
+            {screen === 'main' && (
+              <>
+                <div className="w-full h-full overflow-y-auto pb-16">
+                  {renderTabContent()}
+                </div>
+                {!subScreen && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 grid grid-cols-5 z-30">
+                    {[
+                      { id: 'home', label: t.home, icon: Home },
+                      { id: 'services', label: t.services, icon: Grid3x3 },
+                      { id: 'grievance', label: t.grievance, icon: AlertCircle },
+                      { id: 'chatbot', label: 'Sahayak', icon: Sparkles, special: true },
+                      { id: 'profile', label: t.profile, icon: User },
+                    ].map(b => (
+                      <button key={b.id} onClick={() => setTab(b.id)}
+                        className={`flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative`}>
+                        {b.special ? (
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${tab === b.id ? 'bg-gradient-to-br from-orange-400 via-pink-500 to-purple-500' : 'bg-slate-100'}`}>
+                            <b.icon className={`w-5 h-5 ${tab === b.id ? 'text-white' : 'text-slate-500'}`} />
+                          </div>
+                        ) : (
+                          <b.icon className={`w-5 h-5 ${tab === b.id ? 'text-[#0F4C75]' : 'text-slate-400'}`} strokeWidth={tab === b.id ? 2.5 : 2} />
+                        )}
+                        <div className={`text-[9px] font-bold ${tab === b.id ? 'text-[#0F4C75]' : 'text-slate-400'}`}>{b.label}</div>
+                        {tab === b.id && !b.special && <div className="absolute top-0 w-8 h-0.5 bg-[#0F4C75] rounded-b-full"></div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Home indicator */}
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-28 h-1 bg-black/30 rounded-full z-50"></div>
+        </div>
+      </div>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounce-once { 0% { transform: scale(0); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .animate-fade-in { animation: fade-in 0.6s ease-out; }
+        .animate-bounce-once { animation: bounce-once 0.6s ease-out; }
+        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+      `}</style>
+    </div>
+  );
+}

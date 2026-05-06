@@ -1,0 +1,24 @@
+{
+  "name": "@enagar/admin-state",
+  "version": "0.0.0",
+  "private": true,
+  "description": "State Super-Admin portal (onboard ULBs, manage global services, audit). Phase 6.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "echo '@enagar/admin-state: Phase-6 stub — see ROADMAP.md'",
+    "build": "echo 'noop (stub)'",
+    "lint": "echo 'noop (stub)'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'",
+    "clean": "rimraf .next .turbo"
+  },
+  "dependencies": {
+    "@enagar/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "@types/node": "^20.16.10",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  }
+}
