@@ -250,18 +250,20 @@ Every one of these is a **CRUD module** in the Tenant Admin Portal, backed by a 
 
 Ratified ADRs (Phase 0 kick-off, 2026-05-06) are in `docs/ADRs/`. The agent **must not** override these without superseding them via a new ADR.
 
-| ID       | Decision                   | Status                                    | Document                                                                                     |
-| -------- | -------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
-| ADR-0001 | Database engine            | ✅ **PostgreSQL 16**                      | [`docs/ADRs/ADR-0001-database-postgresql.md`](./docs/ADRs/ADR-0001-database-postgresql.md)   |
-| ADR-0002 | Backend framework          | ✅ **NestJS / Node 20**                   | [`docs/ADRs/ADR-0002-backend-nestjs.md`](./docs/ADRs/ADR-0002-backend-nestjs.md)             |
-| ADR-0003 | Citizen surface sequencing | ✅ **PWA + RN in parallel**               | [`docs/ADRs/ADR-0003-mobile-pwa-parallel.md`](./docs/ADRs/ADR-0003-mobile-pwa-parallel.md)   |
-| ADR-0004 | Workflow engine            | 🟡 Open (decide in Phase 2)               | _pending_                                                                                    |
-| ADR-0005 | Hosting target             | ✅ **On-prem WB SDC, cloud-portable**     | [`docs/ADRs/ADR-0005-hosting-onprem.md`](./docs/ADRs/ADR-0005-hosting-onprem.md)             |
-| ADR-0006 | Payment gateway            | 🟡 Open (decide in Phase 3)               | _pending_                                                                                    |
-| ADR-0007 | KB authoring format        | 🟡 Open (decide in Phase 6/7)             | _pending_                                                                                    |
-| ADR-0008 | LLM provider strategy      | ✅ **Adapter (OpenAI / Gemini / Ollama)** | [`docs/ADRs/ADR-0008-llm-provider-adapter.md`](./docs/ADRs/ADR-0008-llm-provider-adapter.md) |
+| ID       | Decision                   | Status                                    | Document                                                                                                           |
+| -------- | -------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| ADR-0001 | Database engine            | ✅ **PostgreSQL 16**                      | [`docs/ADRs/ADR-0001-database-postgresql.md`](./docs/ADRs/ADR-0001-database-postgresql.md)                         |
+| ADR-0002 | Backend framework          | ✅ **NestJS / Node 20**                   | [`docs/ADRs/ADR-0002-backend-nestjs.md`](./docs/ADRs/ADR-0002-backend-nestjs.md)                                   |
+| ADR-0003 | Citizen surface sequencing | ✅ **PWA + RN in parallel**               | [`docs/ADRs/ADR-0003-mobile-pwa-parallel.md`](./docs/ADRs/ADR-0003-mobile-pwa-parallel.md)                         |
+| ADR-0004 | Workflow engine            | 🟡 Open (decide in Phase 2)               | _pending_                                                                                                          |
+| ADR-0005 | Hosting target             | ✅ **On-prem WB SDC, cloud-portable**     | [`docs/ADRs/ADR-0005-hosting-onprem.md`](./docs/ADRs/ADR-0005-hosting-onprem.md)                                   |
+| ADR-0006 | Payment gateway            | 🟡 Open (decide in Phase 3)               | _pending_                                                                                                          |
+| ADR-0007 | KB authoring format        | 🟡 Open (decide in Phase 6/7)             | _pending_                                                                                                          |
+| ADR-0008 | LLM provider strategy      | ✅ **Adapter (OpenAI / Gemini / Ollama)** | [`docs/ADRs/ADR-0008-llm-provider-adapter.md`](./docs/ADRs/ADR-0008-llm-provider-adapter.md)                       |
+| ADR-0009 | Identity provider          | ✅ **Keycloak (self-hosted)**             | [`docs/ADRs/ADR-0009-identity-keycloak.md`](./docs/ADRs/ADR-0009-identity-keycloak.md)                             |
+| ADR-0010 | External-data adapters     | 🟦 Proposed (revisit at Phase 3 kickoff)  | [`docs/ADRs/ADR-0010-external-data-provider-adapters.md`](./docs/ADRs/ADR-0010-external-data-provider-adapters.md) |
 
-When the agent must proceed before an open decision is ratified, do so behind an interface that allows the alternative to be plugged in (e.g. `IPaymentGateway`, `IWorkflowEngine`). The `ILLMProvider` interface from ADR-0008 is the reference example of this pattern.
+When the agent must proceed before an open decision is ratified, do so behind an interface that allows the alternative to be plugged in (e.g. `IPaymentGateway`, `IWorkflowEngine`). The `ILLMProvider` interface from ADR-0008 — and the `IExternalDataProvider` interface from ADR-0010 — are the reference examples of this pattern.
 
 ---
 
@@ -301,24 +303,27 @@ A feature is **done** only when:
 
 ## 10. Glossary
 
+> **Canonical vocabulary lives in [`docs/glossary.md`](./docs/glossary.md)** (Sprint 0.2 deliverable). Five terms repeated below for quick reference; everything else is in the canonical file. Conflicts are resolved by `docs/glossary.md`.
+
 - **ULB** — Urban Local Body (the formal term for a municipality / corporation in Indian governance).
 - **Tenant** — One ULB. Each tenant has its own data, services, workflows, fees, KB, branding, staff.
-- **Docket** — A citizen's application or grievance reference number, used for tracking.
+- **Docket** — A citizen's grievance reference number (e.g. `GRV/KMC/2026/SAN/4421`).
 - **Holding number** — Property's municipal identifier; the primary key for property tax / water / conservancy.
-- **SLA** — Service Level Agreement; promised processing time. Breach triggers escalation.
-- **EMD** — Earnest Money Deposit (tender participation deposit, refundable).
-- **RAG** — Retrieval-Augmented Generation; chatbot pattern of retrieving tenant-specific context before LLM generation.
-- **Sahayak AI** — The product name of the chatbot.
-- **eNagarSeba** — The product name of the platform.
+- **Sahayak AI** — The product name of the citizen chatbot. _eNagarSeba_ is the product name of the platform.
 
 ---
 
 ## 11. Quick Links
 
+- Charter (vision, KPIs, scope): [`docs/charter.md`](./docs/charter.md)
 - Architecture: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 - Roadmap: [`ROADMAP.md`](./ROADMAP.md)
+- Glossary: [`docs/glossary.md`](./docs/glossary.md)
+- Threat model + Phase-1 security tests: [`docs/security/threat-model.md`](./docs/security/threat-model.md)
+- Service catalogue (76 services, ID formats, seed plan): [`docs/service-catalogue.md`](./docs/service-catalogue.md)
+- Design system (tokens, theming, wireframes): [`docs/design-system.md`](./docs/design-system.md)
+- ADRs: [`docs/ADRs/`](./docs/ADRs/)
 - API spec: `docs/API.md` _(generated in Phase 1)_
-- ADRs: `docs/ADRs/` _(populated from Phase 0 onward)_
 - Prototype reference (UX only): [`index.html`](./index.html), [`MunicipalApp.jsx`](./MunicipalApp.jsx)
 
 ---
