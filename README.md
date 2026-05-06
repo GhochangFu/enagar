@@ -3,7 +3,7 @@
 > A unified, multi-tenant, multilingual municipal services platform for the Government of West Bengal.
 > Built once. Deployed everywhere. Owned by the state.
 
-[![Status](https://img.shields.io/badge/status-Phase_0-blue)]()
+[![Status](https://img.shields.io/badge/status-Phase_1_starting-blue)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)]()
 [![Stack](https://img.shields.io/badge/stack-NestJS%20%7C%20Next.js%20%7C%20Expo%20%7C%20Postgres%20%7C%20Qdrant-informational)]()
 
@@ -31,15 +31,17 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 
 ## Documentation
 
-| Document                               | Purpose                                                  |
-| -------------------------------------- | -------------------------------------------------------- |
-| [`docs/charter.md`](./docs/charter.md) | Vision, KPIs, scope, risks, sponsor sign-off             |
-| [`AGENT.md`](./AGENT.md)               | Operating manual for any contributor (human or AI)       |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Technical architecture (multi-tenancy, RLS, RAG, schema) |
-| [`ROADMAP.md`](./ROADMAP.md)           | Phase-wise delivery plan                                 |
-| [`docs/ADRs/`](./docs/ADRs/)           | Ratified architecture decisions                          |
-| `docs/glossary.md`                     | _Coming Sprint 0.2_                                      |
-| `docs/security/threat-model.md`        | _Coming Sprint 0.2_                                      |
+| Document                                                           | Purpose                                                                                |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| [`docs/charter.md`](./docs/charter.md)                             | Vision, KPIs, scope, risks, sponsor sign-off                                           |
+| [`AGENT.md`](./AGENT.md)                                           | Operating manual for any contributor (human or AI)                                     |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                             | Technical architecture (multi-tenancy, RLS, RAG, schema)                               |
+| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan; Phase 0 closure note at the bottom                           |
+| [`docs/ADRs/`](./docs/ADRs/)                                       | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                     |
+| [`docs/glossary.md`](./docs/glossary.md)                           | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns         |
+| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + 64-test Phase-1 security backlog                                         |
+| [`docs/service-catalogue.md`](./docs/service-catalogue.md)         | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan         |
+| [`docs/design-system.md`](./docs/design-system.md)                 | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows |
 
 ## Architecture at a glance
 
@@ -89,7 +91,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full picture.
 
 ## Quickstart
 
-> Phase 0 is in progress. The infrastructure runs today; app scaffolds arrive in the next batch.
+> Phase 0 is closed (commits `77a7355` + `7b604d2`). The monorepo, dev infrastructure, two runnable apps (`apps/api`, `apps/citizen-pwa`), and the foundational docs are in place. Phase 1 (tenancy + identity) is the next batch.
 
 ### Prerequisites
 
@@ -225,7 +227,12 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 ## Status
 
-**Phase 0 — Foundation & Discovery** in progress. See [`ROADMAP.md`](./ROADMAP.md).
+**Phase 0 — Foundation & Discovery** closed on 2026-05-06.
+
+- Sprint 0.1 (`77a7355`) — monorepo, CI, dev infra, charter, ADRs 0001 / 0002 / 0003 / 0005 / 0008.
+- Sprint 0.2 (`7b604d2`) — glossary, threat model, service catalogue, design system, ADR-0009, ADR-0010.
+
+**Now starting: Phase 1 — Tenant & Identity Core.** See the closure note and Phase 1 entry conditions at the bottom of [`ROADMAP.md`](./ROADMAP.md).
 
 ---
 

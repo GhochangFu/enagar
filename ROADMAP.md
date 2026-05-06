@@ -78,16 +78,18 @@ Convert the current scratch-pad repo into a real, multi-app monorepo with CI, in
 
 ### Exit Criteria
 
-- All 7 ADRs ratified and merged.
-- `pnpm install && pnpm dev:up && pnpm dev` boots every app to a hello screen.
-- CI green on a freshly cloned repo.
-- Storybook published with ≥ 30 components.
-- Charter signed.
+> ✅ Phase 0 closed 2026-05-06 — see Status section at the bottom of this file for the full closure note.
+
+- ⚠️ All 7 ADRs ratified and merged. _6 accepted (0001/0002/0003/0005/0008/0009), 1 proposed (0010); 3 explicitly deferred to their natural phases (0004/0006/0007)._
+- ⚠️ `pnpm install && pnpm dev:up && pnpm dev` boots every app to a hello screen. _`apps/api` + `apps/citizen-pwa` boot; the other 4 apps are package stubs._
+- ✅ CI green on a freshly cloned repo.
+- ⏭ Storybook published with ≥ 30 components. _Deferred to Phase 2 Sprint 2.5 — components don't exist yet._
+- 🟡 Charter signed. _Pending sponsor sign-off._
 
 ### Suggested Sprint Slice
 
-- **Sprint 0.1**: Charter, ADRs, repo skeleton, CI.
-- **Sprint 0.2**: Design system, local-dev infra, threat model, catalogue audit.
+- ✅ **Sprint 0.1**: Charter, ADRs, repo skeleton, CI. _(commit `77a7355`)_
+- ✅ **Sprint 0.2**: Design system docs, threat model, catalogue audit, glossary, ADR-0009, ADR-0010. _(commit `7b604d2`)_
 
 ---
 
@@ -911,9 +913,50 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: Pre-Phase 0. Repo contains only `ARCHITECTURE.md`, `AGENT.md`, `ROADMAP.md`, `index.html`, `MunicipalApp.jsx`. No code, no infrastructure, no tenants.
+**Current state**: **Phase 0 effectively closed; Phase 1 ready to start.**
 
-**Next action**: Schedule the Phase 0 kick-off — sponsor charter sign-off, ADR ratification workshop (1 day), and team / partner provisioning. Sprints for Phase 0 will be scoped in that workshop.
+### Phase 0 closure note (2026-05-06)
+
+Closed across two commits on `main`:
+
+| Commit    | Slice            | What landed                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `77a7355` | Sprint 0.1 build | PNPM + Turborepo monorepo; 4 runnable scaffolds (`@enagar/config`, `@enagar/types`, `apps/api` NestJS hello, `apps/citizen-pwa` Next.js hello); 14 stubs; CI (lint/typecheck/test/Trivy/commitlint); Husky + commitlint + lint-staged; dev infra (`docker-compose` for postgres / redis / qdrant / minio / keycloak / meilisearch / mailhog; ollama behind `offline-llm` profile); `.env.example`; charter (`docs/charter.md`); ADRs 0001 / 0002 / 0003 / 0005 / 0008 |
+| `7b604d2` | Sprint 0.2 docs  | `docs/glossary.md`; `docs/security/threat-model.md` (STRIDE + 64-test Phase-1 backlog); `docs/service-catalogue.md` (76 services, 6 workflow patterns, ID formats, seed plan); `docs/design-system.md` (tokens, theming, 6 wireframes); ADR-0009 (Keycloak); ADR-0010 (external-data adapters — proposed)                                                                                                                                                             |
+
+### What was delivered against the original Phase-0 exit criteria
+
+| Criterion (from §Phase 0 above)                                             | Status                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All 7 ADRs ratified and merged                                              | ⚠️ **Partial** — 6 accepted (0001 / 0002 / 0003 / 0005 / 0008 / 0009), 1 proposed (0010), 3 explicitly deferred to their natural phases (0004 → Phase 2, 0006 → Phase 3, 0007 → Phase 6/7)                                                                                                                                                                 |
+| `pnpm install && pnpm dev:up && pnpm dev` boots every app to a hello screen | ⚠️ **Partial** — `apps/api` + `apps/citizen-pwa` boot; `apps/admin-tenant`, `apps/admin-state`, `apps/mobile`, `apps/staff-mobile` are package-level stubs (Phase-2 / 5 / 6 deliverables). Solo-developer pragmatism: a stub per app meets the "monorepo discoverability" intent without spending days on hello-world copies of work that gets thrown away |
+| CI green on a freshly cloned repo                                           | ✅                                                                                                                                                                                                                                                                                                                                                         |
+| Storybook published with ≥ 30 components                                    | ⏭ **Deferred to Phase 2 Sprint 2.5** — no production component code exists yet; Storybook with empty atoms would be theatre. `docs/design-system.md` §8 commits to publishing in Phase 2                                                                                                                                                                  |
+| Charter signed                                                              | 🟡 **Pending sponsor sign-off** — `docs/charter.md` v0.1 awaiting DoUD&MA review                                                                                                                                                                                                                                                                           |
+
+### Open items rolling into Phase 1 (or later)
+
+| #   | Item                                                                                  | Origin             | Lands in                                                          |
+| --- | ------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
+| 1   | Sponsor sign-off on charter, glossary, threat model, service catalogue, design system | Sprint 0.2 outputs | Phase 1 kick-off                                                  |
+| 2   | DPA template signed with OpenAI + Google for chatbot                                  | ADR-0008           | Phase 7 prerequisite                                              |
+| 3   | `docs/playbooks/postgres-for-sql-server-developers.md`                                | ADR-0001 follow-up | Opportunistic, by Phase 1 close                                   |
+| 4   | `docs/playbooks/postgres-on-prem-ops.md`                                              | ADR-0001 follow-up | Phase 5 hardening                                                 |
+| 5   | `docs/playbooks/onprem-bootstrap.md`                                                  | ADR-0005 follow-up | Phase 5 hardening                                                 |
+| 6   | `pnpm run generate:sdk` script wired into Turborepo                                   | ADR-0002 follow-up | Phase 1 Sprint 1.3                                                |
+| 7   | NestJS module template (validation pipe, error filter, tenant guard, swagger)         | ADR-0002 follow-up | ✅ delivered (`apps/api`); template extraction Phase 1 Sprint 1.3 |
+| 8   | Capacity-planning request to WBSCSC                                                   | ADR-0005 follow-up | Sponsor / state IT — out of solo-dev hands                        |
+| 9   | Field interviews in 3 ULBs                                                            | Phase-0 scope      | Sponsor-driven; not blocking Phase 1 dev                          |
+| 10  | ADR-0010 final acceptance (currently Proposed)                                        | Sprint 0.2         | Phase 3 kickoff after KMC IT liaison                              |
+
+### Phase 1 entry status
+
+Phase 1 dependencies (per §Phase 1 above):
+
+- ✅ Phase 0 complete (monorepo, foundational docs, accepted ADRs).
+- 🟡 DigiLocker sandbox credentials from MeitY — sponsor / legal track.
+
+**Next action**: kick off **Phase 1 Sprint 1.0** — Keycloak deployed via the dev compose stack (per ADR-0009), Prisma + first migrations for `tenants` / `citizens` / `users` / `wards` (per ADR-0001 with RLS), JWT auth-guard + tenant-context-guard wired in `apps/api`, and the first Phase-1 security tests (TI-1..TI-6 from `docs/security/threat-model.md` §7.1) implemented against the new schema.
 
 ---
 
