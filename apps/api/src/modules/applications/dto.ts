@@ -48,6 +48,18 @@ export interface ApplicationCommentResponse {
   created_at: string;
 }
 
+export interface ApplicationDocumentResponse {
+  id: string;
+  document_code: string;
+  original_name: string;
+  mime_type: string;
+  size_mb: number;
+  upload_status: 'intent_created' | 'uploaded' | 'rejected';
+  scan_status: 'pending' | 'clean' | 'infected' | 'failed';
+  object_key: string;
+  created_at: string;
+}
+
 export interface ApplicationResponse {
   id: string;
   docket_no: string;
@@ -68,9 +80,10 @@ export interface ApplicationResponse {
   submitted_at: string;
   timeline: ApplicationTimelineResponse[];
   comments: ApplicationCommentResponse[];
+  documents: ApplicationDocumentResponse[];
 }
 
 export type ApplicationSummaryResponse = Omit<
   ApplicationResponse,
-  'form_data' | 'timeline' | 'comments'
+  'form_data' | 'timeline' | 'comments' | 'documents'
 >;

@@ -108,6 +108,7 @@ export class ApplicationsService {
           ]
         : timeline,
       comments: [],
+      documents: [],
     };
 
     this.applications.set(application.id, application);
@@ -199,10 +200,21 @@ export class ApplicationsService {
     return cloneApplication(updated);
   }
 
-  private getOwnedApplication(
+  attachDocument(
     principal: AuthenticatedPrincipal,
     applicationId: string,
-  ): StoredApplication {
+    document: StoredApplication['documents'][number],
+  ): void {
+    const application = this.getOwnedApplication(principal, applicationId);
+    const updated: ApplicationResponse = {
+      ...application,
+      documents: [...application.documents.filter((item) => item.id !== document.id), document],
+    };
+
+    this.applications.set(updated.id, updated);
+  }
+
+  getOwnedApplication(principal: AuthenticatedPrincipal, applicationId: string): StoredApplication {
     const application = this.applications.get(applicationId);
     if (!application || !this.canAccess(principal, application)) {
       throw new NotFoundException('Application not found');
@@ -246,5 +258,6 @@ function cloneApplication(application: ApplicationResponse): ApplicationResponse
     form_data: { ...application.form_data },
     timeline: application.timeline.map((item) => ({ ...item })),
     comments: application.comments.map((item) => ({ ...item })),
+    documents: application.documents.map((item) => ({ ...item })),
   };
 }

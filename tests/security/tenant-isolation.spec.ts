@@ -38,6 +38,9 @@ const requiredTenantIsolationTables = [
   'applications',
   'application_timeline',
   'application_comments',
+  'application_documents',
+  'holding_records',
+  'holding_lookup_audit',
 ] as const;
 
 const normalizeSql = (sql: string): string =>

@@ -240,7 +240,7 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 - ✅ **Sprint 2.1**: DB schema + revenue heads + service catalogue layering.
 - ✅ **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
 - ✅ **Sprint 2.3**: Workflow engine + applications + timeline.
-- **Sprint 2.4**: Document upload pipeline + holding lookup.
+- ✅ **Sprint 2.4**: Document upload pipeline + holding lookup.
 - **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
 - **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
 
@@ -409,6 +409,68 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 - ✅ Citizen application list/detail APIs return only that citizen's tenant-scoped applications.
 - ✅ Cancel/comment actions append timeline/comment records without crossing tenant/citizen boundaries.
 - ✅ API, workflow package, workflow-engine package, security tests, full typecheck/test/build pass before deliverables are marked complete.
+
+### Sprint 2.4 — Detailed Deliverables
+
+> ✅ Sprint 2.4 closed 2026-05-07 — document/holding schema, RLS migration, protected document upload/download contracts, scan-result guards, tenant-scoped holding lookup fixtures, application document metadata integration, unit tests, security contracts, and full repo validation passed.
+
+**Goal**: add the document intake and property/holding lookup foundation needed by application submission, while keeping actual object storage and virus scanning behind replaceable adapters.
+
+#### In Scope
+
+1. ✅ **Prisma + migration schema**
+   - ✅ Add tenant-scoped `application_documents` for upload metadata, object keys, scan status, and application linkage.
+   - ✅ Add tenant-scoped `holding_records` as the local mirror/cache for property/holding lookup.
+   - ✅ Add tenant-scoped `holding_lookup_audit` for lookup outcome, source, actor, and timestamp.
+   - ✅ Enable RLS and `tenant_isolation` policies for all new tenant-scoped tables.
+2. ✅ **Document upload API**
+   - ✅ Add protected endpoints:
+     - `POST /documents/upload-intent`
+     - `POST /documents/:id/scan-result`
+     - `GET /documents/:id/download`
+   - ✅ Validate declared MIME type and file size before issuing upload intent.
+   - ✅ Generate tenant-scoped object keys under a deterministic prefix.
+   - ✅ Return a short-lived upload URL/download URL contract that can later be backed by MinIO pre-signed URLs.
+   - ✅ Track scan status: `pending`, `clean`, `infected`, and `failed`.
+   - ✅ Block download for documents that are not scan-clean.
+3. ✅ **Document scan worker contract**
+   - ✅ Add scan-result contract through API helper and document state transitions.
+   - ✅ Ensure scan result updates are scoped to the same tenant/application/document.
+   - ✅ Keep real ClamAV invocation out of scope, but preserve the result contract.
+4. ✅ **Holding lookup API**
+   - ✅ Add protected endpoints:
+     - `GET /holdings/:holdingNumber`
+     - `GET /holdings/search?q=...`
+   - ✅ Seed tenant-specific holding fixtures for KMC/HMC so positive, negative, and cross-tenant cases are testable.
+   - ✅ Return explicit fields: holding number, owner display name, ward, locality, address, property type, outstanding amount, and source freshness.
+   - ✅ Represent lookup audit semantics for found and not-found outcomes.
+5. ✅ **Application integration**
+   - ✅ Allow application details to expose associated document metadata without returning upload/download URLs inline.
+   - ✅ Keep form submission itself unchanged; document upload remains a separate step until Sprint 2.5 UI integration.
+6. ✅ **Tests and contracts**
+   - ✅ Unit-test MIME/size validation, upload intent generation, scan-result state transitions, and scan-clean download guard.
+   - ✅ Unit-test holding lookup found/not-found/cross-tenant behavior.
+   - ✅ Extend tenant-isolation migration tests for all new document/holding tables.
+   - ✅ Add security/static tests proving protected document/holding APIs are registered and not public.
+
+#### Out of Scope
+
+- Real MinIO SDK integration and bucket provisioning beyond URL/object-key contract.
+- Real ClamAV daemon invocation or streaming file scan.
+- Browser/mobile upload UI (Sprint 2.5).
+- Payment-linked document gates.
+- External municipal property API adapters; use local mirror fixtures in this sprint.
+- Staff-side document review UI.
+
+#### Sprint 2.4 Exit Criteria
+
+- ✅ Document/holding tables exist with RLS and tenant-isolation policies.
+- ✅ Upload intent rejects unsupported MIME types and files over 10 MB.
+- ✅ Upload intent returns a tenant-scoped object key and short-lived URL contract.
+- ✅ Download URLs are blocked until the document scan status is `clean`.
+- ✅ Holding lookup returns the correct KMC fixture and does not leak HMC records.
+- ✅ Not-found holding lookups are represented/auditable without exposing another tenant's data.
+- ✅ API, security tests, full typecheck/test/build pass before deliverables are marked complete.
 
 ### Parallelism
 
@@ -1081,7 +1143,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 Sprint 2.3 complete; Sprint 2.4 ready to plan.**
+**Current state**: **Phase 2 Sprint 2.4 complete; Sprint 2.5 ready to plan.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1127,7 +1189,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Plan Sprint 2.4 — document upload pipeline and holding lookup.
+**Next action**: Plan Sprint 2.5 — Citizen UI end-to-end: Services → Apply → My Applications.
 
 ---
 
