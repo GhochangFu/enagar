@@ -13,13 +13,14 @@
 | `sprint14-security-review.spec.ts` | Security gate for i18n, theming/onboarding, CORS, and blocked DigiLocker status | 1.4   |
 | `service-catalogue.spec.ts`        | API/seed contract for Sprint 2.1 service catalogue layering                     | 2.1   |
 | `form-schema.spec.ts`              | Shared form-schema/runtime contract and no service-specific UI guard            | 2.2   |
+| `applications-workflow.spec.ts`    | Protected application APIs, shared form validation, workflow, worker contracts  | 2.3   |
 | _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                  | 1     |
 | _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call | 7     |
 | _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation      | 6     |
 
 Phase 1 security status:
 
-- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, and DigiLocker-blocked status.
+- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, DigiLocker-blocked status, service catalogue, form schema, application APIs, and workflow contracts.
 - `pnpm security:zap:auth` completed with `FAIL-NEW: 0`, `WARN-NEW: 0`, and 119 passing checks for the auth OpenAPI surface.
 - Real DigiLocker/Aadhaar linking is intentionally deferred until external access and permission are granted.
 

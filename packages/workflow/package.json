@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "pnpm run build && node --test test/run-tests.mjs",
     "build": "tsc",
     "clean": "rimraf dist .turbo"
   },

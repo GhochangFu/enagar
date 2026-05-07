@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js';
 import {
-  birthCertificateSchema,
   createRenderPlan,
   exportToJsonSchema,
-  tradeLicenceSchema,
   validateFormSchema,
   validateSubmission,
 } from '../dist/index.js';

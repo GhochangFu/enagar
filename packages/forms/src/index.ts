@@ -1,7 +1,5 @@
 export const FORM_SCHEMA_VERSION = 1 as const;
 
-export * from './fixtures.js';
-
 export const FORM_FIELD_TYPES = [
   'text',
   'textarea',

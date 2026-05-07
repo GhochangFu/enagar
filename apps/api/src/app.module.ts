@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
 import { JwtVerifierService } from './common/auth/jwt-verifier.service';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
+import { ApplicationsModule } from './modules/applications/applications.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
 import { HealthModule } from './modules/health/health.module';
@@ -45,6 +46,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     }),
     AuthModule,
     CitizenModule,
+    ApplicationsModule,
     HealthModule,
     ServicesModule,
     TenantsModule,

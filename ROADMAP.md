@@ -239,7 +239,7 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 
 - ✅ **Sprint 2.1**: DB schema + revenue heads + service catalogue layering.
 - ✅ **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
-- **Sprint 2.3**: Workflow engine + applications + timeline.
+- ✅ **Sprint 2.3**: Workflow engine + applications + timeline.
 - **Sprint 2.4**: Document upload pipeline + holding lookup.
 - **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
 - **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
@@ -351,6 +351,64 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 - ✅ Invalid schemas fail fast for duplicate field IDs, unsupported field types, invalid required fields, and invalid conditional references.
 - ✅ Submission validation passes for valid visible-field payloads and rejects missing/invalid visible fields.
 - ✅ `pnpm --filter @enagar/forms test`, full repo typecheck/test/build, and security tests pass before deliverables are marked complete.
+
+### Sprint 2.3 — Detailed Deliverables
+
+> ✅ Sprint 2.3 closed 2026-05-07 — workflow/application schema, RLS migration, `@enagar/workflow` evaluator, idempotent worker helpers, protected application APIs, timeline/comment behavior, unit tests, security contracts, and full repo validation passed.
+
+**Goal**: introduce the application runtime: a data-defined workflow evaluator, application records, timeline audit, and protected APIs that let a citizen submit and track a service request without implementing document upload or payments yet.
+
+#### In Scope
+
+1. ✅ **Prisma + migration schema**
+   - ✅ Add `workflows`, `workflow_stages`, `workflow_transitions`, and `role_stage_map` as tenant-scoped workflow definition tables.
+   - ✅ Add `applications`, `application_timeline`, and `application_comments` as tenant-scoped runtime tables.
+   - ✅ Store immutable snapshots for `service_code`, form version, workflow version/current stage, status label, pending role, submitted form data, and mock payment status.
+   - ✅ Enable RLS and `tenant_isolation` policies for every tenant-scoped workflow/application table.
+2. ✅ **`@enagar/workflow` runtime**
+   - ✅ Replace the placeholder with typed stage/transition/workflow primitives.
+   - ✅ Implement pure transition evaluation: allowed verb, current stage, actor role, terminal-stage guard, and optional comment requirement.
+   - ✅ Implement SLA due-date calculation.
+   - ✅ Provide reusable workflow fixtures for certificate issuance, instant/tax, and booking patterns.
+3. ✅ **`services/workflow-engine` worker helpers**
+   - ✅ Replace the placeholder with idempotent job/effect primitives.
+   - ✅ Key effects by `(tenant_id, application_id, transition_id, effect_type)` to prevent duplicate side effects.
+   - ✅ Provide SLA escalation job shape and due-stage reconciliation helper without adding real notification dispatch yet.
+4. ✅ **Applications API**
+   - ✅ Add protected endpoints:
+     - `POST /applications`
+     - `GET /applications`
+     - `GET /applications/:docketNo`
+     - `POST /applications/:id/cancel`
+     - `POST /applications/:id/comment`
+   - ✅ Validate submitted form data with `@enagar/forms` fixtures.
+   - ✅ Create an initial timeline row at submit.
+   - ✅ Return citizen-owned, tenant-scoped application summaries and details.
+   - ✅ Return 404 for cross-tenant/cross-citizen application lookups.
+5. ✅ **Tests and contracts**
+   - ✅ Unit-test workflow evaluator transitions, wrong-role rejection, terminal-stage rejection, and SLA due-date calculation.
+   - ✅ Unit-test workflow-engine idempotency/reconciliation helpers.
+   - ✅ Unit-test application create/list/detail/cancel/comment and citizen isolation behavior.
+   - ✅ Extend migration/security contract tests for workflow/application tables and API route registration.
+
+#### Out of Scope
+
+- Document upload and MinIO/ClamAV processing (Sprint 2.4).
+- Real payment lifecycle; use `payment_status = "not_required"` or mocked paid status until Phase 3.
+- Staff/operator action UI and full back-office workflow inbox.
+- Styled citizen Services → Apply → My Applications UI (Sprint 2.5).
+- Admin workflow visual designer (Phase 6).
+- Real notification delivery for SLA escalations.
+
+#### Sprint 2.3 Exit Criteria
+
+- ✅ Workflow/application tables exist with RLS and tenant-isolation policies.
+- ✅ `@enagar/workflow` rejects invalid transitions and calculates SLA due dates deterministically.
+- ✅ `services/workflow-engine` idempotency tests prove duplicate jobs produce one effect.
+- ✅ A citizen can submit a Birth Certificate fixture application through the API and receive a docket number.
+- ✅ Citizen application list/detail APIs return only that citizen's tenant-scoped applications.
+- ✅ Cancel/comment actions append timeline/comment records without crossing tenant/citizen boundaries.
+- ✅ API, workflow package, workflow-engine package, security tests, full typecheck/test/build pass before deliverables are marked complete.
 
 ### Parallelism
 
@@ -1023,7 +1081,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 Sprint 2.2 complete; Sprint 2.3 ready to plan.**
+**Current state**: **Phase 2 Sprint 2.3 complete; Sprint 2.4 ready to plan.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1069,7 +1127,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Plan Sprint 2.3 — workflow engine, applications, and timeline.
+**Next action**: Plan Sprint 2.4 — document upload pipeline and holding lookup.
 
 ---
 
