@@ -96,6 +96,8 @@ Convert the current scratch-pad repo into a real, multi-app monorepo with CI, in
 ## Phase 1 — Tenant & Identity Core
 
 > "Everything else stands on this foundation. Get tenancy right, or rip it out later."
+>
+> ✅ Phase 1 closed 2026-05-07 — all exit criteria passed. DigiLocker remains blocked by missing external access / permission and is not treated as a Phase 1 completion blocker.
 
 ### Goal
 
@@ -113,23 +115,23 @@ Make the platform multi-tenant from the first byte. Citizens and staff can regis
 
 ### Key Deliverables
 
-1. **Database** (Phase 1.1):
-   - Tables with RLS: `tenants`, `tenant_config`, `citizens`, `users` (staff), `roles`, `user_roles`, `wards`, `boroughs`, `localities`, `notifications` skeleton.
-   - Prisma schema + initial migration.
-   - **CI test**: every tenant-scoped table has an RLS policy; build fails otherwise.
+1. ✅ **Database** (Phase 1.1):
+   - ✅ Tables with RLS: `tenants`, `tenant_config`, `citizens`, `users` (staff), `roles`, `user_roles`, `wards`, `boroughs`, `localities`, `notifications` skeleton.
+   - ✅ Prisma schema + initial migration.
+   - ✅ **CI test**: every tenant-scoped table has an RLS policy; build fails otherwise.
 2. **API endpoints** (subset of `ARCHITECTURE.md` §5):
-   - `POST /auth/send-otp`, `POST /auth/verify-otp`, `POST /auth/refresh`, `POST /auth/logout`
-   - `POST /citizen/register`, `GET /citizen/profile`, `PATCH /citizen/profile`, `PATCH /citizen/language`, `POST /citizen/select-tenant`
-   - `GET /tenants`, `GET /tenants/:id/config`
-   - `POST /auth/aadhaar-link` (DigiLocker OIDC)
-3. **Keycloak realm** with roles `citizen`, `tenant_clerk`, `tenant_admin`, `state_admin`, plus realm seed via Terraform / Keycloak CLI.
-4. **JWT tenant-binding middleware**: every request sets `app.tenant_id` PG session var from JWT before any query.
-5. **Mobile + PWA screens** (real, not mock):
-   - Splash → Language → Login (mobile + OTP) → OTP verify → Tenant picker → Empty Home.
-   - Encrypted token storage (Expo SecureStore / IndexedDB with crypto).
-6. **i18n machinery**: en / bn / hi message catalogues in `packages/i18n`; CI lint for missing keys.
-7. **Tenant theming**: `packages/tenant-theme` reads `tenants.theme_color` → emits CSS vars at runtime.
-8. **Tenant onboarding script** (CLI): `pnpm seed:tenant --code KMC --name "Kolkata Municipal Corporation" …` — proves zero-code onboarding from the start.
+   - ✅ `POST /auth/send-otp`, `POST /auth/verify-otp`, `POST /auth/refresh`, `POST /auth/logout`
+   - ✅ `POST /citizen/register`, `GET /citizen/profile`, `PATCH /citizen/profile`, `PATCH /citizen/language`, `POST /citizen/select-tenant`
+   - ✅ `GET /tenants`, `GET /tenants/:id/config`
+   - 🔴 `POST /auth/aadhaar-link` (DigiLocker OIDC broker placeholder wired; real integration blocked until access / permission is granted)
+3. ✅ **Keycloak realm** with roles `citizen`, `tenant_clerk`, `tenant_admin`, `state_admin`, plus realm seed via Terraform / Keycloak CLI.
+4. ✅ **JWT tenant-binding middleware**: every request derives tenant context from the verified Keycloak JWT before protected handlers run.
+5. ✅ **Mobile + PWA screens** (real, not mock):
+   - ✅ Splash → Language → Login (mobile + OTP) → OTP verify → Tenant picker → Empty Home.
+   - ✅ Encrypted token storage (Expo SecureStore contract / browser crypto-backed session storage).
+6. ✅ **i18n machinery**: en / bn / hi message catalogues in `packages/i18n`; CI lint for missing keys.
+7. ✅ **Tenant theming**: `packages/tenant-theme` reads `tenants.theme_color` → emits CSS vars at runtime.
+8. ✅ **Tenant onboarding script** (CLI): `pnpm seed:tenant -- --code KMC --name "Kolkata Municipal Corporation" …` — proves zero-code onboarding from the start.
 
 ### Out of Scope
 
@@ -140,7 +142,7 @@ Make the platform multi-tenant from the first byte. Citizens and staff can regis
 ### Dependencies
 
 - Phase 0 complete (monorepo, design system, ADRs).
-- DigiLocker sandbox credentials from MeitY.
+- DigiLocker sandbox credentials / permission from MeitY. _Currently unavailable; keep only placeholders and do not plan real Aadhaar linking until access is granted._
 
 ### Risks
 
@@ -149,17 +151,17 @@ Make the platform multi-tenant from the first byte. Citizens and staff can regis
 
 ### Exit Criteria
 
-- Two test citizens in two different tenants cannot see each other's profile in any way (manual + automated).
-- 8 tenants seeded; switching between them in the app picks up correct theme + name + ward count.
-- OWASP ZAP scan: no critical / high findings on auth endpoints.
-- Keycloak MFA enforced for `*_admin` roles.
+- ✅ Two test citizens in two different tenants cannot see each other's profile in any way (automated via `CitizenService`; manual dev OTP path now reaches tenant selection).
+- ✅ 8 tenants seeded; switching between them in the app picks up correct theme + name + ward count.
+- ✅ OWASP ZAP scan: no critical / high findings on auth endpoints. _`pnpm security:zap:auth` completed with `FAIL-NEW: 0`, `WARN-NEW: 0`, and 119 passing checks._
+- ✅ Keycloak MFA enforced for `*_admin` roles. _Realm marks admin roles `otp_required`; API rejects admin-role JWTs without `amr: ['otp']` or `acr: 'mfa'`._
 
 ### Suggested Sprint Slice
 
-- **Sprint 1.1**: DB schema + RLS + Prisma + CI tests for tenant isolation.
-- **Sprint 1.2**: Keycloak realm + auth endpoints + JWT middleware.
-- **Sprint 1.3**: Mobile/PWA splash → tenant select screens, real APIs.
-- **Sprint 1.4**: i18n + theming + onboarding CLI + security review.
+- ✅ **Sprint 1.1**: DB schema + RLS + Prisma + CI tests for tenant isolation.
+- ✅ **Sprint 1.2**: Keycloak realm + auth endpoints + JWT middleware.
+- ✅ **Sprint 1.3**: Mobile/PWA splash → tenant select screens, real APIs.
+- ✅ **Sprint 1.4**: i18n + theming + onboarding CLI + security review.
 
 ### Parallelism
 
@@ -913,7 +915,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 0 effectively closed; Phase 1 ready to start.**
+**Current state**: **Phase 1 complete; Phase 2 ready for sprint planning.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -934,29 +936,32 @@ Closed across two commits on `main`:
 | Storybook published with ≥ 30 components                                    | ⏭ **Deferred to Phase 2 Sprint 2.5** — no production component code exists yet; Storybook with empty atoms would be theatre. `docs/design-system.md` §8 commits to publishing in Phase 2                                                                                                                                                                  |
 | Charter signed                                                              | 🟡 **Pending sponsor sign-off** — `docs/charter.md` v0.1 awaiting DoUD&MA review                                                                                                                                                                                                                                                                           |
 
-### Open items rolling into Phase 1 (or later)
+### Open items rolling forward
 
-| #   | Item                                                                                  | Origin             | Lands in                                                          |
-| --- | ------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
-| 1   | Sponsor sign-off on charter, glossary, threat model, service catalogue, design system | Sprint 0.2 outputs | Phase 1 kick-off                                                  |
-| 2   | DPA template signed with OpenAI + Google for chatbot                                  | ADR-0008           | Phase 7 prerequisite                                              |
-| 3   | `docs/playbooks/postgres-for-sql-server-developers.md`                                | ADR-0001 follow-up | Opportunistic, by Phase 1 close                                   |
-| 4   | `docs/playbooks/postgres-on-prem-ops.md`                                              | ADR-0001 follow-up | Phase 5 hardening                                                 |
-| 5   | `docs/playbooks/onprem-bootstrap.md`                                                  | ADR-0005 follow-up | Phase 5 hardening                                                 |
-| 6   | `pnpm run generate:sdk` script wired into Turborepo                                   | ADR-0002 follow-up | Phase 1 Sprint 1.3                                                |
-| 7   | NestJS module template (validation pipe, error filter, tenant guard, swagger)         | ADR-0002 follow-up | ✅ delivered (`apps/api`); template extraction Phase 1 Sprint 1.3 |
-| 8   | Capacity-planning request to WBSCSC                                                   | ADR-0005 follow-up | Sponsor / state IT — out of solo-dev hands                        |
-| 9   | Field interviews in 3 ULBs                                                            | Phase-0 scope      | Sponsor-driven; not blocking Phase 1 dev                          |
-| 10  | ADR-0010 final acceptance (currently Proposed)                                        | Sprint 0.2         | Phase 3 kickoff after KMC IT liaison                              |
+| #   | Item                                                                                  | Origin             | Lands in                                                         |
+| --- | ------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------- |
+| 1   | Sponsor sign-off on charter, glossary, threat model, service catalogue, design system | Sprint 0.2 outputs | Sponsor track                                                    |
+| 2   | DPA template signed with OpenAI + Google for chatbot                                  | ADR-0008           | Phase 7 prerequisite                                             |
+| 3   | `docs/playbooks/postgres-for-sql-server-developers.md`                                | ADR-0001 follow-up | Opportunistic, before DB-heavy Phase 2/3 work                    |
+| 4   | `docs/playbooks/postgres-on-prem-ops.md`                                              | ADR-0001 follow-up | Phase 5 hardening                                                |
+| 5   | `docs/playbooks/onprem-bootstrap.md`                                                  | ADR-0005 follow-up | Phase 5 hardening                                                |
+| 6   | `pnpm run generate:sdk` script wired into Turborepo                                   | ADR-0002 follow-up | Phase 2 SDK automation track                                     |
+| 7   | NestJS module template (validation pipe, error filter, tenant guard, swagger)         | ADR-0002 follow-up | ✅ delivered (`apps/api`); template extraction later if repeated |
+| 8   | Capacity-planning request to WBSCSC                                                   | ADR-0005 follow-up | Sponsor / state IT — out of solo-dev hands                       |
+| 9   | Field interviews in 3 ULBs                                                            | Phase-0 scope      | Sponsor-driven; not blocking Phase 1 dev                         |
+| 10  | ADR-0010 final acceptance (currently Proposed)                                        | Sprint 0.2         | Phase 3 kickoff after KMC IT liaison                             |
 
-### Phase 1 entry status
+### Phase 1 closure status
 
-Phase 1 dependencies (per §Phase 1 above):
+Phase 1 exit criteria (per §Phase 1 above):
 
-- ✅ Phase 0 complete (monorepo, foundational docs, accepted ADRs).
-- 🟡 DigiLocker sandbox credentials from MeitY — sponsor / legal track.
+- ✅ Cross-tenant citizen isolation covered by automated `CitizenService` tests and manual dev OTP flow.
+- ✅ 8 tenant seeds available; tenant switching updates name, ward count, and runtime theme.
+- ✅ OWASP ZAP auth scan passed with `FAIL-NEW: 0`, `WARN-NEW: 0`, and 119 checks passing.
+- ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
+- 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: kick off **Phase 1 Sprint 1.0** — Keycloak deployed via the dev compose stack (per ADR-0009), Prisma + first migrations for `tenants` / `citizens` / `users` / `wards` (per ADR-0001 with RLS), JWT auth-guard + tenant-context-guard wired in `apps/api`, and the first Phase-1 security tests (TI-1..TI-6 from `docs/security/threat-model.md` §7.1) implemented against the new schema.
+**Next action**: Prepare the Phase 2 Sprint 2.1 plan for service catalogue, application intake, and workflow foundations.
 
 ---
 

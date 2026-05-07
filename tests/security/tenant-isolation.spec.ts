@@ -1,36 +1,82 @@
-/**
- * Tenant-isolation contract test (Phase 0 placeholder).
- *
- * The non-negotiable promise of this platform: a request authenticated
- * as Tenant A MUST NEVER see Tenant B's data — at the API layer, the
- * Prisma layer, or the database layer (RLS).
- *
- * Phase 1 fills this in with the real harness:
- *   1. Seed two tenants (A, B) with distinct citizens / applications.
- *   2. Issue requests using A's JWT, attempt to read B's resource by ID.
- *   3. Assert 404 (not 403 — we don't even acknowledge existence).
- *   4. Repeat for every domain table touched by every controller.
- *   5. Bypass the API: directly run a SELECT with the wrong tenant_id
- *      via the Prisma client — assert RLS rejects it.
- *
- * This spec is wired into `pnpm run test:security` and gated as a
- * required CI check before any PR can merge.
- */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-describe.skip('tenant isolation (Phase 1+)', () => {
-  it('blocks cross-tenant reads via API', () => {
-    // Implemented in Sprint 1.3 once tenants + citizens exist.
+const repoRoot = join(__dirname, '..', '..');
+const apiPrismaDir = join(repoRoot, 'apps', 'api', 'prisma');
+const migrationsDir = join(apiPrismaDir, 'migrations');
+const schemaPath = join(apiPrismaDir, 'schema.prisma');
+
+const requiredSprint11Tables = [
+  'tenants',
+  'tenant_config',
+  'citizens',
+  'users',
+  'roles',
+  'user_roles',
+  'wards',
+  'boroughs',
+  'localities',
+  'notifications',
+] as const;
+
+const normalizeSql = (sql: string): string =>
+  sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ').toLowerCase();
+
+const readAllMigrationSql = (): string => {
+  const migrationNames = readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  return migrationNames
+    .map((migrationName) =>
+      readFileSync(join(migrationsDir, migrationName, 'migration.sql'), 'utf8'),
+    )
+    .join('\n');
+};
+
+const extractCreatedTables = (sql: string): string[] =>
+  Array.from(sql.matchAll(/\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?("?[\w]+"?)/gi)).map(
+    ([, tableName]) => tableName.replace(/"/g, '').toLowerCase(),
+  );
+
+const extractTenantScopedTables = (sql: string): string[] =>
+  Array.from(
+    sql.matchAll(/\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?("?[\w]+"?)\s*\(([\s\S]*?)\n\);/gi),
+  )
+    .filter(([, , body]) => /\btenant_id\b/i.test(body))
+    .map(([, tableName]) => tableName.replace(/"/g, '').toLowerCase());
+
+describe('Sprint 1.1 tenant-isolation migration contract', () => {
+  const migrationSql = readAllMigrationSql();
+  const normalizedSql = normalizeSql(migrationSql);
+  const createdTables = extractCreatedTables(migrationSql);
+  const tenantScopedTables = extractTenantScopedTables(migrationSql);
+
+  it('creates the complete Sprint 1.1 database table set', () => {
+    expect(createdTables).toEqual(expect.arrayContaining([...requiredSprint11Tables]));
   });
 
-  it('blocks cross-tenant reads at the Prisma layer', () => {
-    // Implemented in Sprint 1.3 once Prisma + RLS context middleware exist.
+  it('keeps the Prisma schema mapped to the Sprint 1.1 database tables', () => {
+    const schema = readFileSync(schemaPath, 'utf8');
+
+    for (const tableName of requiredSprint11Tables) {
+      expect(schema).toContain(`@@map("${tableName}")`);
+    }
   });
 
-  it('blocks cross-tenant reads at the Postgres RLS layer', () => {
-    // Implemented in Sprint 1.3 with a direct pg client + wrong tenant_id.
+  it('enables RLS on every Sprint 1.1 table', () => {
+    for (const tableName of requiredSprint11Tables) {
+      expect(normalizedSql).toContain(`alter table ${tableName} enable row level security`);
+    }
   });
-});
 
-it('phase-0 placeholder is present', () => {
-  expect(true).toBe(true);
+  it('adds tenant_isolation policies to every tenant_id table', () => {
+    expect(tenantScopedTables).not.toHaveLength(0);
+
+    for (const tableName of tenantScopedTables) {
+      expect(normalizedSql).toContain(`create policy tenant_isolation on ${tableName}`);
+      expect(normalizedSql).toContain(`${tableName} enable row level security`);
+    }
+  });
 });

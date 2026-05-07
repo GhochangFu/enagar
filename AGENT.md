@@ -37,7 +37,7 @@
 
 ## 3. Repository Layout (Target)
 
-This repo is currently a **scratch pad** — only `ARCHITECTURE.md`, `index.html`, and `MunicipalApp.jsx`. Phase 0 converts it into a PNPM + Turborepo monorepo:
+This repo is a PNPM + Turborepo monorepo. Phase 0 established the workspace, and Phase 1 added the tenant and identity core:
 
 ```
 enagarseba/
@@ -323,7 +323,7 @@ A feature is **done** only when:
 - Service catalogue (76 services, ID formats, seed plan): [`docs/service-catalogue.md`](./docs/service-catalogue.md)
 - Design system (tokens, theming, wireframes): [`docs/design-system.md`](./docs/design-system.md)
 - ADRs: [`docs/ADRs/`](./docs/ADRs/)
-- API spec: `docs/API.md` _(generated in Phase 1)_
+- API spec: Swagger/OpenAPI is served by `apps/api` at `/docs` and `/docs-json`; SDK generation automation continues in Phase 2.
 - Prototype reference (UX only): [`index.html`](./index.html), [`MunicipalApp.jsx`](./MunicipalApp.jsx)
 
 ---

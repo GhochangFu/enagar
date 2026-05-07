@@ -115,7 +115,9 @@ services:
       KC_METRICS_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
-    command: ["start-dev"]
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     ports:
       - "${KEYCLOAK_PORT}:8080"
     networks: [enagar]

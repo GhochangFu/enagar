@@ -1,6 +1,23 @@
-// Phase-0 placeholder for the citizen mobile app (Expo + RN).
-//
-// Per ADR-0003 we lead with the PWA; the RN app picks up around Phase 5
-// (parking / EV charging / push notifications) and gets full feature
-// parity in Phase 8 (offline first).
-export const placeholder = '@enagar/mobile — Phase 5/8';
+export const sprint13CitizenFlow = [
+  'splash',
+  'language',
+  'login',
+  'otp',
+  'tenant-picker',
+  'empty-home',
+] as const;
+
+export type Sprint13CitizenFlowStep = (typeof sprint13CitizenFlow)[number];
+
+export const mobileShellStatus = {
+  app: '@enagar/mobile',
+  implementation: 'Phase 5 native shell pending; Sprint 1.3 flow contract is shared with PWA.',
+  tokenStorage: 'Expo SecureStore required when native shell starts.',
+  apiRoutes: [
+    'POST /auth/send-otp',
+    'POST /auth/verify-otp',
+    'GET /tenants',
+    'GET /tenants/:id/config',
+    'POST /citizen/select-tenant',
+  ],
+};

@@ -1,9 +1,15 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 
+import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
+import { JwtVerifierService } from './common/auth/jwt-verifier.service';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
+import { AuthModule } from './modules/auth/auth.module';
+import { CitizenModule } from './modules/citizen/citizen.module';
 import { HealthModule } from './modules/health/health.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
 
 @Module({
   imports: [
@@ -36,8 +42,22 @@ import { HealthModule } from './modules/health/health.module';
         },
       },
     }),
+    AuthModule,
+    CitizenModule,
     HealthModule,
+    TenantsModule,
   ],
-  providers: [TenantContextMiddleware],
+  providers: [
+    JwtVerifierService,
+    TenantContextMiddleware,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantContextMiddleware).forRoutes('*');
+  }
+}

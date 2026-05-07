@@ -20,10 +20,14 @@ coverage/
 # ---- TypeScript ----
 *.tsbuildinfo
 
+# ---- Generated clients ----
+apps/api/src/generated/prisma/
+
 # ---- Test artefacts ----
 playwright-report/
 test-results/
 .nyc_output/
+docs/security/zap/*.html
 
 # ---- Env / secrets ----
 .env
@@ -70,3 +74,4 @@ ollama-models/
 *.pid
 *.seed
 *.pid.lock
+prototype.zip

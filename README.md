@@ -3,7 +3,7 @@
 > A unified, multi-tenant, multilingual municipal services platform for the Government of West Bengal.
 > Built once. Deployed everywhere. Owned by the state.
 
-[![Status](https://img.shields.io/badge/status-Phase_1_starting-blue)]()
+[![Status](https://img.shields.io/badge/status-Phase_1_complete-brightgreen)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)]()
 [![Stack](https://img.shields.io/badge/stack-NestJS%20%7C%20Next.js%20%7C%20Expo%20%7C%20Postgres%20%7C%20Qdrant-informational)]()
 
@@ -36,10 +36,10 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/charter.md`](./docs/charter.md)                             | Vision, KPIs, scope, risks, sponsor sign-off                                           |
 | [`AGENT.md`](./AGENT.md)                                           | Operating manual for any contributor (human or AI)                                     |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md)                             | Technical architecture (multi-tenancy, RLS, RAG, schema)                               |
-| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan; Phase 0 closure note at the bottom                           |
+| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan; Phase 1 closure status and Phase 2 next action               |
 | [`docs/ADRs/`](./docs/ADRs/)                                       | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                     |
 | [`docs/glossary.md`](./docs/glossary.md)                           | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns         |
-| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + 64-test Phase-1 security backlog                                         |
+| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + security backlog                                                         |
 | [`docs/service-catalogue.md`](./docs/service-catalogue.md)         | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan         |
 | [`docs/design-system.md`](./docs/design-system.md)                 | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows |
 
@@ -91,7 +91,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full picture.
 
 ## Quickstart
 
-> Phase 0 is closed (commits `77a7355` + `7b604d2`). The monorepo, dev infrastructure, two runnable apps (`apps/api`, `apps/citizen-pwa`), and the foundational docs are in place. Phase 1 (tenancy + identity) is the next batch.
+> Phase 1 is closed. The monorepo, dev infrastructure, tenant identity core, Keycloak realm contract, citizen OTP-to-tenant flow, i18n, tenant theming, onboarding CLI, and security gates are in place. Phase 2 planning starts the service catalogue, application intake, and workflow foundations.
 
 ### Prerequisites
 
@@ -164,19 +164,22 @@ pnpm --filter @enagar/citizen-pwa dev     # just the citizen PWA → http://loca
 pnpm lint                                 # lint everything (max-warnings=0)
 pnpm typecheck                            # type-check everything
 pnpm test                                 # unit tests across the monorepo
-pnpm test:security                        # cross-tenant isolation guards (Phase 1+)
+pnpm test:security                        # tenant, identity, onboarding, and security contract tests
+pnpm security:zap:auth                    # OWASP ZAP API scan for auth endpoints
 pnpm format                               # prettier write
 ```
 
-Smoke-test endpoints (after Batch 2):
+Smoke-test endpoints:
 
-| What          | Where                           |
-| ------------- | ------------------------------- |
-| API health    | `http://localhost:3001/health`  |
-| API liveness  | `http://localhost:3001/healthz` |
-| API readiness | `http://localhost:3001/ready`   |
-| Swagger UI    | `http://localhost:3001/docs`    |
-| Citizen PWA   | `http://localhost:3000`         |
+| What          | Where                                          |
+| ------------- | ---------------------------------------------- |
+| API health    | `http://localhost:3001/health`                 |
+| API liveness  | `http://localhost:3001/healthz`                |
+| API readiness | `http://localhost:3001/ready`                  |
+| Swagger UI    | `http://localhost:3001/docs`                   |
+| Tenant list   | `http://localhost:3001/api/tenants`            |
+| Tenant config | `http://localhost:3001/api/tenants/KMC/config` |
+| Citizen PWA   | `http://localhost:3000`                        |
 
 ## Repository layout
 
@@ -192,20 +195,20 @@ enagarseba/
 ├── packages/
 │   ├── config/                 # ESLint + tsconfig + Tailwind presets
 │   ├── types/                  # Shared domain types + ILLMProvider contract
-│   ├── sdk/                    # Generated API client                 — stub, Phase 1
+│   ├── sdk/                    # Typed API client package             — automation continues in Phase 2
 │   ├── forms/                  # JSON-Schema form runtime             — stub, Phase 2
-│   ├── i18n/                   # en/bn/hi translation runtime         — stub, Phase 2
+│   ├── i18n/                   # en/bn/hi translation runtime
 │   ├── ui/                     # Web UI primitives                    — stub, Phase 2
 │   ├── ui-native/              # RN UI primitives                     — stub, Phase 5
-│   ├── tenant-theme/           # Per-tenant runtime theming           — stub, Phase 1
+│   ├── tenant-theme/           # Per-tenant runtime theming
 │   └── workflow/               # Workflow / state-machine types       — stub, Phase 2
 ├── services/
 │   ├── workflow-engine/        # BullMQ runner                        — stub, Phase 2
-│   ├── notification-worker/    # SMS/email/WhatsApp/push fan-out      — stub, Phase 1/2
+│   ├── notification-worker/    # SMS/email/WhatsApp/push fan-out      — stub, Phase 2+
 │   ├── reporting-worker/       # Scheduled reports + MV refreshes     — stub, Phase 6
 │   └── rag-indexer/            # Python · FastAPI · Qdrant indexer    — stub, Phase 7
 ├── infrastructure/             # docker-compose, env, seed (helm/terraform: Phase 9)
-├── tests/security/             # Cross-cutting tenant-isolation guards
+├── tests/security/             # Cross-cutting security contract tests
 └── docs/                       # Charter, ADRs (00x), glossary, threat model
 ```
 
@@ -232,7 +235,14 @@ AGPL-3.0-or-later. © Government of West Bengal.
 - Sprint 0.1 (`77a7355`) — monorepo, CI, dev infra, charter, ADRs 0001 / 0002 / 0003 / 0005 / 0008.
 - Sprint 0.2 (`7b604d2`) — glossary, threat model, service catalogue, design system, ADR-0009, ADR-0010.
 
-**Now starting: Phase 1 — Tenant & Identity Core.** See the closure note and Phase 1 entry conditions at the bottom of [`ROADMAP.md`](./ROADMAP.md).
+**Phase 1 — Tenant & Identity Core** closed on 2026-05-07.
+
+- Sprint 1.1 — Postgres/Prisma tenant schema with RLS contract tests.
+- Sprint 1.2 — Keycloak realm, auth endpoints, JWT tenant binding, and admin MFA contract.
+- Sprint 1.3 — Citizen PWA/mobile onboarding contract: splash → language → OTP login → tenant picker → empty home.
+- Sprint 1.4 — i18n, runtime tenant theming, tenant onboarding CLI, CORS/security review, and OWASP ZAP auth scan.
+
+**Next:** Phase 2 sprint planning for service catalogue, application intake, and workflow foundations. DigiLocker/Aadhaar linking remains deferred until external access and permission are granted.
 
 ---
 

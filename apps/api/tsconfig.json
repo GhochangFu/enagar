@@ -10,5 +10,6 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/generated/prisma"]
 }

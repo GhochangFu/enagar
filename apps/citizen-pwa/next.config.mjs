@@ -7,7 +7,7 @@ const nextConfig = {
     // App Router is GA in 14, but we keep typed routes for safety.
     typedRoutes: true,
   },
-  transpilePackages: ['@enagar/types'],
+  transpilePackages: ['@enagar/i18n', '@enagar/tenant-theme', '@enagar/types'],
 };
 
 export default nextConfig;

@@ -12,6 +12,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
   app.useLogger(app.get(Logger));
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['authorization', 'content-type', 'x-tenant-code'],
+  });
   app.use(helmet());
   app.setGlobalPrefix('api', { exclude: ['health', 'healthz', 'ready'] });
   app.useGlobalPipes(

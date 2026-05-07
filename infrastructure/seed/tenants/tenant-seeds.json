@@ -1,0 +1,66 @@
+[
+  {
+    "code": "KMC",
+    "name": "Kolkata Municipal Corporation",
+    "district": "Kolkata",
+    "ward_count": 144,
+    "theme_color": "#0F4C75",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "HMC",
+    "name": "Howrah Municipal Corporation",
+    "district": "Howrah",
+    "ward_count": 66,
+    "theme_color": "#1B5E20",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "CMC",
+    "name": "Chandannagar Municipal Corporation",
+    "district": "Hooghly",
+    "ward_count": 33,
+    "theme_color": "#6A1B9A",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "BMC",
+    "name": "Bidhannagar Municipal Corporation",
+    "district": "North 24 Pgs",
+    "ward_count": 41,
+    "theme_color": "#0277BD",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "SMC",
+    "name": "Siliguri Municipal Corporation",
+    "district": "Darjeeling",
+    "ward_count": 47,
+    "theme_color": "#2E7D32",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "AMC",
+    "name": "Asansol Municipal Corporation",
+    "district": "Paschim Bardhaman",
+    "ward_count": 106,
+    "theme_color": "#C62828",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "DMC",
+    "name": "Durgapur Municipal Corporation",
+    "district": "Paschim Bardhaman",
+    "ward_count": 43,
+    "theme_color": "#EF6C00",
+    "languages_enabled": ["en", "bn", "hi"]
+  },
+  {
+    "code": "SDDM",
+    "name": "South Dum Dum Municipality",
+    "district": "North 24 Pgs",
+    "ward_count": 35,
+    "theme_color": "#455A64",
+    "languages_enabled": ["en", "bn", "hi"]
+  }
+]

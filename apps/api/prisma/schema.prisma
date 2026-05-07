@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String         @unique @db.VarChar(20)
+  name             String         @db.VarChar(255)
+  district         String?        @db.VarChar(100)
+  wardCount        Int?           @map("ward_count")
+  themeColor       String?        @map("theme_color") @db.VarChar(7)
+  logoUrl          String?        @map("logo_url")
+  languagesEnabled String[]       @default(["en", "bn", "hi"]) @map("languages_enabled")
+  config           Json           @default(dbgenerated("'{}'::jsonb"))
+  isActive         Boolean        @default(true) @map("is_active")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenantConfig     TenantConfig?
+  boroughs         Borough[]
+  citizens         Citizen[]
+  localities       Locality[]
+  notifications    Notification[]
+  userRoles        UserRole[]
+  users            User[]
+  wards            Ward[]
+
+  @@map("tenants")
+}
+
+model TenantConfig {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @unique @map("tenant_id") @db.Uuid
+  defaultLanguage String   @default("en") @map("default_language") @db.VarChar(5)
+  timezone        String   @default("Asia/Kolkata") @db.VarChar(64)
+  contactPhone    String?  @map("contact_phone") @db.VarChar(20)
+  contactEmail    String?  @map("contact_email") @db.VarChar(255)
+  branding        Json     @default(dbgenerated("'{}'::jsonb"))
+  featureFlags    Json     @default(dbgenerated("'{}'::jsonb")) @map("feature_flags")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_config")
+}
+
+model Citizen {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  mobile        String         @db.VarChar(15)
+  aadhaarHash   String?        @map("aadhaar_hash") @db.Char(64)
+  name          String?        @db.VarChar(255)
+  address       Json?          @default(dbgenerated("'{}'::jsonb"))
+  wardId        String?        @map("ward_id") @db.Uuid
+  holdingNumber String?        @map("holding_number") @db.VarChar(50)
+  languagePref  String         @default("en") @map("language_pref") @db.VarChar(5)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ward          Ward?          @relation(fields: [wardId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+
+  @@unique([tenantId, mobile])
+  @@index([tenantId, wardId])
+  @@map("citizens")
+}
+
+model User {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String     @map("tenant_id") @db.Uuid
+  keycloakUserId String     @unique @map("keycloak_user_id") @db.Uuid
+  username       String     @db.VarChar(100)
+  email          String?    @db.VarChar(255)
+  mobile         String?    @db.VarChar(15)
+  displayName    String     @map("display_name") @db.VarChar(255)
+  status         String     @default("active") @db.VarChar(20)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles      UserRole[]
+
+  @@unique([tenantId, username])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+model Role {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String     @unique @db.VarChar(50)
+  name        String     @db.VarChar(100)
+  description String?
+  isSystem    Boolean    @default(true) @map("is_system")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  wardId    String?  @map("ward_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ward      Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, userId, roleId, wardId])
+  @@index([tenantId, roleId])
+  @@map("user_roles")
+}
+
+model Borough {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wards     Ward[]
+
+  @@unique([tenantId, code])
+  @@map("boroughs")
+}
+
+model Ward {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String     @map("tenant_id") @db.Uuid
+  boroughId     String?    @map("borough_id") @db.Uuid
+  number        String     @db.VarChar(20)
+  name          String?    @db.VarChar(100)
+  councillor    String?    @db.VarChar(255)
+  boundary      Json?      @default(dbgenerated("'{}'::jsonb"))
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  borough       Borough?   @relation(fields: [boroughId], references: [id], onDelete: SetNull)
+  citizens      Citizen[]
+  localities    Locality[]
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles     UserRole[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, boroughId])
+  @@map("wards")
+}
+
+model Locality {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  wardId    String?  @map("ward_id") @db.Uuid
+  name      String   @db.VarChar(150)
+  pincode   String?  @db.VarChar(10)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ward      Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, name, pincode])
+  @@index([tenantId, wardId])
+  @@map("localities")
+}
+
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  citizenId String?   @map("citizen_id") @db.Uuid
+  type      String    @db.VarChar(30)
+  title     String    @db.VarChar(255)
+  body      String
+  deepLink  String?   @map("deep_link")
+  isRead    Boolean   @default(false) @map("is_read")
+  sentAt    DateTime  @default(now()) @map("sent_at") @db.Timestamptz(6)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  citizen   Citizen?  @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, citizenId, isRead])
+  @@map("notifications")
+}

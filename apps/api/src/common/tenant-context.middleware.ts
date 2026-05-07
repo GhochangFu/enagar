@@ -1,20 +1,14 @@
-import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NestMiddleware } from '@nestjs/common';
 
 import type { TenantId } from '@enagar/types';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
- * Phase-0 placeholder. Resolves the tenant for an incoming request and
- * stows it on `req.tenant` so downstream guards / Prisma middleware can
- * apply RLS scoping (`SET LOCAL app.tenant_id`).
+ * Rejects header-forged tenant context in production.
  *
- * Resolution order (will be fleshed out in Phase 1):
- *   1. JWT claim `tenant_id` (Keycloak)
- *   2. `X-Tenant-Code` header (admin tooling, dev)
- *   3. Subdomain (`kmc.enagar.gov.in` → `kmc`)
- *
- * For now we attach a dummy tenant only when explicitly provided so
- * health probes and Swagger work without auth.
+ * Sprint 1.2 moves tenant resolution to the verified Keycloak JWT claim
+ * inside `JwtAuthGuard`. The dev-only `X-Tenant-Code` escape hatch is kept
+ * for local tooling, but it is explicitly disabled outside development.
  */
 @Injectable()
 export class TenantContextMiddleware implements NestMiddleware {
@@ -26,9 +20,13 @@ export class TenantContextMiddleware implements NestMiddleware {
     next: NextFunction,
   ): void {
     const headerCode = req.header('x-tenant-code');
+    if (headerCode && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('X-Tenant-Code is not accepted in production');
+    }
+
     if (headerCode) {
       req.tenant = { id: 'tenant-stub' as TenantId, code: headerCode };
-      this.log.debug(`tenant=${headerCode} (header-resolved, stub)`);
+      this.log.debug(`tenant=${headerCode} (header-resolved, dev-only stub)`);
     }
     next();
   }
