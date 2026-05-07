@@ -221,7 +221,7 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 ### Dependencies
 
 - Phase 1 complete (tenants, citizens, auth).
-- Decision on workflow engine (ADR-004) — affects Phase 6 admin UI complexity.
+- ✅ Workflow engine decision accepted in ADR-0004: Postgres-backed state machine + BullMQ workers.
 
 ### Risks
 

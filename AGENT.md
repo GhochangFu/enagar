@@ -255,7 +255,7 @@ Ratified ADRs (Phase 0 kick-off, 2026-05-06) are in `docs/ADRs/`. The agent **mu
 | ADR-0001 | Database engine            | ✅ **PostgreSQL 16**                      | [`docs/ADRs/ADR-0001-database-postgresql.md`](./docs/ADRs/ADR-0001-database-postgresql.md)                         |
 | ADR-0002 | Backend framework          | ✅ **NestJS / Node 20**                   | [`docs/ADRs/ADR-0002-backend-nestjs.md`](./docs/ADRs/ADR-0002-backend-nestjs.md)                                   |
 | ADR-0003 | Citizen surface sequencing | ✅ **PWA + RN in parallel**               | [`docs/ADRs/ADR-0003-mobile-pwa-parallel.md`](./docs/ADRs/ADR-0003-mobile-pwa-parallel.md)                         |
-| ADR-0004 | Workflow engine            | 🟡 Open (decide in Phase 2)               | _pending_                                                                                                          |
+| ADR-0004 | Workflow engine            | ✅ **Postgres state machine + BullMQ**    | [`docs/ADRs/ADR-0004-workflow-engine.md`](./docs/ADRs/ADR-0004-workflow-engine.md)                                 |
 | ADR-0005 | Hosting target             | ✅ **On-prem WB SDC, cloud-portable**     | [`docs/ADRs/ADR-0005-hosting-onprem.md`](./docs/ADRs/ADR-0005-hosting-onprem.md)                                   |
 | ADR-0006 | Payment gateway            | 🟡 Open (decide in Phase 3)               | _pending_                                                                                                          |
 | ADR-0007 | KB authoring format        | 🟡 Open (decide in Phase 6/7)             | _pending_                                                                                                          |
@@ -263,7 +263,7 @@ Ratified ADRs (Phase 0 kick-off, 2026-05-06) are in `docs/ADRs/`. The agent **mu
 | ADR-0009 | Identity provider          | ✅ **Keycloak (self-hosted)**             | [`docs/ADRs/ADR-0009-identity-keycloak.md`](./docs/ADRs/ADR-0009-identity-keycloak.md)                             |
 | ADR-0010 | External-data adapters     | 🟦 Proposed (revisit at Phase 3 kickoff)  | [`docs/ADRs/ADR-0010-external-data-provider-adapters.md`](./docs/ADRs/ADR-0010-external-data-provider-adapters.md) |
 
-When the agent must proceed before an open decision is ratified, do so behind an interface that allows the alternative to be plugged in (e.g. `IPaymentGateway`, `IWorkflowEngine`). The `ILLMProvider` interface from ADR-0008 — and the `IExternalDataProvider` interface from ADR-0010 — are the reference examples of this pattern.
+When the agent must proceed before an open decision is ratified, do so behind an interface that allows the alternative to be plugged in (e.g. `IPaymentGateway`). The `ILLMProvider` interface from ADR-0008 — and the `IExternalDataProvider` interface from ADR-0010 — are the reference examples of this pattern.
 
 ---
 
