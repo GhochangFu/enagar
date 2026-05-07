@@ -14,6 +14,7 @@
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {
+    "@enagar/forms": "workspace:^",
     "@enagar/i18n": "workspace:^",
     "@enagar/tenant-theme": "workspace:^",
     "@enagar/types": "workspace:*",

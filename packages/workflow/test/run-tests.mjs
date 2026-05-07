@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 
 import {
@@ -62,4 +63,21 @@ test('finds initial stage and calculates SLA due dates', () => {
     calculateSlaDueAt(submittedAt, initial.sla_hours)?.toISOString(),
     '2026-05-08T00:00:00.000Z',
   );
+});
+
+test('evaluates workflow transitions within a local smoke budget', () => {
+  const start = performance.now();
+
+  for (let index = 0; index < 1_000; index += 1) {
+    const result = evaluateTransition({
+      workflow: certificateIssuanceWorkflow,
+      current_stage: 'submitted',
+      verb: 'start-verification',
+      actor_roles: ['tenant_clerk'],
+    });
+
+    assert.equal(result.ok, true);
+  }
+
+  assert.ok(performance.now() - start < 100);
 });

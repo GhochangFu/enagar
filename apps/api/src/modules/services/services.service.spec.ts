@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import { NotFoundException } from '@nestjs/common';
 
 import {
@@ -74,6 +76,16 @@ describe('ServicesService', () => {
   it('rejects unknown tenants and unknown service codes', () => {
     expect(() => service.listTenantServices('NOPE')).toThrow(NotFoundException);
     expect(() => service.getTenantService('KMC', 'missing-service')).toThrow(NotFoundException);
+  });
+
+  it('resolves tenant catalogues within a local smoke budget', () => {
+    const start = performance.now();
+
+    for (let index = 0; index < 500; index += 1) {
+      service.listTenantServices(index % 2 === 0 ? 'KMC' : 'HMC');
+    }
+
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });
 

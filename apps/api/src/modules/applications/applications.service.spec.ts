@@ -1,3 +1,4 @@
+import { birthCertificateSchema } from '@enagar/forms/fixtures';
 import { NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from '../services/services.service';
@@ -51,7 +52,11 @@ describe('ApplicationsService', () => {
     expect(application.docket_no).toMatch(/^WBM\/KMC\/birth-cert\/2026\/00001$/);
     expect(application.current_stage).toBe('submitted');
     expect(application.workflow_code).toBe('cert-issuance-v1');
-    expect(application.timeline.map((item) => item.verb)).toEqual(['submit', 'sla-armed']);
+    expect(application.timeline.map((item) => item.verb)).toEqual([
+      'draft-created',
+      'submit',
+      'sla-armed',
+    ]);
   });
 
   it('lists and reads only the current citizen tenant applications', () => {
@@ -82,6 +87,52 @@ describe('ApplicationsService', () => {
     expect(cancelled.status).toBe('cancelled');
     expect(cancelled.timeline.map((item) => item.verb)).toContain('comment');
     expect(cancelled.timeline.map((item) => item.verb)).toContain('cancel');
+  });
+
+  it('rejects cross-citizen mutation attempts as not found', () => {
+    const application = service.create(citizenA, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+
+    expect(() =>
+      service.comment(citizenB, application.id, { body: 'Trying to cross tenant boundary.' }),
+    ).toThrow(NotFoundException);
+    expect(() =>
+      service.cancel(citizenB, application.id, { reason: 'Trying to cross tenant boundary.' }),
+    ).toThrow(NotFoundException);
+  });
+
+  it('keeps in-flight applications on their submitted form schema snapshot', () => {
+    const v1Application = service.create(citizenA, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+    service.publishFormSchema({
+      ...birthCertificateSchema,
+      version: 2,
+      fields: [
+        ...birthCertificateSchema.fields,
+        {
+          id: 'late_registration_reason',
+          type: 'textarea',
+          label: {
+            en: 'Late registration reason',
+            bn: 'বিলম্বিত নিবন্ধনের কারণ',
+            hi: 'देर से पंजीकरण का कारण',
+          },
+          required: false,
+          max_length: 500,
+        },
+      ],
+    });
+    const v2Application = service.create(citizenA, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+
+    expect(service.getByDocketNo(citizenA, v1Application.docket_no).form_version).toBe(1);
+    expect(v2Application.form_version).toBe(2);
   });
 
   it('rejects invalid submissions before application creation', () => {

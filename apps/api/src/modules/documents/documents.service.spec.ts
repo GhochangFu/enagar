@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ApplicationsService } from '../applications/applications.service';
 import { ServicesService } from '../services/services.service';
@@ -11,6 +11,14 @@ const principal: AuthenticatedPrincipal = {
   subject: 'citizen-a',
   tenantId: '11111111-1111-4111-8111-111111111111',
   tenantCode: 'KMC',
+  roles: ['citizen'],
+  expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+};
+
+const otherTenantPrincipal: AuthenticatedPrincipal = {
+  subject: 'citizen-b',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  tenantCode: 'HMC',
   roles: ['citizen'],
   expiresAt: new Date('2026-05-08T00:00:00.000Z'),
 };
@@ -105,6 +113,61 @@ describe('DocumentsService', () => {
 
     expect(documents.createDownloadUrl(principal, intent.id).download_url).toContain(
       'action=download',
+    );
+  });
+
+  it('supports draft document upload before final application submission', () => {
+    const draft = applications.createDraft(principal, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+
+    expect(() => applications.submitDraft(principal, draft.id)).toThrow(
+      'Document hospital_discharge must be uploaded and scan-clean before submission',
+    );
+
+    const intent = documents.createUploadIntent(principal, {
+      application_id: draft.id,
+      document_code: 'hospital_discharge',
+      original_name: 'clean.pdf',
+      mime_type: 'application/pdf',
+      size_mb: 1,
+    });
+    documents.updateScanResult(principal, intent.id, {
+      scan_status: 'clean',
+      scan_provider: 'clamav-local',
+    });
+
+    const submitted = applications.submitDraft(principal, draft.id);
+
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.timeline.map((item) => item.verb)).toEqual([
+      'draft-created',
+      'submit',
+      'sla-armed',
+    ]);
+  });
+
+  it('rejects cross-tenant scan and download attempts as not found', () => {
+    const application = applications.create(principal, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+    const intent = documents.createUploadIntent(principal, {
+      application_id: application.id,
+      document_code: 'hospital_discharge',
+      original_name: 'clean.pdf',
+      mime_type: 'application/pdf',
+      size_mb: 1,
+    });
+
+    expect(() =>
+      documents.updateScanResult(otherTenantPrincipal, intent.id, {
+        scan_status: 'clean',
+      }),
+    ).toThrow(NotFoundException);
+    expect(() => documents.createDownloadUrl(otherTenantPrincipal, intent.id)).toThrow(
+      NotFoundException,
     );
   });
 });

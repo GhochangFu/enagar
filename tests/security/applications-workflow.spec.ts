@@ -37,9 +37,11 @@ describe('Sprint 2.3 applications and workflow contract', () => {
     expect(controller).not.toContain('@Public()');
     for (const route of [
       '@Post()',
+      "@Post('drafts')",
       '@Get()',
       "@Get(':docketNo')",
       "@Post(':id/cancel')",
+      "@Post(':id/submit')",
       "@Post(':id/comment')",
     ]) {
       expect(controller).toContain(route);

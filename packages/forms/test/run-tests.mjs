@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 
 import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js';
@@ -99,4 +100,17 @@ test('exports JSON-Schema for API-side validation', () => {
   assert.equal(jsonSchema.additionalProperties, false);
   assert.ok(jsonSchema.required.includes('applicant_name'));
   assert.equal(jsonSchema.properties.mobile.pattern, '^[6-9][0-9]{9}$');
+});
+
+test('creates render plans within a local smoke budget', () => {
+  const start = performance.now();
+
+  for (let index = 0; index < 500; index += 1) {
+    createRenderPlan(tradeLicenceSchema, {
+      platform: 'web',
+      values: { trade_type: index % 2 === 0 ? 'food' : 'retail' },
+    });
+  }
+
+  assert.ok(performance.now() - start < 100);
 });

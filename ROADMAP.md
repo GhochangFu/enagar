@@ -230,10 +230,10 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 
 ### Exit Criteria
 
-- A citizen can complete an end-to-end Birth Certificate application: pick service → fill form → upload doc → submit → see "Document Verification" stage → see SLA-due timer.
-- Adding a 77th service requires only a database insert (verified by recording the exact SQL).
-- Switching a service's form schema between v1 and v2 does not break in-flight applications (snapshot semantics confirmed).
-- 100 % API coverage with integration tests including tenant-leak attempts.
+- ✅ A citizen can complete an end-to-end Birth Certificate application: pick service → fill form → upload doc → submit → see "Document Verification" stage → see SLA-due timer. _Closed with draft application → document upload/scan → final submit ordering in the API and PWA._
+- ✅ Adding a 77th service requires only a database insert (verified by recording the exact SQL). _Closed by `docs/sql/phase2-add-77th-service.sql` and `tests/security/phase2-closure.spec.ts`._
+- ✅ Switching a service's form schema between v1 and v2 does not break in-flight applications (snapshot semantics confirmed). _Closed by explicit v1/v2 application snapshot regression coverage._
+- ✅ 100 % API coverage with integration tests including tenant-leak attempts. _Closed for the Phase 2 API surface with Nest/Supertest integration coverage across services, applications, documents, holdings, and tenant-leak attempts._
 
 ### Suggested Sprint Slice
 
@@ -241,8 +241,8 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 - ✅ **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
 - ✅ **Sprint 2.3**: Workflow engine + applications + timeline.
 - ✅ **Sprint 2.4**: Document upload pipeline + holding lookup.
-- **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
-- **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
+- ✅ **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
+- ✅ **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
 
 ### Sprint 2.1 — Detailed Deliverables
 
@@ -471,6 +471,138 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 - ✅ Holding lookup returns the correct KMC fixture and does not leak HMC records.
 - ✅ Not-found holding lookups are represented/auditable without exposing another tenant's data.
 - ✅ API, security tests, full typecheck/test/build pass before deliverables are marked complete.
+
+### Sprint 2.5 — Detailed Deliverables
+
+> ✅ Sprint 2.5 closed 2026-05-07 — citizen PWA service catalogue, schema-driven apply flow, holding lookup, document upload/scan simulation, My Applications list/detail, comments, cancellation, static security contracts, and full repo validation passed.
+
+**Goal**: turn the citizen PWA from an onboarding shell into the first end-to-end service application experience: Services → Apply → Documents/Holding lookup → Submit → My Applications.
+
+#### In Scope
+
+1. ✅ **Citizen navigation and dashboard**
+   - ✅ Add post-login navigation tabs for Home, Services, Apply, and My Applications.
+   - ✅ Preserve Sprint 1.3 onboarding: splash, language, OTP login, tenant picker, tenant theming, token storage.
+   - ✅ Show selected tenant, language, application count, and latest application status on the dashboard.
+2. ✅ **Services catalogue UI**
+   - ✅ Fetch tenant services from `GET /services/tenants/:tenantCode`.
+   - ✅ Render priority service cards with category, fee type, SLA, required documents, and DigiLocker availability.
+   - ✅ Let a citizen choose a service and move into the Apply flow.
+3. ✅ **Schema-driven Apply flow**
+   - ✅ Use shared `@enagar/forms` fixtures/render-plan concepts rather than service-specific React components.
+   - ✅ Render v1 field types needed by priority fixtures: text, date, radio/select, number, textarea, file placeholder, and section.
+   - ✅ Validate required fields enough to block obviously incomplete submissions before API call.
+   - ✅ Submit applications through `POST /applications`.
+4. ✅ **Holding lookup integration**
+   - ✅ For property-tax style applications, call `GET /holdings/:holdingNumber`.
+   - ✅ Display found/not-found outcomes and source freshness.
+   - ✅ Do not leak another tenant's holding data through UI assumptions.
+5. ✅ **Document upload simulation**
+   - ✅ For file fields, call `POST /documents/upload-intent` after application submission.
+   - ✅ Immediately simulate a clean scan through `POST /documents/:id/scan-result` so the citizen can see document state without real MinIO/ClamAV.
+   - ✅ Show document code, scan status, and object-key prefix in application detail.
+6. ✅ **My Applications UI**
+   - ✅ Fetch `GET /applications` and `GET /applications/:docketNo`.
+   - ✅ Show docket number, service name, stage/status, payment status, submitted date, timeline, comments, and documents.
+   - ✅ Support citizen comment and cancel actions through existing API endpoints.
+7. ✅ **Tests and contracts**
+   - ✅ Add static/security contract tests proving the PWA uses Sprint 2.1-2.4 API routes.
+   - ✅ Preserve the no service-specific form component guard.
+   - ✅ Run PWA lint/typecheck/build plus full repo validation before marking deliverables complete.
+
+#### Out of Scope
+
+- Staff/operator workflow inbox.
+- Real browser file binary upload to MinIO.
+- Real ClamAV scan execution.
+- Payment collection screens beyond showing current mock/not-required payment status.
+- Offline queueing for application drafts.
+- Admin service/form/workflow builders.
+
+#### Sprint 2.5 Exit Criteria
+
+- ✅ Citizen can log in, select KMC, view service cards, choose Birth Certificate, submit a valid application, and see a docket number in My Applications.
+- ✅ Property Tax flow can call holding lookup and display the KMC holding fixture without leaking HMC data.
+- ✅ File fields create document upload intents and clean scan-result metadata in the application detail.
+- ✅ My Applications supports list, detail, comment, and cancel actions.
+- ✅ PWA uses shared form-schema fixtures/render-plan semantics, not service-specific form components.
+- ✅ PWA lint/typecheck/build, API tests, security tests, and full repo validation pass before deliverables are marked complete.
+
+### Sprint 2.6 — Detailed Deliverables
+
+> ✅ Sprint 2.6 closed 2026-05-07 — expanded cross-citizen/cross-tenant mutation tests, Phase 2 protected-route and PWA hardening contracts, local performance smoke budgets, PWA source-size guard, security documentation, and full repo validation passed.
+
+**Goal**: harden the Phase 2 implementation before moving to Phase 3 by expanding isolation coverage, enforcing protected-route contracts, and adding lightweight performance/bundle budgets for the catalogue, forms, workflow, and PWA.
+
+#### In Scope
+
+1. ✅ **Tenant/citizen isolation hardening**
+   - ✅ Add unit tests for cross-citizen comment/cancel rejection on applications.
+   - ✅ Add unit tests for cross-tenant/cross-citizen document scan/download rejection.
+   - ✅ Add holding lookup/search assertions for found, not-found, and cross-tenant behavior.
+   - ✅ Ensure forbidden cross-tenant application/document access resolves as 404-style behavior rather than data-bearing errors.
+2. ✅ **Security/static contract hardening**
+   - ✅ Add a Phase 2 hardening security suite that checks all protected API controllers stay non-public and bearer-authenticated.
+   - ✅ Assert PWA uses the expected Phase 2 API routes and keeps service-specific form components out.
+   - ✅ Assert tenant-scoped migration contract names reflect Phase 2 rather than stale Sprint labels.
+   - ✅ Keep generated reports/artifacts out of source-controlled paths.
+3. ✅ **Performance smoke checks**
+   - ✅ Add deterministic tests for service catalogue resolution and form render-plan generation under small local thresholds.
+   - ✅ Add workflow transition evaluator smoke test under a local threshold.
+   - ✅ Add PWA source/bundle budget guard so `app/page.tsx` remains below the 1,600-line project standard.
+   - ✅ Keep these as smoke budgets, not production P95 claims.
+4. ✅ **Documentation**
+   - ✅ Update `tests/security/README.md` to include the Sprint 2.6 hardening suite.
+   - ✅ Mark Sprint 2.6 deliverables and exit criteria complete only after validation passes.
+
+#### Out of Scope
+
+- Replacing in-memory API storage with Prisma persistence.
+- Real load testing with k6/JMeter.
+- Browser automation with Playwright.
+- Production observability dashboards.
+- Payment hardening; that starts in Phase 3.
+- Staff/operator workflow UI.
+
+#### Sprint 2.6 Exit Criteria
+
+- ✅ Cross-citizen application comment/cancel attempts are covered and rejected.
+- ✅ Cross-tenant document scan/download attempts are covered and rejected.
+- ✅ Protected Phase 2 API controllers remain non-public and bearer-authenticated.
+- ✅ Catalogue, form render-plan, and workflow evaluator smoke performance tests pass.
+- ✅ PWA page remains below the 1,600-line project standard.
+- ✅ Full lint, typecheck, test, build, and security suites pass before Sprint 2.6 is marked complete.
+
+### Phase 2 Closure Hardening — Detailed Deliverables
+
+**Goal**: satisfy the original Phase 2 exit criteria strictly before Phase 3 starts, not just the sprint-level checklist.
+
+#### In Scope
+
+1. ✅ **SQL-only 77th service proof**
+   - ✅ Record the exact SQL needed to add a new global service and make it available to a tenant.
+   - ✅ Add a security/static test proving the SQL touches only catalogue/form tables and does not require a code seed.
+2. ✅ **Form schema snapshot regression**
+   - ✅ Add an explicit v1/v2 test showing an in-flight application keeps its original `form_version`.
+   - ✅ Prove newly submitted applications can use the updated schema version without mutating the existing application snapshot.
+3. ✅ **Phase 2 API integration coverage**
+   - ✅ Add Nest/Supertest integration tests for tenant service listing, application creation/detail, draft document upload, final submission, holding lookup, and tenant-leak attempts.
+   - ✅ Ensure cross-tenant/cross-citizen reads and document access return non-data-bearing 404-style responses.
+4. ✅ **Pre-submit document ordering**
+   - ✅ Add a draft application step so document upload intents are created before final submission.
+   - ✅ Update the PWA to create draft → upload/scan documents → submit draft → show docket/stage/SLA.
+   - ✅ Keep actual MinIO binary transfer and ClamAV daemon integration out of scope, but make the API order real and enforceable.
+5. ✅ **Documentation and closure status**
+   - ✅ Update security documentation for the new integration and SQL proof coverage.
+   - ✅ Mark Phase 2 exit criteria only after focused and full validation pass.
+
+#### Exit Criteria
+
+- ✅ Exact SQL for adding a 77th service is committed and tested.
+- ✅ Form schema v1/v2 snapshot behavior has a regression test.
+- ✅ API integration tests cover happy paths and tenant-leak attempts for Phase 2 routes.
+- ✅ The PWA no longer uploads documents only after final application submission.
+- ✅ Full lint, typecheck, tests, security contracts, and build pass.
 
 ### Parallelism
 
@@ -1143,7 +1275,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 Sprint 2.4 complete; Sprint 2.5 ready to plan.**
+**Current state**: **Phase 2 complete; Phase 3 payments, receipts, and finance ready to plan.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1189,7 +1321,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Plan Sprint 2.5 — Citizen UI end-to-end: Services → Apply → My Applications.
+**Next action**: Plan Phase 3 Sprint 3.1 — payment gateway architecture, idempotency keys, and receipt lifecycle.
 
 ---
 

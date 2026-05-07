@@ -23,6 +23,14 @@ export class ApplicationsController {
     return this.applications.create(principal, dto);
   }
 
+  @Post('drafts')
+  createDraft(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: CreateApplicationDto,
+  ): ApplicationResponse {
+    return this.applications.createDraft(principal, dto);
+  }
+
   @Get()
   list(@CurrentPrincipal() principal: AuthenticatedPrincipal): ApplicationSummaryResponse[] {
     return this.applications.list(principal);
@@ -43,6 +51,14 @@ export class ApplicationsController {
     @Body() dto: CancelApplicationDto,
   ): ApplicationResponse {
     return this.applications.cancel(principal, id, dto);
+  }
+
+  @Post(':id/submit')
+  submitDraft(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+  ): ApplicationResponse {
+    return this.applications.submitDraft(principal, id);
   }
 
   @Post(':id/comment')

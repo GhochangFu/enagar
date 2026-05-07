@@ -26,27 +26,37 @@ import type { EnagarFormSchema } from '@enagar/forms';
 
 type StoredApplication = ApplicationResponse;
 
-const formSchemasByServiceCode = new Map<string, EnagarFormSchema>(
-  [
-    birthCertificateSchema,
-    tradeLicenceSchema,
-    propertyTaxSchema,
-    communityHallSchema,
-    rtiSchema,
-  ].map((schema) => [schema.service_code, schema]),
-);
+const defaultFormSchemas = [
+  birthCertificateSchema,
+  tradeLicenceSchema,
+  propertyTaxSchema,
+  communityHallSchema,
+  rtiSchema,
+] as const;
 
 @Injectable()
 export class ApplicationsService {
   private readonly applications = new Map<string, StoredApplication>();
+  private readonly formSchemasByServiceCode = new Map<string, EnagarFormSchema>(
+    defaultFormSchemas.map((schema) => [schema.service_code, schema]),
+  );
   private sequence = 0;
 
   constructor(private readonly services: ServicesService) {}
 
+  publishFormSchema(schema: EnagarFormSchema): void {
+    this.formSchemasByServiceCode.set(schema.service_code, schema);
+  }
+
   create(principal: AuthenticatedPrincipal, dto: CreateApplicationDto): ApplicationResponse {
+    const draft = this.createDraft(principal, dto);
+    return this.submitDraft(principal, draft.id, { enforceCleanDocuments: false });
+  }
+
+  createDraft(principal: AuthenticatedPrincipal, dto: CreateApplicationDto): ApplicationResponse {
     const tenantCode = this.requireTenantCode(principal);
     const service = this.services.getTenantService(tenantCode, dto.service_code);
-    const formSchema = formSchemasByServiceCode.get(dto.service_code);
+    const formSchema = this.formSchemasByServiceCode.get(dto.service_code);
     if (!formSchema) {
       throw new BadRequestException('Service form schema is not available yet');
     }
@@ -60,21 +70,8 @@ export class ApplicationsService {
     }
 
     const workflow = workflowForPattern(service.workflow_pattern);
-    const initialStage = getInitialStage(workflow);
-    const submittedAt = new Date();
+    const createdAt = new Date();
     const docketNo = this.nextDocketNo(tenantCode, dto.service_code);
-    const timeline = [
-      {
-        id: randomUUID(),
-        from_stage: null,
-        to_stage: initialStage.code,
-        verb: 'submit',
-        actor_role: 'citizen',
-        comment: null,
-        created_at: submittedAt.toISOString(),
-      },
-    ];
-    const dueAt = calculateSlaDueAt(submittedAt, initialStage.sla_hours);
     const application: ApplicationResponse = {
       id: randomUUID(),
       docket_no: docketNo,
@@ -86,33 +83,106 @@ export class ApplicationsService {
       form_version: formSchema.version,
       workflow_code: workflow.code,
       workflow_version: workflow.version,
-      current_stage: initialStage.code,
-      status: initialStage.terminal ? 'closed' : 'submitted',
-      status_label: initialStage.label.en,
-      pending_role: initialStage.owner_role,
+      current_stage: 'draft',
+      status: 'draft',
+      status_label: 'Draft',
+      pending_role: 'citizen',
       payment_status: service.fee_type === 'free' ? 'not_required' : 'mock_paid',
       form_data: dto.form_data,
-      submitted_at: submittedAt.toISOString(),
-      timeline: dueAt
-        ? [
-            ...timeline,
-            {
-              id: randomUUID(),
-              from_stage: initialStage.code,
-              to_stage: initialStage.code,
-              verb: 'sla-armed',
-              actor_role: 'system',
-              comment: `SLA due at ${dueAt.toISOString()}`,
-              created_at: submittedAt.toISOString(),
-            },
-          ]
-        : timeline,
+      submitted_at: createdAt.toISOString(),
+      timeline: [
+        {
+          id: randomUUID(),
+          from_stage: null,
+          to_stage: 'draft',
+          verb: 'draft-created',
+          actor_role: 'citizen',
+          comment: null,
+          created_at: createdAt.toISOString(),
+        },
+      ],
       comments: [],
       documents: [],
     };
 
     this.applications.set(application.id, application);
     return cloneApplication(application);
+  }
+
+  submitDraft(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    options: { enforceCleanDocuments?: boolean } = {},
+  ): ApplicationResponse {
+    const application = this.getOwnedApplication(principal, applicationId);
+    if (application.status !== 'draft') {
+      return cloneApplication(application);
+    }
+
+    const formSchema = this.formSchemasByServiceCode.get(application.service_code);
+    if (!formSchema) {
+      throw new BadRequestException('Service form schema is not available yet');
+    }
+    const workflow = workflowForPattern(
+      this.services.getTenantService(this.requireTenantCode(principal), application.service_code)
+        .workflow_pattern,
+    );
+    const initialStage = getInitialStage(workflow);
+    if (options.enforceCleanDocuments !== false) {
+      const cleanDocumentCodes = new Set(
+        application.documents
+          .filter((document) => document.scan_status === 'clean')
+          .map((document) => document.document_code),
+      );
+      const missingCleanDocument = formSchema.fields.find(
+        (field) =>
+          field.type === 'file' && field.required === true && !cleanDocumentCodes.has(field.id),
+      );
+      if (missingCleanDocument) {
+        throw new BadRequestException(
+          `Document ${missingCleanDocument.id} must be uploaded and scan-clean before submission`,
+        );
+      }
+    }
+
+    const submittedAt = new Date();
+    const dueAt = calculateSlaDueAt(submittedAt, initialStage.sla_hours);
+    const updated: ApplicationResponse = {
+      ...application,
+      current_stage: initialStage.code,
+      status: initialStage.terminal ? 'closed' : 'submitted',
+      status_label: initialStage.label.en,
+      pending_role: initialStage.owner_role,
+      submitted_at: submittedAt.toISOString(),
+      timeline: [
+        ...application.timeline,
+        {
+          id: randomUUID(),
+          from_stage: 'draft',
+          to_stage: initialStage.code,
+          verb: 'submit',
+          actor_role: 'citizen',
+          comment: null,
+          created_at: submittedAt.toISOString(),
+        },
+        ...(dueAt
+          ? [
+              {
+                id: randomUUID(),
+                from_stage: initialStage.code,
+                to_stage: initialStage.code,
+                verb: 'sla-armed',
+                actor_role: 'system',
+                comment: `SLA due at ${dueAt.toISOString()}`,
+                created_at: submittedAt.toISOString(),
+              },
+            ]
+          : []),
+      ],
+    };
+
+    this.applications.set(updated.id, updated);
+    return cloneApplication(updated);
   }
 
   list(principal: AuthenticatedPrincipal): ApplicationSummaryResponse[] {
