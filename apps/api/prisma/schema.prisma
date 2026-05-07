@@ -25,6 +25,8 @@ model Tenant {
   citizens         Citizen[]
   localities       Locality[]
   notifications    Notification[]
+  serviceFormVersions ServiceFormVersion[]
+  services         TenantService[]
   userRoles        UserRole[]
   users            User[]
   wards            Ward[]
@@ -181,4 +183,124 @@ model Notification {
 
   @@index([tenantId, citizenId, isRead])
   @@map("notifications")
+}
+
+model RevenueHead {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String          @unique @db.VarChar(50)
+  name           Json
+  accountingCode String          @map("accounting_code") @db.VarChar(50)
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  globalServices GlobalService[]
+  tenantServices TenantService[]
+
+  @@map("revenue_heads")
+}
+
+model ServiceCategory {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String          @unique @db.VarChar(50)
+  name           Json
+  description    Json?           @default(dbgenerated("'{}'::jsonb"))
+  sortOrder      Int             @default(0) @map("sort_order")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  globalServices GlobalService[]
+  tenantServices TenantService[]
+
+  @@index([sortOrder])
+  @@map("service_categories")
+}
+
+model GlobalService {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                String            @unique @db.VarChar(80)
+  categoryId          String            @map("category_id") @db.Uuid
+  revenueHeadId       String?           @map("revenue_head_id") @db.Uuid
+  name                Json
+  description         Json              @default(dbgenerated("'{}'::jsonb"))
+  workflowPattern     String            @map("workflow_pattern") @db.VarChar(50)
+  defaultSlaDays      Int?              @map("default_sla_days")
+  feeType             String            @default("fixed") @map("fee_type") @db.VarChar(30)
+  feeConfig           Json              @default(dbgenerated("'{}'::jsonb")) @map("fee_config")
+  requiredDocuments   Json              @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
+  formSchema          Json              @default(dbgenerated("'{}'::jsonb")) @map("form_schema")
+  workflowConfig      Json              @default(dbgenerated("'{}'::jsonb")) @map("workflow_config")
+  pushesToDigilocker  Boolean           @default(false) @map("pushes_to_digilocker")
+  isActive            Boolean           @default(true) @map("is_active")
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category            ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  documents           ServiceDocument[]
+  revenueHead         RevenueHead?      @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
+  tenantServices      TenantService[]
+
+  @@index([categoryId, isActive])
+  @@index([revenueHeadId])
+  @@map("global_services")
+}
+
+model TenantService {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  globalServiceId    String?              @map("global_service_id") @db.Uuid
+  code               String               @db.VarChar(80)
+  categoryId         String               @map("category_id") @db.Uuid
+  revenueHeadId      String?              @map("revenue_head_id") @db.Uuid
+  name               Json
+  description        Json                 @default(dbgenerated("'{}'::jsonb"))
+  isActive           Boolean              @default(true) @map("is_active")
+  overrideConfig     Json                 @default(dbgenerated("'{}'::jsonb")) @map("override_config")
+  effectiveFeeConfig Json                 @default(dbgenerated("'{}'::jsonb")) @map("effective_fee_config")
+  effectiveSlaDays   Int?                 @map("effective_sla_days")
+  requiredDocuments  Json                 @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
+  formSchemaAdditions Json                @default(dbgenerated("'{}'::jsonb")) @map("form_schema_additions")
+  workflowOverrides  Json                 @default(dbgenerated("'{}'::jsonb")) @map("workflow_overrides")
+  version            Int                  @default(1)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category           ServiceCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  formVersions       ServiceFormVersion[]
+  globalService      GlobalService?       @relation(fields: [globalServiceId], references: [id], onDelete: SetNull)
+  revenueHead        RevenueHead?         @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, categoryId, isActive])
+  @@index([tenantId, globalServiceId])
+  @@map("services")
+}
+
+model ServiceDocument {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  globalServiceId String        @map("global_service_id") @db.Uuid
+  code            String        @db.VarChar(80)
+  label           Json
+  accept          String[]      @default(["application/pdf", "image/jpeg"])
+  maxSizeMb       Int           @default(10) @map("max_size_mb")
+  isStatutory     Boolean       @default(false) @map("is_statutory")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  globalService   GlobalService @relation(fields: [globalServiceId], references: [id], onDelete: Cascade)
+
+  @@unique([globalServiceId, code])
+  @@map("service_documents")
+}
+
+model ServiceFormVersion {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  serviceId     String        @map("service_id") @db.Uuid
+  version       Int
+  formSchema    Json          @map("form_schema")
+  uiSchema      Json          @default(dbgenerated("'{}'::jsonb")) @map("ui_schema")
+  status        String        @default("draft") @db.VarChar(20)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt   DateTime?     @map("published_at") @db.Timestamptz(6)
+  service       TenantService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, serviceId, version])
+  @@index([tenantId, serviceId, status])
+  @@map("service_form_versions")
 }

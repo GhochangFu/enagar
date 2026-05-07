@@ -1,4 +1,4 @@
-# @enagar/forms — STUB (Phase 2)
+# @enagar/forms
 
 JSON-Schema-driven form runtime. One schema definition powers:
 
@@ -10,4 +10,11 @@ This is the keystone of the plug-and-play promise: a Tenant Admin uploads a JSON
 
 ## Status
 
-Phase-0 stub. Implemented Phase 2.
+Sprint 2.2 implementation is in place:
+
+- Typed eNagar form-schema primitives.
+- Schema validation for field shape, duplicate IDs, unsupported field types, and conditional references.
+- Submission validation for visible fields.
+- JSON-Schema export for API-side validation.
+- Platform-neutral render plans for PWA and React Native parity.
+- Priority service fixtures for Birth Certificate, Trade Licence, Property Tax, Community Hall Booking, and RTI.

@@ -11,6 +11,8 @@
 | `jwt-contract.spec.ts`             | API JWT verification and request tenant-binding contract                        | 1.2   |
 | `citizen-onboarding.spec.ts`       | PWA/mobile onboarding route contract for Splash → Tenant picker → Empty Home    | 1.3   |
 | `sprint14-security-review.spec.ts` | Security gate for i18n, theming/onboarding, CORS, and blocked DigiLocker status | 1.4   |
+| `service-catalogue.spec.ts`        | API/seed contract for Sprint 2.1 service catalogue layering                     | 2.1   |
+| `form-schema.spec.ts`              | Shared form-schema/runtime contract and no service-specific UI guard            | 2.2   |
 | _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                  | 1     |
 | _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call | 7     |
 | _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation      | 6     |

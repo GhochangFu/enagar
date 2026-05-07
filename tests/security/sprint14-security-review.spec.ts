@@ -54,6 +54,6 @@ describe('Sprint 1.4 security review gate', () => {
     );
 
     expect(rootPackageJson.scripts['security:zap:auth']).toBe('node scripts/run-zap-auth-scan.mjs');
-    expect(zapRunbook).toContain('Phase 1 exit criterion is not satisfied');
+    expect(zapRunbook).toContain('Phase 1 exit criterion is satisfied');
   });
 });

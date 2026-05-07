@@ -237,12 +237,120 @@ Build the data model and runtime that lets a tenant admin define a service end-t
 
 ### Suggested Sprint Slice
 
-- **Sprint 2.1**: DB schema + revenue heads + service catalogue layering.
-- **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
+- ✅ **Sprint 2.1**: DB schema + revenue heads + service catalogue layering.
+- ✅ **Sprint 2.2**: Form-Schema spec + `packages/forms` renderer (web + RN parity).
 - **Sprint 2.3**: Workflow engine + applications + timeline.
 - **Sprint 2.4**: Document upload pipeline + holding lookup.
 - **Sprint 2.5**: Citizen UI end-to-end (Services → Apply → My Apps).
 - **Sprint 2.6**: Hardening, tenant-isolation testing, performance pass.
+
+### Sprint 2.1 — Detailed Deliverables
+
+> ✅ Sprint 2.1 closed 2026-05-07 — Prisma schema/migration, catalogue seed fixtures, read APIs, override-resolution tests, tenant-isolation contracts, and full repo validation passed.
+
+**Goal**: establish the database and seed-data foundation for plug-and-play services before form rendering, workflow runtime, or citizen application submission begins.
+
+#### In Scope
+
+1. ✅ **Prisma + migration schema**
+   - ✅ Add state-wide `revenue_heads`.
+   - ✅ Add state-wide `service_categories`.
+   - ✅ Add state-wide `global_services` as the canonical library entry for each service code.
+   - ✅ Add tenant-scoped `services` as the effective/adopted service catalogue per ULB.
+   - ✅ Add service support tables needed for layering without implementing runtime forms yet: `service_documents`, `service_form_versions`, and lightweight workflow references/snapshot columns where needed.
+   - ✅ Enable RLS and `tenant_isolation` policies for every tenant-scoped service table.
+2. ✅ **Catalogue layering semantics**
+   - ✅ Define global-template → tenant-adopted → tenant-overridden → tenant-only service behavior.
+   - ✅ Preserve immutable fields from `docs/service-catalogue.md`: `service_code`, `category_code`, and DigiLocker-output policy.
+   - ✅ Allow tenant overrides for active status, fees, SLA days, required documents, additive form fields, and additive workflow stages.
+   - ✅ Ensure effective catalogue reads are tenant-scoped and never infer cross-tenant availability.
+3. ✅ **Seed data foundation**
+   - ✅ Create seed source structure for the 14 service categories.
+   - ✅ Create seed source structure for revenue heads.
+   - ✅ Create initial global service seed records from `docs/service-catalogue.md`.
+   - ✅ Include the six priority service shells: Birth Certificate, Property Tax, Trade Licence, Community Hall Booking, Sanitation Grievance vocabulary placeholder, and RTI.
+   - ✅ Keep full form schemas and workflow definitions as placeholders/snapshots for Sprint 2.2/2.3 unless needed for schema validation.
+4. ✅ **API read surface**
+   - ✅ Add public/citizen-safe catalogue endpoints for listing categories, listing tenant services, and reading service detail.
+   - ✅ Return explicit columns only; no `SELECT *`.
+   - ✅ Keep create/update admin APIs out of scope unless needed for seed validation.
+5. ✅ **Tests and contracts**
+   - ✅ Extend security migration contract tests to cover service catalogue tables and RLS policies.
+   - ✅ Add service catalogue unit tests for effective override resolution.
+   - ✅ Add API tests for tenant A/B catalogue isolation.
+   - ✅ Add seed integrity tests: unique service codes, category references valid, revenue head references valid, and required translations present.
+6. ✅ **Documentation**
+   - ✅ Add or update the Phase 2 schema notes so future Sprint 2.2/2.3 work knows which fields are stable.
+   - ✅ Update `tests/security/README.md` if new security contract suites are added.
+
+#### Out of Scope
+
+- Form renderer implementation in `packages/forms` (Sprint 2.2).
+- Full JSON form-schema authoring and validation beyond version placeholders (Sprint 2.2).
+- Workflow evaluator/worker runtime in `packages/workflow` and `services/workflow-engine` (Sprint 2.3).
+- Application submission/timeline APIs (Sprint 2.3).
+- Document upload, ClamAV jobs, and MinIO signed upload flow (Sprint 2.4).
+- Citizen services UI beyond API contract smoke checks (Sprint 2.5).
+- Admin portal form builder/workflow designer (Phase 6).
+
+#### Sprint 2.1 Exit Criteria
+
+- ✅ `prisma validate` and security migration contract tests pass for all new catalogue tables.
+- ✅ Every tenant-scoped catalogue table has RLS enabled and a tenant isolation policy.
+- ✅ At least 14 categories, revenue heads, and the initial priority service shells are seeded from structured source files.
+- ✅ Tenant service override resolution is tested for default adoption, disabled service, fee/SLA override, and tenant-only custom service.
+- ✅ Tenant A cannot read Tenant B's effective service catalogue through service APIs or direct service-layer tests.
+- ✅ `ROADMAP.md` Sprint 2.1 deliverables are marked checked only after validation passes.
+
+### Sprint 2.2 — Detailed Deliverables
+
+> ✅ Sprint 2.2 closed 2026-05-07 — form-schema spec, shared `@enagar/forms` runtime, render-plan parity, JSON-Schema export, priority fixtures, package tests, security contracts, and full repo validation passed.
+
+**Goal**: define the canonical form-schema contract and implement the shared `@enagar/forms` runtime so the same service form can be validated and rendered consistently on PWA, React Native, and the API.
+
+#### In Scope
+
+1. ✅ **Form-Schema specification**
+   - ✅ Document `docs/form-schema.md` as the canonical v1 contract.
+   - ✅ Define supported field types: text, number, date, radio, select, multiselect, textarea, file, section, and conditional show-if.
+   - ✅ Define locale-aware labels/help text for en/bn/hi.
+   - ✅ Define validation rules: required, min/max length, min/max number, regex pattern, enum options, file MIME/max-size metadata, and conditional visibility.
+   - ✅ Define snapshot semantics for `service_form_versions` so in-flight applications keep the submitted schema version.
+2. ✅ **`@enagar/forms` runtime**
+   - ✅ Replace the Phase-0 placeholder with typed schema primitives.
+   - ✅ Add schema validation helpers for field structure, duplicate IDs, unsupported field types, invalid required references, and invalid conditional references.
+   - ✅ Add submission validation helpers that validate required visible fields, scalar types, enum values, multiselect values, and file metadata.
+   - ✅ Add JSON-Schema export for server-side/API validation.
+   - ✅ Add a platform-neutral render plan consumed by both web and RN renderers.
+3. ✅ **Renderer parity contract**
+   - ✅ Provide a web render adapter contract that maps fields to stable widget kinds.
+   - ✅ Provide an RN render adapter contract that consumes the same render plan without DOM assumptions.
+   - ✅ Keep actual styled citizen UI out of scope until Sprint 2.5.
+4. ✅ **Seed schema fixtures**
+   - ✅ Add representative v1 schemas for the Sprint 2.1 priority services where useful: Birth Certificate, Trade Licence, Property Tax, Community Hall Booking, and RTI.
+   - ✅ Keep these fixtures compatible with `service_form_versions.form_schema`.
+5. ✅ **Tests and contracts**
+   - ✅ Unit-test schema validation, render-plan generation, JSON-Schema export, conditional visibility, and submission validation.
+   - ✅ Add a security/static contract test proving form schemas remain shared between PWA/RN/API and do not introduce service-specific UI code.
+   - ✅ Ensure invalid schemas fail tests before they can be seeded.
+
+#### Out of Scope
+
+- Persisting citizen application submissions (Sprint 2.3).
+- Workflow transition/evaluator runtime (Sprint 2.3).
+- Document upload pipeline and real file storage (Sprint 2.4).
+- Styled citizen Services → Apply UI (Sprint 2.5).
+- Admin form builder UI (Phase 6).
+- Payment-aware fee collection (Phase 3).
+
+#### Sprint 2.2 Exit Criteria
+
+- ✅ `docs/form-schema.md` exists and documents every v1 field type plus snapshot semantics.
+- ✅ `@enagar/forms` exports typed schema primitives, validation, render-plan generation, and JSON-Schema export.
+- ✅ The same sample schema produces equivalent web and RN render plans.
+- ✅ Invalid schemas fail fast for duplicate field IDs, unsupported field types, invalid required fields, and invalid conditional references.
+- ✅ Submission validation passes for valid visible-field payloads and rejects missing/invalid visible fields.
+- ✅ `pnpm --filter @enagar/forms test`, full repo typecheck/test/build, and security tests pass before deliverables are marked complete.
 
 ### Parallelism
 
@@ -915,7 +1023,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 1 complete; Phase 2 ready for sprint planning.**
+**Current state**: **Phase 2 Sprint 2.2 complete; Sprint 2.3 ready to plan.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -961,7 +1069,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Prepare the Phase 2 Sprint 2.1 plan for service catalogue, application intake, and workflow foundations.
+**Next action**: Plan Sprint 2.3 — workflow engine, applications, and timeline.
 
 ---
 

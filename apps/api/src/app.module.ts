@@ -9,6 +9,7 @@ import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
 import { HealthModule } from './modules/health/health.module';
+import { ServicesModule } from './modules/services/services.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 
 @Module({
@@ -45,6 +46,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     AuthModule,
     CitizenModule,
     HealthModule,
+    ServicesModule,
     TenantsModule,
   ],
   providers: [

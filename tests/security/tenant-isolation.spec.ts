@@ -19,6 +19,20 @@ const requiredSprint11Tables = [
   'notifications',
 ] as const;
 
+const requiredSprint21Tables = [
+  'revenue_heads',
+  'service_categories',
+  'global_services',
+  'services',
+  'service_documents',
+  'service_form_versions',
+] as const;
+
+const requiredTenantIsolationTables = [
+  ...requiredSprint11Tables,
+  ...requiredSprint21Tables,
+] as const;
+
 const normalizeSql = (sql: string): string =>
   sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ').toLowerCase();
 
@@ -47,26 +61,26 @@ const extractTenantScopedTables = (sql: string): string[] =>
     .filter(([, , body]) => /\btenant_id\b/i.test(body))
     .map(([, tableName]) => tableName.replace(/"/g, '').toLowerCase());
 
-describe('Sprint 1.1 tenant-isolation migration contract', () => {
+describe('Tenant-isolation migration contract', () => {
   const migrationSql = readAllMigrationSql();
   const normalizedSql = normalizeSql(migrationSql);
   const createdTables = extractCreatedTables(migrationSql);
   const tenantScopedTables = extractTenantScopedTables(migrationSql);
 
-  it('creates the complete Sprint 1.1 database table set', () => {
-    expect(createdTables).toEqual(expect.arrayContaining([...requiredSprint11Tables]));
+  it('creates the complete Phase 1 and Sprint 2.1 database table set', () => {
+    expect(createdTables).toEqual(expect.arrayContaining([...requiredTenantIsolationTables]));
   });
 
-  it('keeps the Prisma schema mapped to the Sprint 1.1 database tables', () => {
+  it('keeps the Prisma schema mapped to the Phase 1 and Sprint 2.1 database tables', () => {
     const schema = readFileSync(schemaPath, 'utf8');
 
-    for (const tableName of requiredSprint11Tables) {
+    for (const tableName of requiredTenantIsolationTables) {
       expect(schema).toContain(`@@map("${tableName}")`);
     }
   });
 
-  it('enables RLS on every Sprint 1.1 table', () => {
-    for (const tableName of requiredSprint11Tables) {
+  it('enables RLS on every Phase 1 and Sprint 2.1 table', () => {
+    for (const tableName of requiredTenantIsolationTables) {
       expect(normalizedSql).toContain(`alter table ${tableName} enable row level security`);
     }
   });
