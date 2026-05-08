@@ -381,6 +381,10 @@ All endpoints are versioned under `/api/v1`. JWT bearer token required except fo
 - `GET  /payments` — citizen's payment history
 - `GET  /payments/:id/receipt` — PDF receipt URL
 
+Phase 3 Sprint 3.1A starts this surface behind ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials and aggregator details are available, only the deterministic `stub` gateway is runnable; real provider redirect flows, public webhook handling, refunds, and receipt PDFs remain credential-gated. Citizen identity now uses `PostgresCitizenStore`; application persistence has `PostgresApplicationStore` behind `APPLICATION_STORE_PROVIDER=postgres`; and payment persistence has `PostgresPaymentStore` behind `PAYMENT_STORE_PROVIDER=postgres`. The gated `RUN_DB_TESTS=1` specs have passed against local Postgres, including payment attempts and idempotency keys tied to a real application foreign key.
+
+The next executable payment slices are intentionally ordered around what does not require live gateway access: Sprint 3.2 adds receipt, GL posting, and reconciliation groundwork around stub payments; Sprint 3.4A proves the citizen payment UI and recoverable failure states against the existing API; Sprint 3.3A models deposits, refund approvals, and challan references without real refund API calls. Sprint 3.1B remains an interrupt lane for real provider adapter work as soon as sandbox credentials arrive.
+
 ### Grievances
 
 - `POST /grievances` — `{ category, description, location, photos[] }`

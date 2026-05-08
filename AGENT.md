@@ -257,7 +257,7 @@ Ratified ADRs (Phase 0 kick-off, 2026-05-06) are in `docs/ADRs/`. The agent **mu
 | ADR-0003 | Citizen surface sequencing | ✅ **PWA + RN in parallel**               | [`docs/ADRs/ADR-0003-mobile-pwa-parallel.md`](./docs/ADRs/ADR-0003-mobile-pwa-parallel.md)                         |
 | ADR-0004 | Workflow engine            | ✅ **Postgres state machine + BullMQ**    | [`docs/ADRs/ADR-0004-workflow-engine.md`](./docs/ADRs/ADR-0004-workflow-engine.md)                                 |
 | ADR-0005 | Hosting target             | ✅ **On-prem WB SDC, cloud-portable**     | [`docs/ADRs/ADR-0005-hosting-onprem.md`](./docs/ADRs/ADR-0005-hosting-onprem.md)                                   |
-| ADR-0006 | Payment gateway            | 🟡 Open (decide in Phase 3)               | _pending_                                                                                                          |
+| ADR-0006 | Payment gateway            | ✅ **Adapter + stub-first Sprint 3.1A**   | [`docs/ADRs/ADR-0006-payment-gateway-adapter.md`](./docs/ADRs/ADR-0006-payment-gateway-adapter.md)                 |
 | ADR-0007 | KB authoring format        | 🟡 Open (decide in Phase 6/7)             | _pending_                                                                                                          |
 | ADR-0008 | LLM provider strategy      | ✅ **Adapter (OpenAI / Gemini / Ollama)** | [`docs/ADRs/ADR-0008-llm-provider-adapter.md`](./docs/ADRs/ADR-0008-llm-provider-adapter.md)                       |
 | ADR-0009 | Identity provider          | ✅ **Keycloak (self-hosted)**             | [`docs/ADRs/ADR-0009-identity-keycloak.md`](./docs/ADRs/ADR-0009-identity-keycloak.md)                             |

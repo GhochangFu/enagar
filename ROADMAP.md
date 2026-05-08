@@ -653,7 +653,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 ### Dependencies
 
 - Phase 2 complete (applications carry the amount payable).
-- Gateway sandbox credentials.
+- Gateway sandbox credentials for real provider redirects, webhook validation, refunds, and reconciliation. _Unavailable as of 2026-05-08; Sprint 3.1A proceeds with a deterministic stub gateway only._
 
 ### Risks
 
@@ -669,10 +669,76 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 ### Suggested Sprint Slice
 
-- **Sprint 3.1**: Payment lifecycle + gateway adapter + idempotency.
-- **Sprint 3.2**: Receipts + GL postings + reconciliation report.
-- **Sprint 3.3**: Deposits + refunds + challans.
-- **Sprint 3.4**: Citizen payment UI + failure-handling polish.
+- **Sprint 3.1A**: Payment core without gateway credentials — `IPaymentGateway`, stub adapter, fixed-fee application payment initiation, idempotency contract, tenant/citizen isolation tests, and explicit credential-gated boundaries.
+- **Sprint 3.1B**: Real provider adapter once sandbox credentials arrive — Razorpay/PayU/state aggregator adapter, real redirect contract, webhook signature verification, replay protection, and gateway status polling.
+- **Sprint 3.2**: Receipts + GL postings + reconciliation groundwork that can run against the stub payment store without real gateway credentials.
+- **Sprint 3.4A**: Citizen payment UI + failure-handling polish against the stub gateway: initiate, retry, pending/failed states, payment history, and receipt download placeholder.
+- **Sprint 3.3A**: Deposits/refunds/challan data model and approval state machine only; real refund calls remain blocked until provider credentials and settlement contracts exist.
+- **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.2 / 3.4A / 3.3A at a clean checkpoint.
+
+#### Sprint 3.1A — Payment Core Without Gateway Credentials
+
+**Status**: completed 2026-05-08 for stub-gateway payment core and DB persistence proof.
+
+**Goal**: replace Phase 2's mocked payment status with a real internal payment initiation contract while keeping external gateway calls stubbed until credentials are available.
+
+##### In Scope
+
+1. ✅ Accept ADR-0006 as an adapter-first payment gateway decision with `stub` as the only runnable provider until sandbox access exists.
+2. ✅ Add `POST /payments/initiate`, `GET /payments`, and `GET /payments/:id` API surface for citizen-owned fixed-fee application payments.
+3. ✅ Require `Idempotency-Key` on payment initiation and reject key reuse with a different request body.
+4. ✅ Enforce tenant/citizen ownership so cross-tenant payment reads and mutations return not-found responses.
+5. ✅ Keep amount validation conservative: Sprint 3.1A supports only fixed-fee `amount_paise` service configs and rejects computed/slab/external fee flows.
+6. ✅ Add Postgres schema for `payments` and `payment_idempotency_keys`, including RLS, active-payment uniqueness, and the removal of Phase 2's `mock_paid` application status.
+7. ✅ Add a `PaymentStore` persistence boundary plus an in-memory runtime store and a Postgres store implementation shape aligned to the new tables.
+8. ✅ Add an `ApplicationStore` boundary so application persistence can be switched independently from workflow/payment logic.
+9. ✅ Add `citizens.keycloak_subject` persistence and a `CitizenStore` boundary so application rows can resolve `citizen_id` from the authenticated subject.
+10. ✅ Add a shared Nest `DatabaseModule` / `PrismaService` backed by the generated Prisma client, without forcing eager DB connection while runtime stores remain in-memory.
+11. ✅ Make citizen, application, document, and payment service/controller paths async-ready so Postgres stores can be activated without changing API contracts again.
+12. ✅ Activate `PostgresCitizenStore` in `CitizenModule` and add focused Prisma-store tests for tenant + Keycloak-subject lookup/upsert behavior.
+13. ✅ Implement `PostgresApplicationStore`, add `applications.runtime_snapshot`, and wire an explicit `APPLICATION_STORE_PROVIDER=postgres` activation gate with focused persistence tests.
+14. ✅ Add and execute a gated DB-backed `PostgresApplicationStore` integration spec (`RUN_DB_TESTS=1`) that persists and restores an application through Postgres.
+15. ✅ Wire `PostgresPaymentStore` behind `PAYMENT_STORE_PROVIDER=postgres` so payment storage can move to Postgres once application persistence is enabled.
+16. ✅ Add and execute a gated DB-backed `PostgresPaymentStore` integration spec (`RUN_DB_TESTS=1`) that persists payment attempts and idempotency keys against a real `applications.id` foreign key.
+
+##### Out of Scope
+
+- Real Razorpay/PayU/state-aggregator SDK calls. _Aggregator details are unavailable and explicitly deferred to a later Phase 3 provider-integration slice._
+- Public webhook handling with real signature verification.
+- Receipt PDF generation, QR verification URL, GL postings, refunds, deposits, and challans.
+- Computed property-tax and legacy-backed fee collection.
+- Community hall `deposit_paise` collection. _Deposits remain Sprint 3.3 so they can share one refund/release model instead of becoming a special case in 3.1A._
+
+##### Exit Criteria
+
+- API tests prove successful stub initiation, idempotent retry, idempotency-key conflict, amount mismatch rejection, and cross-tenant isolation.
+- Gated DB tests prove application persistence plus payment/idempotency persistence against local Postgres.
+- Prisma schema and payment-core migration validate.
+- Full API lint/typecheck/test pass.
+- No card, UPI handle, wallet token, or net-banking credential is accepted or persisted by the platform.
+
+##### Sequencing Note
+
+`CitizenModule` now uses `PostgresCitizenStore`, backed by `citizens.keycloak_subject`. `PostgresApplicationStore` is available behind `APPLICATION_STORE_PROVIDER=postgres`, and `PostgresPaymentStore` is available behind `PAYMENT_STORE_PROVIDER=postgres`. Both gated DB specs have passed against local Postgres, including payment/idempotency persistence against a real `applications.id` foreign key. Keep the explicit provider gates until the remaining application workflows are ready for Postgres-by-default runtime activation.
+
+#### Recommended Next Three Sprints While Gateway Credentials Are Pending
+
+1. **Sprint 3.2 — Receipts + GL Postings + Reconciliation Groundwork**
+   - Build receipt records, receipt verification URL/QR contract, `gl_postings`, and a daily reconciliation export around stub-settled payments.
+   - Keep the design provider-neutral so gateway settlement references can be added in Sprint 3.1B without rewriting finance tables.
+   - Exit when a stub payment can produce an auditable receipt and reconciliation row without storing card, UPI handle, wallet, or net-banking data.
+
+2. **Sprint 3.4A — Citizen Payment UI + Failure Handling**
+   - Add citizen-facing payment screens for initiate, retry, payment history, pending/failed states, and receipt download placeholder.
+   - Use the deterministic stub gateway and existing payment APIs so frontend data flow is proven before the real redirect/webhook contract arrives.
+   - Exit when the application flow has a clear, recoverable payment step and My Payments view.
+
+3. **Sprint 3.3A — Deposits / Refunds / Challan Model**
+   - Add the schema, state machine, and tests for deposits, refund approvals, and challan references only.
+   - Do not implement real refund API calls until Sprint 3.1B confirms provider capabilities and settlement identifiers.
+   - Exit when refundable flows are represented consistently enough for community hall deposits and later finance approval work.
+
+**Blocked / interrupt sprint**: Sprint 3.1B remains blocked on gateway sandbox credentials. When credentials arrive, pause the active sprint at a clean checkpoint and prioritize the real provider adapter, webhook signature verification, replay protection, and gateway status polling.
 
 ---
 
@@ -1275,7 +1341,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete; Phase 3 payments, receipts, and finance ready to plan.**
+**Current state**: **Phase 2 complete; Phase 3 Sprint 3.1A payment core completed with a stub gateway and DB-backed persistence proof; real gateway credentials remain unavailable.**
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1321,7 +1387,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Plan Phase 3 Sprint 3.1 — payment gateway architecture, idempotency keys, and receipt lifecycle.
+**Next action**: Execute Sprint 3.2 first, then Sprint 3.4A, then Sprint 3.3A while keeping Sprint 3.1B as an interrupt lane for gateway sandbox credentials.
 
 ---
 

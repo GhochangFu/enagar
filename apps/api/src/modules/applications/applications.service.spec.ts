@@ -4,6 +4,7 @@ import { NotFoundException } from '@nestjs/common';
 import { ServicesService } from '../services/services.service';
 
 import { ApplicationsService } from './applications.service';
+import { InMemoryApplicationStore } from './in-memory-application.store';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -40,17 +41,18 @@ describe('ApplicationsService', () => {
   let service: ApplicationsService;
 
   beforeEach(() => {
-    service = new ApplicationsService(new ServicesService());
+    service = new ApplicationsService(new ServicesService(), new InMemoryApplicationStore());
   });
 
-  it('creates a citizen application with docket number and timeline', () => {
-    const application = service.create(citizenA, {
+  it('creates a citizen application with docket number and timeline', async () => {
+    const application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
     expect(application.docket_no).toMatch(/^WBM\/KMC\/birth-cert\/2026\/00001$/);
     expect(application.current_stage).toBe('submitted');
+    expect(application.payment_status).toBe('pending');
     expect(application.workflow_code).toBe('cert-issuance-v1');
     expect(application.timeline.map((item) => item.verb)).toEqual([
       'draft-created',
@@ -59,29 +61,37 @@ describe('ApplicationsService', () => {
     ]);
   });
 
-  it('lists and reads only the current citizen tenant applications', () => {
-    const application = service.create(citizenA, {
+  it('lists and reads only the current citizen tenant applications', async () => {
+    const application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
-    service.create(citizenB, {
+    await service.create(citizenB, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    expect(service.list(citizenA)).toHaveLength(1);
-    expect(service.getByDocketNo(citizenA, application.docket_no).id).toBe(application.id);
-    expect(() => service.getByDocketNo(citizenB, application.docket_no)).toThrow(NotFoundException);
+    await expect(service.list(citizenA)).resolves.toHaveLength(1);
+    await expect(service.getByDocketNo(citizenA, application.docket_no)).resolves.toMatchObject({
+      id: application.id,
+    });
+    await expect(service.getByDocketNo(citizenB, application.docket_no)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
-  it('cancels and comments with timeline records', () => {
-    const application = service.create(citizenA, {
+  it('cancels and comments with timeline records', async () => {
+    const application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    const commented = service.comment(citizenA, application.id, { body: 'Please review soon.' });
-    const cancelled = service.cancel(citizenA, application.id, { reason: 'Submitted by mistake.' });
+    const commented = await service.comment(citizenA, application.id, {
+      body: 'Please review soon.',
+    });
+    const cancelled = await service.cancel(citizenA, application.id, {
+      reason: 'Submitted by mistake.',
+    });
 
     expect(commented.comments).toHaveLength(1);
     expect(cancelled.status).toBe('cancelled');
@@ -89,22 +99,22 @@ describe('ApplicationsService', () => {
     expect(cancelled.timeline.map((item) => item.verb)).toContain('cancel');
   });
 
-  it('rejects cross-citizen mutation attempts as not found', () => {
-    const application = service.create(citizenA, {
+  it('rejects cross-citizen mutation attempts as not found', async () => {
+    const application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    expect(() =>
+    await expect(
       service.comment(citizenB, application.id, { body: 'Trying to cross tenant boundary.' }),
-    ).toThrow(NotFoundException);
-    expect(() =>
+    ).rejects.toThrow(NotFoundException);
+    await expect(
       service.cancel(citizenB, application.id, { reason: 'Trying to cross tenant boundary.' }),
-    ).toThrow(NotFoundException);
+    ).rejects.toThrow(NotFoundException);
   });
 
-  it('keeps in-flight applications on their submitted form schema snapshot', () => {
-    const v1Application = service.create(citizenA, {
+  it('keeps in-flight applications on their submitted form schema snapshot', async () => {
+    const v1Application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -126,21 +136,23 @@ describe('ApplicationsService', () => {
         },
       ],
     });
-    const v2Application = service.create(citizenA, {
+    const v2Application = await service.create(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    expect(service.getByDocketNo(citizenA, v1Application.docket_no).form_version).toBe(1);
+    await expect(service.getByDocketNo(citizenA, v1Application.docket_no)).resolves.toMatchObject({
+      form_version: 1,
+    });
     expect(v2Application.form_version).toBe(2);
   });
 
-  it('rejects invalid submissions before application creation', () => {
-    expect(() =>
+  it('rejects invalid submissions before application creation', async () => {
+    await expect(
       service.create(citizenA, {
         service_code: 'birth-cert',
         form_data: { applicant_name: 'A' },
       }),
-    ).toThrow('Form submission is invalid');
+    ).rejects.toThrow('Form submission is invalid');
   });
 });

@@ -29,6 +29,8 @@ model Tenant {
   applicationDocuments ApplicationDocument[]
   applicationTimeline ApplicationTimeline[]
   applications     Application[]
+  paymentIdempotencyKeys PaymentIdempotencyKey[]
+  payments         Payment[]
   holdingLookupAudit HoldingLookupAudit[]
   holdingRecords   HoldingRecord[]
   roleStageMaps    RoleStageMap[]
@@ -63,6 +65,7 @@ model TenantConfig {
 model Citizen {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String         @map("tenant_id") @db.Uuid
+  keycloakSubject String?      @map("keycloak_subject") @db.VarChar(255)
   mobile        String         @db.VarChar(15)
   aadhaarHash   String?        @map("aadhaar_hash") @db.Char(64)
   name          String?        @db.VarChar(255)
@@ -78,6 +81,8 @@ model Citizen {
   applications   Application[]
 
   @@unique([tenantId, mobile])
+  @@unique([tenantId, keycloakSubject])
+  @@index([tenantId, keycloakSubject])
   @@index([tenantId, wardId])
   @@map("citizens")
 }
@@ -414,6 +419,7 @@ model Application {
   statusLabel     Json                  @default(dbgenerated("'{}'::jsonb")) @map("status_label")
   pendingRole     String?               @map("pending_role") @db.VarChar(80)
   formData        Json                  @map("form_data")
+  runtimeSnapshot Json                  @default(dbgenerated("'{}'::jsonb")) @map("runtime_snapshot")
   paymentStatus   String                @default("not_required") @map("payment_status") @db.VarChar(30)
   submittedAt     DateTime              @default(now()) @map("submitted_at") @db.Timestamptz(6)
   updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -422,6 +428,7 @@ model Application {
   currentStage    WorkflowStage?        @relation(fields: [currentStageId], references: [id], onDelete: SetNull)
   documents       ApplicationDocument[]
   formVersionRef  ServiceFormVersion?   @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
+  payments        Payment[]
   service         TenantService         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   timeline        ApplicationTimeline[]
@@ -488,6 +495,49 @@ model ApplicationDocument {
   @@index([tenantId, applicationId, documentCode])
   @@index([tenantId, scanStatus])
   @@map("application_documents")
+}
+
+model Payment {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                  @map("tenant_id") @db.Uuid
+  applicationId      String                  @map("application_id") @db.Uuid
+  citizenSubject     String                  @map("citizen_subject") @db.VarChar(255)
+  amountPaise        Int                     @map("amount_paise")
+  currency           String                  @default("INR") @db.Char(3)
+  method             String                  @db.VarChar(30)
+  status             String                  @default("requires_action") @db.VarChar(30)
+  gateway            String                  @db.VarChar(80)
+  gatewayOrderId     String                  @map("gateway_order_id") @db.VarChar(160)
+  gatewayPaymentId   String?                 @map("gateway_payment_id") @db.VarChar(160)
+  failureCode        String?                 @map("failure_code") @db.VarChar(80)
+  failureMessage     String?                 @map("failure_message") @db.VarChar(500)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  application        Application             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  idempotencyRecords PaymentIdempotencyKey[]
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, gateway, gatewayOrderId])
+  @@index([tenantId, citizenSubject, createdAt])
+  @@index([tenantId, applicationId, status])
+  @@map("payments")
+}
+
+model PaymentIdempotencyKey {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  citizenSubject     String   @map("citizen_subject") @db.VarChar(255)
+  idempotencyKey     String   @map("idempotency_key") @db.VarChar(160)
+  requestFingerprint String   @map("request_fingerprint") @db.Char(64)
+  paymentId          String   @map("payment_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(6)
+  payment            Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, citizenSubject, idempotencyKey])
+  @@index([tenantId, paymentId])
+  @@map("payment_idempotency_keys")
 }
 
 model HoldingRecord {

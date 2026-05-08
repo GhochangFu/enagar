@@ -24,12 +24,14 @@ export class CitizenController {
   register(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RegisterCitizenDto,
-  ): CitizenProfileResponse {
+  ): Promise<CitizenProfileResponse> {
     return this.citizens.register(principal, dto);
   }
 
   @Get('profile')
-  getProfile(@CurrentPrincipal() principal: AuthenticatedPrincipal): CitizenProfileResponse {
+  getProfile(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+  ): Promise<CitizenProfileResponse> {
     return this.citizens.getProfile(principal);
   }
 
@@ -37,7 +39,7 @@ export class CitizenController {
   updateProfile(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: UpdateCitizenProfileDto,
-  ): CitizenProfileResponse {
+  ): Promise<CitizenProfileResponse> {
     return this.citizens.updateProfile(principal, dto);
   }
 
@@ -45,7 +47,7 @@ export class CitizenController {
   updateLanguage(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: UpdateCitizenLanguageDto,
-  ): CitizenProfileResponse {
+  ): Promise<CitizenProfileResponse> {
     return this.citizens.updateLanguage(principal, dto);
   }
 
@@ -53,12 +55,12 @@ export class CitizenController {
   selectTenant(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: SelectTenantDto,
-  ): {
+  ): Promise<{
     selected_tenant_code: string;
     tenant_name: string;
     theme_color: string;
     ward_count: number;
-  } {
+  }> {
     return this.citizens.selectTenant(principal, dto);
   }
 }

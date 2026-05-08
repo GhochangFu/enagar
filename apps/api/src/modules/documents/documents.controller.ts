@@ -19,7 +19,7 @@ export class DocumentsController {
   createUploadIntent(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateUploadIntentDto,
-  ): UploadIntentResponse {
+  ): Promise<UploadIntentResponse> {
     return this.documents.createUploadIntent(principal, dto);
   }
 
@@ -28,7 +28,7 @@ export class DocumentsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
     @Body() dto: UpdateScanResultDto,
-  ): DocumentResponse {
+  ): Promise<DocumentResponse> {
     return this.documents.updateScanResult(principal, id, dto);
   }
 
@@ -36,7 +36,7 @@ export class DocumentsController {
   createDownloadUrl(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
-  ): DocumentDownloadResponse {
+  ): Promise<DocumentDownloadResponse> {
     return this.documents.createDownloadUrl(principal, id);
   }
 }

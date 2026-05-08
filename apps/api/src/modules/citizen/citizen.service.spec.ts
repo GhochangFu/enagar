@@ -1,6 +1,7 @@
 import { TenantsService } from '../tenants/tenants.service';
 
 import { CitizenService } from './citizen.service';
+import { InMemoryCitizenStore } from './in-memory-citizen.store';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -16,11 +17,11 @@ describe('CitizenService', () => {
   let service: CitizenService;
 
   beforeEach(() => {
-    service = new CitizenService(new TenantsService());
+    service = new CitizenService(new TenantsService(), new InMemoryCitizenStore());
   });
 
-  it('registers and returns a citizen profile bound to the JWT tenant', () => {
-    const profile = service.register(principal, {
+  it('registers and returns a citizen profile bound to the JWT tenant', async () => {
+    const profile = await service.register(principal, {
       mobile: '9876543210',
       name: 'Aritra Sen',
       language_pref: 'bn',
@@ -36,8 +37,8 @@ describe('CitizenService', () => {
     });
   });
 
-  it('selects a tenant and returns theme metadata for the empty home', () => {
-    const result = service.selectTenant(principal, { tenant_code: 'HMC' });
+  it('selects a tenant and returns theme metadata for the empty home', async () => {
+    const result = await service.selectTenant(principal, { tenant_code: 'HMC' });
 
     expect(result).toEqual({
       selected_tenant_code: 'HMC',
@@ -47,7 +48,7 @@ describe('CitizenService', () => {
     });
   });
 
-  it("keeps two tenants' citizen profiles isolated by JWT subject", () => {
+  it("keeps two tenants' citizen profiles isolated by JWT subject", async () => {
     const tenantBPrincipal: AuthenticatedPrincipal = {
       subject: 'keycloak-user-2',
       tenantId: '22222222-2222-4222-8222-222222222222',
@@ -56,23 +57,23 @@ describe('CitizenService', () => {
       expiresAt: new Date('2026-05-07T12:00:00.000Z'),
     };
 
-    service.register(principal, {
+    await service.register(principal, {
       mobile: '9876543210',
       name: 'Tenant A Citizen',
       language_pref: 'en',
     });
-    service.register(tenantBPrincipal, {
+    await service.register(tenantBPrincipal, {
       mobile: '9123456789',
       name: 'Tenant B Citizen',
       language_pref: 'hi',
     });
 
-    expect(service.getProfile(principal)).toMatchObject({
+    await expect(service.getProfile(principal)).resolves.toMatchObject({
       tenant_code: 'KMC',
       mobile: '9876543210',
       name: 'Tenant A Citizen',
     });
-    expect(service.getProfile(tenantBPrincipal)).toMatchObject({
+    await expect(service.getProfile(tenantBPrincipal)).resolves.toMatchObject({
       tenant_code: 'HMC',
       mobile: '9123456789',
       name: 'Tenant B Citizen',

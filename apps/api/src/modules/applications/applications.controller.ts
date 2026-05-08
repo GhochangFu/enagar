@@ -19,7 +19,7 @@ export class ApplicationsController {
   create(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateApplicationDto,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.create(principal, dto);
   }
 
@@ -27,12 +27,14 @@ export class ApplicationsController {
   createDraft(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateApplicationDto,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.createDraft(principal, dto);
   }
 
   @Get()
-  list(@CurrentPrincipal() principal: AuthenticatedPrincipal): ApplicationSummaryResponse[] {
+  list(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+  ): Promise<ApplicationSummaryResponse[]> {
     return this.applications.list(principal);
   }
 
@@ -40,7 +42,7 @@ export class ApplicationsController {
   getByDocketNo(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('docketNo') docketNo: string,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.getByDocketNo(principal, docketNo);
   }
 
@@ -49,7 +51,7 @@ export class ApplicationsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
     @Body() dto: CancelApplicationDto,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.cancel(principal, id, dto);
   }
 
@@ -57,7 +59,7 @@ export class ApplicationsController {
   submitDraft(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.submitDraft(principal, id);
   }
 
@@ -66,7 +68,7 @@ export class ApplicationsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
     @Body() dto: CommentApplicationDto,
-  ): ApplicationResponse {
+  ): Promise<ApplicationResponse> {
     return this.applications.comment(principal, id, dto);
   }
 }

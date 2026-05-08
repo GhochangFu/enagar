@@ -1,0 +1,139 @@
+import { randomUUID } from 'node:crypto';
+
+import { PrismaService } from '../../common/database/prisma.service';
+import { PostgresApplicationStore } from '../applications/postgres-application.store';
+
+import { PostgresPaymentStore } from './postgres-payment.store';
+
+import type { ApplicationResponse } from '../applications/dto';
+
+const describeDb = process.env.RUN_DB_TESTS === '1' ? describe : describe.skip;
+
+describeDb('PostgresPaymentStore DB integration', () => {
+  const prisma = new PrismaService();
+  const applicationStore = new PostgresApplicationStore(prisma);
+  const paymentStore = new PostgresPaymentStore(prisma);
+  const tenantId = randomUUID();
+  const categoryCode = `phase-31a-pay-${Date.now()}`;
+  const tenantCode = `P${Date.now().toString().slice(-8)}`;
+  const serviceCode = 'birth-cert-pay-db';
+  const citizenSubject = `citizen-pay-${Date.now()}`;
+  const applicationId = randomUUID();
+  const docketNo = `WBM/${tenantCode}/${serviceCode}/2026/00001`;
+  const paymentId = randomUUID();
+  const requestFingerprint = 'a'.repeat(64);
+
+  const application: ApplicationResponse = {
+    id: applicationId,
+    docket_no: docketNo,
+    tenant_id: tenantId,
+    tenant_code: tenantCode,
+    citizen_subject: citizenSubject,
+    service_code: serviceCode,
+    service_name: 'Birth Certificate',
+    form_version: 1,
+    workflow_code: 'cert-issuance-v1',
+    workflow_version: 1,
+    current_stage: 'front-office-review',
+    status: 'submitted',
+    status_label: 'Front-office review',
+    pending_role: 'front-office',
+    payment_status: 'pending',
+    form_data: { applicant_name: 'Aritra Sen' },
+    submitted_at: '2026-05-08T10:00:00.000Z',
+    timeline: [],
+    comments: [],
+    documents: [],
+  };
+
+  beforeAll(async () => {
+    await prisma.tenant.deleteMany({ where: { id: tenantId } });
+    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
+
+    const tenant = await prisma.tenant.create({
+      data: {
+        id: tenantId,
+        code: tenantCode,
+        name: 'Phase 3.1A Payment Test Tenant',
+        languagesEnabled: ['en', 'bn', 'hi'],
+      },
+    });
+    const category = await prisma.serviceCategory.create({
+      data: {
+        code: categoryCode,
+        name: { en: 'Test', bn: 'Test', hi: 'Test' },
+        description: { en: 'Test', bn: 'Test', hi: 'Test' },
+      },
+    });
+    await prisma.citizen.create({
+      data: {
+        tenantId: tenant.id,
+        keycloakSubject: citizenSubject,
+        mobile: '9876500002',
+        name: 'Aritra Sen',
+      },
+    });
+    await prisma.tenantService.create({
+      data: {
+        tenantId: tenant.id,
+        code: serviceCode,
+        categoryId: category.id,
+        name: { en: 'Birth Certificate', bn: 'Birth Certificate', hi: 'Birth Certificate' },
+        description: { en: 'Test service', bn: 'Test service', hi: 'Test service' },
+        effectiveFeeConfig: { amount_paise: 5000, currency: 'INR' },
+        requiredDocuments: [],
+      },
+    });
+    await applicationStore.save(application);
+  });
+
+  afterAll(async () => {
+    await prisma.tenant.deleteMany({ where: { id: tenantId } });
+    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
+    await prisma.$disconnect();
+  });
+
+  it('persists a payment and idempotency key for an existing application FK', async () => {
+    const payment = await paymentStore.createPendingPayment({
+      id: paymentId,
+      tenantId,
+      citizenSubject,
+      applicationId,
+      amountPaise: 5000,
+      method: 'upi',
+      gateway: 'stub',
+      gatewayOrderId: `stub_order_${paymentId}`,
+      redirectUrl: '/payments/stub/complete',
+      idempotencyKey: 'same-key',
+      requestFingerprint,
+      expiresAt: new Date('2026-05-09T10:00:00.000Z'),
+    });
+
+    expect(payment).toMatchObject({
+      id: paymentId,
+      application_id: applicationId,
+      status: 'requires_action',
+      gateway_order_id: `stub_order_${paymentId}`,
+    });
+    await expect(
+      paymentStore.findIdempotencyRecord(
+        {
+          subject: citizenSubject,
+          tenantId,
+          tenantCode,
+          roles: ['citizen'],
+          expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+        },
+        'same-key',
+      ),
+    ).resolves.toEqual({
+      fingerprint: requestFingerprint,
+      paymentId,
+    });
+    await expect(paymentStore.findActivePaymentByApplication(applicationId)).resolves.toMatchObject(
+      {
+        id: paymentId,
+      },
+    );
+  });
+});

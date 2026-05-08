@@ -9,10 +9,13 @@ import {
   tradeLicenceSchema,
 } from '@enagar/forms/fixtures';
 import { calculateSlaDueAt, getInitialStage, workflowForPattern } from '@enagar/workflow';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from '../services/services.service';
 
+import { APPLICATION_STORE } from './application-store';
+
+import type { ApplicationStore } from './application-store';
 import type {
   ApplicationCommentResponse,
   ApplicationResponse,
@@ -36,24 +39,32 @@ const defaultFormSchemas = [
 
 @Injectable()
 export class ApplicationsService {
-  private readonly applications = new Map<string, StoredApplication>();
   private readonly formSchemasByServiceCode = new Map<string, EnagarFormSchema>(
     defaultFormSchemas.map((schema) => [schema.service_code, schema]),
   );
-  private sequence = 0;
 
-  constructor(private readonly services: ServicesService) {}
+  constructor(
+    private readonly services: ServicesService,
+    @Inject(APPLICATION_STORE)
+    private readonly store: ApplicationStore,
+  ) {}
 
   publishFormSchema(schema: EnagarFormSchema): void {
     this.formSchemasByServiceCode.set(schema.service_code, schema);
   }
 
-  create(principal: AuthenticatedPrincipal, dto: CreateApplicationDto): ApplicationResponse {
-    const draft = this.createDraft(principal, dto);
+  async create(
+    principal: AuthenticatedPrincipal,
+    dto: CreateApplicationDto,
+  ): Promise<ApplicationResponse> {
+    const draft = await this.createDraft(principal, dto);
     return this.submitDraft(principal, draft.id, { enforceCleanDocuments: false });
   }
 
-  createDraft(principal: AuthenticatedPrincipal, dto: CreateApplicationDto): ApplicationResponse {
+  async createDraft(
+    principal: AuthenticatedPrincipal,
+    dto: CreateApplicationDto,
+  ): Promise<ApplicationResponse> {
     const tenantCode = this.requireTenantCode(principal);
     const service = this.services.getTenantService(tenantCode, dto.service_code);
     const formSchema = this.formSchemasByServiceCode.get(dto.service_code);
@@ -71,7 +82,7 @@ export class ApplicationsService {
 
     const workflow = workflowForPattern(service.workflow_pattern);
     const createdAt = new Date();
-    const docketNo = this.nextDocketNo(tenantCode, dto.service_code);
+    const docketNo = await this.store.nextDocketNo(tenantCode, dto.service_code);
     const application: ApplicationResponse = {
       id: randomUUID(),
       docket_no: docketNo,
@@ -87,7 +98,7 @@ export class ApplicationsService {
       status: 'draft',
       status_label: 'Draft',
       pending_role: 'citizen',
-      payment_status: service.fee_type === 'free' ? 'not_required' : 'mock_paid',
+      payment_status: service.fee_type === 'free' ? 'not_required' : 'pending',
       form_data: dto.form_data,
       submitted_at: createdAt.toISOString(),
       timeline: [
@@ -105,16 +116,16 @@ export class ApplicationsService {
       documents: [],
     };
 
-    this.applications.set(application.id, application);
+    await this.store.save(application);
     return cloneApplication(application);
   }
 
-  submitDraft(
+  async submitDraft(
     principal: AuthenticatedPrincipal,
     applicationId: string,
     options: { enforceCleanDocuments?: boolean } = {},
-  ): ApplicationResponse {
-    const application = this.getOwnedApplication(principal, applicationId);
+  ): Promise<ApplicationResponse> {
+    const application = await this.getOwnedApplication(principal, applicationId);
     if (application.status !== 'draft') {
       return cloneApplication(application);
     }
@@ -181,21 +192,22 @@ export class ApplicationsService {
       ],
     };
 
-    this.applications.set(updated.id, updated);
+    await this.store.save(updated);
     return cloneApplication(updated);
   }
 
-  list(principal: AuthenticatedPrincipal): ApplicationSummaryResponse[] {
-    return Array.from(this.applications.values())
+  async list(principal: AuthenticatedPrincipal): Promise<ApplicationSummaryResponse[]> {
+    return (await this.store.list())
       .filter((application) => this.canAccess(principal, application))
       .sort((left, right) => right.submitted_at.localeCompare(left.submitted_at))
       .map(toSummary);
   }
 
-  getByDocketNo(principal: AuthenticatedPrincipal, docketNo: string): ApplicationResponse {
-    const application = Array.from(this.applications.values()).find(
-      (candidate) => candidate.docket_no === docketNo,
-    );
+  async getByDocketNo(
+    principal: AuthenticatedPrincipal,
+    docketNo: string,
+  ): Promise<ApplicationResponse> {
+    const application = await this.store.findByDocketNo(docketNo);
     if (!application || !this.canAccess(principal, application)) {
       throw new NotFoundException('Application not found');
     }
@@ -203,12 +215,12 @@ export class ApplicationsService {
     return cloneApplication(application);
   }
 
-  cancel(
+  async cancel(
     principal: AuthenticatedPrincipal,
     applicationId: string,
     dto: CancelApplicationDto,
-  ): ApplicationResponse {
-    const application = this.getOwnedApplication(principal, applicationId);
+  ): Promise<ApplicationResponse> {
+    const application = await this.getOwnedApplication(principal, applicationId);
     if (application.status === 'cancelled') {
       return cloneApplication(application);
     }
@@ -233,16 +245,16 @@ export class ApplicationsService {
       ],
     };
 
-    this.applications.set(updated.id, updated);
+    await this.store.save(updated);
     return cloneApplication(updated);
   }
 
-  comment(
+  async comment(
     principal: AuthenticatedPrincipal,
     applicationId: string,
     dto: CommentApplicationDto,
-  ): ApplicationResponse {
-    const application = this.getOwnedApplication(principal, applicationId);
+  ): Promise<ApplicationResponse> {
+    const application = await this.getOwnedApplication(principal, applicationId);
     const comment: ApplicationCommentResponse = {
       id: randomUUID(),
       actor_role: 'citizen',
@@ -266,30 +278,45 @@ export class ApplicationsService {
       ],
     };
 
-    this.applications.set(updated.id, updated);
+    await this.store.save(updated);
     return cloneApplication(updated);
   }
 
-  attachDocument(
+  async attachDocument(
     principal: AuthenticatedPrincipal,
     applicationId: string,
     document: StoredApplication['documents'][number],
-  ): void {
-    const application = this.getOwnedApplication(principal, applicationId);
+  ): Promise<void> {
+    const application = await this.getOwnedApplication(principal, applicationId);
     const updated: ApplicationResponse = {
       ...application,
       documents: [...application.documents.filter((item) => item.id !== document.id), document],
     };
 
-    this.applications.set(updated.id, updated);
+    await this.store.save(updated);
   }
 
-  getOwnedApplication(principal: AuthenticatedPrincipal, applicationId: string): StoredApplication {
-    const application = this.applications.get(applicationId);
+  async getOwnedApplication(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+  ): Promise<StoredApplication> {
+    const application = await this.store.findById(applicationId);
     if (!application || !this.canAccess(principal, application)) {
       throw new NotFoundException('Application not found');
     }
     return application;
+  }
+
+  async recordPaymentStatus(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    paymentStatus: StoredApplication['payment_status'],
+  ): Promise<void> {
+    const application = await this.getOwnedApplication(principal, applicationId);
+    await this.store.save({
+      ...application,
+      payment_status: paymentStatus,
+    });
   }
 
   private canAccess(principal: AuthenticatedPrincipal, application: StoredApplication): boolean {
@@ -297,11 +324,6 @@ export class ApplicationsService {
       application.tenant_id === principal.tenantId &&
       application.citizen_subject === principal.subject
     );
-  }
-
-  private nextDocketNo(tenantCode: string, serviceCode: string): string {
-    this.sequence += 1;
-    return `WBM/${tenantCode}/${serviceCode}/2026/${String(this.sequence).padStart(5, '0')}`;
   }
 
   private requireTenantCode(principal: AuthenticatedPrincipal): string {

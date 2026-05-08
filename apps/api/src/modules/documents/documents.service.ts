@@ -29,15 +29,15 @@ export class DocumentsService {
 
   constructor(private readonly applications: ApplicationsService) {}
 
-  createUploadIntent(
+  async createUploadIntent(
     principal: AuthenticatedPrincipal,
     dto: CreateUploadIntentDto,
-  ): UploadIntentResponse {
+  ): Promise<UploadIntentResponse> {
     if (dto.size_mb > 10) {
       throw new BadRequestException('File size exceeds 10 MB');
     }
 
-    const application = this.applications.getOwnedApplication(principal, dto.application_id);
+    const application = await this.applications.getOwnedApplication(principal, dto.application_id);
     const id = randomUUID();
     const createdAt = new Date();
     const objectKey = this.createObjectKey(principal, dto.application_id, id, dto.original_name);
@@ -57,7 +57,11 @@ export class DocumentsService {
     };
 
     this.documents.set(id, document);
-    this.applications.attachDocument(principal, application.id, toApplicationDocument(document));
+    await this.applications.attachDocument(
+      principal,
+      application.id,
+      toApplicationDocument(document),
+    );
 
     return {
       ...toDocumentResponse(document),
@@ -66,11 +70,11 @@ export class DocumentsService {
     };
   }
 
-  updateScanResult(
+  async updateScanResult(
     principal: AuthenticatedPrincipal,
     documentId: string,
     dto: UpdateScanResultDto,
-  ): DocumentResponse {
+  ): Promise<DocumentResponse> {
     const document = this.getOwnedDocument(principal, documentId);
     const updated: StoredDocument = {
       ...document,
@@ -79,7 +83,7 @@ export class DocumentsService {
     };
 
     this.documents.set(documentId, updated);
-    this.applications.attachDocument(
+    await this.applications.attachDocument(
       principal,
       updated.application_id,
       toApplicationDocument(updated),
@@ -87,10 +91,10 @@ export class DocumentsService {
     return toDocumentResponse(updated);
   }
 
-  createDownloadUrl(
+  async createDownloadUrl(
     principal: AuthenticatedPrincipal,
     documentId: string,
-  ): DocumentDownloadResponse {
+  ): Promise<DocumentDownloadResponse> {
     const document = this.getOwnedDocument(principal, documentId);
     if (document.scan_status !== 'clean') {
       throw new BadRequestException('Document is not scan-clean');

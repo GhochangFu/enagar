@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ApplicationsService } from '../applications/applications.service';
+import { InMemoryApplicationStore } from '../applications/in-memory-application.store';
 import { ServicesService } from '../services/services.service';
 
 import { DocumentsService } from './documents.service';
@@ -41,17 +42,17 @@ describe('DocumentsService', () => {
   let documents: DocumentsService;
 
   beforeEach(() => {
-    applications = new ApplicationsService(new ServicesService());
+    applications = new ApplicationsService(new ServicesService(), new InMemoryApplicationStore());
     documents = new DocumentsService(applications);
   });
 
-  it('creates tenant-scoped upload intents and attaches metadata to applications', () => {
-    const application = applications.create(principal, {
+  it('creates tenant-scoped upload intents and attaches metadata to applications', async () => {
+    const application = await applications.create(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    const intent = documents.createUploadIntent(principal, {
+    const intent = await documents.createUploadIntent(principal, {
       application_id: application.id,
       document_code: 'hospital_discharge',
       original_name: 'Birth Proof.pdf',
@@ -61,16 +62,20 @@ describe('DocumentsService', () => {
 
     expect(intent.object_key).toContain(`tenants/kmc/applications/${application.id}/documents/`);
     expect(intent.upload_url).toContain('action=upload');
-    expect(applications.getByDocketNo(principal, application.docket_no).documents).toHaveLength(1);
+    await expect(
+      applications.getByDocketNo(principal, application.docket_no),
+    ).resolves.toMatchObject({
+      documents: expect.arrayContaining([expect.objectContaining({ id: intent.id })]),
+    });
   });
 
-  it('blocks oversized uploads and scan-pending downloads', () => {
-    const application = applications.create(principal, {
+  it('blocks oversized uploads and scan-pending downloads', async () => {
+    const application = await applications.create(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    expect(() =>
+    await expect(
       documents.createUploadIntent(principal, {
         application_id: application.id,
         document_code: 'hospital_discharge',
@@ -78,9 +83,9 @@ describe('DocumentsService', () => {
         mime_type: 'application/pdf',
         size_mb: 11,
       }),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
 
-    const intent = documents.createUploadIntent(principal, {
+    const intent = await documents.createUploadIntent(principal, {
       application_id: application.id,
       document_code: 'hospital_discharge',
       original_name: 'clean.pdf',
@@ -88,17 +93,17 @@ describe('DocumentsService', () => {
       size_mb: 1,
     });
 
-    expect(() => documents.createDownloadUrl(principal, intent.id)).toThrow(
+    await expect(documents.createDownloadUrl(principal, intent.id)).rejects.toThrow(
       'Document is not scan-clean',
     );
   });
 
-  it('allows download only after a clean scan result', () => {
-    const application = applications.create(principal, {
+  it('allows download only after a clean scan result', async () => {
+    const application = await applications.create(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
-    const intent = documents.createUploadIntent(principal, {
+    const intent = await documents.createUploadIntent(principal, {
       application_id: application.id,
       document_code: 'hospital_discharge',
       original_name: 'clean.pdf',
@@ -106,39 +111,39 @@ describe('DocumentsService', () => {
       size_mb: 1,
     });
 
-    documents.updateScanResult(principal, intent.id, {
+    await documents.updateScanResult(principal, intent.id, {
       scan_status: 'clean',
       scan_provider: 'clamav-local',
     });
 
-    expect(documents.createDownloadUrl(principal, intent.id).download_url).toContain(
-      'action=download',
-    );
+    await expect(documents.createDownloadUrl(principal, intent.id)).resolves.toMatchObject({
+      download_url: expect.stringContaining('action=download'),
+    });
   });
 
-  it('supports draft document upload before final application submission', () => {
-    const draft = applications.createDraft(principal, {
+  it('supports draft document upload before final application submission', async () => {
+    const draft = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
 
-    expect(() => applications.submitDraft(principal, draft.id)).toThrow(
+    await expect(applications.submitDraft(principal, draft.id)).rejects.toThrow(
       'Document hospital_discharge must be uploaded and scan-clean before submission',
     );
 
-    const intent = documents.createUploadIntent(principal, {
+    const intent = await documents.createUploadIntent(principal, {
       application_id: draft.id,
       document_code: 'hospital_discharge',
       original_name: 'clean.pdf',
       mime_type: 'application/pdf',
       size_mb: 1,
     });
-    documents.updateScanResult(principal, intent.id, {
+    await documents.updateScanResult(principal, intent.id, {
       scan_status: 'clean',
       scan_provider: 'clamav-local',
     });
 
-    const submitted = applications.submitDraft(principal, draft.id);
+    const submitted = await applications.submitDraft(principal, draft.id);
 
     expect(submitted.status).toBe('submitted');
     expect(submitted.timeline.map((item) => item.verb)).toEqual([
@@ -148,12 +153,12 @@ describe('DocumentsService', () => {
     ]);
   });
 
-  it('rejects cross-tenant scan and download attempts as not found', () => {
-    const application = applications.create(principal, {
+  it('rejects cross-tenant scan and download attempts as not found', async () => {
+    const application = await applications.create(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
-    const intent = documents.createUploadIntent(principal, {
+    const intent = await documents.createUploadIntent(principal, {
       application_id: application.id,
       document_code: 'hospital_discharge',
       original_name: 'clean.pdf',
@@ -161,12 +166,12 @@ describe('DocumentsService', () => {
       size_mb: 1,
     });
 
-    expect(() =>
+    await expect(
       documents.updateScanResult(otherTenantPrincipal, intent.id, {
         scan_status: 'clean',
       }),
-    ).toThrow(NotFoundException);
-    expect(() => documents.createDownloadUrl(otherTenantPrincipal, intent.id)).toThrow(
+    ).rejects.toThrow(NotFoundException);
+    await expect(documents.createDownloadUrl(otherTenantPrincipal, intent.id)).rejects.toThrow(
       NotFoundException,
     );
   });

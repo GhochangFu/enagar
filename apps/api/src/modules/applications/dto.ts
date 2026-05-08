@@ -75,7 +75,7 @@ export interface ApplicationResponse {
   status: string;
   status_label: string;
   pending_role: string | null;
-  payment_status: 'not_required' | 'mock_paid';
+  payment_status: 'not_required' | 'pending' | 'paid' | 'failed';
   form_data: FormSubmission;
   submitted_at: string;
   timeline: ApplicationTimelineResponse[];

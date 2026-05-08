@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
 import { JwtVerifierService } from './common/auth/jwt-verifier.service';
+import { DatabaseModule } from './common/database/database.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -12,6 +13,7 @@ import { CitizenModule } from './modules/citizen/citizen.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ServicesModule } from './modules/services/services.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 
@@ -46,12 +48,14 @@ import { TenantsModule } from './modules/tenants/tenants.module';
         },
       },
     }),
+    DatabaseModule,
     AuthModule,
     CitizenModule,
     ApplicationsModule,
     DocumentsModule,
     HealthModule,
     HoldingsModule,
+    PaymentsModule,
     ServicesModule,
     TenantsModule,
   ],

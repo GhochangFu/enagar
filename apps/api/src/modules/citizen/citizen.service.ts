@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { TenantsService } from '../tenants/tenants.service';
 
+import { CITIZEN_STORE } from './citizen-store';
+
+import type { CitizenStore } from './citizen-store';
 import type {
   CitizenProfileResponse,
   RegisterCitizenDto,
@@ -15,12 +18,17 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
 @Injectable()
 export class CitizenService {
-  private readonly profiles = new Map<string, CitizenProfileResponse>();
+  constructor(
+    private readonly tenants: TenantsService,
+    @Inject(CITIZEN_STORE)
+    private readonly store: CitizenStore,
+  ) {}
 
-  constructor(private readonly tenants: TenantsService) {}
-
-  register(principal: AuthenticatedPrincipal, dto: RegisterCitizenDto): CitizenProfileResponse {
-    const existing = this.profiles.get(principal.subject);
+  async register(
+    principal: AuthenticatedPrincipal,
+    dto: RegisterCitizenDto,
+  ): Promise<CitizenProfileResponse> {
+    const existing = await this.store.findByPrincipal(principal);
     const profile: CitizenProfileResponse = {
       id: existing?.id ?? randomUUID(),
       keycloak_subject: principal.subject,
@@ -33,57 +41,64 @@ export class CitizenService {
       selected_tenant_code: existing?.selected_tenant_code ?? principal.tenantCode,
     };
 
-    this.profiles.set(principal.subject, profile);
+    await this.store.save(profile);
     return profile;
   }
 
-  getProfile(principal: AuthenticatedPrincipal): CitizenProfileResponse {
+  getProfile(principal: AuthenticatedPrincipal): Promise<CitizenProfileResponse> {
     return this.getOrCreateProfile(principal);
   }
 
   updateProfile(
     principal: AuthenticatedPrincipal,
     dto: UpdateCitizenProfileDto,
-  ): CitizenProfileResponse {
-    const profile = this.getOrCreateProfile(principal);
+  ): Promise<CitizenProfileResponse> {
+    return this.updateStoredProfile(principal, dto);
+  }
+
+  private async updateStoredProfile(
+    principal: AuthenticatedPrincipal,
+    dto: UpdateCitizenProfileDto,
+  ): Promise<CitizenProfileResponse> {
+    const profile = await this.getOrCreateProfile(principal);
     const updated = {
       ...profile,
       name: dto.name ?? profile.name,
       holding_number: dto.holding_number ?? profile.holding_number,
     };
 
-    this.profiles.set(principal.subject, updated);
+    await this.store.save(updated);
     return updated;
   }
 
-  updateLanguage(
+  async updateLanguage(
     principal: AuthenticatedPrincipal,
     dto: UpdateCitizenLanguageDto,
-  ): CitizenProfileResponse {
-    const profile = this.getOrCreateProfile(principal);
+  ): Promise<CitizenProfileResponse> {
+    const profile = await this.getOrCreateProfile(principal);
     const updated = { ...profile, language_pref: dto.language_pref };
 
-    this.profiles.set(principal.subject, updated);
+    await this.store.save(updated);
     return updated;
   }
 
-  selectTenant(
+  async selectTenant(
     principal: AuthenticatedPrincipal,
     dto: SelectTenantDto,
-  ): {
+  ): Promise<{
     selected_tenant_code: string;
     tenant_name: string;
     theme_color: string;
     ward_count: number;
-  } {
+  }> {
     const tenant = this.tenants.getConfig(dto.tenant_code);
-    const profile = this.getOrCreateProfile(principal);
+    const profile = await this.getOrCreateProfile(principal);
 
     if (!tenant.is_active) {
       throw new NotFoundException('Tenant not found');
     }
 
-    this.profiles.set(principal.subject, {
+    await this.store.save({
       ...profile,
       selected_tenant_code: tenant.code,
     });
@@ -96,8 +111,10 @@ export class CitizenService {
     };
   }
 
-  private getOrCreateProfile(principal: AuthenticatedPrincipal): CitizenProfileResponse {
-    const existing = this.profiles.get(principal.subject);
+  private async getOrCreateProfile(
+    principal: AuthenticatedPrincipal,
+  ): Promise<CitizenProfileResponse> {
+    const existing = await this.store.findByPrincipal(principal);
     if (existing) {
       return existing;
     }
@@ -114,7 +131,7 @@ export class CitizenService {
       selected_tenant_code: principal.tenantCode,
     };
 
-    this.profiles.set(principal.subject, profile);
+    await this.store.save(profile);
     return profile;
   }
 }
