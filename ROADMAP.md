@@ -777,6 +777,10 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 > "A grievance with no timeline is a grievance ignored."
 
+### Programme status (2026-05-11)
+
+**Active track:** Phase 4 is the next delivery programme. **Sprint 4.1** (below) is the immediate planned slice. **Sprint 3.1B** (real PSP adapter and webhooks) remains **blocked** on gateway sandbox credentials and is still the **interrupt lane** when credentials arrive.
+
 ### Goal
 
 End-to-end grievance management: file → categorise → route to ward / department → track → escalate → resolve → rate → reopen if needed.
@@ -829,6 +833,20 @@ End-to-end grievance management: file → categorise → route to ward / departm
 - **Sprint 4.1**: DB + APIs + SLA engine.
 - **Sprint 4.2**: Citizen UI + auto-routing.
 - **Sprint 4.3**: Escalations + reopen + rating + hardening.
+
+#### Sprint 4.1 — kickoff backlog (planning only; implementation follows)
+
+Foundation slice while PSP credentials remain unavailable. Outcome: tenant-safe persistence and server APIs so **Sprint 4.2** can add the citizen PWA surface without redesigning tables.
+
+| Area           | Scope                                                                                                                                                                                                                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Data model** | Prisma migration aligned to deliverable §1: `grievances`, `grievance_timeline`, `grievance_attachments` (or equivalent metadata keys to object storage), `grievance_routing_rules`, `sla_policies`; **RLS** parity with other tenant tables; reconcile naming with the illustrative DDL in `ARCHITECTURE.md` §3 where it differs. |
+| **APIs**       | Citizen: file, list own, detail; staff: assign / comment / status transitions — follow **§5 grievance routes** in `ARCHITECTURE.md`. JWT tenant binding + ownership rules.                                                                                                                                                        |
+| **Routing**    | Deterministic evaluation from seeded `grievance_routing_rules` (MVP ruleset); extensible for Phase 6 admin UI later.                                                                                                                                                                                                              |
+| **SLA engine** | Persist SLA deadlines; breach detection via scheduled jobs (`services/notification-worker` / BullMQ when wired; otherwise a documented scheduler stub in API for local dev).                                                                                                                                                      |
+| **Quality**    | Unit tests for lifecycle and routing; gated `RUN_DB_TESTS=1` integration against Postgres where applicable.                                                                                                                                                                                                                       |
+
+**Explicitly out of 4.1:** tenant-admin routing editor (Phase 6); full citizen PWA Grievance tab (**Sprint 4.2**); Field Officer app (Phase 9).
 
 ---
 
@@ -1372,7 +1390,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete; Phase 3 Sprint 3.1A payment core completed with a stub gateway and DB-backed persistence proof; real gateway credentials remain unavailable.**
+**Current state**: **Phase 2 complete.** Phase 3 payment/finance slices through **3.3A** are closed (stub rail, receipts/GL, citizen payment UI, deposits/refunds/challans). **Sprint 3.1B** is still blocked on real gateway credentials. **Phase 4 (Grievances & SLA)** is the active programme; **Sprint 4.1** is next (see §Phase 4).
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1418,7 +1436,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Sprint 3.2, 3.4A, and 3.3A are closed. Prioritise Sprint 3.1B when gateway sandbox credentials land; otherwise Phase 4 / parallel hardening slices per programme priorities while keeping Sprint 3.1B as an interrupt lane.
+**Next action**: Execute **Phase 4 — Sprint 4.1** (grievance schema, APIs, SLA foundation) while credentials remain unavailable. **Prioritise Sprint 3.1B** immediately when gateway sandbox credentials land (interrupt lane). Optional parallel work: security/ops hardening per programme priorities.
 
 ---
 
