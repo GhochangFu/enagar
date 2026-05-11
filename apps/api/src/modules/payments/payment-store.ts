@@ -1,5 +1,6 @@
 import type { LedgerSettlementDto, PaymentMethod, PaymentResponse, ReceiptCitizenDto } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { ApplicationReadScope } from '../applications/dto';
 
 export const PAYMENT_STORE = 'PAYMENT_STORE';
 
@@ -37,10 +38,14 @@ export interface PaymentStore {
   ): Promise<ExistingIdempotencyRecord | null>;
   findActivePaymentByApplication(applicationId: string): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;
-  listByPrincipal(principal: AuthenticatedPrincipal): Promise<PaymentResponse[]>;
+  listByPrincipal(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<PaymentResponse[]>;
   findByIdForPrincipal(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse | null>;
 
   settleStubLedger(
@@ -53,5 +58,6 @@ export interface PaymentStore {
   findReceiptForPayment(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<ReceiptCitizenDto | null>;
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../../common/database/database.module';
 import { ServicesModule } from '../services/services.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 import { APPLICATION_STORE } from './application-store';
 import { ApplicationsController } from './applications.controller';
@@ -10,7 +11,7 @@ import { InMemoryApplicationStore } from './in-memory-application.store';
 import { PostgresApplicationStore } from './postgres-application.store';
 
 @Module({
-  imports: [DatabaseModule, ServicesModule],
+  imports: [DatabaseModule, ServicesModule, TenantsModule],
   controllers: [ApplicationsController],
   providers: [
     InMemoryApplicationStore,

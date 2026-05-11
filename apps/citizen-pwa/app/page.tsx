@@ -252,7 +252,7 @@ export default function HomePage(): JSX.Element {
       try {
         await fetch(`${apiBaseUrl}/citizen/select-tenant`, {
           method: 'POST',
-          headers: authHeaders(token),
+          headers: authHeaders(token, true),
           body: JSON.stringify({ tenant_code: tenant.code }),
         });
       } catch {
@@ -284,7 +284,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/grievances`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, selectedTenant?.code),
       });
       if (!response.ok) {
         return;
@@ -315,7 +315,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/payments`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, selectedTenant?.code),
       });
       if (!response.ok) {
         throw new Error('Unable to load payments');
@@ -332,7 +332,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/applications`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, selectedTenant?.code),
       });
       if (!response.ok) {
         throw new Error('Unable to load applications');
@@ -364,7 +364,7 @@ export default function HomePage(): JSX.Element {
     }
 
     const response = await fetch(`${apiBaseUrl}/holdings/${encodeURIComponent(holdingNumber)}`, {
-      headers: authHeaders(token, false),
+      headers: authHeaders(token, false, selectedTenant?.code),
     });
     const result = (await response.json()) as HoldingLookupResponse;
     setHoldingLookup(result);
@@ -386,7 +386,7 @@ export default function HomePage(): JSX.Element {
     setStatus('Creating draft application...');
     const draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, selectedTenant?.code),
       body: JSON.stringify({
         service_code: selectedService.code,
         form_data: formValues,
@@ -407,7 +407,7 @@ export default function HomePage(): JSX.Element {
 
     const submitResponse = await fetch(`${apiBaseUrl}/applications/${draft.id}/submit`, {
       method: 'POST',
-      headers: authHeaders(token, false),
+      headers: authHeaders(token, false, selectedTenant?.code),
     });
     if (!submitResponse.ok) {
       setStatus('Application submission failed after document upload.');
@@ -438,7 +438,7 @@ export default function HomePage(): JSX.Element {
       }
       const intentResponse = await fetch(`${apiBaseUrl}/documents/upload-intent`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(token, true, selectedTenant?.code),
         body: JSON.stringify({
           application_id: application.id,
           document_code: field.id,
@@ -453,7 +453,7 @@ export default function HomePage(): JSX.Element {
       const intent = (await intentResponse.json()) as UploadIntentResponse;
       const scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(token, true, selectedTenant?.code),
         body: JSON.stringify({
           scan_status: 'clean',
           scan_provider: 'pwa-simulated-clamav',
@@ -472,7 +472,7 @@ export default function HomePage(): JSX.Element {
       return;
     }
     const response = await fetch(`${apiBaseUrl}/applications/${encodeURIComponent(docketNo)}`, {
-      headers: authHeaders(token, false),
+      headers: authHeaders(token, false, selectedTenant?.code),
     });
     if (!response.ok) {
       setStatus('Unable to open application.');
@@ -489,7 +489,7 @@ export default function HomePage(): JSX.Element {
 
     const response = await fetch(`${apiBaseUrl}/applications/${applicationDetail.id}/comment`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, selectedTenant?.code),
       body: JSON.stringify({ body: comment }),
     });
     if (response.ok) {
@@ -507,7 +507,7 @@ export default function HomePage(): JSX.Element {
 
     const response = await fetch(`${apiBaseUrl}/applications/${applicationDetail.id}/cancel`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, selectedTenant?.code),
       body: JSON.stringify({ reason: 'Cancelled by citizen from PWA.' }),
     });
     if (response.ok) {
@@ -535,7 +535,7 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/payments/initiate`, {
         method: 'POST',
         headers: {
-          ...authHeaders(token),
+          ...authHeaders(token, true, selectedTenant?.code),
           'idempotency-key': idempotencyKey,
         },
         body: JSON.stringify({
@@ -572,7 +572,7 @@ export default function HomePage(): JSX.Element {
     try {
       response = await fetch(`${apiBaseUrl}/payments/stub/complete`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(token, true, selectedTenant?.code),
         body: JSON.stringify({
           payment_id: payment.id,
           gateway_order_id: payment.gateway_order_id,
@@ -594,7 +594,7 @@ export default function HomePage(): JSX.Element {
     }
 
     const appsResponse = await fetch(`${apiBaseUrl}/applications`, {
-      headers: authHeaders(token, false),
+      headers: authHeaders(token, false, selectedTenant?.code),
     });
     if (appsResponse.ok) {
       const list = (await appsResponse.json()) as ApplicationSummary[];
@@ -975,6 +975,7 @@ export default function HomePage(): JSX.Element {
                 onStubComplete={simulateStubSettlement}
                 onSubmitComment={addComment}
                 payments={payments}
+                tenantScopeCode={selectedTenant?.code}
                 token={token}
               />
             </section>
@@ -1067,6 +1068,7 @@ export default function HomePage(): JSX.Element {
               mobileDigits={mobile}
               onBanner={setStatus}
               onGrievancesMutated={() => void loadGrievanceCount()}
+              tenantScopeCode={selectedTenant?.code}
               token={token}
             />
           )}

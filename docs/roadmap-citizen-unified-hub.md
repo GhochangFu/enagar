@@ -214,6 +214,8 @@ Phases are **merge-sequential**: finish exit criteria of Phase _N_ before relyin
 | **Tests**         | Payment store/service tests: two tenants, same subject—unscoped list length; scoped filters; portal JWT + payment in ULB A—`get` succeeds. Grievances db/spec: list across tenants; detail by `grievance_no` with subject match. Dashboard contract test (smoke) if implemented.                                                                                                                                |
 | **Exit criteria** | Hub can be populated from API without client-side merging hacks; staff grievance list still tenant-scoped.                                                                                                                                                                                                                                                                                                      |
 
+**Status: done (2026-05-11).** **Payments:** `list` / `getById` / `…/receipt` honor `X-Enagar-Tenant-Code`; hub access via `citizenHubRowAccessibleByTenant` in payment stores. **Grievances:** portal citizens list/detail by `keycloakSubject` with optional scope; staff list still `tenantId`-only; timeline uses grievance `tenantId`. **`GET /api/citizen/dashboard`** — per-ULB counts + `theme_color`. **CORS:** `x-enagar-tenant-code`. Tests: `citizen-scope.spec`, `payments.service.spec` (portal hub).
+
 ---
 
 ### Phase 3 — Municipality write APIs (ULB-scoped creates & payment integrity)

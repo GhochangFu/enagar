@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApplicationsService } from '../applications/applications.service';
 import { InMemoryApplicationStore } from '../applications/in-memory-application.store';
 import { ServicesService } from '../services/services.service';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { DocumentsService } from './documents.service';
 
@@ -42,7 +43,11 @@ describe('DocumentsService', () => {
   let documents: DocumentsService;
 
   beforeEach(() => {
-    applications = new ApplicationsService(new ServicesService(), new InMemoryApplicationStore());
+    applications = new ApplicationsService(
+      new ServicesService(),
+      new TenantsService(),
+      new InMemoryApplicationStore(),
+    );
     documents = new DocumentsService(applications);
   });
 

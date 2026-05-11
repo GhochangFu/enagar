@@ -60,3 +60,19 @@ export interface CitizenProfileResponse {
   language_pref: LanguageCode;
   selected_tenant_code?: string;
 }
+
+/** Sprint 2.2 hub dashboard — counts grouped per catalogued ULB. */
+export interface CitizenHubDashboardMunicipalityBucket {
+  tenant_id: string;
+  tenant_code: string;
+  theme_color: string;
+  application_count: number;
+  payment_count: number;
+  grievance_count: number;
+}
+
+export interface CitizenHubDashboardResponse {
+  generated_at: string;
+  municipality_scope: string | null;
+  municipalities: CitizenHubDashboardMunicipalityBucket[];
+}

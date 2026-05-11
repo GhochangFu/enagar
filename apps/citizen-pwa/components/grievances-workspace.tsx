@@ -3,6 +3,8 @@
 import { t, type Locale, type MessageKey } from '@enagar/i18n';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { authHeaders, readApiError } from '../lib/workspace-http';
+
 type LanguageCode = Locale;
 
 export const GRIEVANCE_CATEGORY_CODES = [
@@ -68,37 +70,13 @@ function grievanceCatKey(code: GrievanceCategoryCode): MessageKey {
   return `grievance.cat.${code}` as MessageKey;
 }
 
-function authHeaders(token: TokenResponse, withJson = true): HeadersInit {
-  return withJson
-    ? {
-        authorization: `Bearer ${token.access_token}`,
-        'content-type': 'application/json',
-      }
-    : {
-        authorization: `Bearer ${token.access_token}`,
-      };
-}
-
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { message?: unknown; error?: string };
-    if (typeof body.message === 'string' && body.message.trim()) return body.message;
-    if (Array.isArray(body.message)) {
-      return body.message.map((part) => String(part)).join('; ');
-    }
-    if (typeof body.error === 'string' && body.error.trim()) return body.error;
-  } catch {
-    /* body may not be JSON */
-  }
-  return `Request failed (${response.status})`;
-}
-
 export function GrievancesWorkspace({
   apiBaseUrl,
   language,
   mobileDigits,
   onBanner,
   onGrievancesMutated,
+  tenantScopeCode,
   token,
 }: {
   apiBaseUrl: string;
@@ -106,6 +84,8 @@ export function GrievancesWorkspace({
   mobileDigits: string;
   onBanner: (message: string) => void;
   onGrievancesMutated?: () => void;
+  /** Active ULB when filing with a portal (WBPORTAL) JWT — same as X-Enagar-Tenant-Code. */
+  tenantScopeCode?: string | null;
   token: TokenResponse | null;
 }): JSX.Element {
   const [profileReady, setProfileReady] = useState<boolean | null>(null);
@@ -135,7 +115,7 @@ export function GrievancesWorkspace({
     setLoadingList(true);
     try {
       const response = await fetch(`${apiBaseUrl}/grievances`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, tenantScopeCode),
       });
       if (!response.ok) {
         throw new Error(await readApiError(response));
@@ -148,7 +128,7 @@ export function GrievancesWorkspace({
     } finally {
       setLoadingList(false);
     }
-  }, [apiBaseUrl, language, onBanner, onGrievancesMutated, token]);
+  }, [apiBaseUrl, language, onBanner, onGrievancesMutated, tenantScopeCode, token]);
 
   const refreshProfileGate = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -158,7 +138,7 @@ export function GrievancesWorkspace({
     setProfileReady(null);
     try {
       const response = await fetch(`${apiBaseUrl}/citizen/profile`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, tenantScopeCode),
       });
       setProfileReady(response.ok);
       if (!response.ok) {
@@ -168,7 +148,7 @@ export function GrievancesWorkspace({
       setProfileReady(false);
       onBanner(t('grievance.profileError', language));
     }
-  }, [apiBaseUrl, language, onBanner, token]);
+  }, [apiBaseUrl, language, onBanner, tenantScopeCode, token]);
 
   useEffect(() => {
     void refreshProfileGate();
@@ -194,7 +174,7 @@ export function GrievancesWorkspace({
 
     const response = await fetch(`${apiBaseUrl}/citizen/register`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, tenantScopeCode),
       body: JSON.stringify({
         mobile,
         ...(registerName.trim() ? { name: registerName.trim() } : {}),
@@ -222,7 +202,7 @@ export function GrievancesWorkspace({
     setRating(5);
     const response = await fetch(
       `${apiBaseUrl}/grievances/${encodeURIComponent(ref.grievance_no)}`,
-      { headers: authHeaders(token, false) },
+      { headers: authHeaders(token, false, tenantScopeCode) },
     );
     if (!response.ok) {
       onBanner(await readApiError(response));
@@ -240,7 +220,7 @@ export function GrievancesWorkspace({
     const ref = detailPayload.grievance.grievance_no;
     const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/comment`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, tenantScopeCode),
       body: JSON.stringify({ body: commentDraft.trim() }),
     });
     if (!response.ok) {
@@ -262,7 +242,7 @@ export function GrievancesWorkspace({
     const ref = detailPayload.grievance.grievance_no;
     const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/feedback`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, tenantScopeCode),
       body: JSON.stringify({
         rating,
         ...(feedbackComment.trim() ? { comment: feedbackComment.trim() } : {}),
@@ -277,7 +257,7 @@ export function GrievancesWorkspace({
     const row = (await response.json()) as GrievanceApiRow;
     const detailRes = await fetch(
       `${apiBaseUrl}/grievances/${encodeURIComponent(row.grievance_no)}`,
-      { headers: authHeaders(token, false) },
+      { headers: authHeaders(token, false, tenantScopeCode) },
     );
     if (!detailRes.ok) {
       setDetailPayload({
@@ -308,7 +288,7 @@ export function GrievancesWorkspace({
 
     const response = await fetch(`${apiBaseUrl}/grievances`, {
       method: 'POST',
-      headers: authHeaders(token),
+      headers: authHeaders(token, true, tenantScopeCode),
       body: JSON.stringify({
         category: pickedCategory,
         description: description.trim(),

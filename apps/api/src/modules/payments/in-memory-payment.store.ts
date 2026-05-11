@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { citizenHubRowAccessibleByTenant } from '../../common/auth/citizen-scope';
+
 import {
   buildReceiptDisplayNumber,
   receiptToCitizenDto,
@@ -17,6 +19,7 @@ import type {
   SettlementLedgerContext,
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { ApplicationReadScope } from '../applications/dto';
 
 interface IdempotencyRecord {
   fingerprint: string;
@@ -90,9 +93,12 @@ export class InMemoryPaymentStore implements PaymentStore {
     return clonePaymentResponse(payment);
   }
 
-  async listByPrincipal(principal: AuthenticatedPrincipal): Promise<PaymentResponse[]> {
+  async listByPrincipal(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<PaymentResponse[]> {
     return Array.from(this.payments.values())
-      .filter((payment) => this.canAccess(principal, payment))
+      .filter((payment) => this.canAccess(principal, payment, readScope))
       .sort((left, right) => right.created_at.localeCompare(left.created_at))
       .map(clonePaymentResponse);
   }
@@ -100,9 +106,10 @@ export class InMemoryPaymentStore implements PaymentStore {
   async findByIdForPrincipal(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse | null> {
     const payment = this.payments.get(paymentId) ?? null;
-    if (!payment || !this.canAccess(principal, payment)) {
+    if (!payment || !this.canAccess(principal, payment, readScope)) {
       return null;
     }
     return clonePayment(payment);
@@ -114,7 +121,7 @@ export class InMemoryPaymentStore implements PaymentStore {
     gatewayOrderId: string,
     ctx: SettlementLedgerContext,
   ): Promise<LedgerSettlementDto> {
-    const paymentRow = await this.findByIdForPrincipal(principal, paymentId);
+    const paymentRow = await this.findByIdForPrincipal(principal, paymentId, undefined);
     if (!paymentRow) {
       throw new NotFoundException('Payment not found');
     }
@@ -168,9 +175,10 @@ export class InMemoryPaymentStore implements PaymentStore {
   async findReceiptForPayment(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<ReceiptCitizenDto | null> {
     const receipt = this.receiptsByPayment.get(paymentId);
-    const paymentRow = await this.findByIdForPrincipal(principal, paymentId);
+    const paymentRow = await this.findByIdForPrincipal(principal, paymentId, readScope);
 
     if (!receipt || !paymentRow || paymentRow.status !== 'settled') {
       return null;
@@ -179,9 +187,15 @@ export class InMemoryPaymentStore implements PaymentStore {
     return receipt;
   }
 
-  private canAccess(principal: AuthenticatedPrincipal, payment: PaymentResponse): boolean {
-    return (
-      payment.tenant_id === principal.tenantId && payment.citizen_subject === principal.subject
+  private canAccess(
+    principal: AuthenticatedPrincipal,
+    payment: PaymentResponse,
+    readScope?: ApplicationReadScope,
+  ): boolean {
+    return citizenHubRowAccessibleByTenant(
+      principal,
+      { tenant_id: payment.tenant_id, citizen_subject: payment.citizen_subject },
+      readScope,
     );
   }
 

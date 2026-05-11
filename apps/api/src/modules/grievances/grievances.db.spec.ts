@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { GrievancesService } from './grievances.service';
 
@@ -31,7 +32,7 @@ describeDb('Sprint 4.1 grievance persistence', () => {
     expiresAt: new Date(Date.now() + 3_600_000),
   } satisfies AuthenticatedPrincipal;
 
-  const svc = new GrievancesService(prisma);
+  const svc = new GrievancesService(prisma, new TenantsService());
 
   beforeAll(async () => {
     await prisma.tenant.create({

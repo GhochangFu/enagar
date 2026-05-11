@@ -28,6 +28,7 @@ import type {
 import type { IPaymentGateway } from './payment-gateway';
 import type { PaymentStore, SettlementLedgerContext } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { ApplicationReadScope } from '../applications/dto';
 import type { EffectiveServiceSummary } from '../services/service-catalogue.seed';
 
 function csvEscape(value: string | number): string {
@@ -189,8 +190,9 @@ export class PaymentsService {
   async receiptForOwnedPayment(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<ReceiptCitizenDto> {
-    const receipt = await this.store.findReceiptForPayment(principal, paymentId);
+    const receipt = await this.store.findReceiptForPayment(principal, paymentId, readScope);
     if (!receipt) {
       throw new NotFoundException('Receipt not available for this payment');
     }
@@ -282,12 +284,19 @@ export class PaymentsService {
     return `${lines.join('\n')}\n`;
   }
 
-  list(principal: AuthenticatedPrincipal): Promise<PaymentResponse[]> {
-    return this.store.listByPrincipal(principal);
+  list(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<PaymentResponse[]> {
+    return this.store.listByPrincipal(principal, readScope);
   }
 
-  getById(principal: AuthenticatedPrincipal, paymentId: string): Promise<PaymentResponse> {
-    return this.getOwnedPayment(principal, paymentId);
+  getById(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+    readScope?: ApplicationReadScope,
+  ): Promise<PaymentResponse> {
+    return this.getOwnedPayment(principal, paymentId, readScope);
   }
 
   private assertReconciliationAuthorized(principal: AuthenticatedPrincipal): void {
@@ -305,8 +314,9 @@ export class PaymentsService {
   private async getOwnedPayment(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse> {
-    const payment = await this.store.findByIdForPrincipal(principal, paymentId);
+    const payment = await this.store.findByIdForPrincipal(principal, paymentId, readScope);
     if (!payment) {
       throw new NotFoundException('Payment not found');
     }

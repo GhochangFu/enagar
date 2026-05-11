@@ -14,8 +14,10 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import {
   isCitizenSelfServicePrincipal,
   principalIsCitizenPortal,
+  resolveCitizenMunicipalityForWrite,
 } from '../../common/auth/citizen-scope';
 import { ServicesService } from '../services/services.service';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { APPLICATION_STORE } from './application-store';
 
@@ -50,6 +52,7 @@ export class ApplicationsService {
 
   constructor(
     private readonly services: ServicesService,
+    private readonly tenants: TenantsService,
     @Inject(APPLICATION_STORE)
     private readonly store: ApplicationStore,
   ) {}
@@ -61,16 +64,22 @@ export class ApplicationsService {
   async create(
     principal: AuthenticatedPrincipal,
     dto: CreateApplicationDto,
+    municipalityScopeFromHeader?: string,
   ): Promise<ApplicationResponse> {
-    const draft = await this.createDraft(principal, dto);
+    const draft = await this.createDraft(principal, dto, municipalityScopeFromHeader);
     return this.submitDraft(principal, draft.id, { enforceCleanDocuments: false });
   }
 
   async createDraft(
     principal: AuthenticatedPrincipal,
     dto: CreateApplicationDto,
+    municipalityScopeFromHeader?: string,
   ): Promise<ApplicationResponse> {
-    const tenantCode = this.requireTenantCode(principal);
+    const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
+      principal,
+      this.tenants.list(),
+      municipalityScopeFromHeader,
+    );
     const service = this.services.getTenantService(tenantCode, dto.service_code);
     const formSchema = this.formSchemasByServiceCode.get(dto.service_code);
     if (!formSchema) {
@@ -91,8 +100,8 @@ export class ApplicationsService {
     const application: ApplicationResponse = {
       id: randomUUID(),
       docket_no: docketNo,
-      tenant_id: principal.tenantId,
-      tenant_code: principal.tenantCode,
+      tenant_id: tenantId,
+      tenant_code: tenantCode,
       citizen_subject: principal.subject,
       service_code: dto.service_code,
       service_name: service.name.en,
@@ -139,9 +148,12 @@ export class ApplicationsService {
     if (!formSchema) {
       throw new BadRequestException('Service form schema is not available yet');
     }
+    const workflowTenantCode = application.tenant_code;
+    if (!workflowTenantCode) {
+      throw new BadRequestException('Application missing tenant_code');
+    }
     const workflow = workflowForPattern(
-      this.services.getTenantService(this.requireTenantCode(principal), application.service_code)
-        .workflow_pattern,
+      this.services.getTenantService(workflowTenantCode, application.service_code).workflow_pattern,
     );
     const initialStage = getInitialStage(workflow);
     if (options.enforceCleanDocuments !== false) {
@@ -351,13 +363,6 @@ export class ApplicationsService {
     }
 
     return application.tenant_id === principal.tenantId;
-  }
-
-  private requireTenantCode(principal: AuthenticatedPrincipal): string {
-    if (!principal.tenantCode) {
-      throw new BadRequestException('Tenant code claim is required');
-    }
-    return principal.tenantCode;
   }
 }
 

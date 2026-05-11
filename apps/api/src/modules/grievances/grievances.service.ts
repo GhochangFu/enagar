@@ -5,7 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import {
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+  resolveCitizenMunicipalityForWrite,
+  resolveMunicipalityTenantIdFromScopeCode,
+} from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
+import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
 
 import {
   assertGrievanceTransition,
@@ -27,6 +35,7 @@ import type {
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Grievance as GrievanceRow, Prisma } from '../../generated/prisma';
+import type { ApplicationReadScope } from '../applications/dto';
 
 /** PostgreSQL rejects non-uuid strings bound to `@db.Uuid` columns; branch before querying `id`. */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,17 +46,24 @@ function isUuid(value: string): boolean {
 
 @Injectable()
 export class GrievancesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenants: TenantsService,
+  ) {}
 
   /** Resolve `:id` path param — clients may send DB uuid or human-readable grievance_no (e.g. GRV-KMC-2026-000001). */
   private grievanceLookupWhere(
     tenantId: string,
     idOrGrievanceNo: string,
   ): Prisma.GrievanceWhereInput {
+    return { ...this.grievanceIdentifierWhere(idOrGrievanceNo), tenantId };
+  }
+
+  private grievanceIdentifierWhere(idOrGrievanceNo: string): Prisma.GrievanceWhereInput {
     if (isUuid(idOrGrievanceNo)) {
-      return { tenantId, id: idOrGrievanceNo };
+      return { id: idOrGrievanceNo };
     }
-    return { tenantId, grievanceNo: idOrGrievanceNo };
+    return { grievanceNo: idOrGrievanceNo };
   }
 
   private toResponse(row: GrievanceRow): GrievanceResponse {
@@ -111,42 +127,86 @@ export class GrievancesService {
     return `GRV-${tenantCode}-${y}-${String(count + 1).padStart(6, '0')}`;
   }
 
+  private async ensureCitizenForTargetTenant(
+    principal: AuthenticatedPrincipal,
+    targetTenantId: string,
+  ): Promise<string> {
+    const subject = principal.subject;
+    if (!subject) {
+      throw new BadRequestException('Citizen identity (sub) is required');
+    }
+
+    const existing = await this.prisma.citizen.findFirst({
+      where: { tenantId: targetTenantId, keycloakSubject: subject },
+      select: { id: true },
+    });
+    if (existing) {
+      return existing.id;
+    }
+
+    const source = await this.prisma.citizen.findFirst({
+      where: { keycloakSubject: subject },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const mobile = source?.mobile?.trim() ?? '';
+    if (!mobile) {
+      throw new BadRequestException(
+        'Citizen profile must be registered with a mobile number before filing a grievance',
+      );
+    }
+
+    const created = await this.prisma.citizen.create({
+      data: {
+        tenantId: targetTenantId,
+        keycloakSubject: subject,
+        mobile,
+        name: source?.name ?? null,
+        languagePref: source?.languagePref ?? 'en',
+      },
+    });
+
+    return created.id;
+  }
+
   async create(
     principal: AuthenticatedPrincipal,
     dto: CreateGrievanceDto,
+    municipalityScopeFromHeader?: string,
   ): Promise<GrievanceResponse> {
     this.assertCitizenOnly(principal);
-    const citizenId = await this.requireCitizenId(principal);
+
+    const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
+      principal,
+      this.tenants.list(),
+      municipalityScopeFromHeader,
+    );
+
+    const citizenId = await this.ensureCitizenForTargetTenant(principal, tenantId);
 
     const priority = dto.grievance_priority ?? 'medium';
     const category = dto.category;
     const wardRow = await this.prisma.citizen.findFirst({
-      where: { id: citizenId, tenantId: principal.tenantId },
+      where: { id: citizenId, tenantId },
       select: { wardId: true },
     });
 
-    const tenant = await this.prisma.tenant.findFirstOrThrow({
-      where: { id: principal.tenantId },
-      select: { code: true },
-    });
-
-    const hours = await resolveSlaHours(this.prisma, principal.tenantId, category, priority);
+    const hours = await resolveSlaHours(this.prisma, tenantId, category, priority);
     const routing = await resolveGrievanceRouting(
       this.prisma,
-      principal.tenantId,
+      tenantId,
       category,
       priority,
       wardRow?.wardId ?? null,
     );
 
     const created = await this.prisma.$transaction(async (tx) => {
-      const grievanceNo = await this.allocateGrievanceNumber(tx, principal.tenantId, tenant.code);
+      const grievanceNo = await this.allocateGrievanceNumber(tx, tenantId, tenantCode);
       const now = new Date();
       const slaDueAt = addHours(now, hours);
 
       const row = await tx.grievance.create({
         data: {
-          tenantId: principal.tenantId,
+          tenantId,
           citizenId,
           grievanceNo,
           category,
@@ -163,7 +223,7 @@ export class GrievancesService {
 
       await tx.grievanceTimelineEntry.create({
         data: {
-          tenantId: principal.tenantId,
+          tenantId,
           grievanceId: row.id,
           eventType: 'created',
           actorSubject: principal.subject,
@@ -175,7 +235,7 @@ export class GrievancesService {
       if (routing.assignUserId) {
         await tx.grievanceTimelineEntry.create({
           data: {
-            tenantId: principal.tenantId,
+            tenantId,
             grievanceId: row.id,
             eventType: 'assignment',
             actorSubject: 'system:routing',
@@ -191,11 +251,38 @@ export class GrievancesService {
     return this.toResponse(created);
   }
 
-  async list(principal: AuthenticatedPrincipal): Promise<GrievanceResponse[]> {
+  async list(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<GrievanceResponse[]> {
     const staff = principalHasGrievanceStaffAccess(principal.roles);
     if (staff) {
       const rows = await this.prisma.grievance.findMany({
         where: { tenantId: principal.tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      });
+      return rows.map((r) => this.toResponse(r));
+    }
+
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const scoped = readScope?.municipalityTenantCode?.trim();
+      const where: Prisma.GrievanceWhereInput = {
+        citizen: { keycloakSubject: principal.subject },
+      };
+
+      if (scoped) {
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped);
+        if (!tid) {
+          throw new BadRequestException('Invalid tenant scope');
+        }
+        where.tenantId = tid;
+      } else {
+        where.tenantId = { not: CITIZEN_PORTAL_TENANT_ID };
+      }
+
+      const rows = await this.prisma.grievance.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         take: 200,
       });
@@ -214,7 +301,44 @@ export class GrievancesService {
   async getById(
     principal: AuthenticatedPrincipal,
     grievanceId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<{ grievance: GrievanceResponse; timeline: GrievanceTimelineResponse[] }> {
+    const staff = principalHasGrievanceStaffAccess(principal.roles);
+
+    if (staff) {
+      const row = await this.prisma.grievance.findFirst({
+        where: this.grievanceLookupWhere(principal.tenantId, grievanceId),
+      });
+      if (!row) {
+        throw new NotFoundException('Grievance not found');
+      }
+      return this.loadGrievanceWithTimeline(row);
+    }
+
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const scoped = readScope?.municipalityTenantCode?.trim();
+      const where: Prisma.GrievanceWhereInput = {
+        ...this.grievanceIdentifierWhere(grievanceId),
+        citizen: { keycloakSubject: principal.subject },
+      };
+
+      if (scoped) {
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped);
+        if (!tid) {
+          throw new BadRequestException('Invalid tenant scope');
+        }
+        where.tenantId = tid;
+      }
+
+      const row = await this.prisma.grievance.findFirst({
+        where,
+      });
+      if (!row) {
+        throw new NotFoundException('Grievance not found');
+      }
+      return this.loadGrievanceWithTimeline(row);
+    }
+
     const row = await this.prisma.grievance.findFirst({
       where: this.grievanceLookupWhere(principal.tenantId, grievanceId),
     });
@@ -222,16 +346,20 @@ export class GrievancesService {
       throw new NotFoundException('Grievance not found');
     }
 
-    const staff = principalHasGrievanceStaffAccess(principal.roles);
-    if (!staff) {
-      const citizenId = await this.requireCitizenId(principal);
-      if (row.citizenId !== citizenId) {
-        throw new NotFoundException('Grievance not found');
-      }
+    const citizenId = await this.requireCitizenId(principal);
+    if (row.citizenId !== citizenId) {
+      throw new NotFoundException('Grievance not found');
     }
 
+    return this.loadGrievanceWithTimeline(row);
+  }
+
+  private async loadGrievanceWithTimeline(row: GrievanceRow): Promise<{
+    grievance: GrievanceResponse;
+    timeline: GrievanceTimelineResponse[];
+  }> {
     const timelineRows = await this.prisma.grievanceTimelineEntry.findMany({
-      where: { grievanceId: row.id, tenantId: principal.tenantId },
+      where: { grievanceId: row.id, tenantId: row.tenantId },
       orderBy: { occurredAt: 'asc' },
     });
 
@@ -257,7 +385,7 @@ export class GrievancesService {
 
     await this.prisma.grievanceTimelineEntry.create({
       data: {
-        tenantId: principal.tenantId,
+        tenantId: grievance.tenant_id,
         grievanceId: canonicalId,
         eventType: 'comment',
         actorSubject: principal.subject,
@@ -302,7 +430,7 @@ export class GrievancesService {
       });
       await tx.grievanceTimelineEntry.create({
         data: {
-          tenantId: principal.tenantId,
+          tenantId: row.tenantId,
           grievanceId: row.id,
           eventType: 'feedback',
           actorSubject: principal.subject,

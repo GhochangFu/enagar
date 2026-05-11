@@ -17,10 +17,12 @@ import type { FormEvent } from 'react';
 export function ReceiptPreviewPlaceholder({
   apiBaseUrl,
   payment,
+  tenantScopeCode,
   token,
 }: {
   apiBaseUrl: string;
   payment: PaymentApiResponse;
+  tenantScopeCode?: string | null;
   token: TokenResponse;
 }): JSX.Element {
   const [payload, setPayload] = useState<ReceiptCitizenPayload | null>(null);
@@ -32,7 +34,7 @@ export function ReceiptPreviewPlaceholder({
     setError(null);
     try {
       const res = await fetch(`${apiBaseUrl}/payments/${encodeURIComponent(payment.id)}/receipt`, {
-        headers: authHeaders(token, false),
+        headers: authHeaders(token, false, tenantScopeCode),
       });
       if (!res.ok) {
         setError(await readApiError(res));
@@ -98,6 +100,7 @@ export function ApplicationDetailPanel({
   onStubComplete,
   onSubmitComment,
   payments,
+  tenantScopeCode,
   token,
 }: {
   apiBaseUrl: string;
@@ -114,6 +117,7 @@ export function ApplicationDetailPanel({
   onStubComplete: (payment: PaymentApiResponse) => Promise<boolean>;
   onSubmitComment: (event: FormEvent<HTMLFormElement>) => void;
   payments: PaymentApiResponse[];
+  tenantScopeCode?: string | null;
   token: TokenResponse | null;
 }): JSX.Element {
   const [paymentMethod, setPaymentMethod] = useState<PaymentGatewayMethod>('upi');
@@ -252,6 +256,7 @@ export function ApplicationDetailPanel({
           <ReceiptPreviewPlaceholder
             apiBaseUrl={apiBaseUrl}
             payment={latestSettled}
+            tenantScopeCode={tenantScopeCode}
             token={token}
           />
         )}

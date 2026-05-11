@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Headers, Patch, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-scope';
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
+import { CitizenHubDashboardService } from './citizen-hub-dashboard.service';
 import { CitizenService } from './citizen.service';
 import {
   RegisterCitizenDto,
@@ -11,14 +13,39 @@ import {
   UpdateCitizenProfileDto,
 } from './dto';
 
-import type { CitizenProfileResponse } from './dto';
+import type { CitizenHubDashboardResponse, CitizenProfileResponse } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { ApplicationReadScope } from '../applications/dto';
+
+function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? { municipalityTenantCode: trimmed } : undefined;
+}
 
 @ApiTags('citizen')
 @ApiBearerAuth()
+@ApiHeader({
+  name: CITIZEN_MUNICIPALITY_SCOPE_HEADER,
+  description: 'Optional ULB scope on dashboard (same semantics as hub aggregate reads).',
+  required: false,
+})
 @Controller('citizen')
 export class CitizenController {
-  constructor(private readonly citizens: CitizenService) {}
+  constructor(
+    private readonly citizens: CitizenService,
+    private readonly hubDashboard: CitizenHubDashboardService,
+  ) {}
+
+  @Get('dashboard')
+  @ApiOperation({
+    summary: 'Hub dashboard — per-ULB counts (applications, payments, grievances)',
+  })
+  getDashboard(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ): Promise<CitizenHubDashboardResponse> {
+    return this.hubDashboard.getDashboard(principal, readScopeFromHeader(municipalityTenantCode));
+  }
 
   @Post('register')
   register(

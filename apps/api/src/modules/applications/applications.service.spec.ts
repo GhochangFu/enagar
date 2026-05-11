@@ -1,8 +1,9 @@
 import { birthCertificateSchema } from '@enagar/forms/fixtures';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from '../services/services.service';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { ApplicationsService } from './applications.service';
 import { InMemoryApplicationStore } from './in-memory-application.store';
@@ -71,7 +72,11 @@ describe('ApplicationsService', () => {
   let service: ApplicationsService;
 
   beforeEach(() => {
-    service = new ApplicationsService(new ServicesService(), new InMemoryApplicationStore());
+    service = new ApplicationsService(
+      new ServicesService(),
+      new TenantsService(),
+      new InMemoryApplicationStore(),
+    );
   });
 
   it('creates a citizen application with docket number and timeline', async () => {
@@ -89,6 +94,34 @@ describe('ApplicationsService', () => {
       'submit',
       'sla-armed',
     ]);
+  });
+
+  const portalForDrafts: AuthenticatedPrincipal = {
+    subject: 'portal-create-test',
+    tenantId: CITIZEN_PORTAL_TENANT_ID,
+    tenantCode: CITIZEN_PORTAL_TENANT_CODE,
+    roles: ['citizen'],
+    expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+  };
+
+  it('portal principal requires municipality scope header to create a draft', async () => {
+    await expect(
+      service.createDraft(portalForDrafts, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('portal principal with KMC scope creates a KMC docket and tenant rows', async () => {
+    const application = await service.createDraft(
+      portalForDrafts,
+      { service_code: 'birth-cert', form_data: birthCertificateForm },
+      'KMC',
+    );
+    expect(application.tenant_code).toBe('KMC');
+    expect(application.tenant_id).toBe(citizenA.tenantId);
+    expect(application.docket_no).toMatch(/^WBM\/KMC\/birth-cert\/2026\/00001$/);
   });
 
   it('lists and reads only the current citizen tenant applications', async () => {
@@ -201,7 +234,7 @@ describe('ApplicationsService (portal hub scope)', () => {
 
   beforeEach(() => {
     store = new InMemoryApplicationStore();
-    hubService = new ApplicationsService(new ServicesService(), store);
+    hubService = new ApplicationsService(new ServicesService(), new TenantsService(), store);
   });
 
   it('lists all municipality applications for the same subject when unscoped', async () => {

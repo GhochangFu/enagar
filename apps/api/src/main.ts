@@ -15,7 +15,13 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000'],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['authorization', 'content-type', 'x-tenant-code', 'idempotency-key'],
+    allowedHeaders: [
+      'authorization',
+      'content-type',
+      'x-tenant-code',
+      'x-enagar-tenant-code',
+      'idempotency-key',
+    ],
   });
   app.use(helmet());
   app.setGlobalPrefix('api', { exclude: ['health', 'healthz', 'ready'] });

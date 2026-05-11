@@ -20,7 +20,7 @@ function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
 @ApiHeader({
   name: CITIZEN_MUNICIPALITY_SCOPE_HEADER,
   description:
-    'Optional active ULB (municipal tenant code). With portal JWT, omit on hub to see all municipalities; send when scoped to one ULB.',
+    'Portal (WBPORTAL) JWT: required when creating drafts/applications — send active workspace ULB (e.g. KMC). Optional for list/detail (hub vs workspace reads).',
   required: false,
 })
 @Controller('applications')
@@ -31,16 +31,18 @@ export class ApplicationsController {
   create(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateApplicationDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<ApplicationResponse> {
-    return this.applications.create(principal, dto);
+    return this.applications.create(principal, dto, municipalityTenantCode);
   }
 
   @Post('drafts')
   createDraft(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateApplicationDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<ApplicationResponse> {
-    return this.applications.createDraft(principal, dto);
+    return this.applications.createDraft(principal, dto, municipalityTenantCode);
   }
 
   @Get()

@@ -14,15 +14,28 @@ export async function readApiError(response: Response): Promise<string> {
   return `Request failed (${response.status})`;
 }
 
-export function authHeaders(token: TokenResponse, withJson = true): HeadersInit {
-  return withJson
-    ? {
-        authorization: `Bearer ${token.access_token}`,
-        'content-type': 'application/json',
-      }
-    : {
-        authorization: `Bearer ${token.access_token}`,
-      };
+const CITIZEN_MUNICIPALITY_SCOPE_HEADER = 'x-enagar-tenant-code';
+
+/**
+ * @param tenantScopeCode When set (e.g. workspace ULB after picking KMC), sent so portal
+ *   (WBPORTAL) JWT writes target that municipality instead of the portal tenant.
+ */
+export function authHeaders(
+  token: TokenResponse,
+  withJson = true,
+  tenantScopeCode?: string | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${token.access_token}`,
+  };
+  if (withJson) {
+    headers['content-type'] = 'application/json';
+  }
+  const scope = tenantScopeCode?.trim();
+  if (scope) {
+    headers[CITIZEN_MUNICIPALITY_SCOPE_HEADER] = scope;
+  }
+  return headers;
 }
 
 export function formatInrFromPaise(paise: number): string {

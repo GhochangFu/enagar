@@ -1,5 +1,17 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
+import {
+  citizenHubRowAccessibleByTenant,
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+  resolveMunicipalityTenantIdFromScopeCode,
+} from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
 
 import { STUB_GATEWAY_DEBIT_ACCOUNT_CODE } from './payment-financial.constants';
@@ -25,6 +37,7 @@ import type {
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Payment as PrismaPayment, Receipt as PrismaReceipt } from '../../generated/prisma';
+import type { ApplicationReadScope } from '../applications/dto';
 
 function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
   return receiptToCitizenDto({
@@ -119,12 +132,29 @@ export class PostgresPaymentStore implements PaymentStore {
     return this.toPaymentResponse(payment);
   }
 
-  async listByPrincipal(principal: AuthenticatedPrincipal): Promise<PaymentResponse[]> {
+  async listByPrincipal(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<PaymentResponse[]> {
+    const scopedCode = readScope?.municipalityTenantCode?.trim();
+    const where: { citizenSubject: string; tenantId?: string } = {
+      citizenSubject: principal.subject,
+    };
+
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      if (scopedCode) {
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scopedCode);
+        if (!tid) {
+          throw new BadRequestException('Invalid tenant scope');
+        }
+        where.tenantId = tid;
+      }
+    } else {
+      where.tenantId = principal.tenantId;
+    }
+
     const payments = await this.db.payment.findMany({
-      where: {
-        tenantId: principal.tenantId,
-        citizenSubject: principal.subject,
-      },
+      where,
       orderBy: {
         createdAt: 'desc',
       },
@@ -135,20 +165,27 @@ export class PostgresPaymentStore implements PaymentStore {
   async findByIdForPrincipal(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse | null> {
     const payment = await this.db.payment.findUnique({
       where: {
         id: paymentId,
       },
     });
+    if (!payment) {
+      return null;
+    }
+    const dto = this.toPaymentResponse(payment);
     if (
-      !payment ||
-      payment.tenantId !== principal.tenantId ||
-      payment.citizenSubject !== principal.subject
+      !citizenHubRowAccessibleByTenant(
+        principal,
+        { tenant_id: dto.tenant_id, citizen_subject: dto.citizen_subject },
+        readScope,
+      )
     ) {
       return null;
     }
-    return this.toPaymentResponse(payment);
+    return dto;
   }
 
   async settleStubLedger(
@@ -164,8 +201,14 @@ export class PostgresPaymentStore implements PaymentStore {
 
       if (
         !paymentOwned ||
-        paymentOwned.tenantId !== principal.tenantId ||
-        paymentOwned.citizenSubject !== principal.subject
+        !citizenHubRowAccessibleByTenant(
+          principal,
+          {
+            tenant_id: paymentOwned.tenantId,
+            citizen_subject: paymentOwned.citizenSubject,
+          },
+          undefined,
+        )
       ) {
         throw new NotFoundException('Payment not found');
       }
@@ -244,27 +287,21 @@ export class PostgresPaymentStore implements PaymentStore {
   async findReceiptForPayment(
     principal: AuthenticatedPrincipal,
     paymentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<ReceiptCitizenDto | null> {
+    const paymentSnapshot = await this.findByIdForPrincipal(principal, paymentId, readScope);
+    if (!paymentSnapshot || paymentSnapshot.status !== 'settled') {
+      return null;
+    }
+
     const receipt = await this.db.receipt.findFirst({
       where: {
         paymentId,
-        tenantId: principal.tenantId,
-        payment: {
-          citizenSubject: principal.subject,
-        },
+        tenantId: paymentSnapshot.tenant_id,
       },
     });
 
-    const paymentSnapshot = await this.db.payment.findFirst({
-      where: {
-        id: paymentId,
-        tenantId: principal.tenantId,
-        citizenSubject: principal.subject,
-        status: 'settled',
-      },
-    });
-
-    if (!receipt || !paymentSnapshot) {
+    if (!receipt) {
       return null;
     }
 

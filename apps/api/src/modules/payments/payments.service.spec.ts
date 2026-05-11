@@ -9,6 +9,8 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { InMemoryApplicationStore } from '../applications/in-memory-application.store';
 import { ServicesService } from '../services/services.service';
+import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { InMemoryPaymentStore } from './in-memory-payment.store';
 import { PaymentsService } from './payments.service';
@@ -57,7 +59,11 @@ describe('PaymentsService', () => {
       },
     };
     const services = new ServicesService();
-    applications = new ApplicationsService(services, new InMemoryApplicationStore());
+    applications = new ApplicationsService(
+      services,
+      new TenantsService(),
+      new InMemoryApplicationStore(),
+    );
     payments = new PaymentsService(
       applications,
       services,
@@ -263,5 +269,79 @@ describe('PaymentsService', () => {
     );
 
     expect(prisma.glPosting.findMany).toHaveBeenCalled();
+  });
+
+  describe('portal hub read scope', () => {
+    let store: InMemoryPaymentStore;
+    let hubPayments: PaymentsService;
+    const prismaStub = { glPosting: { findMany: jest.fn().mockResolvedValue([]) } };
+
+    const portalPrincipal: AuthenticatedPrincipal = {
+      subject: 'hub-pay-user',
+      tenantId: CITIZEN_PORTAL_TENANT_ID,
+      tenantCode: CITIZEN_PORTAL_TENANT_CODE,
+      roles: ['citizen'],
+      expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+    };
+
+    beforeEach(() => {
+      store = new InMemoryPaymentStore();
+      const services = new ServicesService();
+      const applications = new ApplicationsService(
+        services,
+        new TenantsService(),
+        new InMemoryApplicationStore(),
+      );
+      hubPayments = new PaymentsService(
+        applications,
+        services,
+        new StubPaymentGateway(),
+        store,
+        prismaStub as unknown as PrismaService,
+      );
+    });
+
+    it('lists payments across municipal tenants for portal subject; scope filters one ULB', async () => {
+      const expiresAt = new Date(Date.now() + 86400000);
+      await store.createPendingPayment({
+        id: 'pay-kmc',
+        tenantId: citizenA.tenantId,
+        citizenSubject: portalPrincipal.subject,
+        applicationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        amountPaise: 5000,
+        method: 'upi',
+        gateway: 'stub',
+        gatewayOrderId: 'o1',
+        redirectUrl: 'http://local/r1',
+        idempotencyKey: 'ik-kmc',
+        requestFingerprint: 'fp1',
+        expiresAt,
+      });
+      await store.createPendingPayment({
+        id: 'pay-hmc',
+        tenantId: citizenB.tenantId,
+        citizenSubject: portalPrincipal.subject,
+        applicationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        amountPaise: 5000,
+        method: 'upi',
+        gateway: 'stub',
+        gatewayOrderId: 'o2',
+        redirectUrl: 'http://local/r2',
+        idempotencyKey: 'ik-hmc',
+        requestFingerprint: 'fp2',
+        expiresAt,
+      });
+
+      await expect(hubPayments.list(portalPrincipal)).resolves.toHaveLength(2);
+      await expect(
+        hubPayments.list(portalPrincipal, { municipalityTenantCode: 'KMC' }),
+      ).resolves.toHaveLength(1);
+      await expect(hubPayments.getById(portalPrincipal, 'pay-hmc')).resolves.toMatchObject({
+        id: 'pay-hmc',
+      });
+      await expect(
+        hubPayments.getById(portalPrincipal, 'pay-hmc', { municipalityTenantCode: 'KMC' }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
+import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-scope';
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
 import { InitiatePaymentDto, StubCompletePaymentDto } from './dto';
@@ -18,9 +19,21 @@ import { PaymentsService } from './payments.service';
 
 import type { LedgerSettlementDto, PaymentResponse, ReceiptCitizenDto } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { ApplicationReadScope } from '../applications/dto';
+
+function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? { municipalityTenantCode: trimmed } : undefined;
+}
 
 @ApiTags('payments')
 @ApiBearerAuth()
+@ApiHeader({
+  name: CITIZEN_MUNICIPALITY_SCOPE_HEADER,
+  description:
+    'Optional ULB scope for portal JWT on read routes (hub: omit; workspace: municipal code). Ignored for non-portal principals.',
+  required: false,
+})
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
@@ -77,8 +90,11 @@ export class PaymentsController {
   }
 
   @Get()
-  list(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<PaymentResponse[]> {
-    return this.payments.list(principal);
+  list(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ): Promise<PaymentResponse[]> {
+    return this.payments.list(principal, readScopeFromHeader(municipalityTenantCode));
   }
 
   @Get(':paymentId/receipt')
@@ -88,15 +104,21 @@ export class PaymentsController {
   receiptForPayment(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('paymentId') paymentId: string,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<ReceiptCitizenDto> {
-    return this.payments.receiptForOwnedPayment(principal, paymentId);
+    return this.payments.receiptForOwnedPayment(
+      principal,
+      paymentId,
+      readScopeFromHeader(municipalityTenantCode),
+    );
   }
 
   @Get(':id')
   getById(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<PaymentResponse> {
-    return this.payments.getById(principal, id);
+    return this.payments.getById(principal, id, readScopeFromHeader(municipalityTenantCode));
   }
 }
