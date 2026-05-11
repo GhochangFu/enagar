@@ -47,12 +47,19 @@ export class DocumentsService {
       dto.application_id,
       readScope,
     );
+    const municipalTenantCode =
+      application.tenant_code?.trim() || principal.tenantCode || principal.tenantId;
     const id = randomUUID();
     const createdAt = new Date();
-    const objectKey = this.createObjectKey(principal, dto.application_id, id, dto.original_name);
+    const objectKey = this.createObjectKey(
+      municipalTenantCode,
+      dto.application_id,
+      id,
+      dto.original_name,
+    );
     const document: StoredDocument = {
       id,
-      tenant_id: principal.tenantId,
+      tenant_id: application.tenant_id,
       citizen_subject: principal.subject,
       application_id: dto.application_id,
       document_code: dto.document_code,
@@ -144,12 +151,12 @@ export class DocumentsService {
   }
 
   private createObjectKey(
-    principal: AuthenticatedPrincipal,
+    tenantCodeForPath: string,
     applicationId: string,
     documentId: string,
     originalName: string,
   ): string {
-    const tenantCode = principal.tenantCode?.toLowerCase() ?? principal.tenantId;
+    const tenantCode = tenantCodeForPath.toLowerCase();
     const safeName = originalName.toLowerCase().replace(/[^a-z0-9.]+/g, '-');
     return `tenants/${tenantCode}/applications/${applicationId}/documents/${documentId}/${safeName}`;
   }

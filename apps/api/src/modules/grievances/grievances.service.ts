@@ -12,6 +12,7 @@ import {
   resolveMunicipalityTenantIdFromScopeCode,
 } from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
+import { ensureMunicipalCitizenRow } from '../citizen/ensure-municipal-citizen-row';
 import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 import { TenantsService } from '../tenants/tenants.service';
 
@@ -136,36 +137,7 @@ export class GrievancesService {
       throw new BadRequestException('Citizen identity (sub) is required');
     }
 
-    const existing = await this.prisma.citizen.findFirst({
-      where: { tenantId: targetTenantId, keycloakSubject: subject },
-      select: { id: true },
-    });
-    if (existing) {
-      return existing.id;
-    }
-
-    const source = await this.prisma.citizen.findFirst({
-      where: { keycloakSubject: subject },
-      orderBy: { updatedAt: 'desc' },
-    });
-    const mobile = source?.mobile?.trim() ?? '';
-    if (!mobile) {
-      throw new BadRequestException(
-        'Citizen profile must be registered with a mobile number before filing a grievance',
-      );
-    }
-
-    const created = await this.prisma.citizen.create({
-      data: {
-        tenantId: targetTenantId,
-        keycloakSubject: subject,
-        mobile,
-        name: source?.name ?? null,
-        languagePref: source?.languagePref ?? 'en',
-      },
-    });
-
-    return created.id;
+    return ensureMunicipalCitizenRow(this.prisma, subject, targetTenantId);
   }
 
   async create(

@@ -45,12 +45,12 @@ const birthCertificateForm = {
   },
 };
 
-function prismaSmokeMock(): Partial<PrismaService> {
+function prismaSmokeMock(): PrismaService {
   return {
     glPosting: {
       findMany: jest.fn().mockResolvedValue([]),
     },
-  };
+  } as unknown as PrismaService;
 }
 
 describe('Payment portal HTTP smoke (Sprint 3.2)', () => {

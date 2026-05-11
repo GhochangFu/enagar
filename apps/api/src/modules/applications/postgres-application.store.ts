@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { ensureMunicipalCitizenRow } from '../citizen/ensure-municipal-citizen-row';
 
 import type { ApplicationStore } from './application-store';
 import type { ApplicationResponse } from './dto';
@@ -115,16 +116,8 @@ export class PostgresApplicationStore implements ApplicationStore {
   }
 
   private async resolvePersistenceRefs(application: ApplicationResponse): Promise<PersistenceRefs> {
-    const [citizen, service] = await Promise.all([
-      this.db.citizen.findFirst({
-        where: {
-          tenantId: application.tenant_id,
-          keycloakSubject: application.citizen_subject,
-        },
-        select: {
-          id: true,
-        },
-      }),
+    const [citizenId, service] = await Promise.all([
+      ensureMunicipalCitizenRow(this.db, application.citizen_subject, application.tenant_id),
       this.db.tenantService.findFirst({
         where: {
           tenantId: application.tenant_id,
@@ -136,15 +129,12 @@ export class PostgresApplicationStore implements ApplicationStore {
       }),
     ]);
 
-    if (!citizen) {
-      throw new NotFoundException('Citizen not found for application persistence');
-    }
     if (!service) {
       throw new NotFoundException('Service not found for application persistence');
     }
 
     return {
-      citizenId: citizen.id,
+      citizenId,
       serviceId: service.id,
     };
   }
