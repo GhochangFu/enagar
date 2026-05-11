@@ -672,9 +672,9 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 - **Sprint 3.1A**: Payment core without gateway credentials — `IPaymentGateway`, stub adapter, fixed-fee application payment initiation, idempotency contract, tenant/citizen isolation tests, and explicit credential-gated boundaries.
 - **Sprint 3.1B**: Real provider adapter once sandbox credentials arrive — Razorpay/PayU/state aggregator adapter, real redirect contract, webhook signature verification, replay protection, and gateway status polling.
 - **Sprint 3.2**: ✅ Receipts + GL postings + reconciliation groundwork (closed 2026-05-11 — see detailed section below).
-- **Sprint 3.4A**: Citizen payment UI + failure-handling polish against the stub gateway: initiate, retry, pending/failed states, payment history, and receipt download placeholder.
+- **Sprint 3.4A**: ✅ Citizen payment UI + failure-handling polish on the stub rail (closed 2026-05-11 — PWA: My Applications checkout, My Payments tab, receipt metadata placeholder).
 - **Sprint 3.3A**: Deposits/refunds/challan data model and approval state machine only; real refund calls remain blocked until provider credentials and settlement contracts exist.
-- **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.4A / 3.3A at a clean checkpoint.
+- **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.3A at a clean checkpoint.
 
 #### Sprint 3.1A — Payment Core Without Gateway Credentials
 
@@ -753,10 +753,10 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 #### Recommended Next Two Sprints While Gateway Credentials Are Pending
 
-1. **Sprint 3.4A — Citizen Payment UI + Failure Handling**
-   - Add citizen-facing payment screens for initiate, retry, payment history, pending/failed states, and receipt download placeholder.
-   - Use the deterministic stub gateway and existing payment APIs so frontend data flow is proven before the real redirect/webhook contract arrives.
-   - Exit when the application flow has a clear, recoverable payment step and My Payments view.
+1. ✅ **Sprint 3.4A — Citizen Payment UI + Failure Handling** (2026-05-11)
+   - Citizen PWA: **My Applications** detail includes fixed-fee line, method selector, `POST /payments/initiate` (Idempotency-Key), **Simulate PSP capture** for `requires_action`, failed/pending copy, and **Load receipt metadata** via `GET /payments/:id/receipt` (JSON / QR contract placeholder — no PDF).
+   - **My Payments** tab lists history, repeats stub-complete and receipt preview, and documents `409` / network recovery behaviour.
+   - **Exit met:** recoverable payment step on the application detail panel + dedicated **My Payments** view, all against existing stub APIs.
 
 2. **Sprint 3.3A — Deposits / Refunds / Challan Model**
    - Add the schema, state machine, and tests for deposits, refund approvals, and challan references only.
@@ -766,6 +766,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 **Recently closed while credentials are pending**
 
 - ✅ **Sprint 3.2** — Receipt + GL + reconciliation groundwork (2026-05-11). See detailed block above.
+- ✅ **Sprint 3.4A** — Citizen payment UI + failure handling on stub rail (2026-05-11). See numbered item above.
 
 **Blocked / interrupt sprint**: Sprint 3.1B remains blocked on gateway sandbox credentials. When credentials arrive, pause the active sprint at a clean checkpoint and prioritize the real provider adapter, webhook signature verification, replay protection, and gateway status polling.
 
@@ -1416,7 +1417,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Execute Sprint 3.2 first, then Sprint 3.4A, then Sprint 3.3A while keeping Sprint 3.1B as an interrupt lane for gateway sandbox credentials.
+**Next action**: Sprint 3.2 and 3.4A are closed. Execute Sprint 3.3A (deposits/refunds/challans) while keeping Sprint 3.1B as an interrupt lane for gateway sandbox credentials.
 
 ---
 

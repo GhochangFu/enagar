@@ -22,7 +22,7 @@ import type {
 
 type LanguageCode = 'en' | 'bn' | 'hi';
 type Step = 'splash' | 'language' | 'login' | 'otp' | 'tenant' | 'workspace';
-type WorkspaceTab = 'home' | 'services' | 'apply' | 'applications';
+type WorkspaceTab = 'home' | 'services' | 'apply' | 'applications' | 'payments';
 
 interface TenantSummary {
   id: string;
@@ -120,6 +120,43 @@ interface UploadIntentResponse {
   scan_status: string;
 }
 
+type PaymentGatewayMethod = 'upi' | 'card' | 'netbanking' | 'wallet';
+
+interface PaymentApiResponse {
+  id: string;
+  tenant_id: string;
+  application_id: string;
+  amount_paise: number;
+  currency: 'INR';
+  method: PaymentGatewayMethod;
+  status: 'requires_action' | 'settled' | 'failed';
+  gateway: 'stub';
+  gateway_order_id: string;
+  gateway_payment_id?: string | null;
+  settled_at?: string | null;
+  redirect_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ReceiptCitizenPayload {
+  id: string;
+  receipt_number: string;
+  payment_id: string;
+  application_id: string;
+  service_code: string;
+  revenue_head_code: string;
+  amount_paise: number;
+  currency: 'INR';
+  issued_at: string;
+  verification_path: string;
+  qr_contract: {
+    format: 'enagar_receipt_verify_v1';
+    version: number;
+    verification_path: string;
+  };
+}
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
 const serviceSchemas = [
   birthCertificateSchema,
@@ -189,6 +226,7 @@ export default function HomePage(): JSX.Element {
   const [formValues, setFormValues] = useState<FormSubmission>({});
   const [holdingLookup, setHoldingLookup] = useState<HoldingLookupResponse | null>(null);
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
+  const [payments, setPayments] = useState<PaymentApiResponse[]>([]);
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState(t('status.ready', 'en'));
@@ -310,7 +348,7 @@ export default function HomePage(): JSX.Element {
       return;
     }
 
-    await Promise.all([loadServices(selectedTenant.code), loadApplications()]);
+    await Promise.all([loadServices(selectedTenant.code), loadApplications(), loadPayments()]);
   }
 
   async function loadServices(tenantCode: string): Promise<void> {
@@ -323,6 +361,23 @@ export default function HomePage(): JSX.Element {
       setServices(nextServices.filter((service) => service.active));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load services');
+    }
+  }
+
+  async function loadPayments(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    try {
+      const response = await fetch(`${apiBaseUrl}/payments`, {
+        headers: authHeaders(token, false),
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load payments');
+      }
+      setPayments((await response.json()) as PaymentApiResponse[]);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to load payments');
     }
   }
 
@@ -416,6 +471,7 @@ export default function HomePage(): JSX.Element {
 
     const application = (await submitResponse.json()) as ApplicationDetail;
     await loadApplications();
+    await loadPayments();
     await openApplication(application.docket_no);
     setActiveTab('applications');
     setStatus(`Submitted ${application.docket_no}`);
@@ -512,8 +568,102 @@ export default function HomePage(): JSX.Element {
     if (response.ok) {
       setApplicationDetail((await response.json()) as ApplicationDetail);
       await loadApplications();
+      await loadPayments();
       setStatus('Application cancelled.');
     }
+  }
+
+  async function initiateApplicationPayment(
+    applicationId: string,
+    amountPaise: number,
+    method: PaymentGatewayMethod,
+  ): Promise<PaymentApiResponse | null> {
+    if (!token) {
+      return null;
+    }
+    setStatus('Initiating payment with bank partner (stub sandbox)...');
+    const idempotencyKey =
+      globalThis.crypto?.randomUUID?.() ??
+      `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(token),
+          'idempotency-key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          application_id: applicationId,
+          amount_paise: amountPaise,
+          method,
+        }),
+      });
+    } catch {
+      setStatus('Network error — check API reachability, then retry payment.');
+      return null;
+    }
+
+    if (!response.ok) {
+      setStatus(await readApiError(response));
+      return null;
+    }
+
+    const payment = (await response.json()) as PaymentApiResponse;
+    await loadPayments();
+    if (applicationDetail?.id === applicationId) {
+      await openApplication(applicationDetail.docket_no);
+    }
+    setStatus(`Payment ${payment.id.slice(0, 8)}… awaiting stub capture.`);
+    return payment;
+  }
+
+  async function simulateStubSettlement(payment: PaymentApiResponse): Promise<boolean> {
+    if (!token) {
+      return false;
+    }
+    setStatus('Confirming payment with stub gateway...');
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/payments/stub/complete`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          payment_id: payment.id,
+          gateway_order_id: payment.gateway_order_id,
+        }),
+      });
+    } catch {
+      setStatus('Network error during payment confirmation — retry when online.');
+      return false;
+    }
+
+    if (!response.ok) {
+      const message = await readApiError(response);
+      setStatus(
+        message.includes('disabled in production')
+          ? `${message} Set ALLOW_STUB_PAYMENT_SETTLEMENT=true on the API for demo environments.`
+          : message,
+      );
+      return false;
+    }
+
+    const appsResponse = await fetch(`${apiBaseUrl}/applications`, {
+      headers: authHeaders(token, false),
+    });
+    if (appsResponse.ok) {
+      const list = (await appsResponse.json()) as ApplicationSummary[];
+      setApplications(list);
+      const match = list.find((row) => row.id === payment.application_id);
+      if (match) {
+        await openApplication(match.docket_no);
+      }
+    } else {
+      await loadApplications();
+    }
+    await loadPayments();
+    setStatus('Payment settled. Open My Payments for receipt metadata (PDF later).');
+    return true;
   }
 
   return (
@@ -659,7 +809,8 @@ export default function HomePage(): JSX.Element {
               <div>
                 <h2 className="text-3xl font-bold">{selectedTenant.name}</h2>
                 <p className="mt-1 text-slate-600">
-                  Services, Apply, and My Applications are ready.
+                  Services, Apply, My Applications, and My Payments against the Sprint 3.4 stub
+                  rail.
                 </p>
               </div>
               <button
@@ -669,12 +820,13 @@ export default function HomePage(): JSX.Element {
                 Refresh
               </button>
             </div>
-            <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <div className="mt-6 grid gap-3 md:grid-cols-5">
               {[
                 ['Wards', String(selectedTenant.ward_count)],
                 ['Language', language.toUpperCase()],
                 ['Services', String(services.length)],
                 ['Applications', String(applications.length)],
+                ['Payments', String(payments.length)],
               ].map(([label, value]) => (
                 <div className="rounded-2xl bg-slate-50 p-4" key={label}>
                   <span className="text-sm text-slate-500">{label}</span>
@@ -685,13 +837,17 @@ export default function HomePage(): JSX.Element {
           </div>
 
           <nav className="flex flex-wrap gap-2">
-            {(['home', 'services', 'apply', 'applications'] as const).map((tab) => (
+            {(['home', 'services', 'apply', 'applications', 'payments'] as const).map((tab) => (
               <button
                 className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tab ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
                 key={tab}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab === 'applications' ? 'My Applications' : titleCase(tab)}
+                {tab === 'applications'
+                  ? 'My Applications'
+                  : tab === 'payments'
+                    ? 'My Payments'
+                    : titleCase(tab)}
               </button>
             ))}
           </nav>
@@ -855,18 +1011,139 @@ export default function HomePage(): JSX.Element {
               </div>
 
               <ApplicationDetailPanel
+                apiBaseUrl={apiBaseUrl}
                 application={applicationDetail}
                 comment={comment}
+                feePaise={
+                  applicationDetail
+                    ? getFixedFeePaise(services, applicationDetail.service_code)
+                    : null
+                }
                 onCancel={() => void cancelCurrentApplication()}
                 onCommentChange={setComment}
+                onInitiatePayment={initiateApplicationPayment}
+                onStubComplete={simulateStubSettlement}
                 onSubmitComment={addComment}
+                payments={payments}
+                token={token}
               />
+            </section>
+          )}
+
+          {activeTab === 'payments' && (
+            <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-3xl bg-white p-5 shadow-sm">
+                <h3 className="text-xl font-bold">My Payments</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Listed in API order. Stub gateway: use <strong>Simulate PSP capture</strong> after
+                  initiation. Production APIs block this unless operators enable{' '}
+                  <code className="rounded bg-slate-100 px-1">ALLOW_STUB_PAYMENT_SETTLEMENT</code>.
+                </p>
+                <div className="mt-4 space-y-4">
+                  {payments.map((payment) => (
+                    <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">
+                            {payment.status.replace('_', ' ')}
+                          </p>
+                          <p className="font-mono text-sm text-slate-700">{payment.id}</p>
+                        </div>
+                        <strong className="text-lg">
+                          {formatInrFromPaise(payment.amount_paise)}
+                        </strong>
+                      </div>
+                      <dl className="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
+                        <span>Application: {payment.application_id.slice(0, 13)}…</span>
+                        <span>Gateway order: {payment.gateway_order_id}</span>
+                      </dl>
+                      {payment.status === 'requires_action' && token && (
+                        <button
+                          className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                          onClick={() => void simulateStubSettlement(payment)}
+                          type="button"
+                        >
+                          Simulate PSP capture (stub complete)
+                        </button>
+                      )}
+                      {payment.status === 'failed' && (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          Payment failed upstream — retry initiation from{' '}
+                          <strong>My Applications</strong> after resolving the banner message shown
+                          in status.
+                        </div>
+                      )}
+                      {payment.status === 'settled' && token ? (
+                        <ReceiptPreviewPlaceholder
+                          apiBaseUrl={apiBaseUrl}
+                          payment={payment}
+                          token={token}
+                        />
+                      ) : null}
+                    </article>
+                  ))}
+                  {payments.length === 0 && (
+                    <p className="text-slate-600">
+                      No payment attempts logged for this citizen yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-3xl bg-brand/10 p-5">
+                <h4 className="font-bold text-brand">Recoverable failures (Sprint 3.4A)</h4>
+                <ul className="list-disc space-y-2 pl-5 text-sm text-slate-800">
+                  <li>
+                    Network loss during initiation surfaces in the status banner — retry with a
+                    fresh tap; idempotency keys are regenerated per attempt.
+                  </li>
+                  <li>
+                    <code>409</code> conflicts (active payment already reserved): finish the
+                    existing attempt listed here instead of launching a duplicate.
+                  </li>
+                  <li>
+                    Receipt PDF is not implemented; load receipt metadata for verification path and
+                    QR contract (Sprint 3.2 verifier).
+                  </li>
+                </ul>
+              </div>
             </section>
           )}
         </section>
       )}
     </main>
   );
+}
+
+async function readApiError(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: unknown; error?: string };
+    if (typeof body.message === 'string' && body.message.trim()) return body.message;
+    if (Array.isArray(body.message)) {
+      return body.message.map((part) => String(part)).join('; ');
+    }
+    if (typeof body.error === 'string' && body.error.trim()) return body.error;
+  } catch {
+    /* response body may not be JSON */
+  }
+  return `Request failed (${response.status})`;
+}
+
+function getFixedFeePaise(serviceList: ServiceSummary[], code: string): number | null {
+  const svc = serviceList.find((entry) => entry.code === code);
+  if (!svc || svc.fee_type !== 'fixed') {
+    return null;
+  }
+  const raw = (svc.fee_config as { amount_paise?: unknown }).amount_paise;
+  return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
+}
+
+function formatInrFromPaise(paise: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+  }).format(paise / 100);
 }
 
 function authHeaders(token: TokenResponse, withJson = true): HeadersInit {
@@ -878,6 +1155,78 @@ function authHeaders(token: TokenResponse, withJson = true): HeadersInit {
     : {
         authorization: `Bearer ${token.access_token}`,
       };
+}
+
+function ReceiptPreviewPlaceholder({
+  apiBaseUrl,
+  payment,
+  token,
+}: {
+  apiBaseUrl: string;
+  payment: PaymentApiResponse;
+  token: TokenResponse;
+}): JSX.Element {
+  const [payload, setPayload] = useState<ReceiptCitizenPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function loadReceipt(): Promise<void> {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/payments/${encodeURIComponent(payment.id)}/receipt`, {
+        headers: authHeaders(token, false),
+      });
+      if (!res.ok) {
+        setError(await readApiError(res));
+        setLoading(false);
+        return;
+      }
+      setPayload((await res.json()) as ReceiptCitizenPayload);
+    } catch {
+      setError('Network error loading receipt metadata.');
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+      <h5 className="font-bold text-emerald-900">Receipt (metadata)</h5>
+      <p className="mt-1 text-xs text-emerald-800">
+        PDF is not implemented yet. Preview shows verification_path and qr_contract from Sprint 3.2.
+      </p>
+      {!payload && (
+        <button
+          className="mt-3 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          disabled={loading}
+          onClick={() => void loadReceipt()}
+          type="button"
+        >
+          {loading ? 'Loading…' : 'Load receipt metadata'}
+        </button>
+      )}
+      {error && (
+        <p className="mt-2 text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
+      {payload && (
+        <pre className="mt-2 max-h-56 overflow-auto rounded-xl bg-white p-3 font-mono text-[11px] leading-relaxed">
+          {JSON.stringify(
+            {
+              receipt_number: payload.receipt_number,
+              verification_path: payload.verification_path,
+              qr_contract: payload.qr_contract,
+              issued_at: payload.issued_at,
+              amount_paise: payload.amount_paise,
+            },
+            null,
+            2,
+          )}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 function defaultValuesFor(serviceCode: string): FormSubmission {
@@ -987,18 +1336,45 @@ function RenderField({
 }
 
 function ApplicationDetailPanel({
+  apiBaseUrl,
   application,
   comment,
+  feePaise,
   onCancel,
   onCommentChange,
+  onInitiatePayment,
+  onStubComplete,
   onSubmitComment,
+  payments,
+  token,
 }: {
+  apiBaseUrl: string;
   application: ApplicationDetail | null;
   comment: string;
+  feePaise: number | null;
   onCancel: () => void;
   onCommentChange: (value: string) => void;
+  onInitiatePayment: (
+    applicationId: string,
+    amountPaise: number,
+    method: PaymentGatewayMethod,
+  ) => Promise<PaymentApiResponse | null>;
+  onStubComplete: (payment: PaymentApiResponse) => Promise<boolean>;
   onSubmitComment: (event: FormEvent<HTMLFormElement>) => void;
+  payments: PaymentApiResponse[];
+  token: TokenResponse | null;
 }): JSX.Element {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentGatewayMethod>('upi');
+
+  const appPayments = useMemo(() => {
+    if (!application) {
+      return [];
+    }
+    return payments
+      .filter((row) => row.application_id === application.id)
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }, [application, payments]);
+
   if (!application) {
     return (
       <div className="rounded-3xl bg-white p-5 shadow-sm">
@@ -1007,6 +1383,14 @@ function ApplicationDetailPanel({
       </div>
     );
   }
+
+  const pendingStub = appPayments.find((row) => row.status === 'requires_action');
+  const latestSettled = appPayments.find((row) => row.status === 'settled');
+  const canStartNewPayment =
+    Boolean(token) &&
+    feePaise != null &&
+    (application.payment_status === 'pending' || application.payment_status === 'failed') &&
+    !pendingStub;
 
   return (
     <div className="space-y-4 rounded-3xl bg-white p-5 shadow-sm">
@@ -1033,6 +1417,93 @@ function ApplicationDetailPanel({
           ['Submitted', new Date(application.submitted_at).toLocaleString()],
         ]}
       />
+
+      <section className="rounded-2xl border border-slate-200 p-4">
+        <h4 className="font-bold">Fees &amp; payment (stub)</h4>
+        {feePaise != null ? (
+          <p className="mt-2 text-sm text-slate-700">
+            Fixed fee: <strong>{formatInrFromPaise(feePaise)}</strong>
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">
+            This service has no fixed-fee line item in the catalogue (or fee is not fixed).
+          </p>
+        )}
+        {application.payment_status === 'not_required' && (
+          <p className="mt-2 text-sm text-slate-600">
+            No payment is required for this application.
+          </p>
+        )}
+        {application.payment_status === 'paid' && (
+          <p className="mt-2 text-sm text-emerald-800">Payment is recorded as paid.</p>
+        )}
+        {appPayments.length > 0 && (
+          <ul className="mt-3 space-y-1 text-xs text-slate-600">
+            {appPayments.slice(0, 6).map((row) => (
+              <li key={row.id}>
+                {row.status.replace('_', ' ')} · {formatInrFromPaise(row.amount_paise)} ·{' '}
+                <span className="font-mono">{row.gateway_order_id}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {pendingStub && token && (
+          <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
+            <p>
+              Stub partner reserved order <strong>{pendingStub.gateway_order_id}</strong>. Simulate
+              capture to settle and issue receipt metadata.
+            </p>
+            <button
+              className="mt-2 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+              onClick={() => void onStubComplete(pendingStub)}
+              type="button"
+            >
+              Simulate PSP capture
+            </button>
+          </div>
+        )}
+        {canStartNewPayment && feePaise != null && (
+          <div className="mt-3 space-y-2">
+            {application.payment_status === 'failed' && (
+              <p className="text-sm text-amber-800">
+                Last attempt failed. Start a fresh payment after reading the status banner;
+                idempotency keys rotate each tap.
+              </p>
+            )}
+            <label className="block text-xs font-semibold uppercase text-slate-500">
+              Method
+              <select
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm"
+                onChange={(event) => setPaymentMethod(event.target.value as PaymentGatewayMethod)}
+                value={paymentMethod}
+              >
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="netbanking">Net banking</option>
+                <option value="wallet">Wallet</option>
+              </select>
+            </label>
+            <button
+              className="w-full rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              onClick={() => void onInitiatePayment(application.id, feePaise, paymentMethod)}
+              type="button"
+            >
+              Initiate stub payment
+            </button>
+          </div>
+        )}
+        {!token &&
+          (application.payment_status === 'pending' || application.payment_status === 'failed') && (
+            <p className="mt-2 text-sm text-red-700">Sign in is required to initiate payment.</p>
+          )}
+        {latestSettled && token && !pendingStub && (
+          <ReceiptPreviewPlaceholder
+            apiBaseUrl={apiBaseUrl}
+            payment={latestSettled}
+            token={token}
+          />
+        )}
+      </section>
 
       <section>
         <h4 className="font-bold">Timeline</h4>

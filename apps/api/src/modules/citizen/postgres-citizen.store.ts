@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
+import { PrismaService } from '../../common/database/prisma.service';
+
 import type { CitizenStore } from './citizen-store';
 import type { CitizenProfileResponse, LanguageCode } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-import type { PrismaService } from '../../common/database/prisma.service';
 
 interface CitizenRow {
   id: string;

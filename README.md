@@ -246,7 +246,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** execution is in progress (`Sprint 3.1A` closed 2026-05-08; `Sprint 3.2` receipt + GL groundwork closed 2026-05-11 — see `ROADMAP.md`).
 
-**Next:** Phase 3 Sprint 3.4A — Citizen payment UX + deterministic failure/recovery polish against stub APIs prior to PSP credentials (Sprint 3.1B interrupt lane still blocked on aggregator sandbox access). Sprint 3.3A modelling deposits/refunds/challans can proceed in parallel per ROADMAP ordering. DigiLocker/Aadhaar linking remains deferred until external access and permission are granted.
+**Next:** Phase 3 Sprint 3.3A — Deposits / refunds / challan modelling (no live PSP refund calls until Sprint 3.1B). Sprint 3.4A citizen payment UX on the stub rail is closed (2026-05-11); Sprint 3.1B remains blocked on aggregator sandbox access. DigiLocker/Aadhaar linking remains deferred until external access and permission are granted.
 
 ---
 

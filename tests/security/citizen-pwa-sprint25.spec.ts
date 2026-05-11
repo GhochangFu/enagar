@@ -38,6 +38,19 @@ describe('Sprint 2.5 citizen PWA contract', () => {
     expect(pwaPage).toContain('ApplicationDetailPanel');
   });
 
+  it('wires Sprint 3.4A citizen payment APIs and My Payments tab', () => {
+    for (const route of [
+      '/payments/initiate',
+      '/payments/stub/complete',
+      '/payments/',
+      '/receipt',
+    ]) {
+      expect(pwaPage).toContain(route);
+    }
+    expect(pwaPage).toContain("activeTab === 'payments'");
+    expect(pwaPage).toContain('My Payments');
+  });
+
   it('does not introduce service-specific form components', () => {
     for (const componentName of [
       'BirthCertificateForm',
