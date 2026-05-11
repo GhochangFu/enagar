@@ -115,6 +115,10 @@ describeDb('Sprint 4.1 grievance persistence', () => {
     const detail = await svc.getById(citizenPrincipal, g.id);
     expect(detail.timeline.some((e) => e.event_type === 'created')).toBe(true);
 
+    const detailByPublicNo = await svc.getById(citizenPrincipal, g.grievance_no);
+    expect(detailByPublicNo.grievance.id).toBe(g.id);
+    expect(detailByPublicNo.timeline).toHaveLength(detail.timeline.length);
+
     await svc.updateStatus(clerkPrincipal, g.id, { status: 'in_progress' });
     await svc.updateStatus(clerkPrincipal, g.id, { status: 'resolved' });
 

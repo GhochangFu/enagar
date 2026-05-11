@@ -28,9 +28,27 @@ import type {
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Grievance as GrievanceRow, Prisma } from '../../generated/prisma';
 
+/** PostgreSQL rejects non-uuid strings bound to `@db.Uuid` columns; branch before querying `id`. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
 @Injectable()
 export class GrievancesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Resolve `:id` path param — clients may send DB uuid or human-readable grievance_no (e.g. GRV-KMC-2026-000001). */
+  private grievanceLookupWhere(
+    tenantId: string,
+    idOrGrievanceNo: string,
+  ): Prisma.GrievanceWhereInput {
+    if (isUuid(idOrGrievanceNo)) {
+      return { tenantId, id: idOrGrievanceNo };
+    }
+    return { tenantId, grievanceNo: idOrGrievanceNo };
+  }
 
   private toResponse(row: GrievanceRow): GrievanceResponse {
     return {
@@ -198,7 +216,7 @@ export class GrievancesService {
     grievanceId: string,
   ): Promise<{ grievance: GrievanceResponse; timeline: GrievanceTimelineResponse[] }> {
     const row = await this.prisma.grievance.findFirst({
-      where: { id: grievanceId, tenantId: principal.tenantId },
+      where: this.grievanceLookupWhere(principal.tenantId, grievanceId),
     });
     if (!row) {
       throw new NotFoundException('Grievance not found');
@@ -213,7 +231,7 @@ export class GrievancesService {
     }
 
     const timelineRows = await this.prisma.grievanceTimelineEntry.findMany({
-      where: { grievanceId, tenantId: principal.tenantId },
+      where: { grievanceId: row.id, tenantId: principal.tenantId },
       orderBy: { occurredAt: 'asc' },
     });
 
@@ -234,12 +252,13 @@ export class GrievancesService {
     grievanceId: string,
     dto: GrievanceCommentDto,
   ): Promise<{ grievance: GrievanceResponse; timeline: GrievanceTimelineResponse[] }> {
-    await this.getById(principal, grievanceId);
+    const { grievance } = await this.getById(principal, grievanceId);
+    const canonicalId = grievance.id;
 
     await this.prisma.grievanceTimelineEntry.create({
       data: {
         tenantId: principal.tenantId,
-        grievanceId,
+        grievanceId: canonicalId,
         eventType: 'comment',
         actorSubject: principal.subject,
         body: dto.body,
@@ -258,7 +277,10 @@ export class GrievancesService {
     this.assertCitizenOnly(principal);
     const citizenId = await this.requireCitizenId(principal);
     const row = await this.prisma.grievance.findFirst({
-      where: { id: grievanceId, tenantId: principal.tenantId, citizenId },
+      where: {
+        ...this.grievanceLookupWhere(principal.tenantId, grievanceId),
+        citizenId,
+      },
     });
     if (!row) {
       throw new NotFoundException('Grievance not found');
@@ -271,7 +293,7 @@ export class GrievancesService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.grievance.update({
-        where: { id: grievanceId },
+        where: { id: row.id },
         data: {
           rating: dto.rating,
           feedback: dto.comment ?? null,
@@ -281,7 +303,7 @@ export class GrievancesService {
       await tx.grievanceTimelineEntry.create({
         data: {
           tenantId: principal.tenantId,
-          grievanceId,
+          grievanceId: row.id,
           eventType: 'feedback',
           actorSubject: principal.subject,
           body: `Rating ${dto.rating}`,
@@ -309,7 +331,7 @@ export class GrievancesService {
     }
 
     const row = await this.prisma.grievance.findFirst({
-      where: { id: grievanceId, tenantId: principal.tenantId },
+      where: this.grievanceLookupWhere(principal.tenantId, grievanceId),
     });
     if (!row) {
       throw new NotFoundException('Grievance not found');
@@ -323,7 +345,7 @@ export class GrievancesService {
       }
 
       const u = await tx.grievance.update({
-        where: { id: grievanceId },
+        where: { id: row.id },
         data: {
           assignedToUserId: dto.user_id,
           status: nextStatus,
@@ -333,7 +355,7 @@ export class GrievancesService {
       await tx.grievanceTimelineEntry.create({
         data: {
           tenantId: principal.tenantId,
-          grievanceId,
+          grievanceId: row.id,
           eventType: 'assignment',
           actorSubject: principal.subject,
           body: `Assigned to user ${dto.user_id}`,
@@ -359,7 +381,7 @@ export class GrievancesService {
     }
 
     const row = await this.prisma.grievance.findFirst({
-      where: { id: grievanceId, tenantId: principal.tenantId },
+      where: this.grievanceLookupWhere(principal.tenantId, grievanceId),
     });
     if (!row) {
       throw new NotFoundException('Grievance not found');
@@ -381,14 +403,14 @@ export class GrievancesService {
       }
 
       const u = await tx.grievance.update({
-        where: { id: grievanceId },
+        where: { id: row.id },
         data,
       });
 
       await tx.grievanceTimelineEntry.create({
         data: {
           tenantId: principal.tenantId,
-          grievanceId,
+          grievanceId: row.id,
           eventType: 'status_change',
           actorSubject: principal.subject,
           body: dto.note ?? `Status → ${to}`,
