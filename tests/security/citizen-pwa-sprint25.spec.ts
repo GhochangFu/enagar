@@ -8,6 +8,15 @@ const nextConfigPath = join(repoRoot, 'apps', 'citizen-pwa', 'next.config.mjs');
 
 describe('Sprint 2.5 citizen PWA contract', () => {
   const pwaPage = readFileSync(pwaPagePath, 'utf8');
+  const paymentSurfacePath = join(
+    repoRoot,
+    'apps',
+    'citizen-pwa',
+    'components',
+    'application-detail-panel.tsx',
+  );
+  const paymentSurface = readFileSync(paymentSurfacePath, 'utf8');
+  const paymentsContractSource = `${pwaPage}\n${paymentSurface}`;
   const pwaPackage = readFileSync(pwaPackagePath, 'utf8');
   const nextConfig = readFileSync(nextConfigPath, 'utf8');
 
@@ -45,7 +54,7 @@ describe('Sprint 2.5 citizen PWA contract', () => {
       '/payments/',
       '/receipt',
     ]) {
-      expect(pwaPage).toContain(route);
+      expect(paymentsContractSource).toContain(route);
     }
     expect(pwaPage).toContain("activeTab === 'payments'");
     expect(pwaPage).toContain('My Payments');

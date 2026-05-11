@@ -779,7 +779,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 ### Programme status (2026-05-11)
 
-**Sprint 4.1** (DB + APIs + SLA) is **closed** — see delivery table under “Sprint 4.1 — kickoff backlog”. **Sprint 4.2** (citizen UI) is next. **Sprint 3.1B** (PSP adapter) remains **blocked** on credentials and stays the **interrupt lane** when they arrive.
+**Sprint 4.1** (DB + APIs + SLA) and **Sprint 4.2** (citizen PWA grievance tab) are **closed** — see delivery notes below. **Sprint 4.3** (escalations, reopen, polish) is next unless **Sprint 3.1B** (PSP adapter) unblocks.
 
 ### Goal
 
@@ -846,7 +846,7 @@ Foundation slice while PSP credentials remain unavailable. Outcome: tenant-safe 
 | **SLA engine** | Persist SLA deadlines; breach detection via scheduled jobs (`services/notification-worker` / BullMQ when wired; otherwise a documented scheduler stub in API for local dev).                                                                                                                                                      |
 | **Quality**    | Unit tests for lifecycle and routing; gated `RUN_DB_TESTS=1` integration against Postgres where applicable.                                                                                                                                                                                                                       |
 
-**Explicitly out of 4.1:** tenant-admin routing editor (Phase 6); full citizen PWA Grievance tab (**Sprint 4.2**); Field Officer app (Phase 9).
+**Explicitly out of 4.1:** tenant-admin routing editor (Phase 6); Field Officer app (Phase 9).
 
 #### Sprint 4.1 — delivery note (closed 2026-05-11)
 
@@ -857,6 +857,19 @@ Foundation slice while PSP credentials remain unavailable. Outcome: tenant-safe 
 | Seeded `sla_policies` + `grievance_routing_rules` via `pnpm db:seed`                              | ✅  |
 | SLA deadline persistence + staff `POST .../staff/sweep-sla` breach pass                           | ✅  |
 | Unit tests (`grievance-lifecycle.spec.ts`) + gated DB spec (`RUN_DB_TESTS=1`) + security contract | ✅  |
+
+#### Sprint 4.2 — citizen PWA grievances (closed 2026-05-11)
+
+MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (list, create, detail by `grievance_no` or UUID). Includes category grid, priorities, optional location text, success confirmation, timeline, citizen comments, and **rating + close** after staff mark **resolved**.
+
+| Exit item (4.2 scope)                                                                               | Met |
+| --------------------------------------------------------------------------------------------------- | --- |
+| Grievances tab + dashboard metric + translated strings (`packages/i18n` `grievance.*`, en/bn/hi)    | ✅  |
+| `GET /citizen/profile` gate with inline `POST /citizen/register` (mobile prefilled after OTP login) | ✅  |
+| `tests/security/grievance-sprint42-pwa.spec.ts`; `pnpm test:security` clean                         | ✅  |
+| Phase-2 file-size discipline (`phase2-hardening.spec`): shared panels + `lib/workspace-*.ts`        | ✅  |
+
+**Deferred to 4.3+**: breach push notifications, reopen, attachments / GPS, dedicated staff UX, anonymised aggregates, 200-grievance routing bake-off.
 
 ---
 
@@ -1400,7 +1413,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete.** **Sprint 4.1** (grievance schema, APIs, SLA foundation) is **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Sprint 4.2** (citizen grievance UI) is next; **Phase 4** programme continues.
+**Current state**: **Phase 2 complete.** **Sprints 4.1 and 4.2** (grievance APIs + citizen PWA grievance tab) are **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Phase 4** programme continues with **Sprint 4.3** unless **3.1B** unblocks first.
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1446,7 +1459,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Execute **Phase 4 — Sprint 4.2** (citizen PWA grievance filing + list/detail). **Prioritise Sprint 3.1B** when gateway sandbox credentials land. Optional parallel hardening per programme priorities.
+**Next action**: Execute **Phase 4 — Sprint 4.3** (escalations, reopen flow, grievance hardening), or **prioritise Sprint 3.1B** when gateway sandbox credentials land.
 
 ---
 

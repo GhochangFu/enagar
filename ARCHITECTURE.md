@@ -399,7 +399,7 @@ Staff JWT + roles `tenant_admin` / `municipality_admin` / `state_admin`. No live
 
 Phase 3 Sprint 3.1A introduced ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials exist, only the `stub` gateway is used for initiations. **Sprints 3.2, 3.4A, and 3.3A are closed (2026-05-11)** — receipts/GL, citizen stub payments UX, and **`/api/finance/*`** deposits, refund dispatches, and challans (no live PSP refund RPC until **Sprint 3.1B**). Citizen data uses `PostgresCitizenStore`; applications and payments use Postgres stores behind `APPLICATION_STORE_PROVIDER` / `PAYMENT_STORE_PROVIDER`. `RUN_DB_TESTS=1` gates DB integration tests, including finance.
 
-**Programme note (2026-05-11):** PSP credentials are still unavailable — **Sprint 3.1B** remains the deferred **interrupt lane**. Active roadmap delivery moves to **Phase 4 (Grievances & SLA)** starting with **Sprint 4.1**; see `ROADMAP.md`.
+**Programme note (2026-05-11):** PSP credentials are still unavailable — **Sprint 3.1B** remains the deferred **interrupt lane**. **Phase 4 — Grievances & SLA**: **Sprints 4.1–4.2 are closed** (tenant APIs + `apps/citizen-pwa` grievance tab); **`ROADMAP.md`** tracks **Sprint 4.3**.
 
 ### Grievances
 
@@ -415,6 +415,8 @@ Sprint 4.1 implements tenant-scoped grievance persistence under the global **`/a
 - `POST /api/grievances/staff/sweep-sla` — set `sla_breached_at` for overdue open cases — **staff**
 
 SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from **`grievance_routing_rules`** (MVP `municipality_clerk`). Real-time notifications remain future work (`notification-worker`).
+
+**Citizen PWA (`apps/citizen-pwa`) — Sprint 4.2:** authenticated **Grievances** tab calls the routes above (list, create, detail where `:id` may be UUID or public **`grievance_no`**, comment, feedback when resolved). Users without a citizen row run `POST /citizen/register` after `GET /citizen/profile` fails.
 
 ### Chatbot
 
