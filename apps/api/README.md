@@ -36,6 +36,8 @@ for local tooling only and rejects that header in production.
 
 **Dev auth (non-production):** Successful `/api/auth/verify-otp` with the configured `DEV_OTP_CODE` issues a JWT whose `tenant_id` / `tenant_code` are **WBPORTAL** and whose `sub` is **`dev-citizen-{mobile}`** (stable per phone). `tenant_code` in OTP request bodies is optional and defaults to WBPORTAL. Dev `refresh_token` values have the form `dev-refresh-{mobile}-{uuid}`; legacy `dev-refresh-{uuid-only}` tokens must re-authenticate via OTP.
 
+**Citizen hub read scope:** For **portal** JWTs (`tenant_code === WBPORTAL`), optional header **`X-Enagar-Tenant-Code: {ULB}`** selects one municipality; omit it on the **hub** to aggregate citizen-owned rows across ULBs. **`GET/POST …/applications`** and **`documents`** routes accept this header; **`holdings`** require it for portal users (no cross-ULB holdings search). Municipal citizen JWTs ignore the header and remain scoped to the JWT tenant.
+
 Admin-role JWTs (`tenant_admin`, `state_admin`) must include MFA evidence
 through `amr: ["otp"]` or `acr: "mfa"`.
 

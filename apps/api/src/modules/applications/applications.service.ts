@@ -11,6 +11,10 @@ import {
 import { calculateSlaDueAt, getInitialStage, workflowForPattern } from '@enagar/workflow';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import {
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+} from '../../common/auth/citizen-scope';
 import { ServicesService } from '../services/services.service';
 
 import { APPLICATION_STORE } from './application-store';
@@ -18,6 +22,7 @@ import { APPLICATION_STORE } from './application-store';
 import type { ApplicationStore } from './application-store';
 import type {
   ApplicationCommentResponse,
+  ApplicationReadScope,
   ApplicationResponse,
   ApplicationSummaryResponse,
   CancelApplicationDto,
@@ -123,9 +128,9 @@ export class ApplicationsService {
   async submitDraft(
     principal: AuthenticatedPrincipal,
     applicationId: string,
-    options: { enforceCleanDocuments?: boolean } = {},
+    options: { enforceCleanDocuments?: boolean; readScope?: ApplicationReadScope } = {},
   ): Promise<ApplicationResponse> {
-    const application = await this.getOwnedApplication(principal, applicationId);
+    const application = await this.getOwnedApplication(principal, applicationId, options.readScope);
     if (application.status !== 'draft') {
       return cloneApplication(application);
     }
@@ -196,9 +201,12 @@ export class ApplicationsService {
     return cloneApplication(updated);
   }
 
-  async list(principal: AuthenticatedPrincipal): Promise<ApplicationSummaryResponse[]> {
+  async list(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+  ): Promise<ApplicationSummaryResponse[]> {
     return (await this.store.list())
-      .filter((application) => this.canAccess(principal, application))
+      .filter((application) => this.canAccess(principal, application, readScope))
       .sort((left, right) => right.submitted_at.localeCompare(left.submitted_at))
       .map(toSummary);
   }
@@ -206,9 +214,10 @@ export class ApplicationsService {
   async getByDocketNo(
     principal: AuthenticatedPrincipal,
     docketNo: string,
+    readScope?: ApplicationReadScope,
   ): Promise<ApplicationResponse> {
     const application = await this.store.findByDocketNo(docketNo);
-    if (!application || !this.canAccess(principal, application)) {
+    if (!application || !this.canAccess(principal, application, readScope)) {
       throw new NotFoundException('Application not found');
     }
 
@@ -219,8 +228,9 @@ export class ApplicationsService {
     principal: AuthenticatedPrincipal,
     applicationId: string,
     dto: CancelApplicationDto,
+    readScope?: ApplicationReadScope,
   ): Promise<ApplicationResponse> {
-    const application = await this.getOwnedApplication(principal, applicationId);
+    const application = await this.getOwnedApplication(principal, applicationId, readScope);
     if (application.status === 'cancelled') {
       return cloneApplication(application);
     }
@@ -253,8 +263,9 @@ export class ApplicationsService {
     principal: AuthenticatedPrincipal,
     applicationId: string,
     dto: CommentApplicationDto,
+    readScope?: ApplicationReadScope,
   ): Promise<ApplicationResponse> {
-    const application = await this.getOwnedApplication(principal, applicationId);
+    const application = await this.getOwnedApplication(principal, applicationId, readScope);
     const comment: ApplicationCommentResponse = {
       id: randomUUID(),
       actor_role: 'citizen',
@@ -286,8 +297,9 @@ export class ApplicationsService {
     principal: AuthenticatedPrincipal,
     applicationId: string,
     document: StoredApplication['documents'][number],
+    readScope?: ApplicationReadScope,
   ): Promise<void> {
-    const application = await this.getOwnedApplication(principal, applicationId);
+    const application = await this.getOwnedApplication(principal, applicationId, readScope);
     const updated: ApplicationResponse = {
       ...application,
       documents: [...application.documents.filter((item) => item.id !== document.id), document],
@@ -299,9 +311,10 @@ export class ApplicationsService {
   async getOwnedApplication(
     principal: AuthenticatedPrincipal,
     applicationId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<StoredApplication> {
     const application = await this.store.findById(applicationId);
-    if (!application || !this.canAccess(principal, application)) {
+    if (!application || !this.canAccess(principal, application, readScope)) {
       throw new NotFoundException('Application not found');
     }
     return application;
@@ -319,11 +332,25 @@ export class ApplicationsService {
     });
   }
 
-  private canAccess(principal: AuthenticatedPrincipal, application: StoredApplication): boolean {
-    return (
-      application.tenant_id === principal.tenantId &&
-      application.citizen_subject === principal.subject
-    );
+  private canAccess(
+    principal: AuthenticatedPrincipal,
+    application: StoredApplication,
+    readScope?: ApplicationReadScope,
+  ): boolean {
+    if (application.citizen_subject !== principal.subject) {
+      return false;
+    }
+
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const scoped = readScope?.municipalityTenantCode?.trim();
+      if (scoped) {
+        const code = application.tenant_code?.toUpperCase() ?? '';
+        return code === scoped.toUpperCase();
+      }
+      return true;
+    }
+
+    return application.tenant_id === principal.tenantId;
   }
 
   private requireTenantCode(principal: AuthenticatedPrincipal): string {

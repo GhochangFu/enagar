@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
+
 import { HoldingsService } from './holdings.service';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -20,11 +23,19 @@ const hmcCitizen: AuthenticatedPrincipal = {
   expiresAt: new Date('2026-05-08T00:00:00.000Z'),
 };
 
+const portalCitizen: AuthenticatedPrincipal = {
+  subject: 'portal-1',
+  tenantId: CITIZEN_PORTAL_TENANT_ID,
+  tenantCode: CITIZEN_PORTAL_TENANT_CODE,
+  roles: ['citizen'],
+  expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+};
+
 describe('HoldingsService', () => {
   let service: HoldingsService;
 
   beforeEach(() => {
-    service = new HoldingsService();
+    service = new HoldingsService(new TenantsService());
   });
 
   it('looks up a tenant holding and returns audit semantics', () => {
@@ -47,5 +58,16 @@ describe('HoldingsService', () => {
     expect(service.search(kmcCitizen, 'Park')).toHaveLength(1);
     expect(service.search(hmcCitizen, 'Park')).toHaveLength(0);
     expect(() => service.search(kmcCitizen, 'Pa')).toThrow(BadRequestException);
+  });
+
+  it('requires municipal scope header for portal citizens', () => {
+    expect(() => service.lookup(portalCitizen, 'KMC-064-PARK-12B')).toThrow(BadRequestException);
+  });
+
+  it('resolves holdings for portal citizens using the scope header', () => {
+    const result = service.lookup(portalCitizen, 'KMC-064-PARK-12B', 'KMC');
+
+    expect(result.found).toBe(true);
+    expect(service.search(portalCitizen, 'Park', 'KMC')).toHaveLength(1);
   });
 });

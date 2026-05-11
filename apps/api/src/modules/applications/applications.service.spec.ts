@@ -2,11 +2,41 @@ import { birthCertificateSchema } from '@enagar/forms/fixtures';
 import { NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from '../services/services.service';
+import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
 import { ApplicationsService } from './applications.service';
 import { InMemoryApplicationStore } from './in-memory-application.store';
 
+import type { ApplicationResponse } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { FormSubmission } from '@enagar/forms';
+
+function stubApplication(
+  partial: Pick<
+    ApplicationResponse,
+    'id' | 'docket_no' | 'tenant_id' | 'tenant_code' | 'citizen_subject'
+  >,
+): ApplicationResponse {
+  const now = new Date().toISOString();
+  return {
+    ...partial,
+    service_code: 'birth-cert',
+    service_name: 'Birth Certificate',
+    form_version: 1,
+    workflow_code: 'cert-issuance-v1',
+    workflow_version: 1,
+    current_stage: 'submitted',
+    status: 'submitted',
+    status_label: 'Submitted',
+    pending_role: 'reviewer',
+    payment_status: 'pending',
+    form_data: {} as FormSubmission,
+    submitted_at: now,
+    timeline: [],
+    comments: [],
+    documents: [],
+  };
+}
 
 const citizenA: AuthenticatedPrincipal = {
   subject: 'citizen-a',
@@ -154,5 +184,96 @@ describe('ApplicationsService', () => {
         form_data: { applicant_name: 'A' },
       }),
     ).rejects.toThrow('Form submission is invalid');
+  });
+});
+
+describe('ApplicationsService (portal hub scope)', () => {
+  let store: InMemoryApplicationStore;
+  let hubService: ApplicationsService;
+
+  const portalPrincipal: AuthenticatedPrincipal = {
+    subject: 'hub-user',
+    tenantId: CITIZEN_PORTAL_TENANT_ID,
+    tenantCode: CITIZEN_PORTAL_TENANT_CODE,
+    roles: ['citizen'],
+    expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    store = new InMemoryApplicationStore();
+    hubService = new ApplicationsService(new ServicesService(), store);
+  });
+
+  it('lists all municipality applications for the same subject when unscoped', async () => {
+    await store.save(
+      stubApplication({
+        id: 'kmc-1',
+        docket_no: 'WBM/KMC/birth-cert/2026/00001',
+        tenant_id: citizenA.tenantId,
+        tenant_code: 'KMC',
+        citizen_subject: portalPrincipal.subject,
+      }),
+    );
+    await store.save(
+      stubApplication({
+        id: 'hmc-1',
+        docket_no: 'WBM/HMC/birth-cert/2026/00002',
+        tenant_id: citizenB.tenantId,
+        tenant_code: 'HMC',
+        citizen_subject: portalPrincipal.subject,
+      }),
+    );
+
+    await expect(hubService.list(portalPrincipal)).resolves.toHaveLength(2);
+  });
+
+  it('scopes list to one ULB when municipality scope is set', async () => {
+    await store.save(
+      stubApplication({
+        id: 'kmc-1',
+        docket_no: 'WBM/KMC/birth-cert/2026/00001',
+        tenant_id: citizenA.tenantId,
+        tenant_code: 'KMC',
+        citizen_subject: portalPrincipal.subject,
+      }),
+    );
+    await store.save(
+      stubApplication({
+        id: 'hmc-1',
+        docket_no: 'WBM/HMC/birth-cert/2026/00002',
+        tenant_id: citizenB.tenantId,
+        tenant_code: 'HMC',
+        citizen_subject: portalPrincipal.subject,
+      }),
+    );
+
+    await expect(
+      hubService.list(portalPrincipal, { municipalityTenantCode: 'KMC' }),
+    ).resolves.toHaveLength(1);
+    await expect(
+      hubService.list(portalPrincipal, { municipalityTenantCode: 'HMC' }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('reads cross-tenant docket numbers when unscoped; hides when scoped to another ULB', async () => {
+    await store.save(
+      stubApplication({
+        id: 'hmc-1',
+        docket_no: 'WBM/HMC/birth-cert/2026/00002',
+        tenant_id: citizenB.tenantId,
+        tenant_code: 'HMC',
+        citizen_subject: portalPrincipal.subject,
+      }),
+    );
+
+    await expect(
+      hubService.getByDocketNo(portalPrincipal, 'WBM/HMC/birth-cert/2026/00002'),
+    ).resolves.toMatchObject({ tenant_code: 'HMC' });
+
+    await expect(
+      hubService.getByDocketNo(portalPrincipal, 'WBM/HMC/birth-cert/2026/00002', {
+        municipalityTenantCode: 'KMC',
+      }),
+    ).rejects.toThrow(NotFoundException);
   });
 });

@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
+import {
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+} from '../../common/auth/citizen-scope';
 import { ApplicationsService } from '../applications/applications.service';
 
 import type {
@@ -13,7 +17,7 @@ import type {
   UploadIntentResponse,
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-import type { ApplicationDocumentResponse } from '../applications/dto';
+import type { ApplicationDocumentResponse, ApplicationReadScope } from '../applications/dto';
 
 interface StoredDocument extends DocumentResponse {
   tenant_id: string;
@@ -32,12 +36,17 @@ export class DocumentsService {
   async createUploadIntent(
     principal: AuthenticatedPrincipal,
     dto: CreateUploadIntentDto,
+    readScope?: ApplicationReadScope,
   ): Promise<UploadIntentResponse> {
     if (dto.size_mb > 10) {
       throw new BadRequestException('File size exceeds 10 MB');
     }
 
-    const application = await this.applications.getOwnedApplication(principal, dto.application_id);
+    const application = await this.applications.getOwnedApplication(
+      principal,
+      dto.application_id,
+      readScope,
+    );
     const id = randomUUID();
     const createdAt = new Date();
     const objectKey = this.createObjectKey(principal, dto.application_id, id, dto.original_name);
@@ -61,6 +70,7 @@ export class DocumentsService {
       principal,
       application.id,
       toApplicationDocument(document),
+      readScope,
     );
 
     return {
@@ -74,8 +84,9 @@ export class DocumentsService {
     principal: AuthenticatedPrincipal,
     documentId: string,
     dto: UpdateScanResultDto,
+    readScope?: ApplicationReadScope,
   ): Promise<DocumentResponse> {
-    const document = this.getOwnedDocument(principal, documentId);
+    const document = await this.getOwnedDocument(principal, documentId, readScope);
     const updated: StoredDocument = {
       ...document,
       upload_status: dto.scan_status === 'failed' ? 'rejected' : 'uploaded',
@@ -87,6 +98,7 @@ export class DocumentsService {
       principal,
       updated.application_id,
       toApplicationDocument(updated),
+      readScope,
     );
     return toDocumentResponse(updated);
   }
@@ -94,8 +106,9 @@ export class DocumentsService {
   async createDownloadUrl(
     principal: AuthenticatedPrincipal,
     documentId: string,
+    readScope?: ApplicationReadScope,
   ): Promise<DocumentDownloadResponse> {
-    const document = this.getOwnedDocument(principal, documentId);
+    const document = await this.getOwnedDocument(principal, documentId, readScope);
     if (document.scan_status !== 'clean') {
       throw new BadRequestException('Document is not scan-clean');
     }
@@ -109,13 +122,22 @@ export class DocumentsService {
     };
   }
 
-  private getOwnedDocument(principal: AuthenticatedPrincipal, documentId: string): StoredDocument {
+  private async getOwnedDocument(
+    principal: AuthenticatedPrincipal,
+    documentId: string,
+    readScope?: ApplicationReadScope,
+  ): Promise<StoredDocument> {
     const document = this.documents.get(documentId);
-    if (
-      !document ||
-      document.tenant_id !== principal.tenantId ||
-      document.citizen_subject !== principal.subject
-    ) {
+    if (!document || document.citizen_subject !== principal.subject) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      await this.applications.getOwnedApplication(principal, document.application_id, readScope);
+      return document;
+    }
+
+    if (document.tenant_id !== principal.tenantId) {
       throw new NotFoundException('Document not found');
     }
     return document;

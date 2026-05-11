@@ -1,5 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
+import {
+  assertActiveMunicipalityTenantCode,
+  CITIZEN_MUNICIPALITY_SCOPE_HEADER,
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+} from '../../common/auth/citizen-scope';
+import { TenantsService } from '../tenants/tenants.service';
+
 import { holdingSeeds } from './holding.seed';
 
 import type { HoldingLookupResponse, HoldingResponse } from './dto';
@@ -8,8 +16,14 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
 @Injectable()
 export class HoldingsService {
-  lookup(principal: AuthenticatedPrincipal, holdingNumber: string): HoldingLookupResponse {
-    const tenantCode = this.requireTenantCode(principal);
+  constructor(private readonly tenants: TenantsService) {}
+
+  lookup(
+    principal: AuthenticatedPrincipal,
+    holdingNumber: string,
+    municipalityScopeHeader?: string,
+  ): HoldingLookupResponse {
+    const tenantCode = this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
     const normalized = normalizeHolding(holdingNumber);
     const holding = holdingSeeds.find(
       (candidate) =>
@@ -20,8 +34,12 @@ export class HoldingsService {
     return this.withAudit(holdingNumber, holding);
   }
 
-  search(principal: AuthenticatedPrincipal, query: string): HoldingResponse[] {
-    const tenantCode = this.requireTenantCode(principal);
+  search(
+    principal: AuthenticatedPrincipal,
+    query: string,
+    municipalityScopeHeader?: string,
+  ): HoldingResponse[] {
+    const tenantCode = this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 3) {
       throw new BadRequestException('Search query must be at least 3 characters');
@@ -53,6 +71,21 @@ export class HoldingsService {
         created_at: new Date().toISOString(),
       },
     };
+  }
+
+  private resolveWorkspacesTenantCode(
+    principal: AuthenticatedPrincipal,
+    municipalityScopeHeader?: string,
+  ): string {
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      if (!municipalityScopeHeader?.trim()) {
+        throw new BadRequestException(
+          `Portal citizen requests require ${CITIZEN_MUNICIPALITY_SCOPE_HEADER} header for holdings`,
+        );
+      }
+      return assertActiveMunicipalityTenantCode(municipalityScopeHeader, this.tenants.list());
+    }
+    return this.requireTenantCode(principal);
   }
 
   private requireTenantCode(principal: AuthenticatedPrincipal): string {

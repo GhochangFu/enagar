@@ -204,6 +204,8 @@ Phases are **merge-sequential**: finish exit criteria of Phase _N_ before relyin
 | **Tests**         | `applications.service.spec` (or integration): portal principal, apps in KMC + HMC—list all without header; list one with header; staff list still JWT-tenant only. Holdings/documents spot tests if present.                                                      |
 | **Exit criteria** | No 404 for legit cross-ULB docket when unscoped; scoped requests hide other ULB apps.                                                                                                                                                                             |
 
+**Status: done (2026-05-11).** `ApplicationReadScope` + `X-Enagar-Tenant-Code` on `applications` and `documents` controllers; `ApplicationsService` applies hub (portal + self-service citizen vs subject match across tenants; optional `municipalityTenantCode` filters one ULB); municipal JWT unchanged (tenant_id + subject). `HoldingsService` injects `TenantsService`; portal citizens must send scope header; `DocumentsService` gates portal document reads via linked application access. Tests: `applications.service.spec` (portal hub), `holdings.service.spec`, `phase2-api.integration.spec` still green.
+
 #### Sprint 2.2 — Payments + grievances read scope + optional dashboard
 
 | Item              | Detail                                                                                                                                                                                                                                                                                                                                                                                                          |

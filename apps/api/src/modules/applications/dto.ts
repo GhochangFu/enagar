@@ -87,3 +87,8 @@ export type ApplicationSummaryResponse = Omit<
   ApplicationResponse,
   'form_data' | 'timeline' | 'comments' | 'documents'
 >;
+
+/** Portal hub vs workspace: optional active ULB (`X-Enagar-Tenant-Code`) for municipal filtering. */
+export type ApplicationReadScope = {
+  municipalityTenantCode?: string;
+};
