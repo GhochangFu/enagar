@@ -39,6 +39,8 @@ for local tooling only and rejects that header in production.
 
 **Citizen hub read scope:** For **portal** JWTs (`tenant_code === WBPORTAL`), optional header **`X-Enagar-Tenant-Code: {ULB}`** selects one municipality; omit it on the **hub** to aggregate citizen-owned rows across ULBs. **`GET/POST …/applications`** and **`documents`** routes accept this header; **`holdings`** require it for portal users (no cross-ULB holdings search). **`payments`** **`grievances`** read routes, and **`GET /api/citizen/dashboard`** use the same semantics. Municipal citizen JWTs ignore the header and remain scoped to the JWT tenant.
 
+**Payment initiate (Phase 3 Sprint 3.2):** With a **portal** JWT, `POST …/payments/initiate` scopes the pending payment row, gateway context, and **`Idempotency-Key`** uniqueness to the **application’s municipal `tenant_id`** (from the application record), not WBPORTAL. Stub settlement and receipt display numbers use that same ULB.
+
 Admin-role JWTs (`tenant_admin`, `state_admin`) must include MFA evidence
 through `amr: ["otp"]` or `acr: "mfa"`.
 

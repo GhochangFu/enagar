@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { citizenHubRowAccessibleByTenant } from '../../common/auth/citizen-scope';
+import { tenantSeeds } from '../tenants/tenant.seed';
 
 import {
   buildReceiptDisplayNumber,
@@ -37,6 +38,15 @@ function tenantSlugForReceipt(principal: AuthenticatedPrincipal): string {
   return principal.tenantId.slice(0, 8).replace(/[^A-Za-z0-9]/g, '') || 'TENANT';
 }
 
+function tenantSlugForPaymentTenant(tenantId: string, principal: AuthenticatedPrincipal): string {
+  const match = tenantSeeds.find((t) => t.id === tenantId);
+  const code = match?.code?.trim();
+  if (code) {
+    return code.replace(/[^A-Za-z0-9]/g, '') || 'TENANT';
+  }
+  return tenantSlugForReceipt(principal);
+}
+
 @Injectable()
 export class InMemoryPaymentStore implements PaymentStore {
   private readonly payments = new Map<string, PaymentResponse>();
@@ -48,9 +58,12 @@ export class InMemoryPaymentStore implements PaymentStore {
   async findIdempotencyRecord(
     principal: AuthenticatedPrincipal,
     idempotencyKey: string,
+    idempotencyTenantId?: string,
   ): Promise<ExistingIdempotencyRecord | null> {
     return (
-      this.idempotencyRecords.get(this.idempotencyRecordKey(principal, idempotencyKey)) ?? null
+      this.idempotencyRecords.get(
+        this.idempotencyRecordKey(principal, idempotencyKey, idempotencyTenantId),
+      ) ?? null
     );
   }
 
@@ -154,7 +167,9 @@ export class InMemoryPaymentStore implements PaymentStore {
 
     const receiptDto = receiptToCitizenDto({
       id: receiptSlipId(),
-      receipt_number: buildReceiptDisplayNumber(tenantSlugForReceipt(principal)),
+      receipt_number: buildReceiptDisplayNumber(
+        tenantSlugForPaymentTenant(paymentRow.tenant_id, principal),
+      ),
       payment_id: paymentId,
       application_id: paymentRow.application_id,
       service_code: ctx.serviceCode,
@@ -199,8 +214,13 @@ export class InMemoryPaymentStore implements PaymentStore {
     );
   }
 
-  private idempotencyRecordKey(principal: AuthenticatedPrincipal, idempotencyKey: string): string {
-    return `${principal.tenantId}:${principal.subject}:${idempotencyKey}`;
+  private idempotencyRecordKey(
+    principal: AuthenticatedPrincipal,
+    idempotencyKey: string,
+    idempotencyTenantId?: string,
+  ): string {
+    const tenantId = idempotencyTenantId ?? principal.tenantId;
+    return `${tenantId}:${principal.subject}:${idempotencyKey}`;
   }
 }
 

@@ -32,9 +32,15 @@ export interface ExistingIdempotencyRecord {
 }
 
 export interface PaymentStore {
+  /**
+   * Looks up idempotency by citizen subject + key.
+   * @param idempotencyTenantId When set (e.g. application’s municipal `tenant_id`), must match
+   *   portal-initiated payments so keys are not namespaced under WBPORTAL.
+   */
   findIdempotencyRecord(
     principal: AuthenticatedPrincipal,
     idempotencyKey: string,
+    idempotencyTenantId?: string,
   ): Promise<ExistingIdempotencyRecord | null>;
   findActivePaymentByApplication(applicationId: string): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;

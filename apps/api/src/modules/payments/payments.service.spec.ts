@@ -274,6 +274,7 @@ describe('PaymentsService', () => {
   describe('portal hub read scope', () => {
     let store: InMemoryPaymentStore;
     let hubPayments: PaymentsService;
+    let hubApplications: ApplicationsService;
     const prismaStub = { glPosting: { findMany: jest.fn().mockResolvedValue([]) } };
 
     const portalPrincipal: AuthenticatedPrincipal = {
@@ -287,13 +288,13 @@ describe('PaymentsService', () => {
     beforeEach(() => {
       store = new InMemoryPaymentStore();
       const services = new ServicesService();
-      const applications = new ApplicationsService(
+      hubApplications = new ApplicationsService(
         services,
         new TenantsService(),
         new InMemoryApplicationStore(),
       );
       hubPayments = new PaymentsService(
-        applications,
+        hubApplications,
         services,
         new StubPaymentGateway(),
         store,
@@ -342,6 +343,46 @@ describe('PaymentsService', () => {
       await expect(
         hubPayments.getById(portalPrincipal, 'pay-hmc', { municipalityTenantCode: 'KMC' }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('initiate and stub complete bind payment and receipt to the application ULB, not the portal JWT tenant', async () => {
+      const draft = await hubApplications.createDraft(
+        portalPrincipal,
+        { service_code: 'birth-cert', form_data: birthCertificateForm },
+        'KMC',
+      );
+      const submitted = await hubApplications.submitDraft(portalPrincipal, draft.id, {
+        enforceCleanDocuments: false,
+      });
+      expect(submitted.tenant_id).toBe(citizenA.tenantId);
+
+      const first = await hubPayments.initiate(
+        portalPrincipal,
+        {
+          application_id: submitted.id,
+          amount_paise: 5000,
+          method: 'upi',
+        },
+        'portal-kmc-pay-idem',
+      );
+      const second = await hubPayments.initiate(
+        portalPrincipal,
+        {
+          application_id: submitted.id,
+          amount_paise: 5000,
+          method: 'upi',
+        },
+        'portal-kmc-pay-idem',
+      );
+      expect(second.id).toBe(first.id);
+      expect(first.tenant_id).toBe(citizenA.tenantId);
+
+      const ledger = await hubPayments.completeStubPayment(portalPrincipal, {
+        payment_id: first.id,
+        gateway_order_id: StubPaymentGateway.expectedOrderIdForPayment(first.id),
+      });
+
+      expect(ledger.receipt.receipt_number.toUpperCase()).toContain('KMC');
     });
   });
 });

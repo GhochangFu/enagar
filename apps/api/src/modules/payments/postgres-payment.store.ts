@@ -65,11 +65,13 @@ export class PostgresPaymentStore implements PaymentStore {
   async findIdempotencyRecord(
     principal: AuthenticatedPrincipal,
     idempotencyKey: string,
+    idempotencyTenantId?: string,
   ): Promise<ExistingIdempotencyRecord | null> {
+    const tenantId = idempotencyTenantId ?? principal.tenantId;
     const record = await this.db.paymentIdempotencyKey.findUnique({
       where: {
         tenantId_citizenSubject_idempotencyKey: {
-          tenantId: principal.tenantId,
+          tenantId,
           citizenSubject: principal.subject,
           idempotencyKey,
         },

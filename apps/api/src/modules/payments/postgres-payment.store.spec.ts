@@ -111,4 +111,41 @@ describe('PostgresPaymentStore', () => {
       paymentId: 'payment-id',
     });
   });
+
+  it('scopes idempotency lookup with idempotencyTenantId when provided', async () => {
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const store = new PostgresPaymentStore({
+      paymentIdempotencyKey: {
+        findUnique,
+      },
+    } as unknown as PrismaService);
+
+    const municipalTenantId = '11111111-1111-4111-8111-111111111111';
+
+    await store.findIdempotencyRecord(
+      {
+        subject: 'citizen-a',
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        tenantCode: 'WBPORTAL',
+        roles: ['citizen'],
+        expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+      },
+      'idem-1',
+      municipalTenantId,
+    );
+
+    expect(findUnique).toHaveBeenCalledWith({
+      where: {
+        tenantId_citizenSubject_idempotencyKey: {
+          tenantId: municipalTenantId,
+          citizenSubject: 'citizen-a',
+          idempotencyKey: 'idem-1',
+        },
+      },
+      select: {
+        requestFingerprint: true,
+        paymentId: true,
+      },
+    });
+  });
 });

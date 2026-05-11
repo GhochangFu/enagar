@@ -69,10 +69,13 @@ export class PaymentsService {
       throw new BadRequestException('Application is already paid');
     }
 
-    const service = this.services.getTenantService(
-      this.requireTenantCode(principal),
-      application.service_code,
-    );
+    const businessTenantCode = application.tenant_code?.trim();
+    if (!businessTenantCode) {
+      throw new BadRequestException('Application is missing tenant_code');
+    }
+    const businessTenantId = application.tenant_id;
+
+    const service = this.services.getTenantService(businessTenantCode, application.service_code);
     const expectedAmountPaise = this.getFixedAmountPaise(service);
     if (dto.amount_paise !== expectedAmountPaise) {
       throw new BadRequestException('Payment amount does not match the application fee');
@@ -82,6 +85,7 @@ export class PaymentsService {
     const existingIdempotencyRecord = await this.store.findIdempotencyRecord(
       principal,
       normalizedIdempotencyKey,
+      businessTenantId,
     );
     if (existingIdempotencyRecord) {
       if (existingIdempotencyRecord.fingerprint !== fingerprint) {
@@ -98,7 +102,7 @@ export class PaymentsService {
     const paymentId = randomUUID();
     const gatewayResult = await this.gateway.initiate({
       paymentId,
-      tenantId: principal.tenantId,
+      tenantId: businessTenantId,
       applicationId: application.id,
       amountPaise: dto.amount_paise,
       currency: 'INR',
@@ -106,7 +110,7 @@ export class PaymentsService {
     });
     const payment = await this.store.createPendingPayment({
       id: paymentId,
-      tenantId: principal.tenantId,
+      tenantId: businessTenantId,
       citizenSubject: principal.subject,
       applicationId: application.id,
       amountPaise: dto.amount_paise,
@@ -163,10 +167,11 @@ export class PaymentsService {
       payment.application_id,
     );
 
-    const service = this.services.getTenantService(
-      this.requireTenantCode(principal),
-      application.service_code,
-    );
+    const applicationTenantCode = application.tenant_code?.trim();
+    if (!applicationTenantCode) {
+      throw new BadRequestException('Application is missing tenant_code');
+    }
+    const service = this.services.getTenantService(applicationTenantCode, application.service_code);
 
     const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
     const ctx: SettlementLedgerContext = {
@@ -347,13 +352,6 @@ export class PaymentsService {
         }),
       )
       .digest('hex');
-  }
-
-  private requireTenantCode(principal: AuthenticatedPrincipal): string {
-    if (!principal.tenantCode) {
-      throw new BadRequestException('Tenant code claim is required');
-    }
-    return principal.tenantCode;
   }
 
   private nextDay(): Date {
