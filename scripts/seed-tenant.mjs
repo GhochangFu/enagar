@@ -92,5 +92,6 @@ function printHelp() {
   console.info(`Usage:
 pnpm seed:tenant -- --code KMC --name "Kolkata Municipal Corporation" --district Kolkata --wards 144 --theme "#0F4C75" --languages en,bn,hi
 
-Writes infrastructure/seed/tenants/tenant-seeds.json and prints a SQL upsert preview.`);
+Updates infrastructure/seed/tenants/tenant-seeds.json (catalog for tooling) and prints a SQL upsert preview.
+To sync tenants into Postgres, use fixed UUIDs in src/modules/tenants/tenant.seed.ts and run: pnpm db:seed`);
 }

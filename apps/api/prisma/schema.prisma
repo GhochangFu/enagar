@@ -33,6 +33,9 @@ model Tenant {
   payments         Payment[]
   receipts         Receipt[]
   glPostings       GlPosting[]
+  deposits         Deposit[]
+  refundDispatches RefundDispatch[]
+  challans         Challan[]
   holdingLookupAudit HoldingLookupAudit[]
   holdingRecords   HoldingRecord[]
   roleStageMaps    RoleStageMap[]
@@ -81,6 +84,8 @@ model Citizen {
   ward          Ward?          @relation(fields: [wardId], references: [id], onDelete: SetNull)
   notifications Notification[]
   applications   Application[]
+  deposits       Deposit[]
+  challans       Challan[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -102,6 +107,7 @@ model User {
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userRoles      UserRole[]
+  challansIssued Challan[]
 
   @@unique([tenantId, username])
   @@index([tenantId, status])
@@ -436,6 +442,7 @@ model Application {
   tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   timeline        ApplicationTimeline[]
   workflow        Workflow?             @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  deposits        Deposit[]
 
   @@index([tenantId, citizenId, submittedAt])
   @@index([tenantId, serviceId, status])
@@ -522,6 +529,8 @@ model Payment {
   tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   receipt            Receipt?
   glPosting          GlPosting?
+  depositCaptures    Deposit[]            @relation("DepositCapturePayment")
+  challansSettled    Challan[]            @relation("ChallanPaidPayment")
 
   @@unique([tenantId, gateway, gatewayOrderId])
   @@index([tenantId, citizenSubject, createdAt])
@@ -594,6 +603,83 @@ model GlPosting {
   @@index([tenantId, postedAt])
   @@index([tenantId, settlementReference])
   @@map("gl_postings")
+}
+
+model Deposit {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  citizenId         String    @map("citizen_id") @db.Uuid
+  applicationId     String?   @map("application_id") @db.Uuid
+  depositType       String    @map("deposit_type") @db.VarChar(30)
+  referenceCode     String?   @map("reference_code") @db.VarChar(120)
+  amountPaise       Int       @map("amount_paise")
+  capturePaymentId  String?   @unique @map("capture_payment_id") @db.Uuid
+  expectedReleaseAt DateTime? @map("expected_release_at") @db.Timestamptz(6)
+  status            String    @default("held") @db.VarChar(40)
+  forfeitureReason  String?   @map("forfeiture_reason")
+  metadata          Json      @default(dbgenerated("'{}'::jsonb"))
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  application       Application?        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  capturePayment    Payment?            @relation("DepositCapturePayment", fields: [capturePaymentId], references: [id], onDelete: SetNull)
+  citizen           Citizen             @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refundDispatches  RefundDispatch[]
+
+  @@index([tenantId, citizenId, status])
+  @@index([tenantId, applicationId])
+  @@map("deposits")
+}
+
+model RefundDispatch {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  depositId           String    @map("deposit_id") @db.Uuid
+  amountPaise         Int       @map("amount_paise")
+  status              String    @default("pending_review") @db.VarChar(40)
+  requestedBySubject  String    @map("requested_by_subject") @db.VarChar(255)
+  reviewedBySubject   String?   @map("reviewed_by_subject") @db.VarChar(255)
+  reviewNote          String?   @map("review_note")
+  pspCompletionNote   String?   @map("psp_completion_note")
+  rejectedReason      String?   @map("rejected_reason")
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deposit             Deposit   @relation(fields: [depositId], references: [id], onDelete: Cascade)
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, depositId, status])
+  @@map("refund_dispatches")
+}
+
+model Challan {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  challanNo        String    @map("challan_no") @db.VarChar(64)
+  issuedToName     String?   @map("issued_to_name") @db.VarChar(255)
+  issuedToMobile   String?   @map("issued_to_mobile") @db.VarChar(15)
+  citizenId        String?   @map("citizen_id") @db.Uuid
+  violationCode    String    @map("violation_code") @db.VarChar(80)
+  location         Json      @default(dbgenerated("'{}'::jsonb"))
+  issuedByUserId   String?   @map("issued_by_user_id") @db.Uuid
+  issuedAt         DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  amountPaise      Int       @map("amount_paise")
+  photoEvidence    Json?     @map("photo_evidence")
+  status           String    @default("issued") @db.VarChar(30)
+  paidAt           DateTime? @map("paid_at") @db.Timestamptz(6)
+  paidPaymentId    String?   @unique @map("paid_payment_id") @db.Uuid
+  waivedReason     String?   @map("waived_reason")
+  metadata         Json      @default(dbgenerated("'{}'::jsonb"))
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen          Citizen?  @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  issuedByUser     User?     @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  paidPayment      Payment?  @relation("ChallanPaidPayment", fields: [paidPaymentId], references: [id], onDelete: SetNull)
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, challanNo])
+  @@index([tenantId, status])
+  @@map("challans")
 }
 
 model HoldingRecord {

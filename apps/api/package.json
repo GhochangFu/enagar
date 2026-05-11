@@ -12,6 +12,7 @@
     "lint": "eslint src",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
     "prisma:validate": "prisma validate",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",

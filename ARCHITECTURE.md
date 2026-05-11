@@ -385,9 +385,21 @@ All endpoints are versioned under `/api/v1`. JWT bearer token required except fo
 - `GET /public/receipts/verify/:token` — public QR verification payload (`@Public` route)
 - `POST /payments/webhook` — gateway callback (signature verified) arrives with Sprint 3.1B
 
-Phase 3 Sprint 3.1A starts this surface behind ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials and aggregator details are available, only the deterministic `stub` gateway is runnable for initiation flows; Sprint 3.2 adds synchronous stub settlement emitting `receipts`, `gl_postings`, verifier APIs, and finance CSV groundwork. Receipt PDF/HTML workers, public PSP webhook verification, aggregated PDF reconciliation extracts, refunds, deposits, and challans remain credential- or roadmap-gated. Citizen identity now uses `PostgresCitizenStore`; application persistence has `PostgresApplicationStore` behind `APPLICATION_STORE_PROVIDER=postgres`; payment persistence flows through `PostgresPaymentStore` once `PAYMENT_STORE_PROVIDER=postgres`. `RUN_DB_TESTS=1` continues to gate Postgres integration proofs, now including Sprint 3.2 settlement lines.
+### Finance (deposits, refund queue, challans — Sprint 3.3A)
 
-Remaining Phase 3 ordering without PSP access: Sprint 3.4A (citizen payment UX) is closed (2026-05-11); Sprint 3.3A narrows deposits/refunds/challan schemas without PSP refund calls; Sprint 3.2 is closed (2026-05-11). Sprint 3.1B remains the PSP interrupt lane.
+Staff JWT + roles `tenant_admin` / `municipality_admin` / `state_admin`. No live PSP refund disbursement — `complete-internal` records completion only until Sprint 3.1B.
+
+- `POST /finance/deposits`, `GET /finance/deposits/:id`
+- `POST /finance/deposits/:id/mark-eligible-for-release`, `POST /finance/deposits/:id/forfeit`
+- `POST /finance/deposits/:depositId/refund-dispatch`
+- `GET /finance/refund-dispatches/:id`
+- `POST /finance/refund-dispatches/:id/approve`, `POST /finance/refund-dispatches/:id/reject`, `POST /finance/refund-dispatches/:id/complete-internal`
+- `POST /finance/challans`, `GET /finance/challans/:id`
+- `POST /finance/challans/:id/mark-paid-internal`, `POST /finance/challans/:id/waive`, `POST /finance/challans/:id/reopen-after-dispute`
+
+Phase 3 Sprint 3.1A starts this surface behind ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials and aggregator details are available, only the deterministic `stub` gateway is runnable for initiation flows; Sprint 3.2 adds synchronous stub settlement emitting `receipts`, `gl_postings`, verifier APIs, and finance CSV groundwork. Receipt PDF/HTML workers, public PSP webhook verification, aggregated PDF reconciliation extracts, challan pay-with-PSP UX, automated PSP refunds remain credential-gated — **Sprint 3.3A (closed 2026-05-11)** persists `deposits`, refund approval queue (`refund_dispatches`), and `challans` with `/api/finance/*` staging routes pending Sprint 3.1B disbursement adapters. Citizen identity uses `PostgresCitizenStore`; application persistence uses `PostgresApplicationStore` behind `APPLICATION_STORE_PROVIDER=postgres`; payment persistence flows through `PostgresPaymentStore` once `PAYMENT_STORE_PROVIDER=postgres`. `RUN_DB_TESTS=1` continues to gate Postgres integration proofs, including Sprint 3.3A finance workflows.
+
+Remaining Phase 3 ordering without PSP access: Sprint 3.4A (citizen payment UX) and Sprint 3.3A (deposit/refund/challan persistence + `/api/finance/*` approvals) are **closed (2026-05-11)**; Sprint 3.2 is closed (2026-05-11). Sprint 3.1B remains the PSP interrupt lane.
 
 ### Grievances
 

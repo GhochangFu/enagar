@@ -673,7 +673,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 - **Sprint 3.1B**: Real provider adapter once sandbox credentials arrive — Razorpay/PayU/state aggregator adapter, real redirect contract, webhook signature verification, replay protection, and gateway status polling.
 - **Sprint 3.2**: ✅ Receipts + GL postings + reconciliation groundwork (closed 2026-05-11 — see detailed section below).
 - **Sprint 3.4A**: ✅ Citizen payment UI + failure-handling polish on the stub rail (closed 2026-05-11 — PWA: My Applications checkout, My Payments tab, receipt metadata placeholder).
-- **Sprint 3.3A**: Deposits/refunds/challan data model and approval state machine only; real refund calls remain blocked until provider credentials and settlement contracts exist.
+- **Sprint 3.3A**: ✅ Deposits + refund approvals + enforcement challans (closed 2026-05-11 — Prisma migration `20260511143000_deposits_refunds_challans`, tenant RLS, `/api/finance/*` staff routes gated to `tenant_admin` / `municipality_admin` / `state_admin`; PSP disbursement/refund RPC intentionally absent until Sprint 3.1B).
 - **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.3A at a clean checkpoint.
 
 #### Sprint 3.1A — Payment Core Without Gateway Credentials
@@ -758,15 +758,16 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
    - **My Payments** tab lists history, repeats stub-complete and receipt preview, and documents `409` / network recovery behaviour.
    - **Exit met:** recoverable payment step on the application detail panel + dedicated **My Payments** view, all against existing stub APIs.
 
-2. **Sprint 3.3A — Deposits / Refunds / Challan Model**
-   - Add the schema, state machine, and tests for deposits, refund approvals, and challan references only.
-   - Do not implement real refund API calls until Sprint 3.1B confirms provider capabilities and settlement identifiers.
-   - Exit when refundable flows are represented consistently enough for community hall deposits and later finance approval work.
+2. ✅ **Sprint 3.3A — Deposits / Refunds / Challan Model** (2026-05-11)
+   - **Delivered**: `deposits`, `refund_dispatches`, `challans` tables (paise-aligned amounts), partial unique queue index on refund dispatches, RLS parity with payment tables; pure lifecycle guards for transitions; Nest `FinanceModule` with Swagger-tagged **`/api/finance/*`** staff endpoints (deposit CRUD-lite, forfeiture + release eligibility chain, refund queue submit/approve/reject/**complete-internal**, challan issue / waive / **mark-paid-internal** without PSP linkage).
+   - **Out of scope (unchanged)**: live aggregator refund/disbursement RPCs — deferred to Sprint 3.1B with settlement identifiers.
+   - **Exit**: community-hall-grade refundable deposits plus finance approval queue represented end-to-end in Postgres + deterministic tests (`finance-lifecycle.spec.ts` always-on; **`RUN_DB_TESTS=1`** activates `finance.db.spec.ts`).
 
 **Recently closed while credentials are pending**
 
 - ✅ **Sprint 3.2** — Receipt + GL + reconciliation groundwork (2026-05-11). See detailed block above.
 - ✅ **Sprint 3.4A** — Citizen payment UI + failure handling on stub rail (2026-05-11). See numbered item above.
+- ✅ **Sprint 3.3A** — Deposits / refund approvals / challans (2026-05-11). See numbered item §2 above.
 
 **Blocked / interrupt sprint**: Sprint 3.1B remains blocked on gateway sandbox credentials. When credentials arrive, pause the active sprint at a clean checkpoint and prioritize the real provider adapter, webhook signature verification, replay protection, and gateway status polling.
 
@@ -1417,7 +1418,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Sprint 3.2 and 3.4A are closed. Execute Sprint 3.3A (deposits/refunds/challans) while keeping Sprint 3.1B as an interrupt lane for gateway sandbox credentials.
+**Next action**: Sprint 3.2, 3.4A, and 3.3A are closed. Prioritise Sprint 3.1B when gateway sandbox credentials land; otherwise Phase 4 / parallel hardening slices per programme priorities while keeping Sprint 3.1B as an interrupt lane.
 
 ---
 

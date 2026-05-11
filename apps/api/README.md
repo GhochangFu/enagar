@@ -35,7 +35,11 @@ through `amr: ["otp"]` or `acr: "mfa"`.
 
 ## Run locally
 
+After Postgres is up and `DATABASE_URL` points at it, apply migrations then seed tenant rows (matches `tenant.seed.ts` UUIDs used by dev JWT and smoke tests):
+
 ```bash
+pnpm --filter @enagar/api prisma:migrate:deploy
+pnpm db:seed                         # from monorepo root — or: pnpm --filter @enagar/api db:seed
 pnpm --filter @enagar/api dev      # http://localhost:3001/health
 pnpm --filter @enagar/api build
 pnpm --filter @enagar/api test

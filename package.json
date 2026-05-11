@@ -19,6 +19,7 @@
     "test:e2e": "turbo run test:e2e",
     "test:security": "jest --config tests/security/jest.config.cjs",
     "security:zap:auth": "node scripts/run-zap-auth-scan.mjs",
+    "db:seed": "pnpm --filter @enagar/api exec prisma db seed",
     "seed:tenant": "node scripts/seed-tenant.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
