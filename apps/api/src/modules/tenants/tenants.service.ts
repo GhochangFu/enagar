@@ -1,11 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { tenantSeeds, type TenantConfigResponse, type TenantSummary } from './tenant.seed';
+import {
+  CITIZEN_PORTAL_TENANT_CODE,
+  tenantSeeds,
+  type TenantConfigResponse,
+  type TenantSummary,
+} from './tenant.seed';
 
 @Injectable()
 export class TenantsService {
+  /** Active ULBs for pickers / workspace; excludes the statewide citizen portal tenant. */
   list(): TenantSummary[] {
-    return tenantSeeds.filter((tenant) => tenant.is_active);
+    return tenantSeeds.filter(
+      (tenant) => tenant.is_active && tenant.code !== CITIZEN_PORTAL_TENANT_CODE,
+    );
   }
 
   getConfig(idOrCode: string): TenantConfigResponse {

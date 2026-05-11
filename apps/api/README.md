@@ -32,6 +32,8 @@ Protected handlers derive tenant context from the verified JWT claim through
 `JwtAuthGuard`. `TenantContextMiddleware` keeps the `X-Tenant-Code` escape hatch
 for local tooling only and rejects that header in production.
 
+[`tenant.seed.ts`](./src/modules/tenants/tenant.seed.ts) includes **`WBPORTAL`** (citizen portal) for future **Keycloak Option A** JWTs. It is seeded in Postgres but **`GET /api/tenants` omits it** so municipality pickers only show operational ULBs. Use `GET /api/tenants/:id/config` with id or code `WBPORTAL` when tooling needs it.
+
 Admin-role JWTs (`tenant_admin`, `state_admin`) must include MFA evidence
 through `amr: ["otp"]` or `acr: "mfa"`.
 

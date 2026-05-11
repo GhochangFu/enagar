@@ -3,7 +3,7 @@ import { TenantsService } from './tenants.service';
 describe('TenantsService', () => {
   const service = new TenantsService();
 
-  it('returns the canonical 8 Phase-1 tenants', () => {
+  it('returns the eight active municipal ULBs (portal tenant excluded from pickers)', () => {
     const tenants = service.list();
 
     expect(tenants).toHaveLength(8);
@@ -17,6 +17,16 @@ describe('TenantsService', () => {
       'DMC',
       'SDDM',
     ]);
+  });
+
+  it('resolves the citizen portal tenant for auth and config (but not via list())', () => {
+    expect(service.list().some((t) => t.code === 'WBPORTAL')).toBe(false);
+    expect(service.getConfig('WBPORTAL')).toMatchObject({
+      code: 'WBPORTAL',
+      name: 'West Bengal Citizen Portal',
+      ward_count: 0,
+      theme_color: '#1565C0',
+    });
   });
 
   it('returns tenant config with theme and ward count', () => {

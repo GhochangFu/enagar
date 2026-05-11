@@ -5,7 +5,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma';
-import { tenantSeeds } from '../src/modules/tenants/tenant.seed';
+import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../src/modules/tenants/tenant.seed';
 
 const defaultDatabaseUrl =
   'postgresql://enagar:enagar_dev_pw_change_me@localhost:5432/enagarseba?schema=public';
@@ -104,7 +104,10 @@ async function main(): Promise<void> {
         update: {},
       });
 
-      await seedGrievancePoliciesForTenant(prisma, tenant.id);
+      /** Portal is not an operational grievance jurisdiction; SLA/routing stays on ULBs only. */
+      if (tenant.code !== CITIZEN_PORTAL_TENANT_CODE) {
+        await seedGrievancePoliciesForTenant(prisma, tenant.id);
+      }
 
       console.info(`Seeded tenant ${tenant.code} (${tenant.id})`);
     }

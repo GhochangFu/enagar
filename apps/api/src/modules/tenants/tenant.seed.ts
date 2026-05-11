@@ -1,3 +1,6 @@
+/** Citizen portal (Keycloak Option A). Not a filing ULB; omitted from public municipality lists. */
+export const CITIZEN_PORTAL_TENANT_CODE = 'WBPORTAL' as const;
+
 export interface TenantSummary {
   id: string;
   code: string;
@@ -25,6 +28,17 @@ export interface TenantConfigResponse extends TenantSummary {
 }
 
 export const tenantSeeds: TenantSummary[] = [
+  {
+    id: '99999999-9999-4999-8999-999999999999',
+    code: CITIZEN_PORTAL_TENANT_CODE,
+    name: 'West Bengal Citizen Portal',
+    district: 'West Bengal',
+    ward_count: 0,
+    theme_color: '#1565C0',
+    logo_url: null,
+    languages_enabled: ['en', 'bn', 'hi'],
+    is_active: true,
+  },
   {
     id: '11111111-1111-4111-8111-111111111111',
     code: 'KMC',
