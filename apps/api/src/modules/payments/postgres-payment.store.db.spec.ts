@@ -11,6 +11,11 @@ import type { ApplicationResponse } from '../applications/dto';
 
 const describeDb = process.env.RUN_DB_TESTS === '1' ? describe : describe.skip;
 
+/** Must be after `created_at` at insert time (DB: `expires_at > created_at`). */
+function idempotencyExpiry(): Date {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+}
+
 describeDb('PostgresPaymentStore DB integration', () => {
   const prisma = new PrismaService();
   const applicationStore = new PostgresApplicationStore(prisma);
@@ -21,6 +26,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
   const serviceCode = 'birth-cert-pay-db';
   const citizenSubject = `citizen-pay-${Date.now()}`;
   const applicationId = randomUUID();
+  const settleApplicationId = randomUUID();
   const docketNo = `WBM/${tenantCode}/${serviceCode}/2026/00001`;
   const paymentId = randomUUID();
   const requestFingerprint = 'a'.repeat(64);
@@ -87,6 +93,11 @@ describeDb('PostgresPaymentStore DB integration', () => {
       },
     });
     await applicationStore.save(application);
+    await applicationStore.save({
+      ...application,
+      id: settleApplicationId,
+      docket_no: `WBM/${tenantCode}/${serviceCode}/2026/00002`,
+    });
   });
 
   afterAll(async () => {
@@ -108,7 +119,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
       redirectUrl: '/payments/stub/complete',
       idempotencyKey: 'same-key',
       requestFingerprint,
-      expiresAt: new Date('2026-05-09T10:00:00.000Z'),
+      expiresAt: idempotencyExpiry(),
     });
 
     expect(payment).toMatchObject({
@@ -146,7 +157,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
       id: settlePaymentId,
       tenantId,
       citizenSubject,
-      applicationId,
+      applicationId: settleApplicationId,
       amountPaise: 5000,
       method: 'upi',
       gateway: 'stub',
@@ -154,7 +165,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
       redirectUrl: '/payments/stub/complete',
       idempotencyKey: `settle-${settlePaymentId}`,
       requestFingerprint,
-      expiresAt: new Date('2026-05-09T10:00:00.000Z'),
+      expiresAt: idempotencyExpiry(),
     });
 
     const principal = {
