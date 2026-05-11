@@ -34,7 +34,63 @@ export interface PaymentResponse {
   status: PaymentStatus;
   gateway: 'stub';
   gateway_order_id: string;
+  gateway_payment_id?: string | null;
+  settled_at?: string | null;
   redirect_url: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Body for Sprint 3.2 deterministic stub gateway completion — simulates PSP capture prior to webhook work in 3.1B. */
+export class StubCompletePaymentDto {
+  @ApiProperty({ example: '8c81a274-51de-42c2-9ee7-8a41ce34c4f3' })
+  @IsUUID()
+  payment_id!: string;
+
+  @ApiProperty({ example: 'stub_order_8c81a274-51de-42c2-9ee7-8a41ce34c4f3' })
+  @IsString()
+  @IsNotEmpty()
+  gateway_order_id!: string;
+}
+
+/** Citizen-safe receipt artefact emitted after Sprint 3.2 settlement — PDF worker remains future work; QR contract is canonical. */
+export interface ReceiptCitizenDto {
+  id: string;
+  receipt_number: string;
+  payment_id: string;
+  application_id: string;
+  service_code: string;
+  revenue_head_code: string;
+  amount_paise: number;
+  currency: 'INR';
+  issued_at: string;
+  /** Opaque verifier path (combine with PUBLIC_API_ORIGIN externally for absolute URLs). */
+  verification_path: string;
+  /** Machine-readable QR payload for receipt PDFs (`format` discriminator + relative verify path). */
+  qr_contract: {
+    format: 'enagar_receipt_verify_v1';
+    version: 1;
+    verification_path: string;
+  };
+}
+
+/** Public verifier response intentionally omits citizen identity and retains only audit-grade metadata. */
+export interface ReceiptVerifierDto {
+  valid: boolean;
+  receipt_number?: string;
+  issued_at?: string;
+  tenant_code?: string;
+  revenue_head_code?: string;
+  service_code?: string;
+  accounting_code?: string;
+  /** Amount payable and recognized (whole rupees in paise). */
+  amount_paise?: number;
+  currency?: 'INR';
+  gateway_order_id?: string;
+  gateway_payment_ref?: string | null;
+}
+
+export interface LedgerSettlementDto {
+  payment: PaymentResponse;
+  receipt: ReceiptCitizenDto;
 }

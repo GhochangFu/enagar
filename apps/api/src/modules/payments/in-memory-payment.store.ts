@@ -1,10 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
-import type { PaymentResponse } from './dto';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+
+import {
+  buildReceiptDisplayNumber,
+  receiptToCitizenDto,
+  stubGatewayPaymentCaptureRef,
+  verificationTokenFresh,
+} from './receipt-mapping';
+
+import type { LedgerSettlementDto, PaymentResponse, PaymentStatus, ReceiptCitizenDto } from './dto';
 import type {
   CreatePendingPaymentInput,
   ExistingIdempotencyRecord,
   PaymentStore,
+  SettlementLedgerContext,
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -13,11 +23,24 @@ interface IdempotencyRecord {
   paymentId: string;
 }
 
+function receiptSlipId(): string {
+  return randomUUID();
+}
+
+function tenantSlugForReceipt(principal: AuthenticatedPrincipal): string {
+  if (principal.tenantCode?.trim()) {
+    return principal.tenantCode.trim();
+  }
+  return principal.tenantId.slice(0, 8).replace(/[^A-Za-z0-9]/g, '') || 'TENANT';
+}
+
 @Injectable()
 export class InMemoryPaymentStore implements PaymentStore {
   private readonly payments = new Map<string, PaymentResponse>();
   private readonly activePaymentByApplication = new Map<string, string>();
   private readonly idempotencyRecords = new Map<string, IdempotencyRecord>();
+  /** Sprint 3.2 in-memory fidelity for receipt reads after deterministic stub settlement. */
+  private readonly receiptsByPayment = new Map<string, ReceiptCitizenDto>();
 
   async findIdempotencyRecord(
     principal: AuthenticatedPrincipal,
@@ -83,6 +106,77 @@ export class InMemoryPaymentStore implements PaymentStore {
       return null;
     }
     return clonePayment(payment);
+  }
+
+  async settleStubLedger(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+    gatewayOrderId: string,
+    ctx: SettlementLedgerContext,
+  ): Promise<LedgerSettlementDto> {
+    const paymentRow = await this.findByIdForPrincipal(principal, paymentId);
+    if (!paymentRow) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (paymentRow.gateway_order_id !== gatewayOrderId) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (paymentRow.status !== 'requires_action') {
+      throw new ConflictException('Payment is not awaiting deterministic completion');
+    }
+
+    const now = new Date();
+    const settled: PaymentResponse = {
+      ...paymentRow,
+      status: 'settled' satisfies PaymentStatus,
+      gateway_payment_id: stubGatewayPaymentCaptureRef(paymentId),
+      settled_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    this.payments.set(paymentId, settled);
+
+    const activePaymentId = this.activePaymentByApplication.get(settled.application_id);
+    if (activePaymentId === paymentId) {
+      this.activePaymentByApplication.delete(settled.application_id);
+    }
+
+    const verificationToken = verificationTokenFresh();
+
+    const receiptDto = receiptToCitizenDto({
+      id: receiptSlipId(),
+      receipt_number: buildReceiptDisplayNumber(tenantSlugForReceipt(principal)),
+      payment_id: paymentId,
+      application_id: paymentRow.application_id,
+      service_code: ctx.serviceCode,
+      revenue_head_code: ctx.revenueHeadCode,
+      amount_paise: paymentRow.amount_paise,
+      issued_at: now,
+      verification_token: verificationToken,
+    });
+
+    this.receiptsByPayment.set(paymentId, receiptDto);
+
+    return {
+      payment: clonePaymentResponse(settled),
+      receipt: receiptDto,
+    };
+  }
+
+  async findReceiptForPayment(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+  ): Promise<ReceiptCitizenDto | null> {
+    const receipt = this.receiptsByPayment.get(paymentId);
+    const paymentRow = await this.findByIdForPrincipal(principal, paymentId);
+
+    if (!receipt || !paymentRow || paymentRow.status !== 'settled') {
+      return null;
+    }
+
+    return receipt;
   }
 
   private canAccess(principal: AuthenticatedPrincipal, payment: PaymentResponse): boolean {

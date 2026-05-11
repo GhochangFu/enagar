@@ -671,10 +671,10 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 - **Sprint 3.1A**: Payment core without gateway credentials — `IPaymentGateway`, stub adapter, fixed-fee application payment initiation, idempotency contract, tenant/citizen isolation tests, and explicit credential-gated boundaries.
 - **Sprint 3.1B**: Real provider adapter once sandbox credentials arrive — Razorpay/PayU/state aggregator adapter, real redirect contract, webhook signature verification, replay protection, and gateway status polling.
-- **Sprint 3.2**: Receipts + GL postings + reconciliation groundwork that can run against the stub payment store without real gateway credentials.
+- **Sprint 3.2**: ✅ Receipts + GL postings + reconciliation groundwork (closed 2026-05-11 — see detailed section below).
 - **Sprint 3.4A**: Citizen payment UI + failure-handling polish against the stub gateway: initiate, retry, pending/failed states, payment history, and receipt download placeholder.
 - **Sprint 3.3A**: Deposits/refunds/challan data model and approval state machine only; real refund calls remain blocked until provider credentials and settlement contracts exist.
-- **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.2 / 3.4A / 3.3A at a clean checkpoint.
+- **Sprint 3.1B interrupt lane**: Start immediately when gateway sandbox credentials arrive, even if it interrupts 3.4A / 3.3A at a clean checkpoint.
 
 #### Sprint 3.1A — Payment Core Without Gateway Credentials
 
@@ -705,7 +705,9 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 - Real Razorpay/PayU/state-aggregator SDK calls. _Aggregator details are unavailable and explicitly deferred to a later Phase 3 provider-integration slice._
 - Public webhook handling with real signature verification.
-- Receipt PDF generation, QR verification URL, GL postings, refunds, deposits, and challans.
+- Receipt PDF/HTML worker orchestration (`Playwright` pipeline) stays future work — Sprint 3.2 issues immutable receipt rows, the public verifier endpoint + QR contract (`enagar_receipt_verify_v1`), `gl_postings`, and gated CSV reconciliation export from stub settlements.
+- Public PSP webhooks handling with signature verification remains credential-gated.
+- Automated refunds / deposits / challans (planned for separate sprints inside Phase 3).
 - Computed property-tax and legacy-backed fee collection.
 - Community hall `deposit_paise` collection. _Deposits remain Sprint 3.3 so they can share one refund/release model instead of becoming a special case in 3.1A._
 
@@ -721,22 +723,49 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 `CitizenModule` now uses `PostgresCitizenStore`, backed by `citizens.keycloak_subject`. `PostgresApplicationStore` is available behind `APPLICATION_STORE_PROVIDER=postgres`, and `PostgresPaymentStore` is available behind `PAYMENT_STORE_PROVIDER=postgres`. Both gated DB specs have passed against local Postgres, including payment/idempotency persistence against a real `applications.id` foreign key. Keep the explicit provider gates until the remaining application workflows are ready for Postgres-by-default runtime activation.
 
-#### Recommended Next Three Sprints While Gateway Credentials Are Pending
+#### Sprint 3.2 — Receipts + GL Postings + Reconciliation Groundwork
 
-1. **Sprint 3.2 — Receipts + GL Postings + Reconciliation Groundwork**
-   - Build receipt records, receipt verification URL/QR contract, `gl_postings`, and a daily reconciliation export around stub-settled payments.
-   - Keep the design provider-neutral so gateway settlement references can be added in Sprint 3.1B without rewriting finance tables.
-   - Exit when a stub payment can produce an auditable receipt and reconciliation row without storing card, UPI handle, wallet, or net-banking data.
+**Status**: completed 2026-05-11.
 
-2. **Sprint 3.4A — Citizen Payment UI + Failure Handling**
+**Goal**: turn a stub-captured payment into durable finance primitives (receipt fact, GL row, reconciliation extract) without depending on live PSP credentials, so Sprint 3.1B only adds adapter metadata instead of redesigning tables.
+
+##### In Scope
+
+1. ✅ Prisma migration `20260511093000_payment_receipts_gl` adding `receipts`, `gl_postings`, and `payments.settled_at`, each `tenant_id` scoped with RLS mirroring other finance-adjacent tables.
+2. ✅ Deterministic stub settlement API `POST /api/payments/stub/complete` guarded from production unless `ALLOW_STUB_PAYMENT_SETTLEMENT=true`.
+3. ✅ Citizen receipt artefact `GET /api/payments/:paymentId/receipt` returning the `enagar_receipt_verify_v1` QR contract (relative paths only — callers join their public origin).
+4. ✅ Public verifier `GET /api/public/receipts/verify/:token` (`@Public`) returning non-PII audit metadata for QR deep links.
+5. ✅ GL posting per settlement: debit `PG-CLEARING-STUB`, credit the catalogue `accounting_code`, `settlement_reference` defaults to the stub `gateway_order_id` until PSP settlement IDs arrive.
+6. ✅ CSV reconciliation export `GET /api/payments/reconciliation/export?business_date=YYYY-MM-DD` filtered to the India/Kolkata civil day, restricted to `tenant_admin` / `municipality_admin` / `state_admin` (tests may set `ALLOW_FINANCE_EXPORT_FOR_TESTS=true`).
+7. ✅ `ServicesService.resolveLedgerCodesForService` centralises revenue head → accounting code resolution for payment settlement.
+
+##### Out of Scope
+
+- Receipt PDF / HTML rendering workers.
+- Live PSP redirect + webhook flows (Sprint 3.1B interrupt lane).
+- Admin portal widgets (Phase 6) — export is API-only for now.
+
+##### Exit Criteria
+
+- Postgres path creates exactly one `receipts` row and one `gl_postings` row per successful stub settlement, with payment status `settled` and application `payment_status` advanced to `paid`.
+- Public verifier responds with `valid=false` for unknown tokens without differentiating why.
+- `pnpm --filter @enagar/api test`, `lint`, and `typecheck` succeed; optional `RUN_DB_TESTS=1` exercises the new settlement integration spec.
+
+#### Recommended Next Two Sprints While Gateway Credentials Are Pending
+
+1. **Sprint 3.4A — Citizen Payment UI + Failure Handling**
    - Add citizen-facing payment screens for initiate, retry, payment history, pending/failed states, and receipt download placeholder.
    - Use the deterministic stub gateway and existing payment APIs so frontend data flow is proven before the real redirect/webhook contract arrives.
    - Exit when the application flow has a clear, recoverable payment step and My Payments view.
 
-3. **Sprint 3.3A — Deposits / Refunds / Challan Model**
+2. **Sprint 3.3A — Deposits / Refunds / Challan Model**
    - Add the schema, state machine, and tests for deposits, refund approvals, and challan references only.
    - Do not implement real refund API calls until Sprint 3.1B confirms provider capabilities and settlement identifiers.
    - Exit when refundable flows are represented consistently enough for community hall deposits and later finance approval work.
+
+**Recently closed while credentials are pending**
+
+- ✅ **Sprint 3.2** — Receipt + GL + reconciliation groundwork (2026-05-11). See detailed block above.
 
 **Blocked / interrupt sprint**: Sprint 3.1B remains blocked on gateway sandbox credentials. When credentials arrive, pause the active sprint at a clean checkpoint and prioritize the real provider adapter, webhook signature verification, replay protection, and gateway status polling.
 

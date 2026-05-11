@@ -242,7 +242,11 @@ AGPL-3.0-or-later. © Government of West Bengal.
 - Sprint 1.3 — Citizen PWA/mobile onboarding contract: splash → language → OTP login → tenant picker → empty home.
 - Sprint 1.4 — i18n, runtime tenant theming, tenant onboarding CLI, CORS/security review, and OWASP ZAP auth scan.
 
-**Next:** Phase 2 sprint planning for service catalogue, application intake, and workflow foundations. DigiLocker/Aadhaar linking remains deferred until external access and permission are granted.
+**Phase 2 — Service & Workflow Engine** closed on 2026-05-07 (Sprints 2.1–2.6 per `ROADMAP.md`).
+
+**Phase 3 — Payments, Receipts & Finance** execution is in progress (`Sprint 3.1A` closed 2026-05-08; `Sprint 3.2` receipt + GL groundwork closed 2026-05-11 — see `ROADMAP.md`).
+
+**Next:** Phase 3 Sprint 3.4A — Citizen payment UX + deterministic failure/recovery polish against stub APIs prior to PSP credentials (Sprint 3.1B interrupt lane still blocked on aggregator sandbox access). Sprint 3.3A modelling deposits/refunds/challans can proceed in parallel per ROADMAP ordering. DigiLocker/Aadhaar linking remains deferred until external access and permission are granted.
 
 ---
 

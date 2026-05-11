@@ -376,14 +376,18 @@ All endpoints are versioned under `/api/v1`. JWT bearer token required except fo
 
 ### Payments
 
-- `POST /payments/initiate` — `{ application_id, amount, method }` → gateway URL
-- `POST /payments/webhook` — gateway callback (signature verified)
-- `GET  /payments` — citizen's payment history
-- `GET  /payments/:id/receipt` — PDF receipt URL
+- `POST /payments/initiate` — `{ application_id, amount_paise, method }` → stub redirect (`Idempotency-Key` required).
+- `POST /payments/stub/complete` — deterministic PSP capture surrogate for Sprint 3.2; disabled in production unless `ALLOW_STUB_PAYMENT_SETTLEMENT=true`.
+- `GET /payments` — citizen's payment history
+- `GET /payments/:id` — scoped payment snapshot
+- `GET /payments/:paymentId/receipt` — issuance metadata incl. QR contract + verifier path (`enagar_receipt_verify_v1`)
+- `GET /payments/reconciliation/export` — RBAC CSV of `gl_postings` (+ receipt/service join) keyed by IST `business_date`
+- `GET /public/receipts/verify/:token` — public QR verification payload (`@Public` route)
+- `POST /payments/webhook` — gateway callback (signature verified) arrives with Sprint 3.1B
 
-Phase 3 Sprint 3.1A starts this surface behind ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials and aggregator details are available, only the deterministic `stub` gateway is runnable; real provider redirect flows, public webhook handling, refunds, and receipt PDFs remain credential-gated. Citizen identity now uses `PostgresCitizenStore`; application persistence has `PostgresApplicationStore` behind `APPLICATION_STORE_PROVIDER=postgres`; and payment persistence has `PostgresPaymentStore` behind `PAYMENT_STORE_PROVIDER=postgres`. The gated `RUN_DB_TESTS=1` specs have passed against local Postgres, including payment attempts and idempotency keys tied to a real application foreign key.
+Phase 3 Sprint 3.1A starts this surface behind ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials and aggregator details are available, only the deterministic `stub` gateway is runnable for initiation flows; Sprint 3.2 adds synchronous stub settlement emitting `receipts`, `gl_postings`, verifier APIs, and finance CSV groundwork. Receipt PDF/HTML workers, public PSP webhook verification, aggregated PDF reconciliation extracts, refunds, deposits, and challans remain credential- or roadmap-gated. Citizen identity now uses `PostgresCitizenStore`; application persistence has `PostgresApplicationStore` behind `APPLICATION_STORE_PROVIDER=postgres`; payment persistence flows through `PostgresPaymentStore` once `PAYMENT_STORE_PROVIDER=postgres`. `RUN_DB_TESTS=1` continues to gate Postgres integration proofs, now including Sprint 3.2 settlement lines.
 
-The next executable payment slices are intentionally ordered around what does not require live gateway access: Sprint 3.2 adds receipt, GL posting, and reconciliation groundwork around stub payments; Sprint 3.4A proves the citizen payment UI and recoverable failure states against the existing API; Sprint 3.3A models deposits, refund approvals, and challan references without real refund API calls. Sprint 3.1B remains an interrupt lane for real provider adapter work as soon as sandbox credentials arrive.
+Remaining Phase 3 ordering without PSP access: Sprint 3.4A wires citizen payment UX + failure UX on these APIs; Sprint 3.3A narrows deposits/refunds/challan schemas without PSP refund calls; Sprint 3.2 is closed (2026-05-11). Sprint 3.1B remains the PSP interrupt lane.
 
 ### Grievances
 

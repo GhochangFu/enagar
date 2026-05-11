@@ -1,5 +1,11 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
+import { PrismaService } from '../../common/database/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { InMemoryApplicationStore } from '../applications/in-memory-application.store';
 import { ServicesService } from '../services/services.service';
@@ -42,8 +48,14 @@ const birthCertificateForm = {
 describe('PaymentsService', () => {
   let applications: ApplicationsService;
   let payments: PaymentsService;
+  let prisma: { glPosting: { findMany: jest.Mock } };
 
   beforeEach(() => {
+    prisma = {
+      glPosting: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
     const services = new ServicesService();
     applications = new ApplicationsService(services, new InMemoryApplicationStore());
     payments = new PaymentsService(
@@ -51,6 +63,7 @@ describe('PaymentsService', () => {
       services,
       new StubPaymentGateway(),
       new InMemoryPaymentStore(),
+      prisma as unknown as PrismaService,
     );
   });
 
@@ -172,5 +185,83 @@ describe('PaymentsService', () => {
         'wrong-amount',
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('settles deterministic stub captures and attaches receipt artefacts', async () => {
+    const application = await applications.create(citizenA, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+
+    const payment = await payments.initiate(
+      citizenA,
+      {
+        application_id: application.id,
+        amount_paise: 5000,
+        method: 'upi',
+      },
+      'settle-flow',
+    );
+
+    const ledger = await payments.completeStubPayment(citizenA, {
+      payment_id: payment.id,
+      gateway_order_id: StubPaymentGateway.expectedOrderIdForPayment(payment.id),
+    });
+
+    expect(ledger.payment.status).toBe('settled');
+    expect(ledger.receipt.qr_contract.format).toBe('enagar_receipt_verify_v1');
+    expect(ledger.receipt.verification_path).toContain('/api/public/receipts/verify/');
+
+    await expect(payments.receiptForOwnedPayment(citizenA, payment.id)).resolves.toMatchObject({
+      receipt_number: ledger.receipt.receipt_number,
+    });
+
+    await expect(
+      applications.getByDocketNo(citizenA, application.docket_no),
+    ).resolves.toMatchObject({
+      payment_status: 'paid',
+    });
+  });
+
+  it('does not settle twice without idempotent replay safeguards', async () => {
+    const application = await applications.create(citizenA, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+
+    const payment = await payments.initiate(
+      citizenA,
+      {
+        application_id: application.id,
+        amount_paise: 5000,
+        method: 'upi',
+      },
+      'double-settle',
+    );
+
+    const dto = {
+      payment_id: payment.id,
+      gateway_order_id: StubPaymentGateway.expectedOrderIdForPayment(payment.id),
+    };
+
+    await payments.completeStubPayment(citizenA, dto);
+    await expect(payments.completeStubPayment(citizenA, dto)).rejects.toThrow(ConflictException);
+  });
+
+  it('allows finance exports for privileged roles only', async () => {
+    const financePrincipal = { ...citizenA, roles: [...citizenA.roles, 'tenant_admin'] };
+
+    await expect(payments.exportReconciliationCsv(citizenA, '2026-05-10')).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    const csv = await payments.exportReconciliationCsv(financePrincipal, '2026-05-10');
+    expect(csv).toContain('tenant_id');
+
+    await expect(payments.exportReconciliationCsv(financePrincipal, 'not-a-date')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(prisma.glPosting.findMany).toHaveBeenCalled();
   });
 });

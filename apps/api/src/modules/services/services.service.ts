@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { tenantSeeds } from '../tenants/tenant.seed';
 
@@ -25,6 +25,24 @@ export class ServicesService {
 
   listRevenueHeads(): RevenueHeadSeed[] {
     return [...revenueHeads].sort((left, right) => left.code.localeCompare(right.code));
+  }
+
+  /** Resolves canonical revenue + accounting codes for Sprint 3.2 ledger posting. */
+  resolveLedgerCodesForService(service: EffectiveServiceSummary): {
+    revenue_head_code: string;
+    accounting_code: string;
+  } {
+    const code = service.revenue_head_code;
+    if (!code) {
+      throw new BadRequestException('Service has no revenue head; cannot post payment to GL');
+    }
+
+    const revenue = revenueHeads.find((head) => head.code === code);
+    if (!revenue) {
+      throw new NotFoundException(`Revenue head '${code}' missing from catalogue`);
+    }
+
+    return { revenue_head_code: code, accounting_code: revenue.accounting_code };
   }
 
   listGlobalServices(): GlobalServiceSeed[] {

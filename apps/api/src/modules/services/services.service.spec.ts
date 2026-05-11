@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import {
   globalServices,
@@ -86,6 +86,19 @@ describe('ServicesService', () => {
     }
 
     expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it('maps catalogue revenue heads to GL accounting codes', () => {
+    const birth = service.getTenantService('KMC', 'birth-cert');
+    expect(service.resolveLedgerCodesForService(birth)).toEqual({
+      revenue_head_code: 'cert-fee',
+      accounting_code: 'RH-CERT',
+    });
+  });
+
+  it('blocks GL lookups when catalogue revenue heads are absent', () => {
+    const sanitation = service.getTenantService('KMC', 'sanitation-grievance');
+    expect(() => service.resolveLedgerCodesForService(sanitation)).toThrow(BadRequestException);
   });
 });
 

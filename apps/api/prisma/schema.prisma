@@ -31,6 +31,8 @@ model Tenant {
   applications     Application[]
   paymentIdempotencyKeys PaymentIdempotencyKey[]
   payments         Payment[]
+  receipts         Receipt[]
+  glPostings       GlPosting[]
   holdingLookupAudit HoldingLookupAudit[]
   holdingRecords   HoldingRecord[]
   roleStageMaps    RoleStageMap[]
@@ -429,6 +431,7 @@ model Application {
   documents       ApplicationDocument[]
   formVersionRef  ServiceFormVersion?   @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
   payments        Payment[]
+  receipts        Receipt[]
   service         TenantService         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   timeline        ApplicationTimeline[]
@@ -513,9 +516,12 @@ model Payment {
   failureMessage     String?                 @map("failure_message") @db.VarChar(500)
   createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  settledAt          DateTime?               @map("settled_at") @db.Timestamptz(6)
   application        Application             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   idempotencyRecords PaymentIdempotencyKey[]
   tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipt            Receipt?
+  glPosting          GlPosting?
 
   @@unique([tenantId, gateway, gatewayOrderId])
   @@index([tenantId, citizenSubject, createdAt])
@@ -538,6 +544,56 @@ model PaymentIdempotencyKey {
   @@unique([tenantId, citizenSubject, idempotencyKey])
   @@index([tenantId, paymentId])
   @@map("payment_idempotency_keys")
+}
+
+model Receipt {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String      @map("tenant_id") @db.Uuid
+  paymentId          String      @unique @map("payment_id") @db.Uuid
+  receiptNumber      String      @map("receipt_number") @db.VarChar(48)
+  verificationToken  String      @unique @map("verification_token") @db.Uuid
+  revenueHeadCode    String      @map("revenue_head_code") @db.VarChar(50)
+  accountingCode     String      @map("accounting_code") @db.VarChar(50)
+  applicationId      String      @map("application_id") @db.Uuid
+  serviceCode        String      @map("service_code") @db.VarChar(80)
+  amountPaise        Int         @map("amount_paise")
+  currency           String      @default("INR") @db.Char(3)
+  gateway            String      @db.VarChar(80)
+  gatewayOrderId     String      @map("gateway_order_id") @db.VarChar(160)
+  gatewayPaymentRef  String?     @map("gateway_payment_ref") @db.VarChar(160)
+  qrPayloadVersion   Int         @default(1) @map("qr_payload_version")
+  issuedAt           DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
+  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  payment            Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tenant             Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  glPosting          GlPosting?
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId, issuedAt])
+  @@index([tenantId, applicationId])
+  @@map("receipts")
+}
+
+model GlPosting {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  paymentId            String    @unique @map("payment_id") @db.Uuid
+  receiptId            String    @unique @map("receipt_id") @db.Uuid
+  revenueHeadCode      String    @map("revenue_head_code") @db.VarChar(50)
+  debitAccountCode     String    @map("debit_account_code") @db.VarChar(50)
+  creditAccountCode    String    @map("credit_account_code") @db.VarChar(50)
+  amountPaise          Int       @map("amount_paise")
+  currency             String    @default("INR") @db.Char(3)
+  settlementReference  String    @map("settlement_reference") @db.VarChar(160)
+  gateway              String    @db.VarChar(80)
+  postedAt             DateTime  @default(now()) @map("posted_at") @db.Timestamptz(6)
+  payment              Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  receipt              Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, postedAt])
+  @@index([tenantId, settlementReference])
+  @@map("gl_postings")
 }
 
 model HoldingRecord {

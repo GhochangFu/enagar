@@ -21,9 +21,9 @@ The platform still needs to move forward. Idempotency, tenant/citizen ownership 
 
 The API and domain services must depend on the interface, not on Razorpay/PayU SDKs directly. The first runnable implementation is `StubPaymentGateway`, used for local development, CI, and demos. Real gateway adapters remain credential-gated and aggregator-gated; they must be added without changing controller contracts or citizen-facing payment lifecycle semantics.
 
-Sprint 3.1A covers fixed-fee application payments only. Computed fees, deposits, refunds, challans, and receipt PDFs are intentionally deferred to later Phase 3 slices. Payment attempts and idempotency keys are modelled in Postgres immediately because payment correctness must not depend on process-local memory. The API therefore uses async-ready `CitizenStore`, `ApplicationStore`, and `PaymentStore` boundaries. `CitizenStore` is now backed by Postgres; `PostgresApplicationStore` is available behind `APPLICATION_STORE_PROVIDER=postgres`; and `PostgresPaymentStore` is available behind `PAYMENT_STORE_PROVIDER=postgres`. Gated `RUN_DB_TESTS=1` specs have passed against local Postgres for application persistence and payment/idempotency persistence against a real application foreign key.
+Sprint 3.1A covers fixed-fee application payments only. Computed fees, deposits, refunds, and challans remain later slices. Sprint 3.2 **(closed 2026-05-11)** shipped immutable `receipts`, public verifier + QR contract metadata, `gl_postings`, IST-day CSV reconciliation groundwork, deterministic stub settlements, and `PaymentsService`/`PostgresPaymentStore` integration tests for those rows; printable receipt PDF/HTML pipelines stay future work. Payment correctness continues to rely on Postgres persistence via async-ready `CitizenStore`, `ApplicationStore`, and `PaymentStore`; `CitizenStore` stays Postgres-backed, while `APPLICATION_STORE_PROVIDER=postgres` and `PAYMENT_STORE_PROVIDER=postgres` remain explicit activation gates.
 
-Until real gateway sandbox credentials arrive, the next Phase 3 sequence is: Sprint 3.2 for receipts, GL postings, and reconciliation groundwork; Sprint 3.4A for citizen payment UI and recoverable failure states; and Sprint 3.3A for deposit/refund/challan data modelling without real refund API calls. Sprint 3.1B remains an interrupt lane and starts as soon as provider credentials and sandbox documentation are available.
+Until PSP sandbox credentials land, backlog ordering is Sprint 3.4A (citizen payment UX / failure UX), Sprint 3.3A (deposit/refund/challan schema without PSP refund RPCs), and Sprint 3.1B as the PSP interrupt lane.
 
 ## Alternatives considered
 
@@ -53,14 +53,15 @@ Until real gateway sandbox credentials arrive, the next Phase 3 sequence is: Spr
 - Choose the first real provider once aggregator details and sandbox access are confirmed: Razorpay, PayU, or a state-contracted aggregator.
 - Add real webhook signature verification and replay protection before exposing public webhook processing.
 - Keep provider activation explicit (`APPLICATION_STORE_PROVIDER=postgres`, `PAYMENT_STORE_PROVIDER=postgres`) until the remaining application workflows are ready for Postgres-by-default runtime activation.
-- Execute gateway-independent slices in this order while credentials are pending: Sprint 3.2 receipts/GL/reconciliation, Sprint 3.4A citizen payment UI, then Sprint 3.3A deposit/refund/challan modelling.
+- Execute gateway-independent slices in this order while credentials are pending: Sprint 3.4A citizen payment UI, Sprint 3.3A deposit/refund/challan modelling (**receipt / GL groundwork completed in Sprint 3.2, 2026-05-11**).
 
 ## Compliance / verification
 
 - `POST /payments/initiate` must require an `Idempotency-Key` header.
 - Reusing an idempotency key with a different body must fail.
 - Cross-tenant and cross-citizen payment access must return non-data-bearing not-found errors.
-- `RUN_DB_TESTS=1` must prove Postgres application persistence and payment/idempotency persistence against the real `payments.application_id` foreign key before enabling Postgres payment storage in runtime environments.
+- `RUN_DB_TESTS=1` must prove Postgres application persistence, payment/idempotency persistence against `payments.application_id`, **and Sprint 3.2 settlement (`receipts` + `gl_postings`)** before widening Postgres payment activation in runtime environments.
+- `POST /payments/stub/complete` must remain production gated (`ALLOW_STUB_PAYMENT_SETTLEMENT`) until Sprint 3.1B redirects/webhooks supersede deterministic capture.
 - Real gateway adapters must implement `IPaymentGateway`; controller code must not import provider SDKs.
 
 ## References

@@ -1,50 +1,49 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
 
-import type { PaymentMethod, PaymentResponse, PaymentStatus } from './dto';
+import { STUB_GATEWAY_DEBIT_ACCOUNT_CODE } from './payment-financial.constants';
+import {
+  buildReceiptDisplayNumber,
+  receiptToCitizenDto,
+  stubGatewayPaymentCaptureRef,
+  verificationTokenFresh,
+} from './receipt-mapping';
+
+import type {
+  LedgerSettlementDto,
+  PaymentMethod,
+  PaymentResponse,
+  PaymentStatus,
+  ReceiptCitizenDto,
+} from './dto';
 import type {
   CreatePendingPaymentInput,
   ExistingIdempotencyRecord,
   PaymentStore,
+  SettlementLedgerContext,
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { Payment as PrismaPayment, Receipt as PrismaReceipt } from '../../generated/prisma';
 
-interface PaymentRow {
-  id: string;
-  tenantId: string;
-  citizenSubject: string;
-  applicationId: string;
-  amountPaise: number;
-  currency: string;
-  method: string;
-  status: string;
-  gateway: string;
-  gatewayOrderId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface PaymentTransactionClient {
-  payment: {
-    create(args: unknown): Promise<PaymentRow>;
-    findFirst(args: unknown): Promise<PaymentRow | null>;
-    findUnique(args: unknown): Promise<PaymentRow | null>;
-    findMany(args: unknown): Promise<PaymentRow[]>;
-  };
-  paymentIdempotencyKey: {
-    create(args: unknown): Promise<unknown>;
-    findUnique(args: unknown): Promise<{ requestFingerprint: string; paymentId: string } | null>;
-  };
+function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
+  return receiptToCitizenDto({
+    id: receiptRow.id,
+    receipt_number: receiptRow.receiptNumber,
+    payment_id: receiptRow.paymentId,
+    application_id: receiptRow.applicationId,
+    service_code: receiptRow.serviceCode,
+    revenue_head_code: receiptRow.revenueHeadCode,
+    amount_paise: receiptRow.amountPaise,
+    issued_at: receiptRow.issuedAt,
+    verification_token: receiptRow.verificationToken,
+  });
 }
 
 /**
- * Postgres-backed store for the Phase 3.1A payment tables.
+ * Postgres-backed store for the Phase 3.1A+ payment tables, including Sprint 3.2 ledger artefacts.
  *
- * This is intentionally not the active provider yet because the current
- * ApplicationService still creates applications in memory. Enabling this store
- * requires the store contracts to be async and the application rows to be
- * persisted first so the payment FK remains meaningful.
+ * Activated when PAYMENT_STORE_PROVIDER=postgres applications are persisted.
  */
 @Injectable()
 export class PostgresPaymentStore implements PaymentStore {
@@ -83,12 +82,12 @@ export class PostgresPaymentStore implements PaymentStore {
         status: 'requires_action',
       },
     });
-    return payment ? toPaymentResponse(payment) : null;
+    return payment ? this.toPaymentResponse(payment) : null;
   }
 
   async createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse> {
-    const payment = await this.db.$transaction(async (client: PaymentTransactionClient) => {
-      const created = await client.payment.create({
+    const payment = await this.db.$transaction(async (tx) => {
+      const created = await tx.payment.create({
         data: {
           id: input.id,
           tenantId: input.tenantId,
@@ -103,7 +102,7 @@ export class PostgresPaymentStore implements PaymentStore {
         },
       });
 
-      await client.paymentIdempotencyKey.create({
+      await tx.paymentIdempotencyKey.create({
         data: {
           tenantId: input.tenantId,
           citizenSubject: input.citizenSubject,
@@ -117,7 +116,7 @@ export class PostgresPaymentStore implements PaymentStore {
       return created;
     });
 
-    return toPaymentResponse(payment);
+    return this.toPaymentResponse(payment);
   }
 
   async listByPrincipal(principal: AuthenticatedPrincipal): Promise<PaymentResponse[]> {
@@ -130,7 +129,7 @@ export class PostgresPaymentStore implements PaymentStore {
         createdAt: 'desc',
       },
     });
-    return payments.map(toPaymentResponse);
+    return payments.map((row) => this.toPaymentResponse(row));
   }
 
   async findByIdForPrincipal(
@@ -149,24 +148,146 @@ export class PostgresPaymentStore implements PaymentStore {
     ) {
       return null;
     }
-    return toPaymentResponse(payment);
+    return this.toPaymentResponse(payment);
   }
-}
 
-function toPaymentResponse(row: PaymentRow): PaymentResponse {
-  return {
-    id: row.id,
-    tenant_id: row.tenantId,
-    citizen_subject: row.citizenSubject,
-    application_id: row.applicationId,
-    amount_paise: row.amountPaise,
-    currency: 'INR',
-    method: row.method as PaymentMethod,
-    status: row.status as PaymentStatus,
-    gateway: 'stub',
-    gateway_order_id: row.gatewayOrderId,
-    redirect_url: `/payments/stub/complete?payment_id=${row.id}&order_id=${row.gatewayOrderId}`,
-    created_at: row.createdAt.toISOString(),
-    updated_at: row.updatedAt.toISOString(),
-  };
+  async settleStubLedger(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+    gatewayOrderId: string,
+    ctx: SettlementLedgerContext,
+  ): Promise<LedgerSettlementDto> {
+    const result = await this.db.$transaction(async (tx) => {
+      const paymentOwned = await tx.payment.findUnique({
+        where: { id: paymentId },
+      });
+
+      if (
+        !paymentOwned ||
+        paymentOwned.tenantId !== principal.tenantId ||
+        paymentOwned.citizenSubject !== principal.subject
+      ) {
+        throw new NotFoundException('Payment not found');
+      }
+
+      if (paymentOwned.gatewayOrderId !== gatewayOrderId) {
+        throw new NotFoundException('Payment not found');
+      }
+
+      if (paymentOwned.status !== 'requires_action') {
+        throw new ConflictException('Payment is not awaiting deterministic completion');
+      }
+
+      const captureRef = stubGatewayPaymentCaptureRef(paymentOwned.id);
+
+      const tenantMeta = await tx.tenant.findUnique({
+        where: { id: paymentOwned.tenantId },
+        select: { code: true },
+      });
+
+      const tenantSlug = tenantMeta?.code.trim() ?? 'TENANT';
+      const receiptNumber = buildReceiptDisplayNumber(tenantSlug);
+      const verificationToken = verificationTokenFresh();
+
+      const receiptCreated = await tx.receipt.create({
+        data: {
+          tenantId: paymentOwned.tenantId,
+          paymentId: paymentOwned.id,
+          receiptNumber,
+          verificationToken,
+          revenueHeadCode: ctx.revenueHeadCode,
+          accountingCode: ctx.accountingCode,
+          applicationId: paymentOwned.applicationId,
+          serviceCode: ctx.serviceCode,
+          amountPaise: paymentOwned.amountPaise,
+          gateway: paymentOwned.gateway,
+          gatewayOrderId: paymentOwned.gatewayOrderId,
+          gatewayPaymentRef: captureRef,
+        },
+      });
+
+      await tx.glPosting.create({
+        data: {
+          tenantId: paymentOwned.tenantId,
+          paymentId: paymentOwned.id,
+          receiptId: receiptCreated.id,
+          revenueHeadCode: ctx.revenueHeadCode,
+          debitAccountCode: STUB_GATEWAY_DEBIT_ACCOUNT_CODE,
+          creditAccountCode: ctx.accountingCode,
+          amountPaise: paymentOwned.amountPaise,
+          settlementReference: paymentOwned.gatewayOrderId,
+          gateway: paymentOwned.gateway,
+        },
+      });
+
+      const settledPayment = await tx.payment.update({
+        where: { id: paymentOwned.id },
+        data: {
+          status: 'settled',
+          gatewayPaymentId: captureRef,
+          settledAt: new Date(),
+        },
+      });
+
+      return {
+        payment: settledPayment,
+        receipt: receiptCreated,
+      };
+    });
+
+    return {
+      payment: this.toPaymentResponse(result.payment),
+      receipt: mapPersistedReceipt(result.receipt),
+    };
+  }
+
+  async findReceiptForPayment(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+  ): Promise<ReceiptCitizenDto | null> {
+    const receipt = await this.db.receipt.findFirst({
+      where: {
+        paymentId,
+        tenantId: principal.tenantId,
+        payment: {
+          citizenSubject: principal.subject,
+        },
+      },
+    });
+
+    const paymentSnapshot = await this.db.payment.findFirst({
+      where: {
+        id: paymentId,
+        tenantId: principal.tenantId,
+        citizenSubject: principal.subject,
+        status: 'settled',
+      },
+    });
+
+    if (!receipt || !paymentSnapshot) {
+      return null;
+    }
+
+    return mapPersistedReceipt(receipt);
+  }
+
+  private toPaymentResponse(row: PrismaPayment): PaymentResponse {
+    return {
+      id: row.id,
+      tenant_id: row.tenantId,
+      citizen_subject: row.citizenSubject,
+      application_id: row.applicationId,
+      amount_paise: row.amountPaise,
+      currency: 'INR',
+      method: row.method as PaymentMethod,
+      status: row.status as PaymentStatus,
+      gateway: 'stub',
+      gateway_order_id: row.gatewayOrderId,
+      gateway_payment_id: row.gatewayPaymentId,
+      settled_at: row.settledAt ? row.settledAt.toISOString() : null,
+      redirect_url: `/payments/stub/complete?payment_id=${row.id}&order_id=${row.gatewayOrderId}`,
+      created_at: row.createdAt.toISOString(),
+      updated_at: row.updatedAt.toISOString(),
+    };
+  }
 }

@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentResponse } from './dto';
+import type { LedgerSettlementDto, PaymentMethod, PaymentResponse, ReceiptCitizenDto } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
 export const PAYMENT_STORE = 'PAYMENT_STORE';
@@ -18,6 +18,13 @@ export interface CreatePendingPaymentInput {
   expiresAt: Date;
 }
 
+/** Revenue / GL lineage resolved from catalogue at settlement time — provider-neutral identifiers only. */
+export interface SettlementLedgerContext {
+  revenueHeadCode: string;
+  accountingCode: string;
+  serviceCode: string;
+}
+
 export interface ExistingIdempotencyRecord {
   fingerprint: string;
   paymentId: string;
@@ -35,4 +42,16 @@ export interface PaymentStore {
     principal: AuthenticatedPrincipal,
     paymentId: string,
   ): Promise<PaymentResponse | null>;
+
+  settleStubLedger(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+    gatewayOrderId: string,
+    ctx: SettlementLedgerContext,
+  ): Promise<LedgerSettlementDto>;
+
+  findReceiptForPayment(
+    principal: AuthenticatedPrincipal,
+    paymentId: string,
+  ): Promise<ReceiptCitizenDto | null>;
 }

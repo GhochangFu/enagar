@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import { PostgresApplicationStore } from '../applications/postgres-application.store';
 
+import { STUB_GATEWAY_DEBIT_ACCOUNT_CODE } from './payment-financial.constants';
 import { PostgresPaymentStore } from './postgres-payment.store';
 
+import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { ApplicationResponse } from '../applications/dto';
 
 const describeDb = process.env.RUN_DB_TESTS === '1' ? describe : describe.skip;
@@ -135,5 +137,60 @@ describeDb('PostgresPaymentStore DB integration', () => {
         id: paymentId,
       },
     );
+  });
+
+  it('settles stub capture with receipt + gl rows (Sprint 3.2)', async () => {
+    const settlePaymentId = randomUUID();
+
+    await paymentStore.createPendingPayment({
+      id: settlePaymentId,
+      tenantId,
+      citizenSubject,
+      applicationId,
+      amountPaise: 5000,
+      method: 'upi',
+      gateway: 'stub',
+      gatewayOrderId: `stub_order_${settlePaymentId}`,
+      redirectUrl: '/payments/stub/complete',
+      idempotencyKey: `settle-${settlePaymentId}`,
+      requestFingerprint,
+      expiresAt: new Date('2026-05-09T10:00:00.000Z'),
+    });
+
+    const principal = {
+      subject: citizenSubject,
+      tenantId,
+      tenantCode,
+      roles: ['citizen'],
+      expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+    } satisfies AuthenticatedPrincipal;
+
+    const ledger = await paymentStore.settleStubLedger(
+      principal,
+      settlePaymentId,
+      `stub_order_${settlePaymentId}`,
+      {
+        revenueHeadCode: 'cert-fee',
+        accountingCode: 'RH-CERT',
+        serviceCode,
+      },
+    );
+
+    expect(ledger.payment.status).toBe('settled');
+    await expect(
+      prisma.glPosting.findFirst({ where: { paymentId: settlePaymentId } }),
+    ).resolves.toMatchObject({
+      debitAccountCode: STUB_GATEWAY_DEBIT_ACCOUNT_CODE,
+      creditAccountCode: 'RH-CERT',
+      amountPaise: 5000,
+    });
+    await expect(
+      prisma.receipt.findFirst({ where: { paymentId: settlePaymentId } }),
+    ).resolves.toMatchObject({
+      revenueHeadCode: 'cert-fee',
+    });
+    await expect(
+      paymentStore.findReceiptForPayment(principal, settlePaymentId),
+    ).resolves.not.toBeNull();
   });
 });

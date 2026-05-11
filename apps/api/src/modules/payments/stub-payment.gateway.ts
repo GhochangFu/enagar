@@ -10,8 +10,12 @@ import type {
 export class StubPaymentGateway implements IPaymentGateway {
   readonly id = 'stub' as const;
 
+  static expectedOrderIdForPayment(paymentId: string): string {
+    return `stub_order_${paymentId}`;
+  }
+
   async initiate(input: PaymentGatewayInitiateInput): Promise<PaymentGatewayInitiateResult> {
-    const gatewayOrderId = `stub_order_${input.paymentId}`;
+    const gatewayOrderId = StubPaymentGateway.expectedOrderIdForPayment(input.paymentId);
 
     return {
       gateway: this.id,
