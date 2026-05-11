@@ -779,7 +779,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 ### Programme status (2026-05-11)
 
-**Active track:** Phase 4 is the next delivery programme. **Sprint 4.1** (below) is the immediate planned slice. **Sprint 3.1B** (real PSP adapter and webhooks) remains **blocked** on gateway sandbox credentials and is still the **interrupt lane** when credentials arrive.
+**Sprint 4.1** (DB + APIs + SLA) is **closed** — see delivery table under “Sprint 4.1 — kickoff backlog”. **Sprint 4.2** (citizen UI) is next. **Sprint 3.1B** (PSP adapter) remains **blocked** on credentials and stays the **interrupt lane** when they arrive.
 
 ### Goal
 
@@ -834,7 +834,7 @@ End-to-end grievance management: file → categorise → route to ward / departm
 - **Sprint 4.2**: Citizen UI + auto-routing.
 - **Sprint 4.3**: Escalations + reopen + rating + hardening.
 
-#### Sprint 4.1 — kickoff backlog (planning only; implementation follows)
+#### Sprint 4.1 — kickoff backlog _(implemented; see delivery note below)_
 
 Foundation slice while PSP credentials remain unavailable. Outcome: tenant-safe persistence and server APIs so **Sprint 4.2** can add the citizen PWA surface without redesigning tables.
 
@@ -847,6 +847,16 @@ Foundation slice while PSP credentials remain unavailable. Outcome: tenant-safe 
 | **Quality**    | Unit tests for lifecycle and routing; gated `RUN_DB_TESTS=1` integration against Postgres where applicable.                                                                                                                                                                                                                       |
 
 **Explicitly out of 4.1:** tenant-admin routing editor (Phase 6); full citizen PWA Grievance tab (**Sprint 4.2**); Field Officer app (Phase 9).
+
+#### Sprint 4.1 — delivery note (closed 2026-05-11)
+
+| Exit item (4.1 scope)                                                                             | Met |
+| ------------------------------------------------------------------------------------------------- | --- |
+| Prisma models + migration `20260512100000_grievances_sla` with RLS on grievance tables            | ✅  |
+| Citizen + staff HTTP APIs under `/api/grievances/*` (see `ARCHITECTURE.md` §5)                    | ✅  |
+| Seeded `sla_policies` + `grievance_routing_rules` via `pnpm db:seed`                              | ✅  |
+| SLA deadline persistence + staff `POST .../staff/sweep-sla` breach pass                           | ✅  |
+| Unit tests (`grievance-lifecycle.spec.ts`) + gated DB spec (`RUN_DB_TESTS=1`) + security contract | ✅  |
 
 ---
 
@@ -1390,7 +1400,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete.** Phase 3 payment/finance slices through **3.3A** are closed (stub rail, receipts/GL, citizen payment UI, deposits/refunds/challans). **Sprint 3.1B** is still blocked on real gateway credentials. **Phase 4 (Grievances & SLA)** is the active programme; **Sprint 4.1** is next (see §Phase 4).
+**Current state**: **Phase 2 complete.** **Sprint 4.1** (grievance schema, APIs, SLA foundation) is **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Sprint 4.2** (citizen grievance UI) is next; **Phase 4** programme continues.
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1436,7 +1446,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Execute **Phase 4 — Sprint 4.1** (grievance schema, APIs, SLA foundation) while credentials remain unavailable. **Prioritise Sprint 3.1B** immediately when gateway sandbox credentials land (interrupt lane). Optional parallel work: security/ops hardening per programme priorities.
+**Next action**: Execute **Phase 4 — Sprint 4.2** (citizen PWA grievance filing + list/detail). **Prioritise Sprint 3.1B** when gateway sandbox credentials land. Optional parallel hardening per programme priorities.
 
 ---
 

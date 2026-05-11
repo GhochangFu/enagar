@@ -403,11 +403,18 @@ Phase 3 Sprint 3.1A introduced ADR-0006's `IPaymentGateway` adapter. Until gatew
 
 ### Grievances
 
-- `POST /grievances` — `{ category, description, location, photos[] }`
-- `GET  /grievances` — citizen's own
-- `GET  /grievances/:id`
-- `POST /grievances/:id/comment`
-- `POST /grievances/:id/feedback` — `{ rating, comment }`
+Sprint 4.1 implements tenant-scoped grievance persistence under the global **`/api`** prefix:
+
+- `POST /api/grievances` — `{ category, description, location?, photos?, grievance_priority? }` — **citizen**
+- `GET /api/grievances` — citizen: own; staff: whole tenant (RBAC)
+- `GET /api/grievances/:id` — detail + `timeline[]` — owner or staff
+- `POST /api/grievances/:id/comment` — `{ body }` — owner or staff
+- `POST /api/grievances/:id/feedback` — `{ rating, comment? }` — **citizen**, when `status = resolved`
+- `POST /api/grievances/:id/assign` — `{ user_id }` — **staff** (`municipality_clerk` | `municipality_admin` | `tenant_admin` | `state_admin`)
+- `PATCH /api/grievances/:id/status` — `{ status, note? }` — **staff**, lifecycle-guarded
+- `POST /api/grievances/staff/sweep-sla` — set `sla_breached_at` for overdue open cases — **staff**
+
+SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from **`grievance_routing_rules`** (MVP `municipality_clerk`). Real-time notifications remain future work (`notification-worker`).
 
 ### Chatbot
 

@@ -12,17 +12,19 @@ NestJS backend for eNagarSeba.
 
 ## Current surface
 
-| Route                                                                                                     | Purpose                                      |
-| --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `GET /healthz`                                                                                            | Liveness — heap check                        |
-| `GET /ready`                                                                                              | Readiness — RSS check                        |
-| `GET /health`                                                                                             | Plain smoke-test health marker               |
-| `GET /docs`                                                                                               | Swagger UI                                   |
-| `POST /api/auth/send-otp`, `POST /api/auth/verify-otp`, `POST /api/auth/refresh`, `POST /api/auth/logout` | Citizen auth flow                            |
-| `GET /api/tenants`, `GET /api/tenants/:id/config`                                                         | Public tenant picker/config data             |
-| `POST /api/citizen/register`, `GET /api/citizen/profile`, `PATCH /api/citizen/profile`                    | JWT-protected citizen profile API            |
-| `PATCH /api/citizen/language`, `POST /api/citizen/select-tenant`                                          | JWT-protected citizen preference/tenant APIs |
-| `POST /api/auth/aadhaar-link`                                                                             | Placeholder; real DigiLocker is blocked      |
+| Route                                                                                                     | Purpose                                                 |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `GET /healthz`                                                                                            | Liveness — heap check                                   |
+| `GET /ready`                                                                                              | Readiness — RSS check                                   |
+| `GET /health`                                                                                             | Plain smoke-test health marker                          |
+| `GET /docs`                                                                                               | Swagger UI                                              |
+| `POST /api/auth/send-otp`, `POST /api/auth/verify-otp`, `POST /api/auth/refresh`, `POST /api/auth/logout` | Citizen auth flow                                       |
+| `GET /api/tenants`, `GET /api/tenants/:id/config`                                                         | Public tenant picker/config data                        |
+| `POST /api/citizen/register`, `GET /api/citizen/profile`, `PATCH /api/citizen/profile`                    | JWT-protected citizen profile API                       |
+| `PATCH /api/citizen/language`, `POST /api/citizen/select-tenant`                                          | JWT-protected citizen preference/tenant APIs            |
+| `POST /api/auth/aadhaar-link`                                                                             | Placeholder; real DigiLocker is blocked                 |
+| `POST /api/grievances`, `GET /api/grievances`, `GET /api/grievances/:id`                                  | Sprint 4.1 grievances + timeline (citizen / staff RBAC) |
+| `PATCH /api/grievances/:id/status`, `POST /api/grievances/staff/sweep-sla`                                | Staff SLA sweep + status transitions                    |
 
 ## Tenant resolution
 

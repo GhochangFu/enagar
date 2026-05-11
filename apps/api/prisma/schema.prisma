@@ -36,6 +36,11 @@ model Tenant {
   deposits         Deposit[]
   refundDispatches RefundDispatch[]
   challans         Challan[]
+  grievances       Grievance[]
+  grievanceRoutingRules GrievanceRoutingRule[]
+  grievanceSlaPolicies SlaPolicy[]
+  grievanceTimelineEntries GrievanceTimelineEntry[]
+  grievanceAttachments GrievanceAttachment[]
   holdingLookupAudit HoldingLookupAudit[]
   holdingRecords   HoldingRecord[]
   roleStageMaps    RoleStageMap[]
@@ -86,6 +91,7 @@ model Citizen {
   applications   Application[]
   deposits       Deposit[]
   challans       Challan[]
+  grievances     Grievance[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -108,6 +114,8 @@ model User {
   tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userRoles      UserRole[]
   challansIssued Challan[]
+  grievancesAssigned Grievance[]          @relation("GrievanceAssignee")
+  grievanceRoutingAssigns GrievanceRoutingRule[] @relation("RoutingAssignUser")
 
   @@unique([tenantId, username])
   @@index([tenantId, status])
@@ -168,6 +176,7 @@ model Ward {
   borough       Borough?   @relation(fields: [boroughId], references: [id], onDelete: SetNull)
   citizens      Citizen[]
   localities    Locality[]
+  grievanceRoutingRules GrievanceRoutingRule[]
   tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userRoles     UserRole[]
 
@@ -680,6 +689,103 @@ model Challan {
   @@unique([tenantId, challanNo])
   @@index([tenantId, status])
   @@map("challans")
+}
+
+model SlaPolicy {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String   @map("tenant_id") @db.Uuid
+  sortOrder                Int      @default(0) @map("sort_order")
+  categoryMatch            String?  @map("category_match") @db.VarChar(50)
+  grievancePriorityMatch   String?  @map("grievance_priority_match") @db.VarChar(20)
+  hoursToResolve           Int      @map("hours_to_resolve")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, sortOrder])
+  @@map("sla_policies")
+}
+
+model GrievanceRoutingRule {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  sortOrder              Int      @default(0) @map("sort_order")
+  categoryMatch          String?  @map("category_match") @db.VarChar(50)
+  grievancePriorityMatch String?  @map("grievance_priority_match") @db.VarChar(20)
+  wardId                 String?  @map("ward_id") @db.Uuid
+  targetRoleCode         String   @map("target_role_code") @db.VarChar(50)
+  assignUserId           String?  @map("assign_user_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignUser             User?    @relation("RoutingAssignUser", fields: [assignUserId], references: [id], onDelete: SetNull)
+  ward                   Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sortOrder])
+  @@map("grievance_routing_rules")
+}
+
+model Grievance {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  citizenId          String    @map("citizen_id") @db.Uuid
+  grievanceNo        String    @map("grievance_no") @db.VarChar(64)
+  category           String    @db.VarChar(50)
+  description        String
+  location           Json      @default(dbgenerated("'{}'::jsonb"))
+  photoKeys          Json      @default(dbgenerated("'[]'::jsonb")) @map("photo_keys")
+  grievancePriority  String    @default("medium") @map("grievance_priority") @db.VarChar(20)
+  status             String    @default("submitted") @db.VarChar(30)
+  routedRoleCode     String?   @map("routed_role_code") @db.VarChar(50)
+  assignedToUserId   String?   @map("assigned_to_user_id") @db.Uuid
+  slaDueAt           DateTime? @map("sla_due_at") @db.Timestamptz(6)
+  slaBreachedAt      DateTime? @map("sla_breached_at") @db.Timestamptz(6)
+  rating             Int?
+  feedback           String?   @db.Text
+  resolvedAt         DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen            Citizen   @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedToUser     User?     @relation("GrievanceAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  timeline           GrievanceTimelineEntry[]
+  attachments        GrievanceAttachment[]
+
+  @@unique([tenantId, grievanceNo])
+  @@index([tenantId, citizenId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, slaDueAt])
+  @@map("grievances")
+}
+
+model GrievanceTimelineEntry {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  grievanceId  String    @map("grievance_id") @db.Uuid
+  eventType    String    @map("event_type") @db.VarChar(40)
+  actorSubject String    @map("actor_subject") @db.VarChar(255)
+  body         String?
+  metadata     Json      @default(dbgenerated("'{}'::jsonb"))
+  occurredAt   DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  grievance    Grievance @relation(fields: [grievanceId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, grievanceId, occurredAt])
+  @@map("grievance_timeline")
+}
+
+model GrievanceAttachment {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  grievanceId String    @map("grievance_id") @db.Uuid
+  storageKey  String    @map("storage_key") @db.VarChar(500)
+  contentType String    @default("application/octet-stream") @map("content_type") @db.VarChar(120)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  grievance   Grievance @relation(fields: [grievanceId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, grievanceId])
+  @@map("grievance_attachments")
 }
 
 model HoldingRecord {

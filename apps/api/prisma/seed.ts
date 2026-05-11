@@ -10,6 +10,62 @@ import { tenantSeeds } from '../src/modules/tenants/tenant.seed';
 const defaultDatabaseUrl =
   'postgresql://enagar:enagar_dev_pw_change_me@localhost:5432/enagarseba?schema=public';
 
+async function seedGrievancePoliciesForTenant(
+  prisma: PrismaClient,
+  tenantId: string,
+): Promise<void> {
+  const slaN = await prisma.slaPolicy.count({ where: { tenantId } });
+  if (slaN === 0) {
+    await prisma.slaPolicy.createMany({
+      data: [
+        {
+          tenantId,
+          sortOrder: 0,
+          categoryMatch: 'roads',
+          grievancePriorityMatch: null,
+          hoursToResolve: 48,
+        },
+        {
+          tenantId,
+          sortOrder: 1,
+          categoryMatch: null,
+          grievancePriorityMatch: 'urgent',
+          hoursToResolve: 24,
+        },
+        {
+          tenantId,
+          sortOrder: 100,
+          categoryMatch: null,
+          grievancePriorityMatch: null,
+          hoursToResolve: 72,
+        },
+      ],
+    });
+  }
+
+  const rN = await prisma.grievanceRoutingRule.count({ where: { tenantId } });
+  if (rN === 0) {
+    await prisma.grievanceRoutingRule.createMany({
+      data: [
+        {
+          tenantId,
+          sortOrder: 0,
+          categoryMatch: 'roads',
+          grievancePriorityMatch: null,
+          targetRoleCode: 'municipality_clerk',
+        },
+        {
+          tenantId,
+          sortOrder: 100,
+          categoryMatch: null,
+          grievancePriorityMatch: null,
+          targetRoleCode: 'municipality_clerk',
+        },
+      ],
+    });
+  }
+}
+
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? defaultDatabaseUrl;
   const prisma = new PrismaClient({
@@ -47,6 +103,8 @@ async function main(): Promise<void> {
         create: { tenantId: tenant.id },
         update: {},
       });
+
+      await seedGrievancePoliciesForTenant(prisma, tenant.id);
 
       console.info(`Seeded tenant ${tenant.code} (${tenant.id})`);
     }

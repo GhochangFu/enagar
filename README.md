@@ -246,7 +246,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **Phase 4 — Grievances & SLA Engine**; immediate slice **Sprint 4.1** (schema, APIs, SLA foundation) per `ROADMAP.md`. DigiLocker/Aadhaar linking remains deferred until external access is granted.
+**Next:** **Phase 4 — Sprint 4.2** (citizen grievance UX); foundation **Sprint 4.1** is closed — see `ROADMAP.md`. **Sprint 3.1B** remains credential-blocked.
 
 ---
 

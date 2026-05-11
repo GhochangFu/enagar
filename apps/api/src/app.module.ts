@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { GrievancesModule } from './modules/grievances/grievances.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -55,6 +56,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     ApplicationsModule,
     DocumentsModule,
     FinanceModule,
+    GrievancesModule,
     HealthModule,
     HoldingsModule,
     PaymentsModule,
