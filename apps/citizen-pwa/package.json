@@ -10,7 +10,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "echo '(Sprint 4.1+) Use: pnpm run typecheck ; see README manual smoke'",
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {

@@ -19,6 +19,7 @@ import {
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import {
   authHeaders,
+  CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
   formatInrFromPaise,
   getFixedFeePaise,
   readApiError,
@@ -27,6 +28,7 @@ import {
 import type {
   ApplicationDetail,
   ApplicationSummary,
+  CitizenHubDashboardResponse,
   PaymentApiResponse,
   PaymentGatewayMethod,
   ServiceSummary,
@@ -42,7 +44,7 @@ import type {
 } from '@enagar/forms';
 
 type LanguageCode = PwaLocaleCode;
-type Step = 'splash' | 'language' | 'login' | 'otp' | 'tenant' | 'workspace';
+type Step = 'splash' | 'language' | 'login' | 'otp' | 'hub' | 'workspace';
 type WorkspaceTab = 'home' | 'services' | 'apply' | 'applications' | 'payments' | 'grievances';
 
 interface TenantSummary {
@@ -140,6 +142,7 @@ export default function HomePage(): JSX.Element {
   const [otp, setOtp] = useState('');
   const [token, setToken] = useState<TokenResponse | null>(null);
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  const [hubDashboard, setHubDashboard] = useState<CitizenHubDashboardResponse | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantSummary | null>(null);
   const [services, setServices] = useState<ServiceSummary[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceSummary | null>(null);
@@ -152,11 +155,32 @@ export default function HomePage(): JSX.Element {
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState(t('status.ready', 'en'));
 
-  const tenantCards = useMemo(
-    () =>
-      tenants.map((tenant) => ({ ...tenant, shortName: tenant.name.replace(' Municipal', '') })),
-    [tenants],
-  );
+  const hubMunicipalityCards = useMemo(() => {
+    if (!hubDashboard) {
+      return [];
+    }
+    const byCode = new Map(tenants.map((tenant) => [tenant.code, tenant]));
+    return [...hubDashboard.municipalities]
+      .map((bucket) => {
+        const catalogue = byCode.get(bucket.tenant_code);
+        return {
+          bucket,
+          catalogue,
+          shortName: catalogue?.name.replace(' Municipal', '') ?? bucket.tenant_code,
+        };
+      })
+      .sort((left, right) => {
+        const leftTotal =
+          left.bucket.application_count + left.bucket.payment_count + left.bucket.grievance_count;
+        const rightTotal =
+          right.bucket.application_count +
+          right.bucket.payment_count +
+          right.bucket.grievance_count;
+        return rightTotal !== leftTotal
+          ? rightTotal - leftTotal
+          : left.bucket.tenant_code.localeCompare(right.bucket.tenant_code);
+      });
+  }, [hubDashboard, tenants]);
 
   const selectedSchema = selectedService
     ? schemaByServiceCode.get(selectedService.code)
@@ -167,20 +191,13 @@ export default function HomePage(): JSX.Element {
   const latestApplication = applications[0];
 
   useEffect(() => {
-    if (step !== 'tenant') {
+    if (step !== 'hub' || !token) {
       return;
     }
 
-    void fetch(`${apiBaseUrl}/tenants`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Unable to load tenants');
-        }
-        return response.json() as Promise<TenantSummary[]>;
-      })
-      .then(setTenants)
-      .catch((error: Error) => setStatus(error.message));
-  }, [step]);
+    void refreshHubData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, token]);
 
   useEffect(() => {
     if (step !== 'workspace' || !selectedTenant) {
@@ -200,7 +217,7 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/auth/send-otp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mobile }),
+        body: JSON.stringify({ mobile, tenant_code: CITIZEN_PORTAL_OPTION_A_TENANT_CODE }),
       });
     } catch {
       setStatus(t('status.apiUnreachable', language));
@@ -225,7 +242,11 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mobile, otp }),
+        body: JSON.stringify({
+          mobile,
+          otp,
+          tenant_code: CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
+        }),
       });
     } catch {
       setStatus(t('status.apiUnreachable', language));
@@ -241,7 +262,7 @@ export default function HomePage(): JSX.Element {
     setToken(nextToken);
     await storeEncryptedToken(nextToken);
     setStatus(t('status.loginVerified', language));
-    setStep('tenant');
+    setStep('hub');
   }
 
   async function chooseTenant(tenant: TenantSummary): Promise<void> {
@@ -262,6 +283,49 @@ export default function HomePage(): JSX.Element {
 
     setStatus(`${tenant.code} selected`);
     setStep('workspace');
+  }
+
+  function goBackToHub(): void {
+    applyTenantTheme(null);
+    setSelectedTenant(null);
+    setActiveTab('home');
+    setApplicationDetail(null);
+    setSelectedService(null);
+    setStatus(t('status.ready', language));
+    setStep('hub');
+  }
+
+  async function refreshHubData(): Promise<void> {
+    if (!token) {
+      setHubDashboard(null);
+      setTenants([]);
+      return;
+    }
+    setStatus('Loading dashboard…');
+
+    try {
+      const [dashboardResponse, catalogueResponse] = await Promise.all([
+        fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/tenants`),
+      ]);
+
+      if (!dashboardResponse.ok) {
+        setStatus(await readApiError(dashboardResponse));
+        return;
+      }
+      if (!catalogueResponse.ok) {
+        setStatus('Unable to load tenant catalogue.');
+        return;
+      }
+
+      const nextDashboard = (await dashboardResponse.json()) as CitizenHubDashboardResponse;
+      const nextTenants = (await catalogueResponse.json()) as TenantSummary[];
+      setHubDashboard(nextDashboard);
+      setTenants(nextTenants);
+      setStatus(t('status.ready', language));
+    } catch {
+      setStatus(t('status.apiUnreachable', language));
+    }
   }
 
   async function refreshWorkspace(): Promise<void> {
@@ -719,33 +783,101 @@ export default function HomePage(): JSX.Element {
         </form>
       )}
 
-      {step === 'tenant' && (
-        <section>
-          <h2 className="text-3xl font-bold">{t('tenant.title', language)}</h2>
-          <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {tenantCards.map((tenant) => (
+      {step === 'hub' && (
+        <section className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold uppercase text-brand">Citizen hub</p>
+              <h2 className="text-3xl font-bold">Your municipalities</h2>
+              <p className="mt-2 max-w-3xl text-slate-600">
+                Choose a municipality to open the scoped workspace (
+                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> applies only
+                there). Counts aggregate from{' '}
+                <code className="rounded bg-slate-100 px-1">GET /citizen/dashboard</code> — no
+                municipality header on hub fetches (Option A parity).
+              </p>
+            </div>
+            <button
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold"
+              onClick={() => void refreshHubData()}
+              type="button"
+            >
+              Refresh hub
+            </button>
+          </div>
+
+          {!hubDashboard && (
+            <p className="rounded-3xl bg-slate-50 p-6 text-slate-600">
+              Loading municipality dashboard…
+            </p>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
               <button
-                className="rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                key={tenant.id}
-                onClick={() => void chooseTenant(tenant)}
+                className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  !catalogue ? 'cursor-not-allowed opacity-60' : ''
+                }`}
+                disabled={!catalogue}
+                key={bucket.tenant_id}
+                onClick={() => {
+                  if (catalogue) {
+                    void chooseTenant(catalogue);
+                  }
+                }}
+                type="button"
               >
                 <span
-                  className="block h-2 w-16 rounded-full"
-                  style={{ backgroundColor: tenant.theme_color }}
+                  className="block h-2 w-full rounded-full"
+                  style={{ backgroundColor: bucket.theme_color }}
                 />
-                <span className="mt-4 block text-lg font-bold">{tenant.code}</span>
-                <span className="mt-1 block text-sm text-slate-600">{tenant.shortName}</span>
-                <span className="mt-4 block text-sm font-medium text-slate-500">
-                  {tenant.ward_count} wards
-                </span>
+                <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
+                <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
+                {catalogue ? (
+                  <span className="mt-4 block text-sm font-medium text-slate-500">
+                    {catalogue.ward_count} wards
+                  </span>
+                ) : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
+                    Apps {bucket.application_count}
+                  </span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-900">
+                    Pay {bucket.payment_count}
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-900">
+                    Grv {bucket.grievance_count}
+                  </span>
+                </div>
+                {!catalogue && (
+                  <p className="mt-3 text-xs text-red-600">Tenant missing from picker catalogue.</p>
+                )}
               </button>
             ))}
           </div>
+
+          {hubDashboard && hubMunicipalityCards.length === 0 && (
+            <p className="text-sm text-slate-600">
+              Dashboard returned no municipalities. Check API seed catalogue.
+            </p>
+          )}
         </section>
       )}
 
       {step === 'workspace' && selectedTenant && (
         <section className="space-y-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800"
+              onClick={goBackToHub}
+              type="button"
+            >
+              ← Back to hub
+            </button>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              Workspace · {selectedTenant.code}
+            </span>
+          </div>
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-sm font-semibold uppercase text-brand">
               {t('home.label', language)}
@@ -1028,6 +1160,7 @@ export default function HomePage(): JSX.Element {
                         <ReceiptPreviewPlaceholder
                           apiBaseUrl={apiBaseUrl}
                           payment={payment}
+                          tenantScopeCode={selectedTenant.code}
                           token={token}
                         />
                       ) : null}

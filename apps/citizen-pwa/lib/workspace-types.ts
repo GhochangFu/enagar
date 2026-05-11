@@ -86,6 +86,22 @@ export interface PaymentApiResponse {
   updated_at: string;
 }
 
+/** Mirrors `CitizenHubDashboardResponse` from `apps/api` (Sprint 2.2 / 4.1 hub). */
+export interface CitizenHubDashboardMunicipalityBucket {
+  tenant_id: string;
+  tenant_code: string;
+  theme_color: string;
+  application_count: number;
+  payment_count: number;
+  grievance_count: number;
+}
+
+export interface CitizenHubDashboardResponse {
+  generated_at: string;
+  municipality_scope: string | null;
+  municipalities: CitizenHubDashboardMunicipalityBucket[];
+}
+
 export interface ReceiptCitizenPayload {
   id: string;
   receipt_number: string;

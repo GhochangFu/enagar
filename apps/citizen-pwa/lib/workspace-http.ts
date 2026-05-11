@@ -1,5 +1,8 @@
 import type { ServiceSummary, TokenResponse } from './workspace-types';
 
+/** Option A portal tenant for OTP payloads (must match API dev default — not municipal ULBs). */
+export const CITIZEN_PORTAL_OPTION_A_TENANT_CODE = 'WBPORTAL';
+
 export async function readApiError(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { message?: unknown; error?: string };
@@ -17,8 +20,8 @@ export async function readApiError(response: Response): Promise<string> {
 const CITIZEN_MUNICIPALITY_SCOPE_HEADER = 'x-enagar-tenant-code';
 
 /**
- * @param tenantScopeCode When set (e.g. workspace ULB after picking KMC), sent so portal
- *   (WBPORTAL) JWT writes target that municipality instead of the portal tenant.
+ * @param tenantScopeCode Omit on **hub** aggregate calls (`/citizen/dashboard`, unscoped lists).
+ *   Set to the workspace ULB code (e.g. KMC) so portal JWT writes/lists target that municipality.
  */
 export function authHeaders(
   token: TokenResponse,
