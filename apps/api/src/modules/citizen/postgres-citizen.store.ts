@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
 import type { CitizenStore } from './citizen-store';
 import type { CitizenProfileResponse, LanguageCode } from './dto';
@@ -14,6 +15,7 @@ interface CitizenRow {
   name: string | null;
   holdingNumber: string | null;
   languagePref: string;
+  selectedTenantCode: string | null;
 }
 
 /**
@@ -26,13 +28,29 @@ interface CitizenRow {
 export class PostgresCitizenStore implements CitizenStore {
   constructor(private readonly db: PrismaService) {}
 
+  /** Prefer portal-row profile (Option A); else most recently updated row for this subject. */
   async findByPrincipal(principal: AuthenticatedPrincipal): Promise<CitizenProfileResponse | null> {
-    const row = await this.db.citizen.findFirst({
-      where: {
-        tenantId: principal.tenantId,
-        keycloakSubject: principal.subject,
-      },
-    });
+    const subject = principal.subject;
+    let row: CitizenRow | null = null;
+
+    if (subject) {
+      row = await this.db.citizen.findUnique({
+        where: {
+          tenantId_keycloakSubject: {
+            tenantId: CITIZEN_PORTAL_TENANT_ID,
+            keycloakSubject: subject,
+          },
+        },
+      });
+    }
+
+    if (!row && subject) {
+      row = await this.db.citizen.findFirst({
+        where: { keycloakSubject: subject },
+        orderBy: { updatedAt: 'desc' },
+      });
+    }
+
     return row ? toProfile(row, principal.tenantCode) : null;
   }
 
@@ -52,27 +70,32 @@ export class PostgresCitizenStore implements CitizenStore {
         name: profile.name,
         holdingNumber: profile.holding_number,
         languagePref: profile.language_pref,
+        selectedTenantCode: profile.selected_tenant_code ?? null,
       },
       update: {
         mobile: profile.mobile,
         name: profile.name,
         holdingNumber: profile.holding_number,
         languagePref: profile.language_pref,
+        selectedTenantCode: profile.selected_tenant_code ?? null,
       },
     });
   }
 }
 
-function toProfile(row: CitizenRow, tenantCode: string | undefined): CitizenProfileResponse {
+function toProfile(
+  row: CitizenRow,
+  principalTenantCode: string | undefined,
+): CitizenProfileResponse {
   return {
     id: row.id,
     keycloak_subject: row.keycloakSubject ?? '',
     tenant_id: row.tenantId,
-    tenant_code: tenantCode,
+    tenant_code: principalTenantCode,
     mobile: row.mobile,
     name: row.name,
     holding_number: row.holdingNumber,
     language_pref: row.languagePref as LanguageCode,
-    selected_tenant_code: tenantCode,
+    selected_tenant_code: row.selectedTenantCode ?? undefined,
   };
 }

@@ -34,6 +34,8 @@ for local tooling only and rejects that header in production.
 
 [`tenant.seed.ts`](./src/modules/tenants/tenant.seed.ts) includes **`WBPORTAL`** (citizen portal) for future **Keycloak Option A** JWTs. It is seeded in Postgres but **`GET /api/tenants` omits it** so municipality pickers only show operational ULBs. Use `GET /api/tenants/:id/config` with id or code `WBPORTAL` when tooling needs it.
 
+**Dev auth (non-production):** Successful `/api/auth/verify-otp` with the configured `DEV_OTP_CODE` issues a JWT whose `tenant_id` / `tenant_code` are **WBPORTAL** and whose `sub` is **`dev-citizen-{mobile}`** (stable per phone). `tenant_code` in OTP request bodies is optional and defaults to WBPORTAL. Dev `refresh_token` values have the form `dev-refresh-{mobile}-{uuid}`; legacy `dev-refresh-{uuid-only}` tokens must re-authenticate via OTP.
+
 Admin-role JWTs (`tenant_admin`, `state_admin`) must include MFA evidence
 through `amr: ["otp"]` or `acr: "mfa"`.
 

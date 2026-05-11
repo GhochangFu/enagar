@@ -1,5 +1,7 @@
 /** Citizen portal (Keycloak Option A). Not a filing ULB; omitted from public municipality lists. */
 export const CITIZEN_PORTAL_TENANT_CODE = 'WBPORTAL' as const;
+/** Stable UUID for WBPORTAL (matches Prisma `tenants` seed). */
+export const CITIZEN_PORTAL_TENANT_ID = '99999999-9999-4999-8999-999999999999';
 
 export interface TenantSummary {
   id: string;
@@ -29,7 +31,7 @@ export interface TenantConfigResponse extends TenantSummary {
 
 export const tenantSeeds: TenantSummary[] = [
   {
-    id: '99999999-9999-4999-8999-999999999999',
+    id: CITIZEN_PORTAL_TENANT_ID,
     code: CITIZEN_PORTAL_TENANT_CODE,
     name: 'West Bengal Citizen Portal',
     district: 'West Bengal',

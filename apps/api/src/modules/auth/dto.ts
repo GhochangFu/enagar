@@ -2,11 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class SendOtpDto {
-  @ApiProperty({ example: 'KMC' })
+  @ApiPropertyOptional({
+    example: 'WBPORTAL',
+    description: 'Optional; defaults to WBPORTAL (citizen portal) for Option A identity.',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(20)
-  tenant_code!: string;
+  tenant_code?: string;
 
   @ApiProperty({ example: '9876543210' })
   @IsString()

@@ -200,7 +200,7 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/auth/send-otp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tenant_code: 'KMC', mobile }),
+        body: JSON.stringify({ mobile }),
       });
     } catch {
       setStatus(t('status.apiUnreachable', language));
@@ -225,7 +225,7 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tenant_code: 'KMC', mobile, otp }),
+        body: JSON.stringify({ mobile, otp }),
       });
     } catch {
       setStatus(t('status.apiUnreachable', language));

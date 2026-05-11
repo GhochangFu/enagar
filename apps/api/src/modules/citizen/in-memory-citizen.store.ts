@@ -6,22 +6,15 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
 @Injectable()
 export class InMemoryCitizenStore implements CitizenStore {
+  /** One logical profile per `keycloak_subject` (portal Option A semantics). */
   private readonly profiles = new Map<string, CitizenProfileResponse>();
 
   async findByPrincipal(principal: AuthenticatedPrincipal): Promise<CitizenProfileResponse | null> {
-    return cloneNullable(this.profiles.get(this.profileKey(principal)) ?? null);
+    return cloneNullable(this.profiles.get(principal.subject) ?? null);
   }
 
   async save(profile: CitizenProfileResponse): Promise<void> {
-    this.profiles.set(this.profileKeyFromProfile(profile), cloneProfile(profile));
-  }
-
-  private profileKey(principal: AuthenticatedPrincipal): string {
-    return `${principal.tenantId}:${principal.subject}`;
-  }
-
-  private profileKeyFromProfile(profile: CitizenProfileResponse): string {
-    return `${profile.tenant_id}:${profile.keycloak_subject}`;
+    this.profiles.set(profile.keycloak_subject, cloneProfile(profile));
   }
 }
 
