@@ -29,6 +29,7 @@ import type {
   ApplicationDetail,
   ApplicationSummary,
   CitizenHubDashboardResponse,
+  CitizenPreferencesResponse,
   PaymentApiResponse,
   PaymentGatewayMethod,
   ServiceSummary,
@@ -44,8 +45,9 @@ import type {
 } from '@enagar/forms';
 
 type LanguageCode = PwaLocaleCode;
-type Step = 'splash' | 'language' | 'login' | 'otp' | 'hub' | 'workspace';
+type Step = 'splash' | 'language' | 'login' | 'otp' | 'pins' | 'hub' | 'workspace';
 type WorkspaceTab = 'home' | 'services' | 'apply' | 'applications' | 'payments' | 'grievances';
+type HubTab = WorkspaceTab | 'shortcuts';
 
 interface TenantSummary {
   id: string;
@@ -103,6 +105,16 @@ async function fetchActiveTenantServices(
   return list.filter((service) => service.active);
 }
 
+function tenantMatchesBrowseQuery(tenant: TenantSummary, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    tenant.code.toLowerCase().includes(q) ||
+    tenant.name.toLowerCase().includes(q) ||
+    tenant.district.toLowerCase().includes(q)
+  );
+}
+
 async function storeEncryptedToken(token: TokenResponse): Promise<void> {
   const payload = JSON.stringify({
     ...token,
@@ -149,7 +161,7 @@ async function storeEncryptedToken(token: TokenResponse): Promise<void> {
 export default function HomePage(): JSX.Element {
   const [step, setStep] = useState<Step>('splash');
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('home');
-  const [hubTab, setHubTab] = useState<WorkspaceTab>('home');
+  const [hubTab, setHubTab] = useState<HubTab>('home');
   const [language, setLanguage] = useState<LanguageCode>('en');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -166,16 +178,35 @@ export default function HomePage(): JSX.Element {
   const [grievanceCount, setGrievanceCount] = useState(0);
   const [hubApplications, setHubApplications] = useState<ApplicationSummary[]>([]);
   const [hubPayments, setHubPayments] = useState<PaymentApiResponse[]>([]);
-  /** Per-tenant active services for KPI + Hub → Services catalogue (distinct codes across tenants for KPI card). */
+  /** Per-tenant active services keyed by pinned + shortcut ULBs only (lazy; Sprint 4.16). */
   const [hubTenantServiceMap, setHubTenantServiceMap] = useState<Record<string, ServiceSummary[]>>(
     {},
+  );
+  const [citizenPreferences, setCitizenPreferences] = useState<CitizenPreferencesResponse | null>(
+    null,
+  );
+  const [municipalityBrowseOpen, setMunicipalityBrowseOpen] = useState(false);
+  const [browseQuery, setBrowseQuery] = useState('');
+  const [pinsDraftCodes, setPinsDraftCodes] = useState<string[]>([]);
+  const [pinsSearch, setPinsSearch] = useState('');
+  /** Hub → Shortcuts edit drafts (applied on Save). */
+  const [shortcutPinsDraft, setShortcutPinsDraft] = useState<string[]>([]);
+  const [shortcutServicesDraft, setShortcutServicesDraft] = useState<
+    Array<{ tenant_code: string; service_code: string }>
+  >([]);
+  const [shortcutPinsSearch, setShortcutPinsSearch] = useState('');
+  const [shortcutAddTenant, setShortcutAddTenant] = useState('');
+  const [shortcutAddService, setShortcutAddService] = useState('');
+  /** Workspace Services tab optional filter when opening via pinned shortcut (Sprint 4.16). */
+  const [workspaceServiceCodesFilter, setWorkspaceServiceCodesFilter] = useState<string[] | null>(
+    null,
   );
   const [detailFeeServices, setDetailFeeServices] = useState<ServiceSummary[]>([]);
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState(t('status.ready', 'en'));
 
-  const hubMunicipalityCards = useMemo(() => {
+  const cataloguedDashboardRows = useMemo(() => {
     if (!hubDashboard) {
       return [];
     }
@@ -202,10 +233,47 @@ export default function HomePage(): JSX.Element {
       });
   }, [hubDashboard, tenants]);
 
+  const pinnedHubHomeRows = useMemo(() => {
+    const pins = citizenPreferences?.pinned_tenant_codes ?? [];
+    if (!pins.length || !hubDashboard) {
+      return [];
+    }
+
+    const byBucketCode = new Map(
+      cataloguedDashboardRows.map((row) => [row.bucket.tenant_code, row]),
+    );
+    return pins
+      .map((code) => byBucketCode.get(code))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  }, [citizenPreferences?.pinned_tenant_codes, hubDashboard, cataloguedDashboardRows]);
+
   const tenantsById = useMemo(
     () => new Map(tenants.map((tenant) => [tenant.id, tenant])),
     [tenants],
   );
+
+  const browseTenantsFiltered = useMemo(
+    () => tenants.filter((tenant) => tenantMatchesBrowseQuery(tenant, browseQuery)),
+    [tenants, browseQuery],
+  );
+
+  const pinsCatalogueFiltered = useMemo(
+    () => tenants.filter((tenant) => tenantMatchesBrowseQuery(tenant, pinsSearch)),
+    [tenants, pinsSearch],
+  );
+
+  const shortcutPinCatalogueFiltered = useMemo(
+    () => tenants.filter((tenant) => tenantMatchesBrowseQuery(tenant, shortcutPinsSearch)),
+    [tenants, shortcutPinsSearch],
+  );
+
+  const workspaceServicesFiltered = useMemo(() => {
+    if (!workspaceServiceCodesFilter?.length) {
+      return services;
+    }
+    const allow = new Set(workspaceServiceCodesFilter);
+    return services.filter((service) => allow.has(service.code));
+  }, [services, workspaceServiceCodesFilter]);
 
   const hubTotalsFromBuckets = useMemo(() => {
     if (!hubDashboard) {
@@ -222,7 +290,8 @@ export default function HomePage(): JSX.Element {
     );
   }, [hubDashboard]);
 
-  const hubDistinctServiceCodes = useMemo(() => {
+  /** Fallback if API lacks `distinct_active_service_codes` (legacy). */
+  const distinctServicesFallback = useMemo(() => {
     const distinct = new Set<string>();
     for (const rows of Object.values(hubTenantServiceMap)) {
       for (const service of rows) {
@@ -231,6 +300,8 @@ export default function HomePage(): JSX.Element {
     }
     return distinct.size;
   }, [hubTenantServiceMap]);
+
+  const servicesKpiValue = hubDashboard?.distinct_active_service_codes ?? distinctServicesFallback;
 
   /** Municipality header for workspace-scoped browse lists (`X-Enagar-Tenant-Code`). */
   function workspaceLoadScope(): string | undefined {
@@ -326,6 +397,23 @@ export default function HomePage(): JSX.Element {
     };
   }, [step, applicationDetail?.tenant_code]);
 
+  useEffect(() => {
+    if (step !== 'pins') {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/tenants`);
+        if (response.ok) {
+          setTenants((await response.json()) as TenantSummary[]);
+        }
+      } catch {
+        /* Pins screen uses public catalogue; hub refresh will reconcile. */
+      }
+    })();
+  }, [step]);
+
   async function requestOtp(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setStatus(t('status.sendingOtp', language));
@@ -389,14 +477,46 @@ export default function HomePage(): JSX.Element {
       /* Non-blocking — hub KPI mirrors session locale; profile may sync later. */
     }
 
+    let initialPrefs: CitizenPreferencesResponse | null = null;
+    try {
+      const prefsResponse = await fetch(`${apiBaseUrl}/citizen/preferences`, {
+        headers: authHeaders(nextToken, false),
+      });
+      if (prefsResponse.ok) {
+        initialPrefs = (await prefsResponse.json()) as CitizenPreferencesResponse;
+      }
+    } catch {
+      /* Fallback to onboarding gate when preferences cannot load. */
+    }
+
+    setCitizenPreferences(initialPrefs);
     setStatus(t('status.loginVerified', language));
-    setStep('hub');
+
+    if (initialPrefs?.pinned_tenant_codes.length) {
+      setStep('hub');
+      return;
+    }
+
+    setPinsDraftCodes([]);
+    setPinsSearch('');
+    setStep('pins');
   }
 
-  async function chooseTenant(tenant: TenantSummary): Promise<void> {
+  async function chooseTenant(
+    tenant: TenantSummary,
+    opts?: { workspaceServiceCodes?: string[] | null },
+  ): Promise<void> {
     setApplicationDetail(null);
     setSelectedTenant(tenant);
     applyTenantTheme(tenant);
+
+    const focusCodes =
+      opts?.workspaceServiceCodes && opts.workspaceServiceCodes.length > 0
+        ? opts.workspaceServiceCodes
+        : null;
+
+    setWorkspaceServiceCodesFilter(focusCodes);
+    setActiveTab(focusCodes ? 'services' : 'home');
 
     if (token?.access_token) {
       try {
@@ -414,6 +534,75 @@ export default function HomePage(): JSX.Element {
     setStep('workspace');
   }
 
+  async function persistCitizenPreferences(
+    patch: Partial<CitizenPreferencesResponse>,
+    successStatus?: string,
+  ): Promise<boolean> {
+    if (!token) {
+      return false;
+    }
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/citizen/preferences`, {
+        method: 'PATCH',
+        headers: authHeaders(token, true),
+        body: JSON.stringify(patch),
+      });
+    } catch {
+      setStatus(t('status.apiUnreachable', language));
+      return false;
+    }
+    if (!response.ok) {
+      setStatus(await readApiError(response));
+      return false;
+    }
+
+    try {
+      const next = (await response.json()) as CitizenPreferencesResponse;
+      setCitizenPreferences(next);
+      if (successStatus) {
+        setStatus(successStatus);
+      }
+      return true;
+    } catch {
+      setStatus('Unable to parse preferences.');
+      return false;
+    }
+  }
+
+  async function persistOnboardingPins(): Promise<boolean> {
+    if (pinsDraftCodes.length === 0) {
+      setStatus('Choose at least one municipality to pin (max 15).');
+      return false;
+    }
+
+    const ok = await persistCitizenPreferences(
+      { pinned_tenant_codes: pinsDraftCodes },
+      'Preferences saved.',
+    );
+
+    if (ok) {
+      setHubTab('home');
+      setStep('hub');
+    }
+    return ok;
+  }
+
+  async function persistShortcutPinsAndServices(): Promise<boolean> {
+    if (shortcutPinsDraft.length === 0) {
+      setStatus('Keep at least one pinned municipality.');
+      return false;
+    }
+
+    return persistCitizenPreferences(
+      {
+        pinned_tenant_codes: shortcutPinsDraft,
+        pinned_services: shortcutServicesDraft,
+      },
+      'Shortcuts saved.',
+    );
+  }
+
   function goBackToHub(): void {
     applyTenantTheme(null);
     setSelectedTenant(null);
@@ -421,6 +610,7 @@ export default function HomePage(): JSX.Element {
     setHubTab('home');
     setApplicationDetail(null);
     setSelectedService(null);
+    setWorkspaceServiceCodesFilter(null);
     setStatus(t('status.ready', language));
     setStep('hub');
   }
@@ -438,13 +628,19 @@ export default function HomePage(): JSX.Element {
     setStatus('Loading dashboard…');
 
     try {
-      const [dashboardResponse, catalogueResponse, applicationsResponse, paymentsResponse] =
-        await Promise.all([
-          fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
-          fetch(`${apiBaseUrl}/tenants`),
-          fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
-          fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
-        ]);
+      const [
+        dashboardResponse,
+        catalogueResponse,
+        applicationsResponse,
+        paymentsResponse,
+        prefsResponse,
+      ] = await Promise.all([
+        fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/tenants`),
+        fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/citizen/preferences`, { headers: authHeaders(token, false) }),
+      ]);
 
       if (!dashboardResponse.ok) {
         setStatus(await readApiError(dashboardResponse));
@@ -457,6 +653,16 @@ export default function HomePage(): JSX.Element {
 
       const nextDashboard = (await dashboardResponse.json()) as CitizenHubDashboardResponse;
       const nextTenants = (await catalogueResponse.json()) as TenantSummary[];
+
+      let prefsParsed: CitizenPreferencesResponse | null = null;
+      if (prefsResponse.ok) {
+        try {
+          prefsParsed = (await prefsResponse.json()) as CitizenPreferencesResponse;
+          setCitizenPreferences(prefsParsed);
+        } catch {
+          prefsParsed = null;
+        }
+      }
 
       if (applicationsResponse.ok) {
         try {
@@ -478,13 +684,21 @@ export default function HomePage(): JSX.Element {
         setHubPayments([]);
       }
 
+      const pinnedCodesList =
+        prefsParsed?.pinned_tenant_codes ?? citizenPreferences?.pinned_tenant_codes ?? [];
+      const shortServicesMerged =
+        prefsParsed?.pinned_services ?? citizenPreferences?.pinned_services ?? [];
+      const svcFetchCodes = [
+        ...new Set([...pinnedCodesList, ...shortServicesMerged.map((row) => row.tenant_code)]),
+      ];
+
       const svcEntries = await Promise.all(
-        nextTenants.map(async (tenant) => {
+        svcFetchCodes.map(async (tenantCode) => {
           try {
-            const rows = await fetchActiveTenantServices(apiBaseUrl, tenant.code);
-            return [tenant.code, rows] as const;
+            const rows = await fetchActiveTenantServices(apiBaseUrl, tenantCode);
+            return [tenantCode, rows] as const;
           } catch {
-            return [tenant.code, [] as ServiceSummary[]] as const;
+            return [tenantCode, [] as ServiceSummary[]] as const;
           }
         }),
       );
@@ -492,7 +706,17 @@ export default function HomePage(): JSX.Element {
       setHubDashboard(nextDashboard);
       setTenants(nextTenants);
       setHubTenantServiceMap(Object.fromEntries(svcEntries));
-      setStatus(t('status.ready', language));
+
+      const effectivePins =
+        prefsParsed?.pinned_tenant_codes ?? citizenPreferences?.pinned_tenant_codes ?? [];
+
+      if (effectivePins.length === 0) {
+        setPinsDraftCodes([]);
+        setStep('pins');
+        setStatus('Pin at least one municipality before using the hub.');
+      } else {
+        setStatus(t('status.ready', language));
+      }
     } catch {
       setStatus(t('status.apiUnreachable', language));
     }
@@ -1007,6 +1231,84 @@ export default function HomePage(): JSX.Element {
         </form>
       )}
 
+      {step === 'pins' && (
+        <section className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl bg-white p-8 shadow-sm">
+          <header>
+            <p className="text-sm font-semibold uppercase text-brand">First-time hub access</p>
+            <h2 className="text-3xl font-bold">Pin your municipalities</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Pick at least one operational ULB (up to fifteen). Pins are shortcuts only—you can
+              browse or search every municipality later. Manage pins anytime under hub{' '}
+              <strong>Shortcuts</strong>.
+            </p>
+          </header>
+          <label className="block text-sm font-medium text-slate-700">
+            Search by code, name, or district
+            <input
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
+              onChange={(event) => setPinsSearch(event.target.value)}
+              placeholder="Try KMC or Kolkata..."
+              type="search"
+              value={pinsSearch}
+            />
+          </label>
+          <p className="text-sm text-slate-600">
+            Selected{' '}
+            <strong>
+              ({pinsDraftCodes.length} / 15)
+              {pinsDraftCodes.length ? `: ${pinsDraftCodes.join(', ')}` : ''}
+            </strong>
+          </p>
+          <ul className="max-h-[min(60vh,480px)] space-y-2 overflow-y-auto pr-2">
+            {pinsCatalogueFiltered.map((tenant) => {
+              const active = pinsDraftCodes.includes(tenant.code);
+              const disabledPick = !active && pinsDraftCodes.length >= 15;
+              return (
+                <li key={tenant.code}>
+                  <button
+                    className={`flex w-full rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? 'border-brand bg-brand/10 text-brand'
+                        : 'border-slate-200 hover:border-brand/40'
+                    } ${disabledPick ? 'cursor-not-allowed opacity-60' : ''}`}
+                    disabled={disabledPick}
+                    onClick={() => {
+                      if (active) {
+                        setPinsDraftCodes((codes) => codes.filter((code) => code !== tenant.code));
+                      } else if (pinsDraftCodes.length < 15) {
+                        setPinsDraftCodes((codes) => [...codes, tenant.code]);
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span>
+                        <span className="block font-semibold">{tenant.code}</span>
+                        <span className="mt-1 block text-xs text-slate-600">{tenant.name}</span>
+                        <span className="mt-0.5 block text-[11px] uppercase text-slate-400">
+                          {tenant.district}
+                        </span>
+                      </span>
+                      <span className="text-xs font-semibold">{active ? '✓ Pinned' : 'Pin'}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+            <button
+              className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:opacity-40"
+              disabled={pinsDraftCodes.length === 0 || !token}
+              onClick={() => void persistOnboardingPins()}
+              type="button"
+            >
+              Continue to hub
+            </button>
+          </div>
+        </section>
+      )}
+
       {step === 'hub' && (
         <section className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1014,12 +1316,13 @@ export default function HomePage(): JSX.Element {
               <p className="text-sm font-semibold uppercase text-brand">Citizen hub</p>
               <h2 className="text-3xl font-bold">Track services across municipalities</h2>
               <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                KPIs summarise the seeded catalogue plus your footprint on each ULB via{' '}
-                <code className="rounded bg-slate-100 px-1">/citizen/dashboard</code>; tabbed lists
-                call <strong>scoped reads without</strong>{' '}
+                <strong>Pinned ULBs</strong> anchor the hub; use{' '}
+                <strong>Browse all municipalities</strong> to open any operational ULB (pins stay
+                independent of{' '}
+                <code className="rounded bg-slate-100 px-1">POST /citizen/select-tenant</code>).
+                Tabbed lists call <strong>scoped reads without</strong>{' '}
                 <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> until you
-                open an application dossier row (payments/comments then use that ULB). To file anew,
-                choose a municipality.
+                open a dossier row.
               </p>
             </div>
             <button
@@ -1041,7 +1344,7 @@ export default function HomePage(): JSX.Element {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
                 ['Language', language.toUpperCase()],
-                ['Services', String(hubDistinctServiceCodes)],
+                ['Services', String(servicesKpiValue)],
                 ['Applications', String(hubTotalsFromBuckets.applications)],
                 ['Payments', String(hubTotalsFromBuckets.payments)],
                 ['Grievances', String(hubTotalsFromBuckets.grievances)],
@@ -1059,19 +1362,83 @@ export default function HomePage(): JSX.Element {
 
           <CitizenWorkspaceTabStrip
             activeTab={hubTab}
-            language={language}
             onSelect={(tab) => {
               setHubTab(tab);
+              if (tab === 'shortcuts' && citizenPreferences) {
+                setShortcutPinsDraft([...citizenPreferences.pinned_tenant_codes]);
+                setShortcutServicesDraft(
+                  citizenPreferences.pinned_services.map((row) => ({ ...row })),
+                );
+                setShortcutPinsSearch('');
+                setShortcutAddTenant('');
+                setShortcutAddService('');
+              }
               if (tab !== 'applications') {
                 setApplicationDetail(null);
               }
             }}
+            tabs={citizenWorkspaceHubTabs(language)}
           />
 
           {hubTab === 'home' && (
             <>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-950">Pinned municipalities</h3>
+                  <p className="text-sm text-slate-600">
+                    Up to fifteen shortcuts; KPI apps/pay/griv counts below still summarise your
+                    whole footprint.
+                  </p>
+                </div>
+                <button
+                  className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold"
+                  onClick={() => setMunicipalityBrowseOpen(true)}
+                  type="button"
+                >
+                  Browse all municipalities
+                </button>
+              </div>
+
+              {citizenPreferences?.pinned_services?.length ? (
+                <section className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase text-slate-500">
+                    Pinned service shortcuts
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {citizenPreferences.pinned_services.map((preference) => {
+                      const catalogueTenant = tenants.find(
+                        (row) => row.code === preference.tenant_code,
+                      );
+                      const svcList = hubTenantServiceMap[preference.tenant_code] ?? [];
+                      const summary = svcList.find((svc) => svc.code === preference.service_code);
+                      const title = summary?.name[language] ?? preference.service_code;
+                      return (
+                        <button
+                          className="rounded-full border border-brand/40 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand"
+                          key={`${preference.tenant_code}-${preference.service_code}`}
+                          onClick={() => {
+                            if (!catalogueTenant) {
+                              setStatus(
+                                'Unknown ULB in shortcut — refresh hub or re-save Shortcuts.',
+                              );
+                              return;
+                            }
+                            void chooseTenant(catalogueTenant, {
+                              workspaceServiceCodes: [preference.service_code],
+                            });
+                          }}
+                          type="button"
+                        >
+                          {preference.tenant_code} · {title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
+                {pinnedHubHomeRows.map(({ bucket, catalogue, shortName }) => (
                   <button
                     className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                       !catalogue ? 'cursor-not-allowed opacity-60' : ''
@@ -1115,67 +1482,303 @@ export default function HomePage(): JSX.Element {
                   </button>
                 ))}
               </div>
-              {hubDashboard && hubMunicipalityCards.length === 0 && (
+              {hubDashboard && pinnedHubHomeRows.length === 0 && (
                 <p className="text-sm text-slate-600">
-                  Dashboard returned no municipalities. Check API seed catalogue.
+                  No pinned municipalities yet. Use Browse or open <strong>Shortcuts</strong> to pin
+                  at least one ULB.
                 </p>
               )}
             </>
           )}
 
+          {hubTab === 'shortcuts' && (
+            <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm">
+              <header>
+                <h3 className="text-xl font-bold text-slate-900">Shortcuts</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Pins are persisted with <strong>PATCH /citizen/preferences</strong> and stay
+                  separate from <strong>selected_tenant_code</strong>. Keep at least one ULB pinned.
+                </p>
+              </header>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-700">
+                  Search municipalities to toggle pins
+                  <input
+                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    onChange={(event) => setShortcutPinsSearch(event.target.value)}
+                    type="search"
+                    value={shortcutPinsSearch}
+                  />
+                </label>
+                <p className="text-sm text-slate-600">
+                  Pinned (<strong>{shortcutPinsDraft.length} / 15</strong>):{' '}
+                  {shortcutPinsDraft.length ? shortcutPinsDraft.join(', ') : 'none'}
+                </p>
+                <ul className="max-h-[min(40vh,360px)] space-y-2 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+                  {shortcutPinCatalogueFiltered.map((tenant) => {
+                    const pinned = shortcutPinsDraft.includes(tenant.code);
+                    const blocked = !pinned && shortcutPinsDraft.length >= 15;
+                    return (
+                      <li key={tenant.code}>
+                        <button
+                          className={`w-full rounded-2xl border px-4 py-2 text-left text-sm ${
+                            pinned
+                              ? 'border-brand bg-white text-brand'
+                              : 'border-slate-200 bg-white'
+                          } ${blocked ? 'cursor-not-allowed opacity-60' : ''}`}
+                          disabled={blocked}
+                          onClick={() => {
+                            if (pinned) {
+                              setShortcutPinsDraft((codes) =>
+                                codes.filter((code) => code !== tenant.code),
+                              );
+                            } else if (shortcutPinsDraft.length < 15) {
+                              setShortcutPinsDraft((codes) => [...codes, tenant.code]);
+                            }
+                          }}
+                          type="button"
+                        >
+                          <span className="font-semibold">{tenant.code}</span>
+                          <span className="mt-1 block text-xs text-slate-600">{tenant.name}</span>
+                          <span className="block text-[11px] uppercase text-slate-400">
+                            {tenant.district}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="space-y-3 border-t border-slate-100 pt-6">
+                <h4 className="text-sm font-semibold text-slate-900">Pinned service shortcuts</h4>
+                <p className="text-xs text-slate-600">
+                  Services validated server-side against each ULB catalogue. Pick a municipality,
+                  then choose a listed service.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                    Municipality
+                    <select
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-3"
+                      onChange={(event) => {
+                        setShortcutAddTenant(event.target.value);
+                        setShortcutAddService('');
+                      }}
+                      value={shortcutAddTenant}
+                    >
+                      <option value="">Select...</option>
+                      {tenants.map((tenantRow) => (
+                        <option key={tenantRow.code} value={tenantRow.code}>
+                          {tenantRow.code} — {tenantRow.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                    Service
+                    <select
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-3"
+                      disabled={!shortcutAddTenant}
+                      onChange={(event) => setShortcutAddService(event.target.value)}
+                      value={shortcutAddService}
+                    >
+                      <option value="">Select...</option>
+                      {(hubTenantServiceMap[shortcutAddTenant] ?? []).map((svc) => (
+                        <option key={svc.code} value={svc.code}>
+                          {svc.code}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <button
+                  className="rounded-2xl border border-brand px-4 py-2 text-sm font-semibold text-brand"
+                  disabled={!shortcutAddTenant || !shortcutAddService}
+                  onClick={() =>
+                    void (async (): Promise<void> => {
+                      if (!shortcutAddTenant || !shortcutAddService) {
+                        return;
+                      }
+                      let catalogue = hubTenantServiceMap[shortcutAddTenant];
+                      if (!catalogue?.length) {
+                        try {
+                          const loadedCatalogue = await fetchActiveTenantServices(
+                            apiBaseUrl,
+                            shortcutAddTenant,
+                          );
+                          setHubTenantServiceMap((prev) => ({
+                            ...prev,
+                            [shortcutAddTenant]: loadedCatalogue,
+                          }));
+                          catalogue = loadedCatalogue;
+                        } catch {
+                          setStatus('Unable to fetch services — check API connectivity.');
+                          return;
+                        }
+                      }
+                      const exists = catalogue.some((svc) => svc.code === shortcutAddService);
+                      if (!exists) {
+                        setStatus('Service not available on that municipality.');
+                        return;
+                      }
+
+                      const key = `${shortcutAddTenant}:${shortcutAddService}`.toLowerCase();
+                      setShortcutServicesDraft((rows) => {
+                        const seen = new Set(
+                          rows.map((row) => `${row.tenant_code}:${row.service_code}`.toLowerCase()),
+                        );
+                        if (seen.has(key)) {
+                          return rows;
+                        }
+
+                        seen.add(key);
+                        return [
+                          ...rows,
+                          { tenant_code: shortcutAddTenant, service_code: shortcutAddService },
+                        ];
+                      });
+                      setShortcutAddService('');
+                      setShortcutAddTenant('');
+                      setStatus('Added shortcut locally — Save shortcuts to persist.');
+                    })()
+                  }
+                  type="button"
+                >
+                  Add pinned service
+                </button>
+
+                <ul className="space-y-2 text-sm text-slate-700">
+                  {shortcutServicesDraft.length === 0 && (
+                    <li className="text-slate-500">No service shortcuts pinned.</li>
+                  )}
+                  {shortcutServicesDraft.map((row) => (
+                    <li
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2"
+                      key={`${row.tenant_code}-${row.service_code}`}
+                    >
+                      <span className="font-mono text-xs">
+                        {row.tenant_code} · {row.service_code}
+                      </span>
+                      <button
+                        className="text-xs font-semibold text-red-600"
+                        onClick={() =>
+                          setShortcutServicesDraft((rows) =>
+                            rows.filter(
+                              (candidate) =>
+                                `${candidate.tenant_code}:${candidate.service_code}` !==
+                                `${row.tenant_code}:${row.service_code}`,
+                            ),
+                          )
+                        }
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-4">
+                <button
+                  className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:opacity-50"
+                  disabled={!shortcutPinsDraft.length || !token}
+                  onClick={() =>
+                    void (async (): Promise<void> => {
+                      if (await persistShortcutPinsAndServices()) {
+                        await refreshHubData();
+                      }
+                    })()
+                  }
+                  type="button"
+                >
+                  Save shortcuts
+                </button>
+              </div>
+            </section>
+          )}
+
           {hubTab === 'services' && (
             <section className="space-y-8">
-              <p className="text-sm text-slate-600">
-                Active services fetched per municipality in the catalogue; KPI{' '}
-                <strong>Services</strong> is the distinct union of{' '}
-                <code className="rounded bg-white px-1">service.code</code> across tenants.
-              </p>
-              {tenants
-                .slice()
-                .sort((left, right) => left.code.localeCompare(right.code))
-                .map((tenant) => {
-                  const catalogue = hubTenantServiceMap[tenant.code] ?? [];
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  Services load lazily for your <strong>pinned</strong> ULBs. Open any other
+                  municipality via Browse — the <strong>Services</strong> KPI above remains the
+                  catalogue-wide union from{' '}
+                  <code className="rounded bg-white px-1">/citizen/dashboard</code>.
+                </p>
+                <button
+                  className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold"
+                  onClick={() => setMunicipalityBrowseOpen(true)}
+                  type="button"
+                >
+                  Browse municipalities
+                </button>
+              </div>
+              {(citizenPreferences?.pinned_tenant_codes ?? []).map((tenantCode) => {
+                const resolved = tenants.find((row) => row.code === tenantCode);
+                const catalogue = hubTenantServiceMap[tenantCode] ?? [];
+
+                if (!resolved) {
                   return (
-                    <div key={tenant.code}>
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <span
-                          className="inline-block h-3 w-3 rounded-full"
-                          style={{ backgroundColor: tenant.theme_color }}
-                        />
-                        <h3 className="text-lg font-bold text-slate-900">{tenant.code}</h3>
-                        <span className="text-sm text-slate-500">{tenant.name}</span>
-                      </div>
-                      {catalogue.length === 0 ? (
-                        <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
-                          No active services surfaced for this ULB yet.
-                        </p>
-                      ) : (
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          {catalogue.map((service) => (
-                            <article
-                              className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm"
-                              key={`${tenant.code}-${service.code}`}
-                            >
-                              <p className="text-[11px] font-semibold uppercase text-brand">
-                                {service.category_code}
-                              </p>
-                              <h4 className="mt-1 text-lg font-semibold">
-                                {service.name[language] ?? service.name.en}
-                              </h4>
-                              <button
-                                className="mt-4 w-full rounded-2xl border border-brand px-3 py-2 text-sm font-semibold text-brand"
-                                onClick={() => void chooseTenant(tenant)}
-                                type="button"
-                              >
-                                Open {tenant.code} workspace to apply
-                              </button>
-                            </article>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-sm text-red-600" key={tenantCode}>
+                      Unknown municipality {tenantCode} in pinned list — update Shortcuts.
+                    </p>
                   );
-                })}
+                }
+
+                return (
+                  <div key={tenantCode}>
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span
+                        className="inline-block h-3 w-3 rounded-full"
+                        style={{ backgroundColor: resolved.theme_color }}
+                      />
+                      <h3 className="text-lg font-bold text-slate-900">{tenantCode}</h3>
+                      <span className="text-sm text-slate-500">{resolved.name}</span>
+                    </div>
+                    {catalogue.length === 0 ? (
+                      <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+                        Fetching catalogue… Refresh hub after saving pins.
+                      </p>
+                    ) : (
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {catalogue.map((serviceRow) => (
+                          <article
+                            className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm"
+                            key={`${tenantCode}-${serviceRow.code}`}
+                          >
+                            <p className="text-[11px] font-semibold uppercase text-brand">
+                              {serviceRow.category_code}
+                            </p>
+                            <h4 className="mt-1 text-lg font-semibold">
+                              {serviceRow.name[language] ?? serviceRow.name.en}
+                            </h4>
+                            <button
+                              className="mt-4 w-full rounded-2xl border border-brand px-3 py-2 text-sm font-semibold text-brand"
+                              onClick={() =>
+                                void chooseTenant(resolved, {
+                                  workspaceServiceCodes: [serviceRow.code],
+                                })
+                              }
+                              type="button"
+                            >
+                              Open filtered Services in {tenantCode}
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {(citizenPreferences?.pinned_tenant_codes.length ?? 0) === 0 && (
+                <p className="text-sm text-slate-600">
+                  Pin at least one municipality to preview Services here.
+                </p>
+              )}
             </section>
           )}
 
@@ -1183,12 +1786,22 @@ export default function HomePage(): JSX.Element {
             <section className="space-y-4 rounded-3xl border border-dashed border-slate-200 bg-slate-50/60 p-6">
               <h3 className="text-xl font-bold text-slate-900">Pick a municipality to apply</h3>
               <p className="text-sm text-slate-600">
-                Applying still runs inside one ULB at a time. Select below (same picker as{' '}
-                <strong>Home</strong>). After selection the workspace carries your{' '}
+                Applying runs inside one ULB at a time. Search every municipality via{' '}
+                <strong>Browse all municipalities</strong> or tap a card below. After selection the
+                workspace carries your{' '}
                 <code className="rounded bg-white px-1">X-Enagar-Tenant-Code</code>.
               </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                  onClick={() => setMunicipalityBrowseOpen(true)}
+                  type="button"
+                >
+                  Browse municipalities
+                </button>
+              </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
+                {cataloguedDashboardRows.map(({ bucket, catalogue, shortName }) => (
                   <button
                     className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                       !catalogue ? 'cursor-not-allowed opacity-60' : ''
@@ -1363,6 +1976,64 @@ export default function HomePage(): JSX.Element {
               />
             </section>
           )}
+
+          {municipalityBrowseOpen && (
+            <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 p-6">
+              <div
+                aria-modal="true"
+                className="relative mt-10 w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl"
+                role="dialog"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-brand">Browse</p>
+                    <h3 className="text-2xl font-bold text-slate-950">All municipalities</h3>
+                  </div>
+                  <button
+                    className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold"
+                    onClick={() => setMunicipalityBrowseOpen(false)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+                <label className="mt-4 block text-sm font-medium text-slate-700">
+                  Search by code, name, district
+                  <input
+                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    onChange={(event) => setBrowseQuery(event.target.value)}
+                    type="search"
+                    value={browseQuery}
+                  />
+                </label>
+                <ul className="mt-6 max-h-[55vh] space-y-2 overflow-y-auto">
+                  {browseTenantsFiltered.map((tenant) => (
+                    <li key={tenant.code}>
+                      <button
+                        className="w-full rounded-2xl border border-slate-100 px-4 py-3 text-left transition hover:border-brand/40"
+                        onClick={() => {
+                          setMunicipalityBrowseOpen(false);
+                          void chooseTenant(tenant);
+                        }}
+                        type="button"
+                      >
+                        <span className="flex items-start justify-between gap-2">
+                          <span>
+                            <span className="font-semibold">{tenant.code}</span>
+                            <span className="block text-sm text-slate-600">{tenant.name}</span>
+                            <span className="block text-[11px] uppercase text-slate-400">
+                              {tenant.district}
+                            </span>
+                          </span>
+                          <span className="text-xs font-semibold text-brand">Enter workspace</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1403,7 +2074,7 @@ export default function HomePage(): JSX.Element {
               {[
                 ['Wards', String(selectedTenant.ward_count)],
                 ['Language', language.toUpperCase()],
-                ['Services', String(services.length)],
+                ['Services', String(workspaceServicesFiltered.length)],
                 ['Applications', String(applications.length)],
                 ['Payments', String(payments.length)],
                 ['Grievances', String(grievanceCount)],
@@ -1418,8 +2089,8 @@ export default function HomePage(): JSX.Element {
 
           <CitizenWorkspaceTabStrip
             activeTab={activeTab}
-            language={language}
             onSelect={setActiveTab}
+            tabs={municipalityWorkspaceTabs(language)}
           />
 
           {activeTab === 'home' && (
@@ -1458,7 +2129,29 @@ export default function HomePage(): JSX.Element {
 
           {activeTab === 'services' && (
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {services.map((service) => (
+              {workspaceServiceCodesFilter?.length ? (
+                <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/20 bg-brand/5 p-4">
+                  <p className="text-sm text-slate-700">
+                    Showing only your pinned service shortcut
+                    {workspaceServiceCodesFilter.length > 1 ? 's' : ''} (
+                    {workspaceServiceCodesFilter.join(', ')}
+                    ).
+                  </p>
+                  <button
+                    className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold"
+                    onClick={() => setWorkspaceServiceCodesFilter(null)}
+                    type="button"
+                  >
+                    Show all services
+                  </button>
+                </div>
+              ) : null}
+              {workspaceServicesFiltered.length === 0 ? (
+                <p className="col-span-full rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-600">
+                  No services match this filter. Clear the shortcut filter or pick another ULB.
+                </p>
+              ) : null}
+              {workspaceServicesFiltered.map((service) => (
                 <article className="rounded-3xl bg-white p-5 shadow-sm" key={service.code}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1710,36 +2403,55 @@ export default function HomePage(): JSX.Element {
   );
 }
 
+function citizenWorkspaceHubTabs(
+  language: PwaLocaleCode,
+): readonly { id: HubTab; label: string }[] {
+  return [
+    { id: 'home', label: 'Home' },
+    { id: 'shortcuts', label: 'Shortcuts' },
+    { id: 'services', label: 'Services' },
+    { id: 'apply', label: 'Apply' },
+    { id: 'applications', label: 'My Applications' },
+    { id: 'payments', label: 'My Payments' },
+    { id: 'grievances', label: t('grievance.nav', language) },
+  ];
+}
+
+function municipalityWorkspaceTabs(
+  language: PwaLocaleCode,
+): readonly { id: WorkspaceTab; label: string }[] {
+  return [
+    { id: 'home', label: 'Home' },
+    { id: 'services', label: 'Services' },
+    { id: 'apply', label: 'Apply' },
+    { id: 'applications', label: 'My Applications' },
+    { id: 'payments', label: 'My Payments' },
+    { id: 'grievances', label: t('grievance.nav', language) },
+  ];
+}
+
 /** Shared pill-shaped tab chrome for Citizen hub & municipal workspace. */
-function CitizenWorkspaceTabStrip({
+function CitizenWorkspaceTabStrip<T extends string>({
   activeTab,
-  language,
   onSelect,
+  tabs,
 }: {
-  activeTab: WorkspaceTab;
-  language: PwaLocaleCode;
-  onSelect: (tab: WorkspaceTab) => void;
+  activeTab: T;
+  onSelect: (tab: T) => void;
+  tabs: readonly { id: T; label: string }[];
 }): JSX.Element {
   return (
     <nav aria-label="Primary navigation" className="flex flex-wrap gap-2">
-      {(['home', 'services', 'apply', 'applications', 'payments', 'grievances'] as const).map(
-        (tab) => (
-          <button
-            className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tab ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
-            key={tab}
-            onClick={() => onSelect(tab)}
-            type="button"
-          >
-            {tab === 'applications'
-              ? 'My Applications'
-              : tab === 'payments'
-                ? 'My Payments'
-                : tab === 'grievances'
-                  ? t('grievance.nav', language)
-                  : titleCase(tab)}
-          </button>
-        ),
-      )}
+      {tabs.map((tabEntry) => (
+        <button
+          className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tabEntry.id ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
+          key={tabEntry.id}
+          onClick={() => onSelect(tabEntry.id)}
+          type="button"
+        >
+          {tabEntry.label}
+        </button>
+      ))}
     </nav>
   );
 }
@@ -1861,8 +2573,4 @@ function Info({ label, value }: { label: string; value: string }): JSX.Element {
 
 function isFileSubmission(value: FormSubmissionValue | undefined): value is FileSubmission {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'name' in value);
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }

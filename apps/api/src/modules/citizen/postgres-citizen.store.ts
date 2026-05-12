@@ -4,8 +4,9 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
 import type { CitizenStore } from './citizen-store';
-import type { CitizenProfileResponse, LanguageCode } from './dto';
+import type { CitizenProfileResponse, LanguageCode, PinnedServicePreference } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { Prisma } from '../../generated/prisma';
 
 interface CitizenRow {
   id: string;
@@ -16,6 +17,8 @@ interface CitizenRow {
   holdingNumber: string | null;
   languagePref: string;
   selectedTenantCode: string | null;
+  pinnedTenantCodes: Prisma.JsonValue;
+  pinnedServices: Prisma.JsonValue;
 }
 
 /**
@@ -71,6 +74,8 @@ export class PostgresCitizenStore implements CitizenStore {
         holdingNumber: profile.holding_number,
         languagePref: profile.language_pref,
         selectedTenantCode: profile.selected_tenant_code ?? null,
+        pinnedTenantCodes: pinsToDbJson(profile.pinned_tenant_codes),
+        pinnedServices: servicesToDbJson(profile.pinned_services),
       },
       update: {
         mobile: profile.mobile,
@@ -78,9 +83,65 @@ export class PostgresCitizenStore implements CitizenStore {
         holdingNumber: profile.holding_number,
         languagePref: profile.language_pref,
         selectedTenantCode: profile.selected_tenant_code ?? null,
+        pinnedTenantCodes: pinsToDbJson(profile.pinned_tenant_codes),
+        pinnedServices: servicesToDbJson(profile.pinned_services),
       },
     });
   }
+}
+
+function pinsToDbJson(values: string[]): Prisma.InputJsonValue {
+  return values as unknown as Prisma.InputJsonValue;
+}
+
+function servicesToDbJson(values: PinnedServicePreference[]): Prisma.InputJsonValue {
+  return values as unknown as Prisma.InputJsonValue;
+}
+
+function parsePinnedTenantCodes(value: Prisma.JsonValue): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result = value.filter((item): item is string => typeof item === 'string');
+  return [...result];
+}
+
+function parsePinnedServices(value: Prisma.JsonValue): PinnedServicePreference[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: PinnedServicePreference[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const tenantCode =
+      typeof record.tenant_code === 'string'
+        ? record.tenant_code
+        : typeof record.tenantCode === 'string'
+          ? record.tenantCode
+          : '';
+
+    const serviceCode =
+      typeof record.service_code === 'string'
+        ? record.service_code
+        : typeof record.serviceCode === 'string'
+          ? record.serviceCode
+          : '';
+
+    if (!tenantCode || !serviceCode) {
+      continue;
+    }
+
+    result.push({ tenant_code: tenantCode, service_code: serviceCode });
+  }
+
+  return result;
 }
 
 function toProfile(
@@ -97,5 +158,7 @@ function toProfile(
     holding_number: row.holdingNumber,
     language_pref: row.languagePref as LanguageCode,
     selected_tenant_code: row.selectedTenantCode ?? undefined,
+    pinned_tenant_codes: parsePinnedTenantCodes(row.pinnedTenantCodes),
+    pinned_services: parsePinnedServices(row.pinnedServices),
   };
 }

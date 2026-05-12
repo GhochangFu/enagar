@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
-import { tenantSeeds } from '../tenants/tenant.seed';
+import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../tenants/tenant.seed';
 
 import {
   getEffectiveService,
@@ -66,6 +66,28 @@ export class ServicesService {
     }
 
     return { ...service };
+  }
+
+  /**
+   * Union of distinct active catalogue service codes across every operational municipality
+   * (`GET /tenants` omitting portal). Used so the hub KPI stays whole-portfolio without N PWA calls.
+   */
+  distinctActiveServiceCodesAcrossMunicipalities(): number {
+    const codes = new Set<string>();
+
+    for (const tenant of tenantSeeds) {
+      if (!tenant.is_active || tenant.code === CITIZEN_PORTAL_TENANT_CODE) {
+        continue;
+      }
+
+      for (const service of resolveEffectiveServices(tenant.code)) {
+        if (service.active) {
+          codes.add(service.code);
+        }
+      }
+    }
+
+    return codes.size;
   }
 
   private assertTenantExists(tenantCode: string): void {

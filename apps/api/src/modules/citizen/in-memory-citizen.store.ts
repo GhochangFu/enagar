@@ -23,5 +23,12 @@ function cloneNullable(profile: CitizenProfileResponse | null): CitizenProfileRe
 }
 
 function cloneProfile(profile: CitizenProfileResponse): CitizenProfileResponse {
-  return { ...profile };
+  return {
+    ...profile,
+    pinned_tenant_codes: [...(profile.pinned_tenant_codes ?? [])],
+    pinned_services: [...(profile.pinned_services ?? [])].map((row) => ({
+      tenant_code: row.tenant_code,
+      service_code: row.service_code,
+    })),
+  };
 }

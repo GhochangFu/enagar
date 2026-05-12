@@ -4,13 +4,25 @@ Citizen-facing **Progressive Web App** built on **Next.js 14** App Router (per A
 
 ## Current surface
 
-- **Onboarding (Phase 1 + 4.x hub):** splash → language → mobile OTP (**`tenant_code: WBPORTAL`** per Option A) → **Citizen hub** (**Sprint 4.15 KPI strip & tabs** atop Sprint 4.1 data): parallel **`GET /citizen/dashboard`**, **`GET /tenants`**, unscoped **`GET /applications`** + **`GET /payments`**, catalogue-wide service fetch for KPI union — aggregate calls **omit** `X-Enagar-Tenant-Code`; after OTP **`PATCH /citizen/language`** persists the onboarding locale to the citizen profile; **hub Language KPI** shows **`language`** (same as **`t(...)`**) so Bengali onboarding shows **BN**; **Home** municipality cards unchanged; optional **Applications** dossier + payment actions pass the row’s **`tenant_code`**. **`Services` / Apply** tabs funnel into picking a municipality for workspace (**`POST /citizen/select-tenant`** + scoped header thereafter).
+- **Onboarding (Phase 1 + 4.x hub):** splash → language → mobile OTP (**`tenant_code: WBPORTAL`**) → **pin ≥1 municipality** (first session) via **`PATCH /citizen/preferences`** → **Citizen hub** (Sprint 4.15/4.16 KPI strip & tabs): **`GET /citizen/dashboard`** (includes **`distinct_active_service_codes`** for the whole catalogue union), **`GET /tenants`**, **`GET /citizen/preferences`**, unscoped **`GET /applications`** + **`GET /payments`**, and **lazy** **`GET /services/tenants/{code}`** only for pinned + shortcut ULBs; hub **Home** shows the pinned row plus **Browse all**; **Shortcuts** tab edits pins (≤15) and favourite `{ tenant_code, service_code }` pairs (**independent** of **`POST /citizen/select-tenant`**). **`PATCH /citizen/language`** after OTP; Language KPI = session locale. Municipality workspace behaviour unchanged (scoped header after pick).
 - **Hub ↔ workspace:** **Back to hub** clears workspace selection and resets branding to defaults; dashboard cards show per‑ULB application / payment / grievance counts and theme badges.
 - **Services & applications (Phase 2):** tenant catalogue, `@enagar/forms` apply flow, draft → document scan simulation → submit, **My Applications** with detail + comments (writes include scope header when in workspace).
 - **Payments (Phase 3 stub rail):** initiate stub payment, simulate PSP capture, list payments, receipt metadata preview (**receipt GET** uses **ULB scope** from workspace or from the payment’s municipal tenant in hub).
 - **Grievances (Phase 4 — Sprint 4.2):** **Grievances** tab — profile gate (`/citizen/register` when needed), category + priority + description, optional location notes, list/detail with SLA chips, timeline, comments, and **rating after resolved** (closes to `closed` per API).
 
 Shared: Tailwind preset (`@enagar/config/tailwind/base`), `@enagar/i18n`, `@enagar/tenant-theme`.
+
+### Manual smoke — Sprint 4.16 (hub scale: mandatory pins + shortcuts)
+
+1. **API / DB:** Apply migration `20260515103000_citizen_pin_preferences` (`pnpm --filter @enagar/api exec prisma migrate deploy` in your environment). Restart API.
+2. **Onboarding gate:** New or reset profile: after OTP verify, you must land on **Pin your municipalities** until you select ≥1 ULB and tap **Continue**. Advancing should call **`PATCH /citizen/preferences`** with `pinned_tenant_codes` (array length 1–15). You must not reach the hub KPI strip with zero pins unless DB is missing migration (API would return empty pins).
+3. **Preferences API:** With a bearer token, call **`GET /citizen/preferences`** and confirm `pinned_tenant_codes` / `pinned_services` mirror the UI. **`PATCH`** with `WBPORTAL` in pins or an invalid `tenant_code` returns **400**; **>15** pins returns **400** (DTO). **>1 duplicate** codes (case-insensitive) **400** from service.
+4. **Hub home:** Pinned row reflects server order; **Browse all municipalities** opens searchable modal (code / name / district from `GET /tenants`); choosing a row opens **workspace** without adding a pin (`select-tenant` unchanged; no auto-sync to pins).
+5. **KPIs:** **Services** uses **`distinct_active_service_codes`** from **`GET /citizen/dashboard`** (whole-catalogue union). Apps / Pay / Griev still sum dashboard buckets. Aggregate hub fetches still **omit** `X-Enagar-Tenant-Code`.
+6. **Hub Services tab:** Sections load only for **pinned** ULBs; use **Browse municipalities** for any other ULB. From a service card, opening **filtered Services** lands on workspace **Services** with only those `service_code`(s) visible; **Show all services** clears filter.
+7. **Pinned service chips (home):** After saving shortcuts, chip opens correct ULB + filtered Services tab (Apply not prefilled).
+8. **Shortcuts tab:** Edit pins (cap 15), add/remove service pairs, **Save shortcuts** → **`PATCH /citizen/preferences`** with both arrays; **Refresh hub** repopulates lazy `GET /services/tenants/{code}` only for pinned + shortcut ULBs.
+9. **Regression:** **Back to hub** clears workspace scope and service filter; dossier / grievance / payment behaviours from Sprint 4.15 remain intact.
 
 ### Manual smoke — Sprint 4.15 (hub KPI + aggregate tabs)
 

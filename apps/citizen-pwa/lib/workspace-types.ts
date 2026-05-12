@@ -103,6 +103,13 @@ export interface CitizenHubDashboardResponse {
   generated_at: string;
   municipality_scope: string | null;
   municipalities: CitizenHubDashboardMunicipalityBucket[];
+  /** Whole-portfolio distinct active catalogue service codes (Sprint 4.16 API). */
+  distinct_active_service_codes: number;
+}
+
+export interface CitizenPreferencesResponse {
+  pinned_tenant_codes: string[];
+  pinned_services: Array<{ tenant_code: string; service_code: string }>;
 }
 
 export interface ReceiptCitizenPayload {

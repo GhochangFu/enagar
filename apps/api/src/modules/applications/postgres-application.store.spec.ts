@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 
 import { PostgresApplicationStore } from './postgres-application.store';
 
@@ -91,7 +91,7 @@ describe('PostgresApplicationStore', () => {
       },
     } as unknown as PrismaService);
 
-    await expect(store.save(application)).rejects.toThrow(NotFoundException);
+    await expect(store.save(application)).rejects.toThrow(BadRequestException);
   });
 
   it('restores the API response from the runtime snapshot', async () => {

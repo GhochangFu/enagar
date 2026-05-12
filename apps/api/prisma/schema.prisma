@@ -84,6 +84,8 @@ model Citizen {
   holdingNumber String?        @map("holding_number") @db.VarChar(50)
   languagePref  String         @default("en") @map("language_pref") @db.VarChar(5)
   selectedTenantCode String?   @map("selected_tenant_code") @db.VarChar(20)
+  pinnedTenantCodes Json       @default(dbgenerated("'[]'::jsonb")) @map("pinned_tenant_codes")
+  pinnedServices    Json       @default(dbgenerated("'[]'::jsonb")) @map("pinned_services")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)

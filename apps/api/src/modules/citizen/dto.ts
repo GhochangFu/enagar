@@ -1,7 +1,30 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 export type LanguageCode = 'en' | 'bn' | 'hi';
+
+export interface PinnedServicePreference {
+  tenant_code: string;
+  service_code: string;
+}
+
+export interface CitizenPreferencesResponse {
+  pinned_tenant_codes: string[];
+  pinned_services: PinnedServicePreference[];
+}
 
 export class RegisterCitizenDto {
   @ApiProperty({ example: '9876543210' })
@@ -59,6 +82,46 @@ export interface CitizenProfileResponse {
   holding_number: string | null;
   language_pref: LanguageCode;
   selected_tenant_code?: string;
+  pinned_tenant_codes: string[];
+  pinned_services: PinnedServicePreference[];
+}
+
+export class PinnedServicePreferenceDto {
+  @ApiProperty({ example: 'KMC' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  tenant_code!: string;
+
+  @ApiProperty({ example: 'birth-cert' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  service_code!: string;
+}
+
+/** Sprint 4.16 — pinned ULBs (≤15) and favourite `{ tenant_code, service_code }` pairs (server-validated). */
+export class PatchCitizenPreferencesDto {
+  @ApiPropertyOptional({ description: 'Replace ordered favourite ULB codes.', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1, { message: 'At least one pinned municipality is required' })
+  @ArrayMaxSize(15)
+  @ArrayUnique({ message: 'Duplicate municipality codes are not allowed' })
+  @IsString({ each: true })
+  @MaxLength(20, { each: true })
+  pinned_tenant_codes?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Replace shortcut service pairs.',
+    type: [PinnedServicePreferenceDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => PinnedServicePreferenceDto)
+  pinned_services?: PinnedServicePreferenceDto[];
 }
 
 /** Sprint 2.2 hub dashboard — counts grouped per catalogued ULB. */
@@ -75,4 +138,6 @@ export interface CitizenHubDashboardResponse {
   generated_at: string;
   municipality_scope: string | null;
   municipalities: CitizenHubDashboardMunicipalityBucket[];
+  /** Distinct active `service.code` values unioned across all operational ULBs (catalogue semantics). Sprint 4.16. */
+  distinct_active_service_codes: number;
 }

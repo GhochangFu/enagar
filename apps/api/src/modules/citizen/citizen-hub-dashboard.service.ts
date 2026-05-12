@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { ApplicationsService } from '../applications/applications.service';
 import { GrievancesService } from '../grievances/grievances.service';
 import { PaymentsService } from '../payments/payments.service';
+import { ServicesService } from '../services/services.service';
 import { TenantsService } from '../tenants/tenants.service';
 
 import type { CitizenHubDashboardResponse } from './dto';
@@ -20,6 +21,7 @@ export class CitizenHubDashboardService {
     private readonly payments: PaymentsService,
     private readonly grievances: GrievancesService,
     private readonly tenants: TenantsService,
+    private readonly catalogue: ServicesService,
   ) {}
 
   async getDashboard(
@@ -45,6 +47,8 @@ export class CitizenHubDashboardService {
       generated_at: new Date().toISOString(),
       municipality_scope: readScope?.municipalityTenantCode ?? null,
       municipalities,
+      distinct_active_service_codes:
+        this.catalogue.distinctActiveServiceCodesAcrossMunicipalities(),
     };
   }
 }

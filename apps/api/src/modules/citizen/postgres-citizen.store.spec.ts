@@ -5,6 +5,8 @@ import { PostgresCitizenStore } from './postgres-citizen.store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { PrismaService } from '../../common/database/prisma.service';
 
+const emptyPins = { pinnedTenantCodes: [], pinnedServices: [] };
+
 const municipalPrincipal: AuthenticatedPrincipal = {
   subject: 'keycloak-user-1',
   tenantId: '11111111-1111-4111-8111-111111111111',
@@ -32,6 +34,7 @@ describe('PostgresCitizenStore', () => {
       holdingNumber: null,
       languagePref: 'en',
       selectedTenantCode: 'HMC',
+      ...emptyPins,
     });
     const findFirst = jest.fn();
 
@@ -57,6 +60,8 @@ describe('PostgresCitizenStore', () => {
       keycloak_subject: portalPrincipal.subject,
       tenant_code: 'WBPORTAL',
       selected_tenant_code: 'HMC',
+      pinned_tenant_codes: [],
+      pinned_services: [],
     });
   });
 
@@ -71,6 +76,7 @@ describe('PostgresCitizenStore', () => {
       holdingNumber: null,
       languagePref: 'bn',
       selectedTenantCode: null,
+      ...emptyPins,
     });
 
     const store = new PostgresCitizenStore({
@@ -102,6 +108,8 @@ describe('PostgresCitizenStore', () => {
       holdingNumber: '64/PARK-ST/12B',
       languagePref: 'bn',
       selectedTenantCode: null,
+      pinnedTenantCodes: ['KMC'],
+      pinnedServices: [{ tenant_code: 'KMC', service_code: 'birth-cert' }],
     });
 
     const store = new PostgresCitizenStore({
@@ -128,10 +136,12 @@ describe('PostgresCitizenStore', () => {
       tenant_code: 'KMC',
       mobile: '9876543210',
       language_pref: 'bn',
+      pinned_tenant_codes: ['KMC'],
+      pinned_services: [{ tenant_code: 'KMC', service_code: 'birth-cert' }],
     });
   });
 
-  it('upserts citizen profile including selectedTenantCode', async () => {
+  it('upserts citizen profile including selectedTenantCode and pin JSON', async () => {
     const upsert = jest.fn().mockResolvedValue({});
     const store = new PostgresCitizenStore({
       citizen: {
@@ -149,6 +159,8 @@ describe('PostgresCitizenStore', () => {
       holding_number: '64/PARK-ST/12B',
       language_pref: 'bn',
       selected_tenant_code: 'HMC',
+      pinned_tenant_codes: ['KMC', 'HMC'],
+      pinned_services: [{ tenant_code: 'KMC', service_code: 'birth-cert' }],
     });
 
     expect(upsert).toHaveBeenCalledWith({
@@ -167,6 +179,8 @@ describe('PostgresCitizenStore', () => {
         holdingNumber: '64/PARK-ST/12B',
         languagePref: 'bn',
         selectedTenantCode: 'HMC',
+        pinnedTenantCodes: ['KMC', 'HMC'],
+        pinnedServices: [{ tenant_code: 'KMC', service_code: 'birth-cert' }],
       }),
       update: expect.objectContaining({
         mobile: '9876543210',
@@ -174,6 +188,8 @@ describe('PostgresCitizenStore', () => {
         holdingNumber: '64/PARK-ST/12B',
         languagePref: 'bn',
         selectedTenantCode: 'HMC',
+        pinnedTenantCodes: ['KMC', 'HMC'],
+        pinnedServices: [{ tenant_code: 'KMC', service_code: 'birth-cert' }],
       }),
     });
   });

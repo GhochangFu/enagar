@@ -7,13 +7,18 @@ import { CurrentPrincipal } from '../../common/auth/current-principal.decorator'
 import { CitizenHubDashboardService } from './citizen-hub-dashboard.service';
 import { CitizenService } from './citizen.service';
 import {
+  PatchCitizenPreferencesDto,
   RegisterCitizenDto,
   SelectTenantDto,
   UpdateCitizenLanguageDto,
   UpdateCitizenProfileDto,
 } from './dto';
 
-import type { CitizenHubDashboardResponse, CitizenProfileResponse } from './dto';
+import type {
+  CitizenHubDashboardResponse,
+  CitizenPreferencesResponse,
+  CitizenProfileResponse,
+} from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { ApplicationReadScope } from '../applications/dto';
 
@@ -60,6 +65,25 @@ export class CitizenController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ): Promise<CitizenProfileResponse> {
     return this.citizens.getProfile(principal);
+  }
+
+  @Get('preferences')
+  @ApiOperation({
+    summary:
+      'Sprint 4.16 — pinned ULBs and favourite service shortcuts (independent of selected_tenant_code)',
+  })
+  getPreferences(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+  ): Promise<CitizenPreferencesResponse> {
+    return this.citizens.getPreferences(principal);
+  }
+
+  @Patch('preferences')
+  patchPreferences(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: PatchCitizenPreferencesDto,
+  ): Promise<CitizenPreferencesResponse> {
+    return this.citizens.patchPreferences(principal, dto);
   }
 
   @Patch('profile')
