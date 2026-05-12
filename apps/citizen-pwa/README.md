@@ -62,9 +62,12 @@ pnpm --filter @enagar/citizen-pwa test   # Sprint 4.2+ lib unit tests (grievance
 
 Set `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:3001/api`) to point at `@enagar/api`.
 
-## What's coming (per [roadmap-citizen-unified-hub.md](../docs/roadmap-citizen-unified-hub.md))
+## What's coming (per [`ROADMAP.md`](../ROADMAP.md) — [Citizen Unified Hub programme](../ROADMAP.md#citizen-unified-hub-programme-option-a))
 
-| Phase / sprint     | Adds                                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| **5 / Sprint 5.1** | Keycloak Option A — realm, client, protocol mappers (portal `tenant_*` + stable `sub`), API verifier envs, staging smoke |
-| Later              | Grievance escalations, reopen, attachments; native PWA polish; Sahayak AI (roadmap)                                      |
+| Programme / sprint | Adds                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Hub H5.1**       | Keycloak Option A — realm, client, protocol mappers (portal `tenant_*` + stable `sub`), API verifier envs, staging smoke         |
+| **Hub H6.1**       | Hub docs, observability spot-check, backlog triage                                                                               |
+| **Master** later   | Grievance Sprint **4.3** (escalations, reopen, …); Master Phase **5** mobile polish (**not** the same numbering as Hub **H5.x**) |
+
+Smoke sections below still refer to historical labels (**Sprint 4.1**, **4.15**, **4.16**, **4.2**); map them to **Hub H4.1**, **H4.15**, **H4.16**, **H4.2** in `ROADMAP.md`.

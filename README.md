@@ -31,17 +31,17 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 
 ## Documentation
 
-| Document                                                           | Purpose                                                                                |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| [`docs/charter.md`](./docs/charter.md)                             | Vision, KPIs, scope, risks, sponsor sign-off                                           |
-| [`AGENT.md`](./AGENT.md)                                           | Operating manual for any contributor (human or AI)                                     |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                             | Technical architecture (multi-tenancy, RLS, RAG, schema)                               |
-| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan; Phase 1 closure status and Phase 2 next action               |
-| [`docs/ADRs/`](./docs/ADRs/)                                       | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                     |
-| [`docs/glossary.md`](./docs/glossary.md)                           | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns         |
-| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + security backlog                                                         |
-| [`docs/service-catalogue.md`](./docs/service-catalogue.md)         | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan         |
-| [`docs/design-system.md`](./docs/design-system.md)                 | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows |
+| Document                                                           | Purpose                                                                                                                                                          |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/charter.md`](./docs/charter.md)                             | Vision, KPIs, scope, risks, sponsor sign-off                                                                                                                     |
+| [`AGENT.md`](./AGENT.md)                                           | Operating manual for any contributor (human or AI)                                                                                                               |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                             | Technical architecture (multi-tenancy, RLS, RAG, schema)                                                                                                         |
+| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan + **Citizen Unified Hub** programme (`H*.` sprints); [execution spine](./ROADMAP.md#execution-spine-master-phases--citizen-unified-hub) |
+| [`docs/ADRs/`](./docs/ADRs/)                                       | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                                                                                               |
+| [`docs/glossary.md`](./docs/glossary.md)                           | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns                                                                                   |
+| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + security backlog                                                                                                                                   |
+| [`docs/service-catalogue.md`](./docs/service-catalogue.md)         | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan                                                                                   |
+| [`docs/design-system.md`](./docs/design-system.md)                 | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows                                                                           |
 
 ## Architecture at a glance
 
@@ -246,7 +246,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **Phase 4 — Sprint 4.3** (grievance escalations / reopen / polish). **Sprints 4.1–4.2** (APIs + citizen PWA grievance tab) closed 2026-05-11 — see `ROADMAP.md`. **Sprint 3.1B** remains credential-blocked.
+**Next:** See **`ROADMAP.md`** [Execution spine](./ROADMAP.md#execution-spine-master-phases--citizen-unified-hub). **Master:** **Phase 4 — Sprint 4.3** (grievance escalations / reopen / polish) **or** **Sprint 3.1B** when PSP credentials land. **Hub programme:** **H5.1** (Keycloak Option A staging) then **H6.1** — not Master Phase 5 Sprint 5.1.
 
 ---
 

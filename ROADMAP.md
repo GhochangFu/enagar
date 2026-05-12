@@ -28,6 +28,31 @@
 
 ---
 
+## Execution spine (Master phases + Citizen Unified Hub)
+
+This file carries **two coordinated naming schemes**:
+
+1. **Master phases** — numbered **`Phase 0` … `Phase 12`** (whole-programme delivery: tenancy, workflow, payments, grievances engine, mobile polish, admin, AI, pilot…).
+2. **Citizen Unified Hub programme** — sprints prefixed **`H`** (**`H1.1`**, **`H4.16`**, **`H5.1`**, …) under [Citizen Unified Hub programme (Option A)](#citizen-unified-hub-programme-option-a). Those **`H`** sprints are **not** the same labels as Master **Phase 4 grievance** sprints (**`Sprint 4.1`–`4.3`**) or Master **Phase 5 mobile** sprints (**`Sprint 5.1`–`5.4`**).
+
+### Recommended rolling-wave order
+
+Use this when prioritising what to pull next across tracks (adjust for staffing and credential unblock).
+
+| Seq | Track  | Item                                                                                                                | Notes                                                                                        |
+| --- | ------ | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| A   | Master | Phases **0 → 2**                                                                                                    | Closed where marked in sections below                                                        |
+| B   | Master | Phase **3** — payment core + stub rail                                                                              | **Sprint 3.1B** is an **interrupt**: start immediately when gateway sandbox credentials land |
+| C   | Hub    | **H1 → H3** — portal tenant, hub reads, municipal writes                                                            | Mostly closed — see Hub programme section                                                    |
+| D   | Master | Phase **4** — **Sprint 4.1–4.2** (grievance persistence + citizen tab MVP)                                          | Closed 2026-05-11                                                                            |
+| E   | Hub    | **H4.1 → H4.15 → H4.16 → H4.2** — citizen **PWA hub** UX + grievance scope in hub/workspace                         | Mostly closed — hub sprint **order** is document order below                                 |
+| F   | Hub    | **H5.1** — Keycloak Option A on staging/prod                                                                        | **Next Hub-programme sprint** if continuing unified-hub identity rollout                     |
+| G   | Master | Phase **4** — **Sprint 4.3** (escalations, reopen, grievance hardening) **or** resume **3.1B** first when PSP lands | Master **Status** section tracks default                                                     |
+| H   | Hub    | **H6.1** — hub docs / observability / backlog triage                                                                | Exit polish for Hub programme slice                                                          |
+| I   | Master | Phase **5** — Citizen Mobile + PWA polish (**Master Sprint 5.1–5.4**)                                               | Native shell + parity — **not** the same work as Hub **H5.1**                                |
+
+---
+
 ## Phase 0 — Foundation & Discovery
 
 > "Decide everything that, if changed later, would force us to throw work away."
@@ -779,7 +804,7 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 ### Programme status (2026-05-11)
 
-**Sprint 4.1** (DB + APIs + SLA) and **Sprint 4.2** (citizen PWA grievance tab) are **closed** — see delivery notes below. **Sprint 4.3** (escalations, reopen, polish) is next unless **Sprint 3.1B** (PSP adapter) unblocks.
+**Sprint 4.1** (DB + APIs + SLA) and **Sprint 4.2** (citizen PWA grievance tab) are **closed** — see delivery notes below. **Sprint 4.3** (escalations, reopen, polish) is next **on the Master grievance track** unless **Sprint 3.1B** (PSP adapter) unblocks. Citizen **hub** UX is tracked separately as **Hub** sprints **H4.x** in [Citizen Unified Hub programme (Option A)](#citizen-unified-hub-programme-option-a); see also [Execution spine](#execution-spine-master-phases--citizen-unified-hub).
 
 ### Goal
 
@@ -870,6 +895,281 @@ MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (l
 | Phase-2 file-size discipline (`phase2-hardening.spec`): shared panels + `lib/workspace-*.ts`        | ✅  |
 
 **Deferred to 4.3+**: breach push notifications, reopen, attachments / GPS, dedicated staff UX, anonymised aggregates, 200-grievance routing bake-off.
+
+---
+
+## Citizen Unified Hub programme (Option A)
+
+> **Audience:** Engineering, architecture, PM, Keycloak/DevOps. **Apps:** Citizen PWA (`apps/citizen-pwa`), API (`apps/api`). **Merged:** Former standalone `docs/roadmap-citizen-unified-hub.md` — that file now redirects here.
+>
+> **Naming:** Hub work uses **`H`-prefixed** sprint IDs (**`H4.16`**, **`H5.1`**, …). Do **not** confuse **`H5.1`** (Keycloak staging) with **Master Phase 5 Sprint 5.1** (React Native shell) later in this document.
+
+**Status:** Hub phases **H1–H4** largely delivered per sprint notes below; **H5.1 / H6.1** remain the forward-looking Hub-programme slices unless reprioritised.
+
+**Keycloak:** **Option A (chosen)** — tokens carry **portal** tenant claims and a **single stable `sub`** per citizen; ULB scope is header/body — not different logins per ULB.
+
+**Pace convention:** Unless noted, assume **two-week** sprints.
+
+### Hub programme — product and UX commitments
+
+These decisions should be locked before coding.
+
+1. **Two surfaces**
+   - **Hub (common dashboard):** Aggregated read view across municipalities the citizen has interacted with — applications, payments, grievances — each row tagged with municipality identity (code, name, **`theme_color` / badge**).
+   - **Municipality workspace:** Current behaviour preserved: catalogue, apply flow, and lists scoped to **one chosen ULB** at a time.
+
+2. **Citizen identity**
+   - Exactly **one stable principal identity** per person (Keycloak **`sub`**; in dev, a deterministic subject e.g. per mobile) — **not** different subjects per OTP `tenant_code`.
+   - JWT may retain a **portal / default tenant** for claims or infrastructure; **citizen-visible data** must **not** be driven only by that claim when listing cross-ULB activity.
+
+3. **Production identity (Keycloak) — Option A (locked)**
+
+   Sponsor selected **Option A.** Target token shape:
+   - **`sub`:** Stable per citizen (survives across ULBs; same person = same `sub` after OTP).
+   - **`tenant_id` / `tenant_code`:** Always the **portal** ULB (`WBPORTAL` or equivalent), not the municipality — except where internal staff realms differ; citizen OIDC clients use portal tenant only for these claims.
+   - **Roles:** Citizen role preserved; municipality is **never** inferred from JWT alone for data listing.
+
+   Implementation detail for **Hub Phase H5**: Keycloak realm, **citizen-public** client, OTP/broker flow consistent with WB policy — plus **protocol mappers** issuing portal `tenant_id` / `tenant_code`. Separate artefact: mapper JSON + env vars for staging.
+
+   Option B (`username = {tenant}:{mobile}` plus API mapping) is **out of scope** unless Sponsor reopens it.
+
+### Hub programme — data model principles
+
+4. **Logical vs physical citizen** — **Logical:** one citizen may apply across many ULBs. **Physical (Prisma):** `Citizen` remains **`@@unique([tenantId, keycloakSubject])`**; a **single global Citizen row** refactor is **out of initial scope**.
+
+5. **Lazy ULB citizenship** — On first filing under ULB **X**, **ensure** a `Citizen` row for `(tenantId = X, keycloakSubject)`.
+
+6. **Optional preference persistence** — **`selected_tenant_code`** (or preferences table) for last workspace UX.
+
+7. **Portal tenant in catalogue** — Register **portal ULB** (e.g. `WBPORTAL`) in **`tenant.seed.ts`** + seed pipeline. **Business transactions** remain under **municipal** `tenant_id`s.
+
+### Hub programme — API scoping contract
+
+8. **`X-Enagar-Tenant-Code: {ULB}`** when the app is in **municipality workspace**; **omit** for hub aggregate reads.
+
+9. **Writes** — Resolve exactly **one** target ULB from header/DTO; **reject** if missing when JWT is portal.
+
+10. **Staff** — Ignore hub header for authz; tenant remains **JWT-bound** for staff routes.
+
+### Hub programme — backend implementation sequence
+
+Implement in this order to avoid partial broken states.
+
+11. **Shared helpers** — Portal detection, citizen-only vs staff, parse `X-Enagar-Tenant-Code`, resolve ULB for writes.
+
+12. **Auth service (dev path)** — Default OTP `tenant_code` → portal; stable `sub`; align refresh.
+
+13. **Citizen persistence** — Resolve profile by subject (portal row preferred); `select-tenant` preference.
+
+14. **Applications** — Hub vs workspace list/access; drafts/submits bind municipal `tenant_id`.
+
+15. **Grievances** — Citizen list by subject + optional tenant filter; writes use row **`tenantId`** when JWT is portal.
+
+16. **Payments** — List/get by subject; initiate uses **application’s** tenant for idempotency/gateway context.
+
+17. **Holdings and documents** — Same ULB resolution as applications.
+
+18. **Optional hub bundle** — `GET /citizen/dashboard` with `tenant_code` + `theme_color`.
+
+### Hub programme — frontend (Citizen PWA)
+
+19. **OTP** — Portal `tenant_code` on send/verify.
+
+20. **Navigation** — Hub landing → municipality → `select-tenant` → workspace; **Back to hub** clears scope.
+
+21. **HTTP wrapper** — Bearer + **`X-Enagar-Tenant-Code`** only in workspace.
+
+22. **Grievances UI** — Pass **scope** (`tenant_code` or null) into client.
+
+### Hub programme — verification, rollout, documentation
+
+23. **Tests** — Portal JWT cross-ULB list; payment idempotency with JWT tenant ≠ application tenant; staff unchanged.
+
+24. **Migrations and seed** — Portal row; preferences; `pnpm db:migrate` + `pnpm db:seed`.
+
+25. **Documentation** — Hub vs workspace, header contract, Keycloak Option A checklist.
+
+### Hub programme — execution checklist
+
+Rough order remains: catalogue + auth parity → hub reads → municipality writes → PWA → Keycloak staging → hardening. Detailed sprints follow.
+
+### Hub programme — explicit non-goals (initial slice)
+
+- Merging every municipal `Citizen` row into one global row without a phased migration strategy.
+- Cross-tenant **staff** “super dashboard” without separate RBAC design.
+- Changing translation keys unless copy is reviewed with i18n owners.
+
+---
+
+### Hub Phase H1 — Platform identity & data foundation
+
+**Program goal:** Introduce portal ULB in data + code, align **dev** JWT with Option A shape, and add shared scoping utilities.
+
+#### Sprint H1.1 — Catalogue, schema, seed
+
+| Item              | Detail                                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | Add `WBPORTAL` (or final portal code) to `tenant.seed.ts`; Prisma migration if adding `citizens.selected_tenant_code` (or `citizen_preferences` table); `pnpm db:seed` idempotent for portal row; skip or no-op ULB-only artefacts for portal if product wants zero grievance routing noise (document choice). |
+| **Tests**         | Migration applies on clean DB; seed upsert test or script smoke; existing API test suite still green.                                                                                                                                                                                                          |
+| **Exit criteria** | CI passes; fresh `migrate + seed` creates portal tenant; no regression on existing tenant rows.                                                                                                                                                                                                                |
+
+**Status: done (2026-05-11).** Portal `WBPORTAL` in `apps/api/src/modules/tenants/tenant.seed.ts` (`CITIZEN_PORTAL_TENANT_CODE`); migration `apps/api/prisma/migrations/20260514100000_citizen_selected_tenant_code/`; seed skips grievance SLA/routing for portal; `TenantsService.list()` excludes WBPORTAL; `apps/api/README.md` documents behaviour.
+
+#### Sprint H1.2 — Dev auth, helpers, citizen profile resolution
+
+| Item              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | Dev OTP/verify: default `tenant_code` → portal; JWT `sub` stable per mobile (e.g. `dev-citizen-{mobile}`); claims `tenant_id` / `tenant_code` = portal; fix dev **refresh** to stop hard-coding unrelated mobile/tenant (or document limitation). Add **`citizen-portal` helpers**: `isPortalPrincipal`, `parseTenantScopeHeader`, `resolveTargetUlbForWrite`, `isCitizenOnly`. Postgres `CitizenStore`: `findByPrincipal` prefers portal row by `keycloakSubject`, else fallback row; `save` / `select-tenant` persist `selected_tenant_code` if column exists. |
+| **Tests**         | Unit tests for helpers; citizen store spec: same `sub`, two tenant rows — correct read preference; auth integration: two verifies same mobile → same `sub` in decoded dev JWT.                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Exit criteria** | Dev login flow issues Option-A-shaped token; profile API returns consistent fields for portal user; staff principals unchanged by helpers.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+**Status: done (2026-05-11).** `AuthService`: dev verify/refresh issue **WBPORTAL** claims and `sub` = `dev-citizen-{mobile}`; optional `tenant_code` on OTP DTO; dev refresh token embeds mobile (`dev-refresh-{mobile}-{uuid}`); **`refresh` is async** so legacy `dev-refresh-{uuid-only}` and other parse failures reject as `UnauthorizedException`. Helpers in `src/common/auth/citizen-scope.ts`. `PostgresCitizenStore` prefers portal composite row, then latest by subject; persists `selectedTenantCode`. Tests: `auth.service.spec`, `citizen-scope.spec`, updated `postgres-citizen.store.spec`.
+
+---
+
+### Hub Phase H2 — Hub read APIs (aggregated citizen view)
+
+**Program goal:** Citizens list **their** data across ULBs when **no** `X-Enagar-Tenant-Code` is sent; with header, lists match **one** ULB.
+
+#### Sprint H2.1 — Applications + holdings/documents read scope
+
+| Item              | Detail                                                                                                                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | `ApplicationsController` passes optional header into service; `list`, `getByDocketNo`, `getOwnedApplication`, `canAccess` implement hub vs workspace rules. **Holdings** + **documents** routes resolve ULB from header for citizen; staff ignore header. |
+| **Tests**         | Portal principal, apps in two ULBs — list all without header; list one with header; staff list still JWT-tenant only.                                                                                                                                     |
+| **Exit criteria** | No 404 for legit cross-ULB docket when unscoped; scoped requests hide other ULB apps.                                                                                                                                                                     |
+
+**Status: done (2026-05-11).** `ApplicationReadScope` + `X-Enagar-Tenant-Code` on `applications` and `documents` controllers; `ApplicationsService` hub vs municipal JWT paths; `HoldingsService`, `DocumentsService` aligned. Tests: `applications.service.spec`, `holdings.service.spec`, Phase 2 integration.
+
+#### Sprint H2.2 — Payments + grievances read scope + dashboard
+
+| Item              | Detail                                                                                                                                                                                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | Payments list/get/receipt: citizen by `citizen_subject`, optional tenant filter via header; portal JWT ownership when subject matches. Grievances citizen list/detail by subject (+ optional `tenantId`). **`GET /citizen/dashboard`** with grouped payloads + `tenant_code` + `theme_color`. |
+| **Tests**         | Payment store/service: two tenants, same subject — unscoped vs scoped lists; grievances cross-tenant list; dashboard smoke if implemented.                                                                                                                                                    |
+| **Exit criteria** | Hub populated from API without client-side merging hacks; staff grievance list still tenant-scoped.                                                                                                                                                                                           |
+
+**Status: done (2026-05-11).** Payments + grievances hub paths; **`GET /api/citizen/dashboard`**; **CORS:** `x-enagar-tenant-code`. Tests: `citizen-scope.spec`, `payments.service.spec`.
+
+---
+
+### Hub Phase H3 — Municipality write APIs (ULB-scoped creates & payment integrity)
+
+**Program goal:** Every create/settlement path binds to an explicit ULB when JWT tenant is portal.
+
+#### Sprint H3.1 — Applications write path + ULB citizen ensure
+
+| Item              | Detail                                                                                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | `createDraft` / `create` / `submitDraft`: resolve target ULB from header/DTO; **`submitDraft`** uses **application’s** `tenant_code` for workflow; **ensureCitizen(ulb)** when needed. Documents/holdings writes aligned with resolved ULB. |
+| **Tests**         | Integration: portal JWT + header KMC → draft has KMC `tenant_id`; submit uses KMC workflow; without ULB resolution → 400.                                                                                                                   |
+| **Exit criteria** | No application row left on portal `tenant_id` by mistake; citizen row exists for target ULB when required by schema.                                                                                                                        |
+
+**Status: done (2026-05-11).** `resolveCitizenMunicipalityForWrite`, **`ensureMunicipalCitizenRow`**, **`DocumentsService`** municipal paths for portal citizens. Tests: `applications.service.spec`, `documents.service.spec`, **`payment-portal.http.integration.spec`**.
+
+#### Sprint H3.2 — Payments initiate + stub complete + grievances writes
+
+| Item              | Detail                                                                                                                                                                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | **initiate:** idempotency scoped to **application’s `tenant_id`**; gateway `tenantId` = application’s. **Stub complete:** portal citizen ownership without strict `payment.tenantId === principal.tenantId`. **Grievances create/comments:** municipal `tenantId`; timeline uses row’s tenant. |
+| **Tests**         | Idempotency replay with portal JWT; stub complete; grievance create in two ULBs; isolation on timeline writes.                                                                                                                                                                                 |
+| **Exit criteria** | Finance/grievance reviewers sign off on demo script (initiate → stub settle → receipt read) with portal token.                                                                                                                                                                                 |
+
+**Status: done (2026-05-11) — payments slice.** `PaymentsService` initiate/complete from application ULB; **`findIdempotencyRecord`** tenant override; Postgres + in-memory stores. Grievances writes aligned with Phase 4 Master grievance APIs.
+
+**Hub Phase H3 — closed (2026-05-11).** Municipal-bound writes + portal-safe payments verified in automation above.
+
+---
+
+### Hub Phase H4 — Citizen PWA (hub UX + workspace parity)
+
+**Program goal:** After OTP, user reaches **hub** with onboarding pins (**`Sprint H4.16`**); entering a municipality attaches header on API calls; **Back to hub** clears scope.
+
+#### Sprint H4.1 — Navigation + HTTP layer + hub data
+
+| Item              | Detail                                                                                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | OTP uses portal `tenant_code`; **hub** step with dashboard; municipality card → theme + `select-tenant` + workspace; **request helper** adds `X-Enagar-Tenant-Code` only in workspace. |
+| **Tests**         | PWA manual smoke / typecheck / build documented.                                                                                                                                       |
+| **Exit criteria** | Demo: login → multi-ULB rows → open one ULB → scoped workspace → back to hub → aggregates again.                                                                                       |
+
+**Status: done (2026-05-11).** **`@enagar/citizen-pwa`:** `tenant_code: WBPORTAL`; **`GET /citizen/dashboard`** without scope header; **`authHeaders(…, tenantScopeCode)`** in workspace. **`apps/citizen-pwa/README.md`** § Sprint 4.1 (historical smoke label — maps to **H4.1**).
+
+#### Sprint H4.15 — Citizen hub KPI strip & tab dashboard
+
+| Item              | Detail                                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | Hub **five KPI-style cards**; Language PATCH after OTP; services union; apps/payments/grievances from dashboard buckets; **pill tab rail**; aggregate reads omit scope header until row-level actions need it. |
+| **Tests**         | Manual smoke README § 4.15; typecheck / build.                                                                                                                                                                 |
+| **Exit criteria** | Sponsor can use KPIs → aggregated lists across ULBs without entering a municipality first (apply still via workspace picker).                                                                                  |
+
+**Status: done (2026-05-12).** Shared tab strip; **`refreshHubData`**; **`PATCH /citizen/language`**. README § Sprint 4.15 ↔ **H4.15**.
+
+#### Sprint H4.16 — Hub at scale: mandatory onboarding pins + favourites (≤15 ULBs)
+
+**Locked product decisions — confirmed 2026-05-12**
+
+1. **Onboarding:** **≥1 municipality required** — cannot skip with zero pinned ULBs.
+2. **Pinned ULBs:** **≤15**, ordered server-side favourites.
+3. **`selected_tenant_code`:** **Separate** from pins — **`POST /citizen/select-tenant`** only; **no auto-sync** into pins.
+4. **Pinned services:** Workspace **Services** tab filtered to favourites (Apply not pre-loaded).
+5. **Hub KPIs:** **Across all ULBs**; **no** pinned-scope KPI toggle in **H4.16**.
+6. **Municipality search:** Match **`tenant.code`**, **`tenant.name`**, **`district`** from **`GET /tenants`**. Multilingual ULB search **out of scope** for **H4.16**.
+7. **Pins ≠ access control:** Browse/search reaches **any** operational municipality and service.
+
+| Item              | Detail                                                                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | **`pinned_tenant_codes[]`**, **`pinned_services[]`**; **`GET`/`PATCH /citizen/preferences`**; PWA onboarding gate + pinned row + browse drawer + lazy **`/services/tenants/:code`**; **`distinct_active_service_codes`** on dashboard for Services KPI. |
+| **Tests**         | Unit/API cap 15, duplicates, WBPORTAL, stale codes; README § 4.16; PWA typecheck + build.                                                                                                                                                               |
+| **Exit criteria** | Cannot bypass onboarding without ≥1 pin (UI + PATCH guard); many ULBs via search; whole-portfolio KPIs; every municipality/service reachable without pinning.                                                                                           |
+
+**Status: done (2026-05-12).** Migration `20260515103000_citizen_pin_preferences`; preferences API + PWA pin gate + Shortcuts tab. README § Sprint 4.16 ↔ **H4.16**.
+
+#### Sprint H4.2 — Grievances UI scope + regression pass
+
+| Item              | Detail                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | `GrievancesWorkspace` + hub paths: scope matches Hub Phases **H2–H3**; hub detail derives header from grievance **`tenant_id`**; regression on applications/payments tabs. |
+| **Tests**         | `pnpm --filter @enagar/citizen-pwa run test` (`lib/grievance-scope.ts`).                                                                                                   |
+| **Exit criteria** | Workspace calls send tenant header when required; hub aggregates omit header; no accidental hub refresh loops.                                                             |
+
+**Status: done (2026-05-12).** **`hubMunicipalityCatalogue`**, **`onGrievancesMutated`** post-mutation only, banner errors. README § Sprint 4.2 ↔ **H4.2** (scope UX layered on Master Phase **4** grievance APIs).
+
+---
+
+### Hub Phase H5 — Keycloak Option A (non-dev environments)
+
+**Program goal:** Staging/prod realms issue the same semantic claims as dev (portal tenant + stable `sub`).
+
+#### Sprint H5.1 — Realm, client, mappers, verifier alignment
+
+| Item              | Detail                                                                                                                                                                                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | Keycloak realm doc: citizen client ID, OTP/broker wiring, protocol mappers for `tenant_id` / `tenant_code` (portal), role claims; JWKS/issuer env on API updated per env; **remove or bypass** `tenant:mobile` username pattern for citizen OTP if still present; deployment checklist. |
+| **Tests**         | Staging smoke: OTP → JWT decode matches expected claims; API hub + workspace flows against real Keycloak; negative test wrong scope header.                                                                                                                                             |
+| **Exit criteria** | Security/DevOps sign-off on mapper set; ADR appendix or runbook merged.                                                                                                                                                                                                                 |
+
+---
+
+### Hub Phase H6 — Hardening & Hub programme exit
+
+#### Sprint H6.1 — Docs, observability spot-check, backlog triage
+
+| Item              | Detail                                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | README/ADR excerpt; troubleshooting (missing header on write); structured log fields if useful; performance smoke on dashboard query (N+1 avoided or documented). |
+| **Tests**         | Full CI green; optional k6 or manual “100 hub loads” if risk flagged.                                                                                             |
+| **Exit criteria** | Product owner accepts exit demo + written checklist; remaining items moved to backlog with IDs.                                                                   |
+
+---
+
+### Hub programme — assumptions and follow-ups
+
+- **Option A** assumes Keycloak can issue portal **`tenant_*`** claims for all citizen OTP logins without per-ULB Keycloak users.
+- **Mobile uniqueness** enforced as today; shared-mobile multi-person out of scope.
+- If **grievance SLA seed** for portal tenant is noisy, **skip** portal in SLA seed loop (record in Hub **H1** exit notes).
+
+**Question for Sponsor (blocking Hub H5):** Confirm **exact claim names** Keycloak will emit (`tenant_id` vs `tenantId`) so `jwt-verifier` maps without a second translation layer.
 
 ---
 
@@ -1413,7 +1713,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete.** **Sprints 4.1 and 4.2** (grievance APIs + citizen PWA grievance tab) are **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Phase 4** programme continues with **Sprint 4.3** unless **3.1B** unblocks first.
+**Current state**: **Phase 2 complete.** **Master Phase 4 — Sprints 4.1 and 4.2** (grievance APIs + citizen PWA grievance tab) are **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Master Phase 4** continues with **Sprint 4.3** unless **3.1B** unblocks first. **Citizen Unified Hub programme** sprints **H1–H4** are **closed** per [Citizen Unified Hub programme (Option A)](#citizen-unified-hub-programme-option-a); **Hub H5.1** (Keycloak Option A staging) and **H6.1** (hub hardening / exit) are the remaining Hub-programme slices unless reprioritised.
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1459,7 +1759,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Execute **Phase 4 — Sprint 4.3** (escalations, reopen flow, grievance hardening), or **prioritise Sprint 3.1B** when gateway sandbox credentials land.
+**Next action**: Use the [Execution spine](#execution-spine-master-phases--citizen-unified-hub) table to pick cross-track priority. **Master track:** execute **Phase 4 — Sprint 4.3** (escalations, reopen flow, grievance hardening), or **prioritise Sprint 3.1B** when gateway sandbox credentials land. **Hub track:** execute **Hub Sprint H5.1** (Keycloak staging/prod alignment), then **H6.1** when identity rollout leads delivery — **not** the same work as Master Phase **5** Sprint **5.1** (RN shell).
 
 ---
 
