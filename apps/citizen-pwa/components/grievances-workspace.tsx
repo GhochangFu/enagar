@@ -70,6 +70,25 @@ function grievanceCatKey(code: GrievanceCategoryCode): MessageKey {
   return `grievance.cat.${code}` as MessageKey;
 }
 
+/** Minimal tenant row for hub grievance filing (portal JWT needs ULB scope on POST). */
+export type HubGrievanceTenantOption = {
+  id: string;
+  code: string;
+  name: string;
+  district: string;
+  theme_color: string;
+};
+
+function tenantMatchesHubPickQuery(row: HubGrievanceTenantOption, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    row.code.toLowerCase().includes(q) ||
+    row.name.toLowerCase().includes(q) ||
+    row.district.toLowerCase().includes(q)
+  );
+}
+
 export function GrievancesWorkspace({
   apiBaseUrl,
   language,
@@ -77,6 +96,7 @@ export function GrievancesWorkspace({
   onBanner,
   onGrievancesMutated,
   tenantScopeCode,
+  hubMunicipalityCatalogue,
   token,
 }: {
   apiBaseUrl: string;
@@ -86,6 +106,8 @@ export function GrievancesWorkspace({
   onGrievancesMutated?: () => void;
   /** Active ULB when filing with a portal (WBPORTAL) JWT — same as X-Enagar-Tenant-Code. */
   tenantScopeCode?: string | null;
+  /** Hub aggregate mode: catalogue from `GET /tenants` so the citizen can pick a target ULB before filing. */
+  hubMunicipalityCatalogue?: readonly HubGrievanceTenantOption[] | null;
   token: TokenResponse | null;
 }): JSX.Element {
   const [profileReady, setProfileReady] = useState<boolean | null>(null);
@@ -93,8 +115,26 @@ export function GrievancesWorkspace({
   const [list, setList] = useState<GrievanceApiRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
 
-  /** list | pick | compose | done | detail */
-  const [surface, setSurface] = useState<'list' | 'pick' | 'compose' | 'done' | 'detail'>('list');
+  /** Hub-only: ULB chosen for the current filing attempt (writes use this as X-Enagar-Tenant-Code). */
+  const [filingTenantCode, setFilingTenantCode] = useState<string | null>(null);
+  const [tenantPickQuery, setTenantPickQuery] = useState('');
+
+  /** list | selectTenant | pick | compose | done | detail */
+  const [surface, setSurface] = useState<
+    'list' | 'selectTenant' | 'pick' | 'compose' | 'done' | 'detail'
+  >('list');
+
+  const workspaceScope = tenantScopeCode?.trim() || undefined;
+  /** Scope for grievance POST (and other writes that require a target ULB under portal JWT). */
+  const grievanceWriteScope = workspaceScope ?? filingTenantCode?.trim() ?? undefined;
+
+  /** For hub detail/GET: prefer ULB derived from catalogue so portal reads are scoped like workspace. */
+  function detailScopeForGrievanceRow(ref: GrievanceApiRow): string | undefined {
+    if (workspaceScope) {
+      return workspaceScope;
+    }
+    return hubMunicipalityCatalogue?.find((entry) => entry.id === ref.tenant_id)?.code;
+  }
 
   const [pickedCategory, setPickedCategory] = useState<GrievanceCategoryCode | null>(null);
   const [description, setDescription] = useState('');
@@ -122,13 +162,25 @@ export function GrievancesWorkspace({
       }
       setList((await response.json()) as GrievanceApiRow[]);
       onBanner(t('status.ready', language));
-      onGrievancesMutated?.();
     } catch (e: unknown) {
       onBanner(e instanceof Error ? e.message : t('grievance.loadError', language));
     } finally {
       setLoadingList(false);
     }
-  }, [apiBaseUrl, language, onBanner, onGrievancesMutated, tenantScopeCode, token]);
+  }, [apiBaseUrl, language, onBanner, tenantScopeCode, token]);
+
+  useEffect(() => {
+    if (workspaceScope) {
+      setFilingTenantCode(null);
+      setTenantPickQuery('');
+    }
+  }, [workspaceScope]);
+
+  useEffect(() => {
+    if (surface === 'pick' && !workspaceScope && !filingTenantCode) {
+      setSurface('selectTenant');
+    }
+  }, [surface, workspaceScope, filingTenantCode]);
 
   const refreshProfileGate = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -200,16 +252,29 @@ export function GrievancesWorkspace({
     setCommentDraft('');
     setFeedbackComment('');
     setRating(5);
-    const response = await fetch(
-      `${apiBaseUrl}/grievances/${encodeURIComponent(ref.grievance_no)}`,
-      { headers: authHeaders(token, false, tenantScopeCode) },
-    );
-    if (!response.ok) {
-      onBanner(await readApiError(response));
+    const scope = detailScopeForGrievanceRow(ref);
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/grievances/${encodeURIComponent(ref.grievance_no)}`,
+        { headers: authHeaders(token, false, scope) },
+      );
+      if (!response.ok) {
+        onBanner(await readApiError(response));
+        setSurface('list');
+        return;
+      }
+      setDetailPayload((await response.json()) as GrievanceDetailResponse);
+    } catch (e: unknown) {
+      const message =
+        e instanceof TypeError
+          ? 'Network error — check the API is reachable and NEXT_PUBLIC_API_BASE_URL is correct.'
+          : e instanceof Error
+            ? e.message
+            : 'Request failed';
+      onBanner(message);
       setSurface('list');
-      return;
     }
-    setDetailPayload((await response.json()) as GrievanceDetailResponse);
   }
 
   async function postComment(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -218,20 +283,32 @@ export function GrievancesWorkspace({
       return;
     }
     const ref = detailPayload.grievance.grievance_no;
-    const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/comment`, {
-      method: 'POST',
-      headers: authHeaders(token, true, tenantScopeCode),
-      body: JSON.stringify({ body: commentDraft.trim() }),
-    });
-    if (!response.ok) {
-      onBanner(await readApiError(response));
-      return;
+    const scope = detailScopeForGrievanceRow(detailPayload.grievance);
+    try {
+      const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/comment`, {
+        method: 'POST',
+        headers: authHeaders(token, true, scope),
+        body: JSON.stringify({ body: commentDraft.trim() }),
+      });
+      if (!response.ok) {
+        onBanner(await readApiError(response));
+        return;
+      }
+      setCommentDraft('');
+      const next = (await response.json()) as GrievanceDetailResponse;
+      setDetailPayload(next);
+      await reloadList();
+      onGrievancesMutated?.();
+      onBanner(t('status.ready', language));
+    } catch (e: unknown) {
+      onBanner(
+        e instanceof TypeError
+          ? 'Network error — check the API is reachable and NEXT_PUBLIC_API_BASE_URL is correct.'
+          : e instanceof Error
+            ? e.message
+            : 'Request failed',
+      );
     }
-    setCommentDraft('');
-    const next = (await response.json()) as GrievanceDetailResponse;
-    setDetailPayload(next);
-    await reloadList();
-    onBanner(t('status.ready', language));
   }
 
   async function postFeedback(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -240,9 +317,10 @@ export function GrievancesWorkspace({
       return;
     }
     const ref = detailPayload.grievance.grievance_no;
+    const scope = detailScopeForGrievanceRow(detailPayload.grievance);
     const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/feedback`, {
       method: 'POST',
-      headers: authHeaders(token, true, tenantScopeCode),
+      headers: authHeaders(token, true, scope),
       body: JSON.stringify({
         rating,
         ...(feedbackComment.trim() ? { comment: feedbackComment.trim() } : {}),
@@ -255,19 +333,30 @@ export function GrievancesWorkspace({
 
     setFeedbackComment('');
     const row = (await response.json()) as GrievanceApiRow;
-    const detailRes = await fetch(
-      `${apiBaseUrl}/grievances/${encodeURIComponent(row.grievance_no)}`,
-      { headers: authHeaders(token, false, tenantScopeCode) },
-    );
-    if (!detailRes.ok) {
+    const detailScope =
+      workspaceScope ?? hubMunicipalityCatalogue?.find((entry) => entry.id === row.tenant_id)?.code;
+
+    try {
+      const detailRes = await fetch(
+        `${apiBaseUrl}/grievances/${encodeURIComponent(row.grievance_no)}`,
+        { headers: authHeaders(token, false, detailScope) },
+      );
+      if (!detailRes.ok) {
+        setDetailPayload({
+          grievance: row,
+          timeline: [],
+        });
+      } else {
+        setDetailPayload((await detailRes.json()) as GrievanceDetailResponse);
+      }
+    } catch {
       setDetailPayload({
         grievance: row,
         timeline: [],
       });
-    } else {
-      setDetailPayload((await detailRes.json()) as GrievanceDetailResponse);
     }
     await reloadList();
+    onGrievancesMutated?.();
     onBanner(t('status.ready', language));
   }
 
@@ -286,9 +375,16 @@ export function GrievancesWorkspace({
       location.ward_hint = wardHint.trim();
     }
 
+    if (!grievanceWriteScope) {
+      onBanner(
+        'Choose a municipality before filing — use “File grievance” from the hub again and pick a ULB.',
+      );
+      return;
+    }
+
     const response = await fetch(`${apiBaseUrl}/grievances`, {
       method: 'POST',
-      headers: authHeaders(token, true, tenantScopeCode),
+      headers: authHeaders(token, true, grievanceWriteScope),
       body: JSON.stringify({
         category: pickedCategory,
         description: description.trim(),
@@ -309,7 +405,12 @@ export function GrievancesWorkspace({
     setLocNote('');
     setWardHint('');
     setPickedCategory(null);
+    if (!workspaceScope) {
+      setFilingTenantCode(null);
+      setTenantPickQuery('');
+    }
     await reloadList();
+    onGrievancesMutated?.();
     onBanner(t('grievance.filedTitle', language));
   }
 
@@ -318,7 +419,37 @@ export function GrievancesWorkspace({
     setPickedCategory(null);
     setLastCreated(null);
     setDetailPayload(null);
+    if (!workspaceScope) {
+      setFilingTenantCode(null);
+      setTenantPickQuery('');
+    }
   }
+
+  function beginFileNewFlow(): void {
+    setPickedCategory(null);
+    if (workspaceScope) {
+      setSurface('pick');
+      return;
+    }
+    const catalogue = hubMunicipalityCatalogue ?? [];
+    if (catalogue.length === 0) {
+      onBanner('Municipality list not loaded — use Refresh hub, then try again.');
+      return;
+    }
+    setTenantPickQuery('');
+    setSurface('selectTenant');
+  }
+
+  const filteredHubTenantsForPick = (hubMunicipalityCatalogue ?? []).filter((row) =>
+    tenantMatchesHubPickQuery(row, tenantPickQuery),
+  );
+
+  const filingTenantLabel =
+    workspaceScope ??
+    (filingTenantCode
+      ? (hubMunicipalityCatalogue?.find((row) => row.code === filingTenantCode)?.name ??
+        filingTenantCode)
+      : null);
 
   if (!token) {
     return (
@@ -366,16 +497,103 @@ export function GrievancesWorkspace({
     );
   }
 
+  if (surface === 'selectTenant') {
+    return (
+      <section className="space-y-4">
+        <button
+          className="text-sm font-semibold text-brand"
+          onClick={() => {
+            setFilingTenantCode(null);
+            setTenantPickQuery('');
+            setSurface('list');
+          }}
+          type="button"
+        >
+          ← {t('grievance.back', language)}
+        </button>
+        <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <h3 className="text-xl font-bold text-slate-900">Choose municipality</h3>
+          <p className="mt-2 text-sm text-slate-600">
+            Grievances are filed under one ULB at a time. Pick the municipality where this grievance
+            applies — the API needs your selection before submit (same as workspace filing).
+          </p>
+          <label className="mt-4 block text-sm font-medium text-slate-700">
+            Search by code, name, or district
+            <input
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
+              onChange={(event) => setTenantPickQuery(event.target.value)}
+              placeholder="e.g. KMC or Kolkata"
+              type="search"
+              value={tenantPickQuery}
+            />
+          </label>
+          <ul className="mt-6 max-h-[min(55vh,420px)] space-y-2 overflow-y-auto">
+            {filteredHubTenantsForPick.map((tenantRow) => (
+              <li key={tenantRow.code}>
+                <button
+                  className="flex w-full rounded-2xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand/40"
+                  onClick={() => {
+                    setFilingTenantCode(tenantRow.code);
+                    setSurface('pick');
+                  }}
+                  type="button"
+                >
+                  <span
+                    className="mr-3 mt-1 inline-block h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: tenantRow.theme_color }}
+                  />
+                  <span>
+                    <span className="block font-semibold">{tenantRow.code}</span>
+                    <span className="block text-sm text-slate-600">{tenantRow.name}</span>
+                    <span className="block text-[11px] uppercase text-slate-400">
+                      {tenantRow.district}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {filteredHubTenantsForPick.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-600">No municipalities match your search.</p>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
   if (surface === 'pick') {
     return (
       <section className="space-y-4">
         <button
           className="text-sm font-semibold text-brand"
-          onClick={() => setSurface('list')}
+          onClick={() => {
+            if (!workspaceScope && filingTenantCode) {
+              setSurface('selectTenant');
+              return;
+            }
+            setSurface('list');
+          }}
           type="button"
         >
           ← {t('grievance.back', language)}
         </button>
+        {!workspaceScope && filingTenantCode ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
+            <span className="text-slate-800">
+              <strong>Filing under:</strong> {filingTenantCode}
+              {filingTenantLabel && filingTenantLabel !== filingTenantCode ? (
+                <span className="text-slate-600"> · {filingTenantLabel}</span>
+              ) : null}
+            </span>
+            <button
+              className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
+              onClick={() => setSurface('selectTenant')}
+              type="button"
+            >
+              Change municipality
+            </button>
+          </div>
+        ) : null}
         <h3 className="text-xl font-bold">{t('grievance.chooseCategory', language)}</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {GRIEVANCE_CATEGORY_CODES.map((code) => (
@@ -406,6 +624,19 @@ export function GrievancesWorkspace({
         >
           ← {t('grievance.back', language)}
         </button>
+        {!workspaceScope && filingTenantCode ? (
+          <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-2 text-xs text-slate-700">
+            Municipality for this grievance: <strong>{filingTenantCode}</strong>
+            {' · '}
+            <button
+              className="font-semibold text-brand underline"
+              onClick={() => setSurface('selectTenant')}
+              type="button"
+            >
+              Change
+            </button>
+          </p>
+        ) : null}
         <h3 className="mt-2 text-xl font-bold">{t(grievanceCatKey(pickedCategory), language)}</h3>
         <form className="mt-4 space-y-4" onSubmit={submitNew}>
           <label className="block text-sm font-medium text-slate-700">
@@ -636,10 +867,7 @@ export function GrievancesWorkspace({
           </button>
           <button
             className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-            onClick={() => {
-              setSurface('pick');
-              setPickedCategory(null);
-            }}
+            onClick={beginFileNewFlow}
             type="button"
           >
             {t('grievance.fileNew', language)}

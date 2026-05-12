@@ -10,7 +10,7 @@ import {
 } from '@enagar/forms/fixtures';
 import { t } from '@enagar/i18n';
 import { applyTenantTheme } from '@enagar/tenant-theme';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ApplicationDetailPanel,
@@ -721,6 +721,13 @@ export default function HomePage(): JSX.Element {
       setStatus(t('status.apiUnreachable', language));
     }
   }
+
+  const refreshHubDataRef = useRef(refreshHubData);
+  refreshHubDataRef.current = refreshHubData;
+
+  const onHubGrievancesMutated = useCallback(() => {
+    void refreshHubDataRef.current();
+  }, []);
 
   async function refreshWorkspace(): Promise<void> {
     if (!selectedTenant) {
@@ -1963,14 +1970,18 @@ export default function HomePage(): JSX.Element {
               <p className="mb-4 text-sm text-slate-600">
                 Cross-ULB list from{' '}
                 <code className="rounded bg-slate-100 px-1">GET /grievances</code> without
-                municipality header (hub aggregate read). Submitting stays ULB-workspace scoped.
+                municipality header. To <strong>file a new grievance</strong>, choose a municipality
+                first — the portal token then sends{' '}
+                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> on create
+                (same as workspace).
               </p>
               <GrievancesWorkspace
                 apiBaseUrl={apiBaseUrl}
+                hubMunicipalityCatalogue={tenants}
                 language={language}
                 mobileDigits={mobile}
                 onBanner={setStatus}
-                onGrievancesMutated={() => void refreshHubData()}
+                onGrievancesMutated={onHubGrievancesMutated}
                 tenantScopeCode={undefined}
                 token={token}
               />
