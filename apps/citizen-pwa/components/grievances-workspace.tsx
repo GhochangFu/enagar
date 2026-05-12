@@ -3,6 +3,7 @@
 import { t, type Locale, type MessageKey } from '@enagar/i18n';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { grievanceCreateWriteScope, grievanceRowTenantScope } from '../lib/grievance-scope';
 import { authHeaders, readApiError } from '../lib/workspace-http';
 
 type LanguageCode = Locale;
@@ -126,15 +127,10 @@ export function GrievancesWorkspace({
 
   const workspaceScope = tenantScopeCode?.trim() || undefined;
   /** Scope for grievance POST (and other writes that require a target ULB under portal JWT). */
-  const grievanceWriteScope = workspaceScope ?? filingTenantCode?.trim() ?? undefined;
-
-  /** For hub detail/GET: prefer ULB derived from catalogue so portal reads are scoped like workspace. */
-  function detailScopeForGrievanceRow(ref: GrievanceApiRow): string | undefined {
-    if (workspaceScope) {
-      return workspaceScope;
-    }
-    return hubMunicipalityCatalogue?.find((entry) => entry.id === ref.tenant_id)?.code;
-  }
+  const grievanceWriteScope = grievanceCreateWriteScope({
+    workspaceTenantCode: tenantScopeCode,
+    filingTenantCode,
+  });
 
   const [pickedCategory, setPickedCategory] = useState<GrievanceCategoryCode | null>(null);
   const [description, setDescription] = useState('');
@@ -155,7 +151,7 @@ export function GrievancesWorkspace({
     setLoadingList(true);
     try {
       const response = await fetch(`${apiBaseUrl}/grievances`, {
-        headers: authHeaders(token, false, tenantScopeCode),
+        headers: authHeaders(token, false, workspaceScope),
       });
       if (!response.ok) {
         throw new Error(await readApiError(response));
@@ -167,7 +163,7 @@ export function GrievancesWorkspace({
     } finally {
       setLoadingList(false);
     }
-  }, [apiBaseUrl, language, onBanner, tenantScopeCode, token]);
+  }, [apiBaseUrl, language, onBanner, workspaceScope, token]);
 
   useEffect(() => {
     if (workspaceScope) {
@@ -190,7 +186,7 @@ export function GrievancesWorkspace({
     setProfileReady(null);
     try {
       const response = await fetch(`${apiBaseUrl}/citizen/profile`, {
-        headers: authHeaders(token, false, tenantScopeCode),
+        headers: authHeaders(token, false, workspaceScope),
       });
       setProfileReady(response.ok);
       if (!response.ok) {
@@ -200,7 +196,7 @@ export function GrievancesWorkspace({
       setProfileReady(false);
       onBanner(t('grievance.profileError', language));
     }
-  }, [apiBaseUrl, language, onBanner, tenantScopeCode, token]);
+  }, [apiBaseUrl, language, onBanner, workspaceScope, token]);
 
   useEffect(() => {
     void refreshProfileGate();
@@ -226,7 +222,7 @@ export function GrievancesWorkspace({
 
     const response = await fetch(`${apiBaseUrl}/citizen/register`, {
       method: 'POST',
-      headers: authHeaders(token, true, tenantScopeCode),
+      headers: authHeaders(token, true, workspaceScope),
       body: JSON.stringify({
         mobile,
         ...(registerName.trim() ? { name: registerName.trim() } : {}),
@@ -252,7 +248,11 @@ export function GrievancesWorkspace({
     setCommentDraft('');
     setFeedbackComment('');
     setRating(5);
-    const scope = detailScopeForGrievanceRow(ref);
+    const scope = grievanceRowTenantScope({
+      workspaceTenantCode: tenantScopeCode,
+      grievanceTenantId: ref.tenant_id,
+      hubCatalogue: hubMunicipalityCatalogue,
+    });
 
     try {
       const response = await fetch(
@@ -283,7 +283,11 @@ export function GrievancesWorkspace({
       return;
     }
     const ref = detailPayload.grievance.grievance_no;
-    const scope = detailScopeForGrievanceRow(detailPayload.grievance);
+    const scope = grievanceRowTenantScope({
+      workspaceTenantCode: tenantScopeCode,
+      grievanceTenantId: detailPayload.grievance.tenant_id,
+      hubCatalogue: hubMunicipalityCatalogue,
+    });
     try {
       const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/comment`, {
         method: 'POST',
@@ -317,7 +321,11 @@ export function GrievancesWorkspace({
       return;
     }
     const ref = detailPayload.grievance.grievance_no;
-    const scope = detailScopeForGrievanceRow(detailPayload.grievance);
+    const scope = grievanceRowTenantScope({
+      workspaceTenantCode: tenantScopeCode,
+      grievanceTenantId: detailPayload.grievance.tenant_id,
+      hubCatalogue: hubMunicipalityCatalogue,
+    });
     const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/feedback`, {
       method: 'POST',
       headers: authHeaders(token, true, scope),
@@ -333,8 +341,11 @@ export function GrievancesWorkspace({
 
     setFeedbackComment('');
     const row = (await response.json()) as GrievanceApiRow;
-    const detailScope =
-      workspaceScope ?? hubMunicipalityCatalogue?.find((entry) => entry.id === row.tenant_id)?.code;
+    const detailScope = grievanceRowTenantScope({
+      workspaceTenantCode: tenantScopeCode,
+      grievanceTenantId: row.tenant_id,
+      hubCatalogue: hubMunicipalityCatalogue,
+    });
 
     try {
       const detailRes = await fetch(
@@ -382,16 +393,28 @@ export function GrievancesWorkspace({
       return;
     }
 
-    const response = await fetch(`${apiBaseUrl}/grievances`, {
-      method: 'POST',
-      headers: authHeaders(token, true, grievanceWriteScope),
-      body: JSON.stringify({
-        category: pickedCategory,
-        description: description.trim(),
-        grievance_priority: priority,
-        ...(Object.keys(location).length > 0 ? { location } : {}),
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/grievances`, {
+        method: 'POST',
+        headers: authHeaders(token, true, grievanceWriteScope),
+        body: JSON.stringify({
+          category: pickedCategory,
+          description: description.trim(),
+          grievance_priority: priority,
+          ...(Object.keys(location).length > 0 ? { location } : {}),
+        }),
+      });
+    } catch (e: unknown) {
+      onBanner(
+        e instanceof TypeError
+          ? 'Network error — check the API is reachable and NEXT_PUBLIC_API_BASE_URL is correct.'
+          : e instanceof Error
+            ? e.message
+            : 'Request failed',
+      );
+      return;
+    }
 
     if (!response.ok) {
       onBanner(await readApiError(response));

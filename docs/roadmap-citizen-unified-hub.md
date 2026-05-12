@@ -304,6 +304,8 @@ Phases are **merge-sequential**: finish exit criteria of Phase _N_ before relyin
 | **Tests**         | Component or integration tests where feasible; update any API consumer mocks.                                                                                                                                                                           |
 | **Exit criteria** | No call from workspace omits tenant header unintentionally; hub does not send header on aggregate fetches.                                                                                                                                              |
 
+**Status: done (2026-05-12).** **PWA:** Hub **`GET /grievances`** (list) and profile/register paths omit **`X-Enagar-Tenant-Code`** when `tenantScopeCode` is unset; **detail GET**, **comment**, **feedback**, and **follow-up detail reload** derive **`X-Enagar-Tenant-Code`** from the grievance row’s **`tenant_id`** via **`GET /tenants`** catalogue (**`hubMunicipalityCatalogue`** includes **`id`**); **create** uses workspace ULB or hub municipality picker. **`onGrievancesMutated`** runs only after **mutations**, not after every list poll — avoids hub refresh loops and flaky **`Failed to fetch`**; **`openDetail`** / **submit** network failures surface in the banner. Stable **`onHubGrievancesMutated`** callback on **`page.tsx`**. **`lib/grievance-scope.ts`** holds pure scope helpers covered by **`pnpm --filter @enagar/citizen-pwa run test`**. Workspace **applications/payments** unchanged: **`workspaceLoadScope`** / **`dossierMunicipalityScope`** still supply headers per Sprint 4.1 / 4.15. **Docs:** `@enagar/citizen-pwa` README manual smoke § Sprint 4.2.
+
 ---
 
 ### Phase 5 — Keycloak Option A (non-dev environments)

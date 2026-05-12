@@ -8,9 +8,19 @@ Citizen-facing **Progressive Web App** built on **Next.js 14** App Router (per A
 - **Hub ↔ workspace:** **Back to hub** clears workspace selection and resets branding to defaults; dashboard cards show per‑ULB application / payment / grievance counts and theme badges.
 - **Services & applications (Phase 2):** tenant catalogue, `@enagar/forms` apply flow, draft → document scan simulation → submit, **My Applications** with detail + comments (writes include scope header when in workspace).
 - **Payments (Phase 3 stub rail):** initiate stub payment, simulate PSP capture, list payments, receipt metadata preview (**receipt GET** uses **ULB scope** from workspace or from the payment’s municipal tenant in hub).
-- **Grievances (Phase 4 — Sprint 4.2):** **Grievances** tab — profile gate (`/citizen/register` when needed), category + priority + description, optional location notes, list/detail with SLA chips, timeline, comments, and **rating after resolved** (closes to `closed` per API).
+- **Grievances (Phase 4 — Sprint 4.2):** **Grievances** tab — profile gate (`/citizen/register` when needed), category + priority + description, optional location notes, list/detail with SLA chips, timeline, comments, and **rating after resolved** (closes to `closed` per API). **Hub:** aggregate list reads **omit** `X-Enagar-Tenant-Code`; row-scoped GET/comment/feedback send the ULB resolved from **`tenant_id` + catalogue**; **new filing** requires a **municipality pick** before POST. **Workspace:** tab passes **`tenantScopeCode`** like other ULB routes. Automated **`lib/grievance-scope.spec.ts`** (`pnpm --filter @enagar/citizen-pwa run test`).
 
 Shared: Tailwind preset (`@enagar/config/tailwind/base`), `@enagar/i18n`, `@enagar/tenant-theme`.
+
+### Manual smoke — Sprint 4.2 (grievances scope + regression)
+
+1. **Automated:** `pnpm --filter @enagar/citizen-pwa run typecheck` and `pnpm --filter @enagar/citizen-pwa run test` (pure scope helpers).
+2. **Hub:** From hub **Grievances** tab, open DevTools → Network → **`GET …/grievances`** must **not** include `x-enagar-tenant-code`.
+3. **Hub detail:** Tap a grievance row → **`GET …/grievances/{no}`** **must** include **`x-enagar-tenant-code`** matching that row’s municipality (same ULB as card/theme expectation).
+4. **Hub filing:** **File grievance** → pick municipality → submit → **`POST …/grievances`** carries picker ULB header; hub KPI/dashboard refresh does **not** loop flicker after returning to list (no repeated hub bootstrap storms).
+5. **Hub comment / feedback:** On a detail view, post a comment and (if resolved) feedback; confirm POSTs send the **same** scope header as detail GET.
+6. **Workspace:** Enter a municipality → **Grievances** → list/detail/create; all calls include **`x-enagar-tenant-code: {that ULB}`**.
+7. **Regression:** Workspace **My Applications** / **My Payments** still scoped via **`workspaceLoadScope()`**; hub **applications/payments** aggregate calls still **omit** scope (Sprint 4.15 behaviour).
 
 ### Manual smoke — Sprint 4.16 (hub scale: mandatory pins + shortcuts)
 
@@ -47,14 +57,14 @@ Shared: Tailwind preset (`@enagar/config/tailwind/base`), `@enagar/i18n`, `@enag
 ```bash
 pnpm --filter @enagar/citizen-pwa dev    # http://localhost:3000
 pnpm --filter @enagar/citizen-pwa build
+pnpm --filter @enagar/citizen-pwa test   # Sprint 4.2+ lib unit tests (grievance scope)
 ```
 
 Set `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:3001/api`) to point at `@enagar/api`.
 
-## What's coming (per ROADMAP.md)
+## What's coming (per [roadmap-citizen-unified-hub.md](../docs/roadmap-citizen-unified-hub.md))
 
-| Phase | Adds                                                        |
-| ----- | ----------------------------------------------------------- |
-| 4.3+  | Grievance escalations, reopen, attachments, pushes          |
-| 5     | Native mobile parity, offline shell, installable PWA polish |
-| 7     | Sahayak AI floating chat (SSE → `apps/api`)                 |
+| Phase / sprint     | Adds                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **5 / Sprint 5.1** | Keycloak Option A — realm, client, protocol mappers (portal `tenant_*` + stable `sub`), API verifier envs, staging smoke |
+| Later              | Grievance escalations, reopen, attachments; native PWA polish; Sahayak AI (roadmap)                                      |

@@ -10,6 +10,7 @@
     "next-env.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
+    "lib/**/*.ts",
     "tailwind.config.ts",
     ".next/types/**/*.ts"
   ],
