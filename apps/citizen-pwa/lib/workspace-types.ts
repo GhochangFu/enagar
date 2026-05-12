@@ -30,6 +30,9 @@ export interface ServiceSummary {
 export interface ApplicationSummary {
   id: string;
   docket_no: string;
+  /** Municipal tenant (applications list includes these for portal citizens). */
+  tenant_id?: string;
+  tenant_code?: string;
   service_code: string;
   service_name: string;
   current_stage: string;

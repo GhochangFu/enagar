@@ -91,6 +91,18 @@ const schemaByServiceCode = new Map<string, EnagarFormSchema>(
   serviceSchemas.map((schema) => [schema.service_code, schema]),
 );
 
+async function fetchActiveTenantServices(
+  apiRoot: string,
+  tenantCode: string,
+): Promise<ServiceSummary[]> {
+  const response = await fetch(`${apiRoot}/services/tenants/${encodeURIComponent(tenantCode)}`);
+  if (!response.ok) {
+    throw new Error('Unable to load services');
+  }
+  const list = (await response.json()) as ServiceSummary[];
+  return list.filter((service) => service.active);
+}
+
 async function storeEncryptedToken(token: TokenResponse): Promise<void> {
   const payload = JSON.stringify({
     ...token,
@@ -137,6 +149,7 @@ async function storeEncryptedToken(token: TokenResponse): Promise<void> {
 export default function HomePage(): JSX.Element {
   const [step, setStep] = useState<Step>('splash');
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('home');
+  const [hubTab, setHubTab] = useState<WorkspaceTab>('home');
   const [language, setLanguage] = useState<LanguageCode>('en');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -151,6 +164,13 @@ export default function HomePage(): JSX.Element {
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [payments, setPayments] = useState<PaymentApiResponse[]>([]);
   const [grievanceCount, setGrievanceCount] = useState(0);
+  const [hubApplications, setHubApplications] = useState<ApplicationSummary[]>([]);
+  const [hubPayments, setHubPayments] = useState<PaymentApiResponse[]>([]);
+  /** Per-tenant active services for KPI + Hub → Services catalogue (distinct codes across tenants for KPI card). */
+  const [hubTenantServiceMap, setHubTenantServiceMap] = useState<Record<string, ServiceSummary[]>>(
+    {},
+  );
+  const [detailFeeServices, setDetailFeeServices] = useState<ServiceSummary[]>([]);
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState(t('status.ready', 'en'));
@@ -182,6 +202,79 @@ export default function HomePage(): JSX.Element {
       });
   }, [hubDashboard, tenants]);
 
+  const tenantsById = useMemo(
+    () => new Map(tenants.map((tenant) => [tenant.id, tenant])),
+    [tenants],
+  );
+
+  const hubTotalsFromBuckets = useMemo(() => {
+    if (!hubDashboard) {
+      return null;
+    }
+    return hubDashboard.municipalities.reduce(
+      (acc, bucket) => {
+        acc.applications += bucket.application_count;
+        acc.payments += bucket.payment_count;
+        acc.grievances += bucket.grievance_count;
+        return acc;
+      },
+      { applications: 0, payments: 0, grievances: 0 },
+    );
+  }, [hubDashboard]);
+
+  const hubDistinctServiceCodes = useMemo(() => {
+    const distinct = new Set<string>();
+    for (const rows of Object.values(hubTenantServiceMap)) {
+      for (const service of rows) {
+        distinct.add(service.code);
+      }
+    }
+    return distinct.size;
+  }, [hubTenantServiceMap]);
+
+  /** Municipality header for workspace-scoped browse lists (`X-Enagar-Tenant-Code`). */
+  function workspaceLoadScope(): string | undefined {
+    return selectedTenant?.code;
+  }
+
+  /** Municipality header for dossier mutations when opened from hub or workspace. */
+  function dossierMunicipalityScope(): string | undefined {
+    return selectedTenant?.code ?? applicationDetail?.tenant_code ?? undefined;
+  }
+
+  /** Hub aggregate lists (`hubApplications` / `hubPayments`), no scope header. */
+  async function reloadHubPortfolioLists(scopes: 'payments' | 'both' = 'both'): Promise<void> {
+    if (!token || step !== 'hub') {
+      return;
+    }
+    try {
+      if (scopes === 'payments') {
+        const payRes = await fetch(`${apiBaseUrl}/payments`, {
+          headers: authHeaders(token, false),
+        });
+        if (payRes.ok) {
+          setHubPayments((await payRes.json()) as PaymentApiResponse[]);
+        }
+        return;
+      }
+      const [appsRes, payRes] = await Promise.all([
+        fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
+      ]);
+      if (appsRes.ok) {
+        setHubApplications((await appsRes.json()) as ApplicationSummary[]);
+      }
+      if (payRes.ok) {
+        setHubPayments((await payRes.json()) as PaymentApiResponse[]);
+      }
+    } catch {
+      /* Ignore — user can Refresh hub if needed. */
+    }
+  }
+
+  /** Fee catalogue for dossier sidebar: workspace list vs hub-only fetch keyed by application's ULB. */
+  const feeServicesForDetailPanel =
+    step === 'workspace' && selectedTenant ? services : detailFeeServices;
   const selectedSchema = selectedService
     ? schemaByServiceCode.get(selectedService.code)
     : undefined;
@@ -207,6 +300,31 @@ export default function HomePage(): JSX.Element {
     void refreshWorkspace();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedTenant?.code]);
+
+  useEffect(() => {
+    if (step !== 'hub' || !applicationDetail?.tenant_code) {
+      setDetailFeeServices([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetchActiveTenantServices(apiBaseUrl, applicationDetail.tenant_code)
+      .then((next) => {
+        if (!cancelled) {
+          setDetailFeeServices(next);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDetailFeeServices([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, applicationDetail?.tenant_code]);
 
   async function requestOtp(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -261,11 +379,22 @@ export default function HomePage(): JSX.Element {
     const nextToken = (await response.json()) as TokenResponse;
     setToken(nextToken);
     await storeEncryptedToken(nextToken);
+    try {
+      await fetch(`${apiBaseUrl}/citizen/language`, {
+        method: 'PATCH',
+        headers: authHeaders(nextToken, true),
+        body: JSON.stringify({ language_pref: language }),
+      });
+    } catch {
+      /* Non-blocking — hub KPI mirrors session locale; profile may sync later. */
+    }
+
     setStatus(t('status.loginVerified', language));
     setStep('hub');
   }
 
   async function chooseTenant(tenant: TenantSummary): Promise<void> {
+    setApplicationDetail(null);
     setSelectedTenant(tenant);
     applyTenantTheme(tenant);
 
@@ -289,6 +418,7 @@ export default function HomePage(): JSX.Element {
     applyTenantTheme(null);
     setSelectedTenant(null);
     setActiveTab('home');
+    setHubTab('home');
     setApplicationDetail(null);
     setSelectedService(null);
     setStatus(t('status.ready', language));
@@ -299,15 +429,22 @@ export default function HomePage(): JSX.Element {
     if (!token) {
       setHubDashboard(null);
       setTenants([]);
+      setHubApplications([]);
+      setHubPayments([]);
+      setHubTenantServiceMap({});
       return;
     }
+
     setStatus('Loading dashboard…');
 
     try {
-      const [dashboardResponse, catalogueResponse] = await Promise.all([
-        fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
-        fetch(`${apiBaseUrl}/tenants`),
-      ]);
+      const [dashboardResponse, catalogueResponse, applicationsResponse, paymentsResponse] =
+        await Promise.all([
+          fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
+          fetch(`${apiBaseUrl}/tenants`),
+          fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
+          fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
+        ]);
 
       if (!dashboardResponse.ok) {
         setStatus(await readApiError(dashboardResponse));
@@ -320,8 +457,41 @@ export default function HomePage(): JSX.Element {
 
       const nextDashboard = (await dashboardResponse.json()) as CitizenHubDashboardResponse;
       const nextTenants = (await catalogueResponse.json()) as TenantSummary[];
+
+      if (applicationsResponse.ok) {
+        try {
+          setHubApplications((await applicationsResponse.json()) as ApplicationSummary[]);
+        } catch {
+          setHubApplications([]);
+        }
+      } else {
+        setHubApplications([]);
+      }
+
+      if (paymentsResponse.ok) {
+        try {
+          setHubPayments((await paymentsResponse.json()) as PaymentApiResponse[]);
+        } catch {
+          setHubPayments([]);
+        }
+      } else {
+        setHubPayments([]);
+      }
+
+      const svcEntries = await Promise.all(
+        nextTenants.map(async (tenant) => {
+          try {
+            const rows = await fetchActiveTenantServices(apiBaseUrl, tenant.code);
+            return [tenant.code, rows] as const;
+          } catch {
+            return [tenant.code, [] as ServiceSummary[]] as const;
+          }
+        }),
+      );
+
       setHubDashboard(nextDashboard);
       setTenants(nextTenants);
+      setHubTenantServiceMap(Object.fromEntries(svcEntries));
       setStatus(t('status.ready', language));
     } catch {
       setStatus(t('status.apiUnreachable', language));
@@ -348,7 +518,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/grievances`, {
-        headers: authHeaders(token, false, selectedTenant?.code),
+        headers: authHeaders(token, false, workspaceLoadScope()),
       });
       if (!response.ok) {
         return;
@@ -362,12 +532,8 @@ export default function HomePage(): JSX.Element {
 
   async function loadServices(tenantCode: string): Promise<void> {
     try {
-      const response = await fetch(`${apiBaseUrl}/services/tenants/${tenantCode}`);
-      if (!response.ok) {
-        throw new Error('Unable to load services');
-      }
-      const nextServices = (await response.json()) as ServiceSummary[];
-      setServices(nextServices.filter((service) => service.active));
+      const nextServices = await fetchActiveTenantServices(apiBaseUrl, tenantCode);
+      setServices(nextServices);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load services');
     }
@@ -379,7 +545,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/payments`, {
-        headers: authHeaders(token, false, selectedTenant?.code),
+        headers: authHeaders(token, false, workspaceLoadScope()),
       });
       if (!response.ok) {
         throw new Error('Unable to load payments');
@@ -396,7 +562,7 @@ export default function HomePage(): JSX.Element {
     }
     try {
       const response = await fetch(`${apiBaseUrl}/applications`, {
-        headers: authHeaders(token, false, selectedTenant?.code),
+        headers: authHeaders(token, false, workspaceLoadScope()),
       });
       if (!response.ok) {
         throw new Error('Unable to load applications');
@@ -428,7 +594,7 @@ export default function HomePage(): JSX.Element {
     }
 
     const response = await fetch(`${apiBaseUrl}/holdings/${encodeURIComponent(holdingNumber)}`, {
-      headers: authHeaders(token, false, selectedTenant?.code),
+      headers: authHeaders(token, false, workspaceLoadScope()),
     });
     const result = (await response.json()) as HoldingLookupResponse;
     setHoldingLookup(result);
@@ -450,7 +616,7 @@ export default function HomePage(): JSX.Element {
     setStatus('Creating draft application...');
     const draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
       method: 'POST',
-      headers: authHeaders(token, true, selectedTenant?.code),
+      headers: authHeaders(token, true, workspaceLoadScope()),
       body: JSON.stringify({
         service_code: selectedService.code,
         form_data: formValues,
@@ -471,7 +637,7 @@ export default function HomePage(): JSX.Element {
 
     const submitResponse = await fetch(`${apiBaseUrl}/applications/${draft.id}/submit`, {
       method: 'POST',
-      headers: authHeaders(token, false, selectedTenant?.code),
+      headers: authHeaders(token, false, workspaceLoadScope()),
     });
     if (!submitResponse.ok) {
       setStatus('Application submission failed after document upload.');
@@ -479,11 +645,27 @@ export default function HomePage(): JSX.Element {
     }
 
     const application = (await submitResponse.json()) as ApplicationDetail;
-    await loadApplications();
-    await loadPayments();
-    await openApplication(application.docket_no);
+    const docket = application.docket_no;
+    const tenantHint = application.tenant_code ?? selectedTenant?.code;
+
+    setSelectedService(null);
+    setHoldingLookup(null);
+    setFormValues({});
     setActiveTab('applications');
-    setStatus(`Submitted ${application.docket_no}`);
+    setStatus(`Submitted ${docket}`);
+
+    try {
+      await loadApplications();
+    } catch {
+      /* Sidebar list auxiliary — tab already switched. */
+    }
+    try {
+      await loadPayments();
+    } catch {
+      /* Same — workspace payments list auxiliary. */
+    }
+
+    await openApplication(docket, tenantHint ?? undefined);
   }
 
   async function createDocumentIntents(
@@ -502,7 +684,7 @@ export default function HomePage(): JSX.Element {
       }
       const intentResponse = await fetch(`${apiBaseUrl}/documents/upload-intent`, {
         method: 'POST',
-        headers: authHeaders(token, true, selectedTenant?.code),
+        headers: authHeaders(token, true, workspaceLoadScope()),
         body: JSON.stringify({
           application_id: application.id,
           document_code: field.id,
@@ -517,7 +699,7 @@ export default function HomePage(): JSX.Element {
       const intent = (await intentResponse.json()) as UploadIntentResponse;
       const scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
         method: 'POST',
-        headers: authHeaders(token, true, selectedTenant?.code),
+        headers: authHeaders(token, true, workspaceLoadScope()),
         body: JSON.stringify({
           scan_status: 'clean',
           scan_provider: 'pwa-simulated-clamav',
@@ -531,12 +713,15 @@ export default function HomePage(): JSX.Element {
     return true;
   }
 
-  async function openApplication(docketNo: string): Promise<void> {
+  async function openApplication(docketNo: string, tenantScopeHint?: string | null): Promise<void> {
     if (!token) {
       return;
     }
+    const scope = tenantScopeHint?.trim()
+      ? tenantScopeHint.trim()
+      : (workspaceLoadScope() ?? undefined);
     const response = await fetch(`${apiBaseUrl}/applications/${encodeURIComponent(docketNo)}`, {
-      headers: authHeaders(token, false, selectedTenant?.code),
+      headers: authHeaders(token, false, scope),
     });
     if (!response.ok) {
       setStatus('Unable to open application.');
@@ -553,7 +738,7 @@ export default function HomePage(): JSX.Element {
 
     const response = await fetch(`${apiBaseUrl}/applications/${applicationDetail.id}/comment`, {
       method: 'POST',
-      headers: authHeaders(token, true, selectedTenant?.code),
+      headers: authHeaders(token, true, dossierMunicipalityScope()),
       body: JSON.stringify({ body: comment }),
     });
     if (response.ok) {
@@ -571,13 +756,16 @@ export default function HomePage(): JSX.Element {
 
     const response = await fetch(`${apiBaseUrl}/applications/${applicationDetail.id}/cancel`, {
       method: 'POST',
-      headers: authHeaders(token, true, selectedTenant?.code),
+      headers: authHeaders(token, true, dossierMunicipalityScope()),
       body: JSON.stringify({ reason: 'Cancelled by citizen from PWA.' }),
     });
     if (response.ok) {
       setApplicationDetail((await response.json()) as ApplicationDetail);
       await loadApplications();
       await loadPayments();
+      if (step === 'hub') {
+        await reloadHubPortfolioLists('both');
+      }
       setStatus('Application cancelled.');
     }
   }
@@ -599,7 +787,7 @@ export default function HomePage(): JSX.Element {
       response = await fetch(`${apiBaseUrl}/payments/initiate`, {
         method: 'POST',
         headers: {
-          ...authHeaders(token, true, selectedTenant?.code),
+          ...authHeaders(token, true, dossierMunicipalityScope()),
           'idempotency-key': idempotencyKey,
         },
         body: JSON.stringify({
@@ -619,9 +807,16 @@ export default function HomePage(): JSX.Element {
     }
 
     const payment = (await response.json()) as PaymentApiResponse;
-    await loadPayments();
+    if (step === 'hub') {
+      await reloadHubPortfolioLists('payments');
+    } else {
+      await loadPayments();
+    }
     if (applicationDetail?.id === applicationId) {
-      await openApplication(applicationDetail.docket_no);
+      await openApplication(
+        applicationDetail.docket_no,
+        step === 'hub' ? applicationDetail.tenant_code : undefined,
+      );
     }
     setStatus(`Payment ${payment.id.slice(0, 8)}… awaiting stub capture.`);
     return payment;
@@ -632,11 +827,13 @@ export default function HomePage(): JSX.Element {
       return false;
     }
     setStatus('Confirming payment with stub gateway...');
+    const municipalityForStubComplete =
+      dossierMunicipalityScope() ?? tenantsById.get(payment.tenant_id)?.code;
     let response: Response;
     try {
       response = await fetch(`${apiBaseUrl}/payments/stub/complete`, {
         method: 'POST',
-        headers: authHeaders(token, true, selectedTenant?.code),
+        headers: authHeaders(token, true, municipalityForStubComplete),
         body: JSON.stringify({
           payment_id: payment.id,
           gateway_order_id: payment.gateway_order_id,
@@ -657,20 +854,47 @@ export default function HomePage(): JSX.Element {
       return false;
     }
 
-    const appsResponse = await fetch(`${apiBaseUrl}/applications`, {
-      headers: authHeaders(token, false, selectedTenant?.code),
-    });
-    if (appsResponse.ok) {
-      const list = (await appsResponse.json()) as ApplicationSummary[];
-      setApplications(list);
-      const match = list.find((row) => row.id === payment.application_id);
-      if (match) {
-        await openApplication(match.docket_no);
+    if (step === 'hub') {
+      try {
+        const [appsResponseHub, paymentsResponseHub] = await Promise.all([
+          fetch(`${apiBaseUrl}/applications`, {
+            headers: authHeaders(token, false),
+          }),
+          fetch(`${apiBaseUrl}/payments`, {
+            headers: authHeaders(token, false),
+          }),
+        ]);
+
+        if (appsResponseHub.ok) {
+          const refreshedApps = (await appsResponseHub.json()) as ApplicationSummary[];
+          setHubApplications(refreshedApps);
+          const refreshedMatch = refreshedApps.find((row) => row.id === payment.application_id);
+          if (refreshedMatch?.tenant_code) {
+            await openApplication(refreshedMatch.docket_no, refreshedMatch.tenant_code);
+          }
+        }
+        if (paymentsResponseHub.ok) {
+          setHubPayments((await paymentsResponseHub.json()) as PaymentApiResponse[]);
+        }
+      } catch {
+        /* silent — status banner unchanged */
       }
     } else {
-      await loadApplications();
+      const appsResponse = await fetch(`${apiBaseUrl}/applications`, {
+        headers: authHeaders(token, false, workspaceLoadScope()),
+      });
+      if (appsResponse.ok) {
+        const list = (await appsResponse.json()) as ApplicationSummary[];
+        setApplications(list);
+        const match = list.find((row) => row.id === payment.application_id);
+        if (match) {
+          await openApplication(match.docket_no, match.tenant_code);
+        }
+      } else {
+        await loadApplications();
+      }
+      await loadPayments();
     }
-    await loadPayments();
     setStatus('Payment settled. Open My Payments for receipt metadata (PDF later).');
     return true;
   }
@@ -788,13 +1012,14 @@ export default function HomePage(): JSX.Element {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold uppercase text-brand">Citizen hub</p>
-              <h2 className="text-3xl font-bold">Your municipalities</h2>
-              <p className="mt-2 max-w-3xl text-slate-600">
-                Choose a municipality to open the scoped workspace (
-                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> applies only
-                there). Counts aggregate from{' '}
-                <code className="rounded bg-slate-100 px-1">GET /citizen/dashboard</code> — no
-                municipality header on hub fetches (Option A parity).
+              <h2 className="text-3xl font-bold">Track services across municipalities</h2>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                KPIs summarise the seeded catalogue plus your footprint on each ULB via{' '}
+                <code className="rounded bg-slate-100 px-1">/citizen/dashboard</code>; tabbed lists
+                call <strong>scoped reads without</strong>{' '}
+                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> until you
+                open an application dossier row (payments/comments then use that ULB). To file anew,
+                choose a municipality.
               </p>
             </div>
             <button
@@ -812,54 +1037,331 @@ export default function HomePage(): JSX.Element {
             </p>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
-              <button
-                className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                  !catalogue ? 'cursor-not-allowed opacity-60' : ''
-                }`}
-                disabled={!catalogue}
-                key={bucket.tenant_id}
-                onClick={() => {
-                  if (catalogue) {
-                    void chooseTenant(catalogue);
-                  }
-                }}
-                type="button"
-              >
-                <span
-                  className="block h-2 w-full rounded-full"
-                  style={{ backgroundColor: bucket.theme_color }}
-                />
-                <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
-                <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
-                {catalogue ? (
-                  <span className="mt-4 block text-sm font-medium text-slate-500">
-                    {catalogue.ward_count} wards
-                  </span>
-                ) : null}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
-                    Apps {bucket.application_count}
-                  </span>
-                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-900">
-                    Pay {bucket.payment_count}
-                  </span>
-                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-900">
-                    Grv {bucket.grievance_count}
-                  </span>
+          {hubDashboard && hubTotalsFromBuckets && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ['Language', language.toUpperCase()],
+                ['Services', String(hubDistinctServiceCodes)],
+                ['Applications', String(hubTotalsFromBuckets.applications)],
+                ['Payments', String(hubTotalsFromBuckets.payments)],
+                ['Grievances', String(hubTotalsFromBuckets.grievances)],
+              ].map(([label, value]) => (
+                <div
+                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                  key={label}
+                >
+                  <span className="text-sm text-slate-500">{label}</span>
+                  <strong className="block text-2xl text-slate-950">{value}</strong>
                 </div>
-                {!catalogue && (
-                  <p className="mt-3 text-xs text-red-600">Tenant missing from picker catalogue.</p>
-                )}
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {hubDashboard && hubMunicipalityCards.length === 0 && (
-            <p className="text-sm text-slate-600">
-              Dashboard returned no municipalities. Check API seed catalogue.
-            </p>
+          <CitizenWorkspaceTabStrip
+            activeTab={hubTab}
+            language={language}
+            onSelect={(tab) => {
+              setHubTab(tab);
+              if (tab !== 'applications') {
+                setApplicationDetail(null);
+              }
+            }}
+          />
+
+          {hubTab === 'home' && (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
+                  <button
+                    className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      !catalogue ? 'cursor-not-allowed opacity-60' : ''
+                    }`}
+                    disabled={!catalogue}
+                    key={bucket.tenant_id}
+                    onClick={() => {
+                      if (catalogue) {
+                        void chooseTenant(catalogue);
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span
+                      className="block h-2 w-full rounded-full"
+                      style={{ backgroundColor: bucket.theme_color }}
+                    />
+                    <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
+                    <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
+                    {catalogue ? (
+                      <span className="mt-4 block text-sm font-medium text-slate-500">
+                        {catalogue.ward_count} wards
+                      </span>
+                    ) : null}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
+                        Apps {bucket.application_count}
+                      </span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-900">
+                        Pay {bucket.payment_count}
+                      </span>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-900">
+                        Grv {bucket.grievance_count}
+                      </span>
+                    </div>
+                    {!catalogue && (
+                      <p className="mt-3 text-xs text-red-600">
+                        Tenant missing from picker catalogue.
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {hubDashboard && hubMunicipalityCards.length === 0 && (
+                <p className="text-sm text-slate-600">
+                  Dashboard returned no municipalities. Check API seed catalogue.
+                </p>
+              )}
+            </>
+          )}
+
+          {hubTab === 'services' && (
+            <section className="space-y-8">
+              <p className="text-sm text-slate-600">
+                Active services fetched per municipality in the catalogue; KPI{' '}
+                <strong>Services</strong> is the distinct union of{' '}
+                <code className="rounded bg-white px-1">service.code</code> across tenants.
+              </p>
+              {tenants
+                .slice()
+                .sort((left, right) => left.code.localeCompare(right.code))
+                .map((tenant) => {
+                  const catalogue = hubTenantServiceMap[tenant.code] ?? [];
+                  return (
+                    <div key={tenant.code}>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{ backgroundColor: tenant.theme_color }}
+                        />
+                        <h3 className="text-lg font-bold text-slate-900">{tenant.code}</h3>
+                        <span className="text-sm text-slate-500">{tenant.name}</span>
+                      </div>
+                      {catalogue.length === 0 ? (
+                        <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+                          No active services surfaced for this ULB yet.
+                        </p>
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {catalogue.map((service) => (
+                            <article
+                              className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm"
+                              key={`${tenant.code}-${service.code}`}
+                            >
+                              <p className="text-[11px] font-semibold uppercase text-brand">
+                                {service.category_code}
+                              </p>
+                              <h4 className="mt-1 text-lg font-semibold">
+                                {service.name[language] ?? service.name.en}
+                              </h4>
+                              <button
+                                className="mt-4 w-full rounded-2xl border border-brand px-3 py-2 text-sm font-semibold text-brand"
+                                onClick={() => void chooseTenant(tenant)}
+                                type="button"
+                              >
+                                Open {tenant.code} workspace to apply
+                              </button>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </section>
+          )}
+
+          {hubTab === 'apply' && (
+            <section className="space-y-4 rounded-3xl border border-dashed border-slate-200 bg-slate-50/60 p-6">
+              <h3 className="text-xl font-bold text-slate-900">Pick a municipality to apply</h3>
+              <p className="text-sm text-slate-600">
+                Applying still runs inside one ULB at a time. Select below (same picker as{' '}
+                <strong>Home</strong>). After selection the workspace carries your{' '}
+                <code className="rounded bg-white px-1">X-Enagar-Tenant-Code</code>.
+              </p>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {hubMunicipalityCards.map(({ bucket, catalogue, shortName }) => (
+                  <button
+                    className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      !catalogue ? 'cursor-not-allowed opacity-60' : ''
+                    }`}
+                    disabled={!catalogue}
+                    key={`apply-${bucket.tenant_id}`}
+                    onClick={() => {
+                      if (catalogue) {
+                        void chooseTenant(catalogue);
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span
+                      className="block h-2 w-full rounded-full"
+                      style={{ backgroundColor: bucket.theme_color }}
+                    />
+                    <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
+                    <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hubTab === 'applications' && (
+            <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+              <div className="rounded-3xl bg-white p-5 shadow-sm">
+                <h3 className="text-xl font-bold">My Applications</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Hub read — aggregated across municipalities.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {hubApplications.map((application) => {
+                    const stripe =
+                      hubDashboard?.municipalities.find(
+                        (bucket) =>
+                          bucket.tenant_code?.toUpperCase() ===
+                          application.tenant_code?.toUpperCase(),
+                      )?.theme_color ?? '#94a3b8';
+
+                    return (
+                      <button
+                        className="w-full rounded-2xl border border-slate-200 p-4 text-left"
+                        key={application.id}
+                        onClick={() =>
+                          void openApplication(
+                            application.docket_no,
+                            application.tenant_code ?? undefined,
+                          )
+                        }
+                        type="button"
+                      >
+                        <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          <span
+                            className="inline-block h-2 w-2 rounded-full"
+                            style={{ backgroundColor: stripe }}
+                          />
+                          {application.tenant_code ?? 'Unknown ULB'}
+                        </span>
+                        <span className="block font-semibold">{application.docket_no}</span>
+                        <span className="text-sm text-slate-600">
+                          {application.service_name} · {application.status_label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {hubApplications.length === 0 && (
+                    <p className="text-slate-600">No applications filed yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <ApplicationDetailPanel
+                apiBaseUrl={apiBaseUrl}
+                application={applicationDetail}
+                comment={comment}
+                feePaise={
+                  applicationDetail
+                    ? getFixedFeePaise(feeServicesForDetailPanel, applicationDetail.service_code)
+                    : null
+                }
+                onCancel={() => void cancelCurrentApplication()}
+                onCommentChange={setComment}
+                onInitiatePayment={initiateApplicationPayment}
+                onStubComplete={simulateStubSettlement}
+                onSubmitComment={addComment}
+                payments={hubPayments}
+                tenantScopeCode={dossierMunicipalityScope()}
+                token={token}
+              />
+            </section>
+          )}
+
+          {hubTab === 'payments' && (
+            <section className="rounded-3xl bg-white p-6 shadow-sm">
+              <h3 className="text-xl font-bold">My Payments</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Hub read — all attempts across ULBs ({hubPayments.length} rows).
+              </p>
+              <div className="mt-6 space-y-4">
+                {hubPayments.map((payment) => {
+                  const payerScope =
+                    tenantsById.get(payment.tenant_id)?.code ?? dossierMunicipalityScope();
+                  return (
+                    <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">
+                            {payment.status.replace('_', ' ')}
+                          </p>
+                          <p className="font-mono text-xs text-slate-600">{payment.id}</p>
+                          {Boolean(tenantsById.get(payment.tenant_id)) && (
+                            <p className="mt-2 text-[11px] font-semibold text-slate-700">
+                              {tenantsById.get(payment.tenant_id)?.code} ·{' '}
+                              <span
+                                style={{ color: tenantsById.get(payment.tenant_id)?.theme_color }}
+                              >
+                                ●
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                        <strong className="text-lg">
+                          {formatInrFromPaise(payment.amount_paise)}
+                        </strong>
+                      </div>
+                      {payment.status === 'requires_action' && token ? (
+                        <button
+                          className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                          onClick={() => void simulateStubSettlement(payment)}
+                          type="button"
+                        >
+                          Simulate PSP capture (stub complete)
+                        </button>
+                      ) : null}
+                      {payment.status === 'settled' && payerScope && token ? (
+                        <ReceiptPreviewPlaceholder
+                          apiBaseUrl={apiBaseUrl}
+                          payment={payment}
+                          tenantScopeCode={payerScope}
+                          token={token}
+                        />
+                      ) : null}
+                    </article>
+                  );
+                })}
+                {hubPayments.length === 0 && (
+                  <p className="text-sm text-slate-600">
+                    No payment attempts logged for this citizen yet.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {hubTab === 'grievances' && (
+            <section className="rounded-3xl bg-white p-6 shadow-sm">
+              <p className="mb-4 text-sm text-slate-600">
+                Cross-ULB list from{' '}
+                <code className="rounded bg-slate-100 px-1">GET /grievances</code> without
+                municipality header (hub aggregate read). Submitting stays ULB-workspace scoped.
+              </p>
+              <GrievancesWorkspace
+                apiBaseUrl={apiBaseUrl}
+                language={language}
+                mobileDigits={mobile}
+                onBanner={setStatus}
+                onGrievancesMutated={() => void refreshHubData()}
+                tenantScopeCode={undefined}
+                token={token}
+              />
+            </section>
           )}
         </section>
       )}
@@ -914,25 +1416,11 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
-          <nav className="flex flex-wrap gap-2">
-            {(['home', 'services', 'apply', 'applications', 'payments', 'grievances'] as const).map(
-              (tab) => (
-                <button
-                  className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tab ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  {tab === 'applications'
-                    ? 'My Applications'
-                    : tab === 'payments'
-                      ? 'My Payments'
-                      : tab === 'grievances'
-                        ? t('grievance.nav', language)
-                        : titleCase(tab)}
-                </button>
-              ),
-            )}
-          </nav>
+          <CitizenWorkspaceTabStrip
+            activeTab={activeTab}
+            language={language}
+            onSelect={setActiveTab}
+          />
 
           {activeTab === 'home' && (
             <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -1078,7 +1566,13 @@ export default function HomePage(): JSX.Element {
                     <button
                       className="w-full rounded-2xl border border-slate-200 p-4 text-left"
                       key={application.id}
-                      onClick={() => void openApplication(application.docket_no)}
+                      onClick={() =>
+                        void openApplication(
+                          application.docket_no,
+                          application.tenant_code ?? undefined,
+                        )
+                      }
+                      type="button"
                     >
                       <span className="block font-semibold">{application.docket_no}</span>
                       <span className="text-sm text-slate-600">
@@ -1098,7 +1592,7 @@ export default function HomePage(): JSX.Element {
                 comment={comment}
                 feePaise={
                   applicationDetail
-                    ? getFixedFeePaise(services, applicationDetail.service_code)
+                    ? getFixedFeePaise(feeServicesForDetailPanel, applicationDetail.service_code)
                     : null
                 }
                 onCancel={() => void cancelCurrentApplication()}
@@ -1107,7 +1601,7 @@ export default function HomePage(): JSX.Element {
                 onStubComplete={simulateStubSettlement}
                 onSubmitComment={addComment}
                 payments={payments}
-                tenantScopeCode={selectedTenant?.code}
+                tenantScopeCode={dossierMunicipalityScope()}
                 token={token}
               />
             </section>
@@ -1123,49 +1617,54 @@ export default function HomePage(): JSX.Element {
                   <code className="rounded bg-slate-100 px-1">ALLOW_STUB_PAYMENT_SETTLEMENT</code>.
                 </p>
                 <div className="mt-4 space-y-4">
-                  {payments.map((payment) => (
-                    <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            {payment.status.replace('_', ' ')}
-                          </p>
-                          <p className="font-mono text-sm text-slate-700">{payment.id}</p>
+                  {payments.map((payment) => {
+                    const payerScope =
+                      tenantsById.get(payment.tenant_id)?.code ?? selectedTenant.code;
+
+                    return (
+                      <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase text-slate-500">
+                              {payment.status.replace('_', ' ')}
+                            </p>
+                            <p className="font-mono text-sm text-slate-700">{payment.id}</p>
+                          </div>
+                          <strong className="text-lg">
+                            {formatInrFromPaise(payment.amount_paise)}
+                          </strong>
                         </div>
-                        <strong className="text-lg">
-                          {formatInrFromPaise(payment.amount_paise)}
-                        </strong>
-                      </div>
-                      <dl className="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
-                        <span>Application: {payment.application_id.slice(0, 13)}…</span>
-                        <span>Gateway order: {payment.gateway_order_id}</span>
-                      </dl>
-                      {payment.status === 'requires_action' && token && (
-                        <button
-                          className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-                          onClick={() => void simulateStubSettlement(payment)}
-                          type="button"
-                        >
-                          Simulate PSP capture (stub complete)
-                        </button>
-                      )}
-                      {payment.status === 'failed' && (
-                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                          Payment failed upstream — retry initiation from{' '}
-                          <strong>My Applications</strong> after resolving the banner message shown
-                          in status.
-                        </div>
-                      )}
-                      {payment.status === 'settled' && token ? (
-                        <ReceiptPreviewPlaceholder
-                          apiBaseUrl={apiBaseUrl}
-                          payment={payment}
-                          tenantScopeCode={selectedTenant.code}
-                          token={token}
-                        />
-                      ) : null}
-                    </article>
-                  ))}
+                        <dl className="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
+                          <span>Application: {payment.application_id.slice(0, 13)}…</span>
+                          <span>Gateway order: {payment.gateway_order_id}</span>
+                        </dl>
+                        {payment.status === 'requires_action' && token && (
+                          <button
+                            className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                            onClick={() => void simulateStubSettlement(payment)}
+                            type="button"
+                          >
+                            Simulate PSP capture (stub complete)
+                          </button>
+                        )}
+                        {payment.status === 'failed' && (
+                          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                            Payment failed upstream — retry initiation from{' '}
+                            <strong>My Applications</strong> after resolving the banner message
+                            shown in status.
+                          </div>
+                        )}
+                        {payment.status === 'settled' && token ? (
+                          <ReceiptPreviewPlaceholder
+                            apiBaseUrl={apiBaseUrl}
+                            payment={payment}
+                            tenantScopeCode={payerScope}
+                            token={token}
+                          />
+                        ) : null}
+                      </article>
+                    );
+                  })}
                   {payments.length === 0 && (
                     <p className="text-slate-600">
                       No payment attempts logged for this citizen yet.
@@ -1208,6 +1707,40 @@ export default function HomePage(): JSX.Element {
         </section>
       )}
     </main>
+  );
+}
+
+/** Shared pill-shaped tab chrome for Citizen hub & municipal workspace. */
+function CitizenWorkspaceTabStrip({
+  activeTab,
+  language,
+  onSelect,
+}: {
+  activeTab: WorkspaceTab;
+  language: PwaLocaleCode;
+  onSelect: (tab: WorkspaceTab) => void;
+}): JSX.Element {
+  return (
+    <nav aria-label="Primary navigation" className="flex flex-wrap gap-2">
+      {(['home', 'services', 'apply', 'applications', 'payments', 'grievances'] as const).map(
+        (tab) => (
+          <button
+            className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tab ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
+            key={tab}
+            onClick={() => onSelect(tab)}
+            type="button"
+          >
+            {tab === 'applications'
+              ? 'My Applications'
+              : tab === 'payments'
+                ? 'My Payments'
+                : tab === 'grievances'
+                  ? t('grievance.nav', language)
+                  : titleCase(tab)}
+          </button>
+        ),
+      )}
+    </nav>
   );
 }
 
