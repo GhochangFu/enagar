@@ -11,12 +11,22 @@ const verifierPath = join(
   'auth',
   'jwt-verifier.service.ts',
 );
+const tenantResolverPath = join(
+  repoRoot,
+  'apps',
+  'api',
+  'src',
+  'common',
+  'auth',
+  'enagar-jwt-tenant-resolver.ts',
+);
 const guardPath = join(repoRoot, 'apps', 'api', 'src', 'common', 'auth', 'jwt-auth.guard.ts');
 const appModulePath = join(repoRoot, 'apps', 'api', 'src', 'app.module.ts');
 const authServicePath = join(repoRoot, 'apps', 'api', 'src', 'modules', 'auth', 'auth.service.ts');
 
 describe('Sprint 1.2 API JWT tenant-binding contract', () => {
   const verifierSource = readFileSync(verifierPath, 'utf8');
+  const tenantResolverSource = readFileSync(tenantResolverPath, 'utf8');
   const guardSource = readFileSync(guardPath, 'utf8');
   const appModuleSource = readFileSync(appModulePath, 'utf8');
   const authServiceSource = readFileSync(authServicePath, 'utf8');
@@ -25,16 +35,19 @@ describe('Sprint 1.2 API JWT tenant-binding contract', () => {
     expect(verifierSource).toContain('KEYCLOAK_ISSUER_URL');
     expect(verifierSource).toContain('KEYCLOAK_API_AUDIENCE');
     expect(verifierSource).toContain('issuer: this.issuer');
-    expect(verifierSource).toContain('audience: this.audience');
+    expect(verifierSource).toContain('jwtAudienceOption');
+    expect(verifierSource).toContain('audience: this.jwtAudienceOption()');
   });
 
   it('caches JWKS for five minutes', () => {
     expect(verifierSource).toContain('cacheMaxAge: 5 * 60 * 1000');
   });
 
-  it('rejects JWTs without tenant_id', () => {
-    expect(verifierSource).toContain('!claims.tenant_id');
-    expect(verifierSource).toContain('JWT is missing tenant_id');
+  it('normalizes tenant_id vs tenantId (and tenant_code synonyms) via shared resolver', () => {
+    expect(tenantResolverSource).toContain('resolveEnagarTenantFromJwtPayload');
+    expect(tenantResolverSource).toContain('tenant_id and tenantId claims conflict');
+    expect(verifierSource).toContain('resolveEnagarTenantFromJwtPayload');
+    expect(tenantResolverSource).toContain('JWT is missing tenant_id');
   });
 
   it('binds verified JWT tenant context onto the request', () => {
@@ -52,7 +65,7 @@ describe('Sprint 1.2 API JWT tenant-binding contract', () => {
     expect(authServiceSource).toContain("process.env.NODE_ENV !== 'production'");
     expect(authServiceSource).toContain('DEV_AUTH_ENABLED');
     expect(authServiceSource).toContain('DEV_OTP_CODE');
-    expect(authServiceSource).toContain('createDevToken');
+    expect(authServiceSource).toContain('createDevCitizenAccessToken');
   });
 
   it('requires MFA evidence for admin-role JWTs', () => {

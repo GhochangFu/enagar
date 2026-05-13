@@ -7,8 +7,12 @@ export interface EnagarJwtClaims {
   exp: number;
   iat?: number;
   jti?: string;
-  tenant_id: TenantId;
+  /** Preferred mapper output per ADR-0009 — synonym {@link tenantId} */
+  tenant_id?: TenantId;
+  /** Non-standard synonym accepted by {@link JwtVerifierService} alongside `tenant_id` */
+  tenantId?: TenantId;
   tenant_code?: string;
+  tenantCode?: string;
   role?: string | string[];
   ward_id?: string;
   acr?: string;

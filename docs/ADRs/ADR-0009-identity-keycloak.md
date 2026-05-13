@@ -41,6 +41,9 @@ Specifically:
    - `role` (`citizen` / `field_staff` / `officer:<dept>` / `tenant_admin` / `state_admin`)
    - `ward_id?` (for officers and field staff)
    - standard `iss`, `aud`, `exp`, `iat`, `jti`
+
+   **API synonym handling (@enagar/api, Hub H5.1):** Some gateways/templates emit **`tenantId`** / **`tenantCode`**. `@enagar/api` accepts those **only when** they carry the **same semantics** as the snake_case claims (`resolveEnagarTenantFromJwtPayload` in `apps/api/src/common/auth/enagar-jwt-tenant-resolver.ts`). Canonical mapper output SHOULD remain **`tenant_id`** / **`tenant_code`**. If both snake and camel are present **and disagree**, verification returns **401**.
+
 5. **Token lifetimes**: access 15 min, refresh 24 h (citizen) / 8 h (operator). Refresh-token rotation enabled. JWKS cached for 5 min in NestJS.
 6. **High availability**: Keycloak deployed as **2+ pods** with shared Postgres (the same Postgres cluster from ADR-0001, in a dedicated `keycloak` schema). Distributed cache via Infinispan.
 
@@ -83,7 +86,7 @@ Specifically:
 - **Phase 1 Sprint 1.4**: DigiLocker as a Keycloak Identity Provider (OIDC); citizen account linking; document-fetch flow.
 - **Phase 1 Sprint 1.5**: TOTP MFA enforcement for all operator roles; recovery codes; MFA enrolment screen.
 - **Phase 6**: WebAuthn / hardware-key for state-admins; risk-based step-up for sensitive citizen actions (mutation, fee waiver).
-- **Operational runbook** (`docs/runbooks/keycloak.md`) by Phase 1 close: backup, restore, key rotation, realm-export drift detection.
+- **Operational runbook** (`docs/runbooks/keycloak.md`) by Phase 1 close: backup, restore, key rotation, realm-export drift detection — **see runbook** for H5.1 bootstrap and role parity.
 
 ## Compliance / verification
 
@@ -95,6 +98,7 @@ Specifically:
 
 ## References
 
+- `docs/runbooks/keycloak.md` — **Hub H5.1** operator bootstrap, realm export, role/API parity, staging smoke pointers.
 - `AGENT.md` §2 — Pillar 1 (Sovereign by default for storage), Pillar 6 (Open-source mandate).
 - `ARCHITECTURE.md` §3 — Open-source stack rationale: "Keycloak — Citizen identity, OIDC, MFA, RBAC; DigiLocker integration via OIDC broker."
 - `ARCHITECTURE.md` §6 — Security & compliance: MFA, JWT lifetimes, audit log requirements.

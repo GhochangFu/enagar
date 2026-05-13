@@ -2,12 +2,18 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
+import {
+  JwtTenantClaimError,
+  resolveEnagarTenantFromJwtPayload,
+} from './enagar-jwt-tenant-resolver';
+
 import type { AuthenticatedPrincipal, EnagarJwtClaims } from './jwt-claims';
 
 @Injectable()
 export class JwtVerifierService {
   private readonly issuer: string;
-  private readonly audience: string;
+  /** Acceptable JWT `aud` values (comma-separated in `KEYCLOAK_API_AUDIENCE`). */
+  private readonly audience: string[];
   private readonly devAuthEnabled: boolean;
   private readonly devJwtSecret: Uint8Array;
   private readonly jwks: ReturnType<typeof createRemoteJWKSet>;
@@ -15,7 +21,14 @@ export class JwtVerifierService {
   constructor(private readonly config: ConfigService) {
     this.issuer =
       this.config.get<string>('KEYCLOAK_ISSUER_URL') ?? 'http://localhost:8080/realms/enagar';
-    this.audience = this.config.get<string>('KEYCLOAK_API_AUDIENCE') ?? 'enagar-api';
+    const rawAudience = this.config.get<string>('KEYCLOAK_API_AUDIENCE') ?? 'enagar-api';
+    this.audience = rawAudience
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (this.audience.length === 0) {
+      this.audience.push('enagar-api');
+    }
     this.devAuthEnabled =
       process.env.NODE_ENV !== 'production' &&
       this.config.get<string>('DEV_AUTH_ENABLED') !== 'false';
@@ -25,6 +38,10 @@ export class JwtVerifierService {
     this.jwks = createRemoteJWKSet(new URL(`${this.issuer}/protocol/openid-connect/certs`), {
       cacheMaxAge: 5 * 60 * 1000,
     });
+  }
+
+  private jwtAudienceOption(): string | string[] {
+    return this.audience.length === 1 ? this.audience[0]! : this.audience;
   }
 
   async verifyBearerToken(token: string): Promise<AuthenticatedPrincipal> {
@@ -41,7 +58,7 @@ export class JwtVerifierService {
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
         issuer: this.issuer,
-        audience: this.audience,
+        audience: this.jwtAudienceOption(),
       });
       return payload;
     } catch (remoteError) {
@@ -51,7 +68,7 @@ export class JwtVerifierService {
 
       const { payload } = await jwtVerify(token, this.devJwtSecret, {
         issuer: this.issuer,
-        audience: this.audience,
+        audience: this.jwtAudienceOption(),
       });
       return payload;
     }
@@ -63,9 +80,19 @@ export class JwtVerifierService {
     if (!claims.sub) {
       throw new UnauthorizedException('JWT is missing sub');
     }
-    if (!claims.tenant_id) {
-      throw new UnauthorizedException('JWT is missing tenant_id');
+
+    let tenantIdResolved: string;
+    let tenantCodeResolved: string | undefined;
+    try {
+      ({ tenantId: tenantIdResolved, tenantCode: tenantCodeResolved } =
+        resolveEnagarTenantFromJwtPayload(payload));
+    } catch (error) {
+      if (error instanceof JwtTenantClaimError) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
     }
+
     if (!claims.exp) {
       throw new UnauthorizedException('JWT is missing exp');
     }
@@ -77,8 +104,8 @@ export class JwtVerifierService {
 
     return {
       subject: claims.sub,
-      tenantId: claims.tenant_id,
-      tenantCode: claims.tenant_code,
+      tenantId: tenantIdResolved,
+      tenantCode: tenantCodeResolved,
       roles,
       wardId: claims.ward_id,
       tokenId: claims.jti,

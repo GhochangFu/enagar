@@ -39,17 +39,38 @@ This file carries **two coordinated naming schemes**:
 
 Use this when prioritising what to pull next across tracks (adjust for staffing and credential unblock).
 
-| Seq | Track  | Item                                                                                                                | Notes                                                                                        |
-| --- | ------ | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| A   | Master | Phases **0 → 2**                                                                                                    | Closed where marked in sections below                                                        |
-| B   | Master | Phase **3** — payment core + stub rail                                                                              | **Sprint 3.1B** is an **interrupt**: start immediately when gateway sandbox credentials land |
-| C   | Hub    | **H1 → H3** — portal tenant, hub reads, municipal writes                                                            | Mostly closed — see Hub programme section                                                    |
-| D   | Master | Phase **4** — **Sprint 4.1–4.2** (grievance persistence + citizen tab MVP)                                          | Closed 2026-05-11                                                                            |
-| E   | Hub    | **H4.1 → H4.15 → H4.16 → H4.2** — citizen **PWA hub** UX + grievance scope in hub/workspace                         | Mostly closed — hub sprint **order** is document order below                                 |
-| F   | Hub    | **H5.1** — Keycloak Option A on staging/prod                                                                        | **Next Hub-programme sprint** if continuing unified-hub identity rollout                     |
-| G   | Master | Phase **4** — **Sprint 4.3** (escalations, reopen, grievance hardening) **or** resume **3.1B** first when PSP lands | Master **Status** section tracks default                                                     |
-| H   | Hub    | **H6.1** — hub docs / observability / backlog triage                                                                | Exit polish for Hub programme slice                                                          |
-| I   | Master | Phase **5** — Citizen Mobile + PWA polish (**Master Sprint 5.1–5.4**)                                               | Native shell + parity — **not** the same work as Hub **H5.1**                                |
+| Seq | Track  | Item                                                                                                     | Notes                                                                                                                                                                           |
+| --- | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Master | Phases **0 → 2**                                                                                         | Closed where marked in sections below                                                                                                                                           |
+| B   | Master | Phase **3** — payment core + stub rail                                                                   | **Sprint 3.1B deferred:** not in the [locked 10-sprint queue](#locked-next-10-sprint-queue-priority-execution-order); add back when PSP credentials **and** sponsor unpause     |
+| C   | Hub    | **H1 → H3** — portal tenant, hub reads, municipal writes                                                 | Mostly closed — see Hub programme section                                                                                                                                       |
+| D   | Master | Phase **4** — **Sprint 4.1–4.2** (grievance persistence + citizen tab MVP)                               | Closed 2026-05-11                                                                                                                                                               |
+| E   | Hub    | **H4.1 → H4.15 → H4.16 → H4.2** — citizen **PWA hub** UX + grievance scope in hub/workspace              | Mostly closed — hub sprint **order** is document order below                                                                                                                    |
+| F   | Hub    | **H5.1** — Keycloak Option A on staging/prod + **staff/admin user bootstrap**                            | **Next Hub-programme sprint** if continuing unified-hub identity rollout (after **H4.x**; no calendar lock — see [H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments)) |
+| G   | Master | Phase **4** backlog (post‑4.3 core): breach **notifications**, grievance UX polish beyond reopen/SLA MVP | Remaining bullets in Sprint **4.3** roadmap note                                                                                                                                |
+| H   | Hub    | **H6.1** — hub docs / observability / backlog triage                                                     | Exit polish for Hub programme slice                                                                                                                                             |
+| I   | Master | Phase **5** — Citizen Mobile + PWA polish (**Master Sprint 5.1–5.4**)                                    | Native shell + parity — **not** the same work as Hub **H5.1**                                                                                                                   |
+
+### Locked next-10 sprint queue (priority execution order)
+
+**Lock:** Execute **1 → 10** in order unless a sponsor-approved exception or a sprint exit failure forces a pause. **Sprint 3.1B** (PSP payment gateway) is **explicitly deferred** — it does **not** appear here; reinstate when credentials land **and** the sponsor pulls it from deferral.
+
+**Progress:** **1 — Hub H5.1:** Repo slice merged — `realm-export` role parity + **runbook** + API **`tenant_clerk`/`municipality_*` acceptance** + **JWT tenant claim synonym resolution** (`tenantId`/`tenantCode` vs `tenant_id`/`tenant_code`). **Staging / pilot** still needs deliberate realm deploy, named operator inventory, Security/DevOps sign-off; **`pnpm infra:seed-keycloak-users`** ([runbook §7](./docs/runbooks/keycloak.md)) dummy ULB accounts suffice for QA smoke until pilot users exist.
+
+| #      | Sprint                             | Track            | Scope (pointer)                                                                                                                                                                                                  |
+| ------ | ---------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**  | **Hub H5.1**                       | Hub              | [Hub Phase H5 / H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments) — Keycloak Option A + staff/admin user bootstrap                                                                                    |
+| **2**  | **Hub H6.1**                       | Hub              | [Hub Phase H6 / H6.1](#hub-phase-h6--hardening--hub-programme-exit) — docs, observability spot-check, backlog triage                                                                                             |
+| **3**  | **Master Phase 4 — backlog slice** | Master           | Post–4.3 gap: breach **push notifications**, attachments / GPS polish, **anonymised aggregates**, **200-grievance routing** bake-off ([Sprint 4.3 note](#sprint-43--delivery-note-core-slice-closed-2026-05-13)) |
+| **4**  | **Sprint 5.1**                     | Master · Phase 5 | RN app shell + screen porting (Splash → Tenant select → Home) — [§ Phase 5](#phase-5--citizen-mobile--pwa-polish)                                                                                                |
+| **5**  | **Sprint 5.2**                     | Master · Phase 5 | RN apply / payments / grievance flows + offline drafts                                                                                                                                                           |
+| **6**  | **Sprint 5.3**                     | Master · Phase 5 | PWA equivalent (`packages/forms`, `packages/ui`)                                                                                                                                                                 |
+| **7**  | **Sprint 5.4**                     | Master · Phase 5 | Push, deep links, accessibility, perf, store metadata                                                                                                                                                            |
+| **8**  | **Sprint 6.1**                     | Master · Phase 6 | Tenant Admin Portal shell, dashboard, service catalogue list/edit — [§ Phase 6](#phase-6--admin-portals-state--tenant)                                                                                           |
+| **9**  | **Sprint 6.2**                     | Master · Phase 6 | Form-Schema Builder + Workflow Designer                                                                                                                                                                          |
+| **10** | **Sprint 6.3**                     | Master · Phase 6 | Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads                                                                                                                           |
+
+**After #10:** Continue Phase **6** with **Sprint 6.4** onward, or replan with sponsor.
 
 ---
 
@@ -802,9 +823,9 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 > "A grievance with no timeline is a grievance ignored."
 
-### Programme status (2026-05-11)
+### Programme status (2026-05-13 refresh)
 
-**Sprint 4.1** (DB + APIs + SLA) and **Sprint 4.2** (citizen PWA grievance tab) are **closed** — see delivery notes below. **Sprint 4.3** (escalations, reopen, polish) is next **on the Master grievance track** unless **Sprint 3.1B** (PSP adapter) unblocks. Citizen **hub** UX is tracked separately as **Hub** sprints **H4.x** in [Citizen Unified Hub programme (Option A)](#citizen-unified-hub-programme-option-a); see also [Execution spine](#execution-spine-master-phases--citizen-unified-hub).
+**Sprints 4.1–4.2** are **closed**. **Sprint 4.3 — core MVP slice closed 2026-05-13** (citizen **re-open** within 7 days of resolution + **SLA sweep queue escalation**; still **no** realtime breach push channel). Larger Phase‑4 backlog (200-case routing regression, anonymised aggregates, richer attachments/GPS) remains unpicked. Citizen **hub** UX continues under Hub **H4.x** ([Citizen Unified Hub programme](#citizen-unified-hub-programme-option-a)); interrupt track **Sprint 3.1B** unchanged when PSP credentials land.
 
 ### Goal
 
@@ -857,7 +878,7 @@ End-to-end grievance management: file → categorise → route to ward / departm
 
 - **Sprint 4.1**: DB + APIs + SLA engine.
 - **Sprint 4.2**: Citizen UI + auto-routing.
-- **Sprint 4.3**: Escalations + reopen + rating + hardening.
+- **Sprint 4.3**: ✅ Partial — citizen **re-open** + **SLA sweep escalation** (2026-05-13). Remaining: push notifications / attachments / anonymised KPIs / 200-case routing regression.
 
 #### Sprint 4.1 — kickoff backlog _(implemented; see delivery note below)_
 
@@ -894,7 +915,18 @@ MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (l
 | `tests/security/grievance-sprint42-pwa.spec.ts`; `pnpm test:security` clean                         | ✅  |
 | Phase-2 file-size discipline (`phase2-hardening.spec`): shared panels + `lib/workspace-*.ts`        | ✅  |
 
-**Deferred to 4.3+**: breach push notifications, reopen, attachments / GPS, dedicated staff UX, anonymised aggregates, 200-grievance routing bake-off.
+**Deferred after Sprint 4.3 core slice**: breach **push notifications**, attachments / GPS, dedicated staff UX, anonymised aggregates, 200-grievance routing bake-off.
+
+#### Sprint 4.3 — delivery note (core slice closed 2026-05-13)
+
+| Deliverable                       | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ Citizen **re-open**            | `POST /api/grievances/:id/reopen` (optional `reason`) while `status=resolved`, within **7 days** of `resolved_at`; returns case to **`under_review`**, clears `resolved_at` / prior breach flags, recalculates **`sla_due_at`** from policy; timeline event **`reopen`**. Uses the same **`X-Enagar-Tenant-Code`** read-scope rules as hub/workspace detail reads. **`POST …/feedback`** now resolves ownership via the same **`getById`** path (**portal JWT–safe**). |
+| ✅ **SLA sweep escalation** (MVP) | `POST /api/grievances/staff/sweep-sla` marks breach **and** bumps **`routed_role_code`** (`municipality_clerk` → **`municipality_admin`** → **`tenant_admin`** → **`state_admin`**) with **`assigned_to_user_id` cleared** so admin queues can pick up; adds **`sla_escalation`** timeline row (+ enriched **`sla_breach`** metadata).                                                                                                                                 |
+
+**Explicitly still open vs product charter**: sub-minute breach **push**, Field Officer workflows, grievance anonymised public dashboard, richer attachment handling.
+
+**Manual E2E smoke (README) — deferred:** Full **Sprint 4.3** smoke (staff resolve/`PATCH` status, `POST …/staff/sweep-sla`, citizen re-open + feedback chain) stays **on hold** until **Keycloak staff/admin logins** and staff-gated APIs are configured end-to-end — target alignment with **Hub H5.1** (see [locked queue](#locked-next-10-sprint-queue-priority-execution-order)). Checklist remains in **`apps/citizen-pwa/README.md`** § **Manual smoke — Sprint 4.3**.
 
 ---
 
@@ -1141,13 +1173,19 @@ Rough order remains: catalogue + auth parity → hub reads → municipality writ
 
 **Program goal:** Staging/prod realms issue the same semantic claims as dev (portal tenant + stable `sub`).
 
-#### Sprint H5.1 — Realm, client, mappers, verifier alignment
+**Queue position:** In the [recommended rolling-wave order](#recommended-rolling-wave-order), Hub **H5.1** is row **F** — the **next Hub-programme sprint** after **H4.x** when you prioritise the **unified-hub identity** track. It does **not** imply a calendar week: sequencing is **priority-based** and can slip behind Master items (e.g. row **G** Phase 4 backlog) or interrupt **B** (payment **3.1B**) when credentials land.
 
-| Item              | Detail                                                                                                                                                                                                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Deliverables**  | Keycloak realm doc: citizen client ID, OTP/broker wiring, protocol mappers for `tenant_id` / `tenant_code` (portal), role claims; JWKS/issuer env on API updated per env; **remove or bypass** `tenant:mobile` username pattern for citizen OTP if still present; deployment checklist. |
-| **Tests**         | Staging smoke: OTP → JWT decode matches expected claims; API hub + workspace flows against real Keycloak; negative test wrong scope header.                                                                                                                                             |
-| **Exit criteria** | Security/DevOps sign-off on mapper set; ADR appendix or runbook merged.                                                                                                                                                                                                                 |
+#### Sprint H5.1 — Realm, client, mappers, verifier alignment + admin/staff users
+
+| Item              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deliverables**  | **Citizen (Option A):** Keycloak realm doc: citizen client ID, OTP/broker wiring, protocol mappers for `tenant_id` / `tenant_code` (portal), role claims; JWKS/issuer env on API updated per env; **remove or bypass** `tenant:mobile` username pattern for citizen OTP if still present; deployment checklist. **Operators (new):** Bootstrap **initial admin/staff users** on staging (pattern for prod): at least one **tenant-scoped** staff account per pilot ULB used in E2E (e.g. `tenant_admin`, `tenant_clerk` from `infrastructure/keycloak/realm-export.json`, with user attributes **`tenant_id`** / **`tenant_code`** matching that ULB’s seed UUID/code) and MFA enrolment where realm policy requires it (`tenant_admin`, `state_admin`). **Grievance API alignment:** Add **`municipality_clerk`** / **`municipality_admin`** realm roles **or** Keycloak role **composite / hard-role** mapping so JWT **`role`** claims match `GRIEVANCE_STAFF_ROLES` (today’s export uses `tenant_clerk`, not `municipality_*`). Document which clients issue staff tokens (`admin-tenant`, `staff-mobile`, etc.). Prefer **IaC** (Terraform / `kcadm` / realm partial import) or a repeatable **runbook script** rather than one-off Admin Console clicks. |
+| **Tests**         | Staging smoke: citizen OTP → JWT decode (existing). **New:** password/OIDC login (per client) for **≥1 tenant admin** and **≥1 clerk**; decode token and assert `tenant_id`, `tenant_code`, `role`, MFA claims for admin roles; call at least one **staff-gated** API (e.g. `PATCH /api/grievances/:id/status` or `POST …/sweep-sla`) with **200** against a known grievance tenant.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Exit criteria** | Security/DevOps sign-off on mapper set; ADR appendix or runbook merged; **named list of bootstrap users** (service accounts vs humans redacted) and **rotation** expectation; **role-name parity** documented between Keycloak realm roles and API `GRIEVANCE_STAFF_ROLES` / admin portals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+**Repo / engineering status (engineering slice closed in-repo):** **Runbook** — [`docs/runbooks/keycloak.md`](docs/runbooks/keycloak.md). Realm export extends **`municipality_clerk` / `municipality_admin`**; API accepts **`tenant_clerk`** alongside **`municipality_*`** ([`grievance-staff-roles.ts`](apps/api/src/modules/grievances/grievance-staff-roles.ts)). **`resolveEnagarTenantFromJwtPayload`** normalises **`tenant_id`/`tenant_code`** vs **`tenantId`/`tenantCode`** (reject mismatches). ADR-0009 references updated.
+
+**Outside the repo:** live staging realm import + formal **Security/DevOps sign-off** + pilot-only **bootstrap user ledger** / rotation expectation.
 
 ---
 
@@ -1169,7 +1207,7 @@ Rough order remains: catalogue + auth parity → hub reads → municipality writ
 - **Mobile uniqueness** enforced as today; shared-mobile multi-person out of scope.
 - If **grievance SLA seed** for portal tenant is noisy, **skip** portal in SLA seed loop (record in Hub **H1** exit notes).
 
-**Question for Sponsor (blocking Hub H5):** Confirm **exact claim names** Keycloak will emit (`tenant_id` vs `tenantId`) so `jwt-verifier` maps without a second translation layer.
+**Issuer mapper guidance (resolved in `@enagar/api`, Hub H5.1):** Keycloak SHOULD emit **`tenant_id` / `tenant_code`** snake_case claims (ADR-0009). The verifier also accepts **`tenantId` / `tenantCode`** if supplied **instead of** snake_case — **never with conflicting duplicates** (401). Issuers migrating from ageing conventions (e.g. **`tenant:{mobile}` usernames**) should pivot to **`sub-username`** + portal tenant mappers (see [`docs/runbooks/keycloak.md`](docs/runbooks/keycloak.md)).
 
 ---
 
@@ -1713,7 +1751,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete.** **Master Phase 4 — Sprints 4.1 and 4.2** (grievance APIs + citizen PWA grievance tab) are **closed (2026-05-11).** Phase 3 payment/finance slices through **3.3A** are closed on the stub rail. **Sprint 3.1B** is blocked on gateway credentials. **Master Phase 4** continues with **Sprint 4.3** unless **3.1B** unblocks first. **Citizen Unified Hub programme** sprints **H1–H4** are **closed** per [Citizen Unified Hub programme (Option A)](#citizen-unified-hub-programme-option-a); **Hub H5.1** (Keycloak Option A staging) and **H6.1** (hub hardening / exit) are the remaining Hub-programme slices unless reprioritised.
+**Current state**: **Phase 2 complete.** **Master Phase 4:** **Sprints 4.1–4.2** closed **2026-05-11**; **Sprint 4.3 core reopen + SLA sweep escalation** closed **2026-05-13** (`ROADMAP.md` Phase 4). Phase 3 payment/finance slices through **3.3A** closed on stub rail; **Sprint 3.1B** **deferred**. **Citizen Unified Hub programme** **H1–H4** closed; **Hub H5.1** repo engineering slice (**runbook, realm roles, API role parity, JWT `tenant_*` synonym handling**) merged — see [Hub Phase H5 / Sprint H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments); **Hub H6.1** next on the [locked queue](#locked-next-10-sprint-queue-priority-execution-order).
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1759,7 +1797,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action**: Use the [Execution spine](#execution-spine-master-phases--citizen-unified-hub) table to pick cross-track priority. **Master track:** execute **Phase 4 — Sprint 4.3** (escalations, reopen flow, grievance hardening), or **prioritise Sprint 3.1B** when gateway sandbox credentials land. **Hub track:** execute **Hub Sprint H5.1** (Keycloak staging/prod alignment), then **H6.1** when identity rollout leads delivery — **not** the same work as Master Phase **5** Sprint **5.1** (RN shell).
+**Next action:** Follow the [locked next-10 sprint queue](#locked-next-10-sprint-queue-priority-execution-order) — **Hub H5.1** repo deliverables are merged; pick up **Hub H6.1**, then the **Phase 4 backlog** slice, then **Master Sprint 5.1–5.4**, then **Sprint 6.1–6.3**. **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause. _(Hub **H5.1** and Master **Sprint 5.1** are different labels — do not confuse.)_
 
 ---
 
