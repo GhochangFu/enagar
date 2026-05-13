@@ -31,17 +31,18 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 
 ## Documentation
 
-| Document                                                           | Purpose                                                                                                                                                          |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`docs/charter.md`](./docs/charter.md)                             | Vision, KPIs, scope, risks, sponsor sign-off                                                                                                                     |
-| [`AGENT.md`](./AGENT.md)                                           | Operating manual for any contributor (human or AI)                                                                                                               |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                             | Technical architecture (multi-tenancy, RLS, RAG, schema)                                                                                                         |
-| [`ROADMAP.md`](./ROADMAP.md)                                       | Phase-wise delivery plan + **Citizen Unified Hub** programme (`H*.` sprints); [execution spine](./ROADMAP.md#execution-spine-master-phases--citizen-unified-hub) |
-| [`docs/ADRs/`](./docs/ADRs/)                                       | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                                                                                               |
-| [`docs/glossary.md`](./docs/glossary.md)                           | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns                                                                                   |
-| [`docs/security/threat-model.md`](./docs/security/threat-model.md) | STRIDE pass + security backlog                                                                                                                                   |
-| [`docs/service-catalogue.md`](./docs/service-catalogue.md)         | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan                                                                                   |
-| [`docs/design-system.md`](./docs/design-system.md)                 | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows                                                                           |
+| Document                                                                               | Purpose                                                                                                                                                          |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/charter.md`](./docs/charter.md)                                                 | Vision, KPIs, scope, risks, sponsor sign-off                                                                                                                     |
+| [`docs/help/start-the-app-step-by-step.md`](./docs/help/start-the-app-step-by-step.md) | Beginner walkthrough — prerequisites, Docker, DB migrate/seed, run API + citizen PWA, dev OTP                                                                    |
+| [`AGENT.md`](./AGENT.md)                                                               | Operating manual for any contributor (human or AI)                                                                                                               |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                                                 | Technical architecture (multi-tenancy, RLS, RAG, schema)                                                                                                         |
+| [`ROADMAP.md`](./ROADMAP.md)                                                           | Phase-wise delivery plan + **Citizen Unified Hub** programme (`H*.` sprints); [execution spine](./ROADMAP.md#execution-spine-master-phases--citizen-unified-hub) |
+| [`docs/ADRs/`](./docs/ADRs/)                                                           | Ratified and proposed architecture decisions (ADR-0001 … ADR-0010)                                                                                               |
+| [`docs/glossary.md`](./docs/glossary.md)                                               | Canonical vocabulary — entities, statuses, revenue heads, roles, anti-patterns                                                                                   |
+| [`docs/security/threat-model.md`](./docs/security/threat-model.md)                     | STRIDE pass + security backlog                                                                                                                                   |
+| [`docs/service-catalogue.md`](./docs/service-catalogue.md)                             | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan                                                                                   |
+| [`docs/design-system.md`](./docs/design-system.md)                                     | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows                                                                           |
 
 ## Architecture at a glance
 
