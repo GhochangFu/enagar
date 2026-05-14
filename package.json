@@ -29,8 +29,17 @@
     "infra:down": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env --profile offline-llm down",
     "infra:logs": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env logs -f",
     "infra:reset": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env --profile offline-llm down -v",
+    "infra:seed-keycloak-users": "node infrastructure/scripts/seed-keycloak-dummy-users.mjs",
     "infra:pull-llm": "docker exec enagar-ollama ollama pull llama3.1:8b",
     "prepare": "husky"
+  },
+  "pnpm": {
+    "overrides": {
+      "eslint>ajv": "6.12.6",
+      "@eslint/eslintrc>ajv": "6.12.6",
+      "@typescript-eslint/eslint-plugin": "8.43.0",
+      "@typescript-eslint/parser": "8.43.0"
+    }
   },
   "devDependencies": {
     "@commitlint/cli": "^19.5.0",

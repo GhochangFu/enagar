@@ -6,14 +6,14 @@ const formSpecPath = join(repoRoot, 'docs', 'form-schema.md');
 const formsRuntimePath = join(repoRoot, 'packages', 'forms', 'src', 'index.ts');
 const formsFixturesPath = join(repoRoot, 'packages', 'forms', 'src', 'fixtures.ts');
 const pwaPagePath = join(repoRoot, 'apps', 'citizen-pwa', 'app', 'page.tsx');
-const mobileIndexPath = join(repoRoot, 'apps', 'mobile', 'src', 'index.ts');
+const mobileShellPath = join(repoRoot, 'apps', 'mobile', 'src', 'CitizenShell.tsx');
 
 describe('Sprint 2.2 form-schema contract', () => {
   const spec = readFileSync(formSpecPath, 'utf8');
   const runtime = readFileSync(formsRuntimePath, 'utf8');
   const fixtures = readFileSync(formsFixturesPath, 'utf8');
   const pwaPage = readFileSync(pwaPagePath, 'utf8');
-  const mobileIndex = readFileSync(mobileIndexPath, 'utf8');
+  const mobileShell = readFileSync(mobileShellPath, 'utf8');
 
   it('documents every v1 field type and snapshot semantics', () => {
     for (const fieldType of [
@@ -64,7 +64,7 @@ describe('Sprint 2.2 form-schema contract', () => {
       'CommunityHallForm',
     ]) {
       expect(pwaPage).not.toContain(serviceSpecificToken);
-      expect(mobileIndex).not.toContain(serviceSpecificToken);
+      expect(mobileShell).not.toContain(serviceSpecificToken);
     }
   });
 });

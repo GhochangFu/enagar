@@ -14,17 +14,27 @@ const requiredClients = [
   'admin-state',
   'staff-mobile',
 ];
-const requiredTenantClaims = ['tenant_id', 'tenant_code', 'role', 'ward_id'];
+const requiredTenantClaims = [
+  'tenant_id',
+  'tenant_code',
+  'role',
+  'ward_id',
+  'audience-enagar-api',
+  'sub-username',
+];
 
 describe('Sprint 1.2 Keycloak realm contract', () => {
   const realm = JSON.parse(readFileSync(realmPath, 'utf8')) as {
     realm: string;
     enabled: boolean;
+    userProfileEnabled?: boolean;
+    userProfile?: { unmanagedAttributePolicy?: string };
     roles: { realm: Array<{ name: string; attributes?: Record<string, string[]> }> };
     clients: Array<{
       clientId: string;
       bearerOnly?: boolean;
       publicClient?: boolean;
+      directAccessGrantsEnabled?: boolean;
       attributes?: Record<string, string>;
       defaultClientScopes?: string[];
     }>;
@@ -37,6 +47,11 @@ describe('Sprint 1.2 Keycloak realm contract', () => {
   it('defines the single global enagar realm', () => {
     expect(realm.realm).toBe('enagar');
     expect(realm.enabled).toBe(true);
+  });
+
+  it('uses declarative user profile so admins can persist tenant_* operator attributes', () => {
+    expect(realm.userProfileEnabled).toBe(true);
+    expect(realm.userProfile?.unmanagedAttributePolicy).toBe('ADMIN_EDIT');
   });
 
   it('contains the Sprint 1.2 realm roles', () => {
@@ -58,6 +73,9 @@ describe('Sprint 1.2 Keycloak realm contract', () => {
       expect.arrayContaining(requiredClients),
     );
     expect(realm.clients.find((client) => client.clientId === 'enagar-api')?.bearerOnly).toBe(true);
+    expect(
+      realm.clients.find((client) => client.clientId === 'admin-tenant')?.directAccessGrantsEnabled,
+    ).toBe(true);
   });
 
   it('requires PKCE for public user-facing clients', () => {

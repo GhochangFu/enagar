@@ -8,6 +8,7 @@
     "./eslint/base": "./eslint/base.js",
     "./eslint/node": "./eslint/node.js",
     "./eslint/next": "./eslint/next.js",
+    "./eslint/react-library": "./eslint/react-library.js",
     "./eslint/react-native": "./eslint/react-native.js",
     "./tsconfig/base.json": "./tsconfig/base.json",
     "./tsconfig/node.json": "./tsconfig/node.json",
@@ -21,8 +22,8 @@
     "tailwind"
   ],
   "dependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.7.0",
-    "@typescript-eslint/parser": "^8.7.0",
+    "@typescript-eslint/eslint-plugin": "8.43.0",
+    "@typescript-eslint/parser": "8.43.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.30.0",
     "eslint-plugin-jsx-a11y": "^6.10.0",

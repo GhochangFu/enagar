@@ -35,7 +35,12 @@ export class AuthService {
   constructor(private readonly config: ConfigService) {
     this.issuer =
       this.config.get<string>('KEYCLOAK_ISSUER_URL') ?? 'http://localhost:8080/realms/enagar';
-    this.audience = this.config.get<string>('KEYCLOAK_API_AUDIENCE') ?? 'enagar-api';
+    const audienceRaw = this.config.get<string>('KEYCLOAK_API_AUDIENCE') ?? 'enagar-api';
+    const audienceParts = audienceRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    this.audience = audienceParts[0] ?? 'enagar-api';
     this.devAuthEnabled =
       process.env.NODE_ENV !== 'production' &&
       this.config.get<string>('DEV_AUTH_ENABLED') !== 'false';

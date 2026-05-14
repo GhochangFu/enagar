@@ -152,6 +152,7 @@ Assumptions: `pnpm infra:up`; API on `http://localhost:3001` (see `apps/api` `PO
 - Rotate Keycloak client secrets on a regular cycle if using confidential clients.
 - Re-export realm periodically and **diff** against `infrastructure/keycloak/realm-export.json` (ADR-0009 speaks to CI drift checks).
 - After realm changes, rerun security tests: `pnpm test:security` (includes [`keycloak-realm.spec.ts`](../../tests/security/keycloak-realm.spec.ts), [`keycloak-h51-role-parity.spec.ts`](../../tests/security/keycloak-h51-role-parity.spec.ts)).
+- Citizen **hub** ops (headers, dashboard): [`citizen-unified-hub.md`](./citizen-unified-hub.md) (Hub **H6.1**).
 
 ## 9. References
 

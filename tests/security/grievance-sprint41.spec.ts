@@ -24,6 +24,7 @@ describe('Sprint 4.1 grievance contract', () => {
     for (const route of [
       `Controller('grievances')`,
       `Post('staff/sweep-sla')`,
+      `Post(':id/reopen')`,
       `Post(':id/comment')`,
       `Post(':id/feedback')`,
       `Post(':id/assign')`,

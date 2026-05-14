@@ -2,23 +2,50 @@
   "name": "@enagar/mobile",
   "version": "0.0.0",
   "private": true,
-  "description": "Citizen mobile app (React Native + Expo). Phase 5/8 (per ADR-0003 PWA-first lead).",
+  "description": "Citizen mobile app (React Native + Expo). Master Sprint 5.2a — OTP, grievances, offline composer drafts.",
   "license": "AGPL-3.0-or-later",
+  "main": "index.ts",
   "scripts": {
-    "dev": "echo '@enagar/mobile: Phase-5 stub — see ADR-0003 + ROADMAP.md'",
-    "build": "echo 'noop (stub)'",
-    "lint": "echo 'noop (stub)'",
+    "start": "expo start",
+    "dev": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "tsx src/tenantApi.selftest.ts",
+    "build": "expo export",
     "clean": "rimraf .expo dist .turbo"
   },
   "dependencies": {
-    "@enagar/types": "workspace:*"
+    "@enagar/forms": "workspace:*",
+    "@enagar/i18n": "workspace:*",
+    "@enagar/tenant-theme": "workspace:*",
+    "@enagar/types": "workspace:*",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-navigation/native": "^7.2.4",
+    "@react-navigation/native-stack": "^7.15.1",
+    "expo": "~52.0.46",
+    "expo-constants": "~17.0.8",
+    "expo-secure-store": "~14.2.3",
+    "expo-status-bar": "~2.0.1",
+    "react": "18.3.1",
+    "react-native": "0.76.9",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.10",
     "@enagar/config": "workspace:*",
     "@types/node": "^20.16.10",
+    "@types/react": "~18.3.26",
+    "@typescript-eslint/parser": "8.43.0",
+    "babel-preset-expo": "~12.0.11",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
     "rimraf": "^6.0.1",
-    "typescript": "^5.5.4"
+    "tsx": "^4.19.2",
+    "typescript": "~5.5.4"
   }
 }

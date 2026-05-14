@@ -4,8 +4,11 @@ import { test } from 'node:test';
 
 import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js';
 import {
+  MOBILE_GRIEVANCE_DRAFT_SCHEMA,
+  createFormDraftEnvelope,
   createRenderPlan,
   exportToJsonSchema,
+  parseFormDraftJson,
   validateFormSchema,
   validateSubmission,
 } from '../dist/index.js';
@@ -100,6 +103,25 @@ test('exports JSON-Schema for API-side validation', () => {
   assert.equal(jsonSchema.additionalProperties, false);
   assert.ok(jsonSchema.required.includes('applicant_name'));
   assert.equal(jsonSchema.properties.mobile.pattern, '^[6-9][0-9]{9}$');
+});
+
+test('round-trips grievance composer draft envelopes (Sprint 5.2)', () => {
+  const envelope = createFormDraftEnvelope(MOBILE_GRIEVANCE_DRAFT_SCHEMA, 'KMC', {
+    category_slug: 'water',
+    description: 'Leak near pump',
+    priority: 'medium',
+  });
+  const raw = JSON.stringify(envelope);
+  const back = parseFormDraftJson(raw);
+  assert.ok(back);
+  assert.equal(back.schemaKey, MOBILE_GRIEVANCE_DRAFT_SCHEMA);
+  assert.equal(back.tenantCode, 'KMC');
+  assert.equal(back.payload.description, 'Leak near pump');
+});
+
+test('rejects malformed draft JSON', () => {
+  assert.equal(parseFormDraftJson('not-json'), null);
+  assert.equal(parseFormDraftJson(JSON.stringify({})), null);
 });
 
 test('creates render plans within a local smoke budget', () => {

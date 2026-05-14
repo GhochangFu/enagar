@@ -1,13 +1,14 @@
 'use client';
 
-import { createRenderPlan, validateSubmission } from '@enagar/forms';
 import {
-  birthCertificateSchema,
-  communityHallSchema,
-  propertyTaxSchema,
-  rtiSchema,
-  tradeLicenceSchema,
-} from '@enagar/forms/fixtures';
+  createRenderPlan,
+  validateSubmission,
+  type EnagarFormSchema,
+  type FileSubmission,
+  type FormSubmission,
+  type FormSubmissionValue,
+} from '@enagar/forms';
+import { DynamicFormFields } from '@enagar/forms/web';
 import { t } from '@enagar/i18n';
 import { applyTenantTheme } from '@enagar/tenant-theme';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -17,6 +18,7 @@ import {
   ReceiptPreviewPlaceholder,
 } from '../components/application-detail-panel';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
+import { defaultFormValuesForService, schemaByServiceCode } from '../lib/service-schemas';
 import {
   authHeaders,
   CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
@@ -36,13 +38,6 @@ import type {
   TokenResponse,
   PwaLocaleCode,
 } from '../lib/workspace-types';
-import type {
-  EnagarFormSchema,
-  FileSubmission,
-  FormRenderNode,
-  FormSubmission,
-  FormSubmissionValue,
-} from '@enagar/forms';
 
 type LanguageCode = PwaLocaleCode;
 type Step = 'splash' | 'language' | 'login' | 'otp' | 'pins' | 'hub' | 'workspace';
@@ -82,16 +77,6 @@ interface UploadIntentResponse {
 }
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
-const serviceSchemas = [
-  birthCertificateSchema,
-  tradeLicenceSchema,
-  propertyTaxSchema,
-  communityHallSchema,
-  rtiSchema,
-] as const;
-const schemaByServiceCode = new Map<string, EnagarFormSchema>(
-  serviceSchemas.map((schema) => [schema.service_code, schema]),
-);
 
 async function fetchActiveTenantServices(
   apiRoot: string,
@@ -477,6 +462,24 @@ export default function HomePage(): JSX.Element {
       /* Non-blocking — hub KPI mirrors session locale; profile may sync later. */
     }
 
+    /** Grievances (`ensureMunicipalCitizenRow`) need a non-empty `citizens.mobile` for this subject. */
+    let profileRegisterMessage: string | null = null;
+    try {
+      const normalizedMobile = mobile.replace(/\D/g, '').slice(-10);
+      if (/^[6-9]\d{9}$/.test(normalizedMobile)) {
+        const regResponse = await fetch(`${apiBaseUrl}/citizen/register`, {
+          method: 'POST',
+          headers: authHeaders(nextToken, true),
+          body: JSON.stringify({ mobile: normalizedMobile, language_pref: language }),
+        });
+        if (!regResponse.ok) {
+          profileRegisterMessage = await readApiError(regResponse);
+        }
+      }
+    } catch {
+      profileRegisterMessage = t('status.apiUnreachable', language);
+    }
+
     let initialPrefs: CitizenPreferencesResponse | null = null;
     try {
       const prefsResponse = await fetch(`${apiBaseUrl}/citizen/preferences`, {
@@ -490,7 +493,11 @@ export default function HomePage(): JSX.Element {
     }
 
     setCitizenPreferences(initialPrefs);
-    setStatus(t('status.loginVerified', language));
+    setStatus(
+      profileRegisterMessage
+        ? `${t('status.loginVerified', language)} — ${profileRegisterMessage}`
+        : t('status.loginVerified', language),
+    );
 
     if (initialPrefs?.pinned_tenant_codes.length) {
       setStep('hub');
@@ -806,7 +813,7 @@ export default function HomePage(): JSX.Element {
 
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
-    setFormValues(defaultValuesFor(service.code));
+    setFormValues(defaultFormValuesForService(service.code));
     setHoldingLookup(null);
     setApplicationDetail(null);
     setActiveTab('apply');
@@ -2212,14 +2219,11 @@ export default function HomePage(): JSX.Element {
                     <p className="mt-1 text-slate-600">{selectedService.description[language]}</p>
                   </div>
 
-                  {renderPlan.nodes.map((node) => (
-                    <RenderField
-                      key={node.id}
-                      node={node}
-                      onChange={updateFormValue}
-                      value={formValues[node.id]}
-                    />
-                  ))}
+                  <DynamicFormFields
+                    nodes={renderPlan.nodes}
+                    values={formValues}
+                    onChange={updateFormValue}
+                  />
 
                   {selectedService.code === 'prop-tax' && (
                     <div className="rounded-2xl border border-slate-200 p-4">
@@ -2467,112 +2471,6 @@ function CitizenWorkspaceTabStrip<T extends string>({
   );
 }
 
-function defaultValuesFor(serviceCode: string): FormSubmission {
-  if (serviceCode === 'birth-cert') {
-    return {
-      applicant_name: 'Citizen Test',
-      mobile: '9876543210',
-      child_name: 'Child Test',
-      date_of_birth: '2026-01-01',
-      relationship: 'parent',
-      hospital_discharge: {
-        name: 'birth-proof.pdf',
-        mime_type: 'application/pdf',
-        size_mb: 1,
-      },
-    };
-  }
-  if (serviceCode === 'prop-tax') {
-    return {
-      holding_number: 'KMC-064-PARK-12B',
-      payer_type: 'owner',
-    };
-  }
-  return {};
-}
-
-function RenderField({
-  node,
-  onChange,
-  value,
-}: {
-  node: FormRenderNode;
-  onChange: (fieldId: string, value: FormSubmissionValue | undefined) => void;
-  value: FormSubmissionValue | undefined;
-}): JSX.Element {
-  if (node.widget === 'section') {
-    return (
-      <div className="rounded-2xl bg-brand/10 p-4 text-brand">
-        <h4 className="font-bold">{node.label}</h4>
-      </div>
-    );
-  }
-
-  const label = node.label;
-  const baseClass = 'mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3';
-
-  return (
-    <label className="block text-sm font-medium text-slate-700">
-      {label}
-      {node.required && <span className="text-red-600"> *</span>}
-      {node.widget === 'choice-list' || node.widget === 'select' ? (
-        <select
-          className={baseClass}
-          onChange={(event) => onChange(node.id, event.target.value)}
-          value={String(value ?? '')}
-        >
-          <option value="">Select</option>
-          {node.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      ) : node.widget === 'number-input' ? (
-        <input
-          className={baseClass}
-          onChange={(event) => onChange(node.id, Number(event.target.value))}
-          type="number"
-          value={typeof value === 'number' ? value : ''}
-        />
-      ) : node.widget === 'date-input' ? (
-        <input
-          className={baseClass}
-          onChange={(event) => onChange(node.id, event.target.value)}
-          type="date"
-          value={typeof value === 'string' ? value : ''}
-        />
-      ) : node.widget === 'textarea' ? (
-        <textarea
-          className={baseClass}
-          onChange={(event) => onChange(node.id, event.target.value)}
-          rows={4}
-          value={typeof value === 'string' ? value : ''}
-        />
-      ) : node.widget === 'file-picker' ? (
-        <input
-          className={baseClass}
-          onChange={(event) =>
-            onChange(node.id, {
-              name: event.target.value || `${node.id}.pdf`,
-              mime_type: 'application/pdf',
-              size_mb: 1,
-            })
-          }
-          placeholder="document.pdf"
-          value={isFileSubmission(value) ? value.name : ''}
-        />
-      ) : (
-        <input
-          className={baseClass}
-          onChange={(event) => onChange(node.id, event.target.value)}
-          value={typeof value === 'string' ? value : ''}
-        />
-      )}
-    </label>
-  );
-}
-
 function Info({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="rounded-xl bg-slate-50 p-3">
@@ -2580,8 +2478,4 @@ function Info({ label, value }: { label: string; value: string }): JSX.Element {
       <dd className="font-semibold">{value}</dd>
     </div>
   );
-}
-
-function isFileSubmission(value: FormSubmissionValue | undefined): value is FileSubmission {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'name' in value);
 }

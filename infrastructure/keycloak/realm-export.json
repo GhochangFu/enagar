@@ -1,6 +1,10 @@
 {
   "realm": "enagar",
   "enabled": true,
+  "userProfileEnabled": true,
+  "userProfile": {
+    "unmanagedAttributePolicy": "ADMIN_EDIT"
+  },
   "displayName": "eNagarSeba",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
@@ -21,6 +25,14 @@
       {
         "name": "tenant_clerk",
         "description": "Municipal clerk handling intake and processing"
+      },
+      {
+        "name": "municipality_clerk",
+        "description": "ULB clerk — grievance staff queues (alias of tenant_clerk for API parity; Hub H5.1)"
+      },
+      {
+        "name": "municipality_admin",
+        "description": "ULB admin — grievance escalation and staff queues (Hub H5.1)"
       },
       {
         "name": "tenant_admin",
@@ -86,7 +98,7 @@
       "protocol": "openid-connect",
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "redirectUris": ["http://localhost:3002/*"],
       "webOrigins": ["http://localhost:3002"],
       "attributes": {
@@ -134,6 +146,17 @@
         "display.on.consent.screen": "false"
       },
       "protocolMappers": [
+        {
+          "name": "audience-enagar-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "enagar-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
         {
           "name": "tenant_id",
           "protocol": "openid-connect",
@@ -187,7 +210,23 @@
             "multivalued": "true",
             "access.token.claim": "true",
             "id.token.claim": "false",
-            "userinfo.token.claim": "true"
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "sub-username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "sub",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         }
       ]

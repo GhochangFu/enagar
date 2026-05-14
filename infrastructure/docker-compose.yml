@@ -91,10 +91,11 @@ services:
     volumes:
       - keycloak-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d $${KEYCLOAK_DB_NAME}"]
+      # Use container env (POSTGRES_*) — KEYCLOAK_DB_NAME is not exported inside this service.
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks: [enagar]
 
   keycloak:

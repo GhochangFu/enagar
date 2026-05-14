@@ -1,4 +1,18 @@
-// Phase-0 placeholder. Phase 2 introduces the design-system primitives
-// (Button, Input, Select, Sheet, Toast, Card, Modal, Skeleton, …) built
-// on Radix UI + Tailwind, all theme-aware via `--brand-rgb`.
-export const uiPlaceholder = '@enagar/ui — Phase 2';
+/**
+ * Shared web UI primitives (Tailwind-friendly, theme vars from `@enagar/tenant-theme`).
+ * Consumer apps must include `packages/ui/src` in Tailwind `content` so utility classes are generated.
+ */
+export {
+  ChoiceGrid,
+  ChoicePill,
+  DateField,
+  FieldLabel,
+  FieldRow,
+  fieldControlClass,
+  HelpText,
+  NumberField,
+  SectionHeading,
+  SelectField,
+  TextAreaField,
+  TextField,
+} from './form-primitives';

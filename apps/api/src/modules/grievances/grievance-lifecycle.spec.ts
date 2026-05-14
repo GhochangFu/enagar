@@ -6,8 +6,8 @@ describe('grievance lifecycle', () => {
     expect(() => assertGrievanceTransition('submitted', 'in_progress')).not.toThrow();
   });
 
-  it('rejects illegal transitions', () => {
-    expect(() => assertGrievanceTransition('closed', 'submitted')).toThrow();
+  it('allows resolved → under_review (citizen Sprint 4.3 reopen) and rejects resolved → in_progress directly', () => {
+    expect(() => assertGrievanceTransition('resolved', 'under_review')).not.toThrow();
     expect(() => assertGrievanceTransition('resolved', 'in_progress')).toThrow();
   });
 });

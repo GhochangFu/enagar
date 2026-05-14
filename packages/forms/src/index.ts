@@ -609,3 +609,56 @@ function removeUndefined(value: Record<string, unknown>): Record<string, unknown
     Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
   );
 }
+
+/** Schema key prefix for RN grievance composer offline drafts (@enagar/mobile). */
+export const MOBILE_GRIEVANCE_DRAFT_SCHEMA = 'mobile.grievance.compose@v1';
+
+/**
+ * Storage-agnostic envelope for persisted form payloads (offline drafts — Master Sprint 5.2+).
+ */
+export interface FormDraftEnvelope<TPayload extends Record<string, unknown>> {
+  schemaKey: string;
+  tenantCode: string;
+  updatedAtIso: string;
+  payload: TPayload;
+}
+
+export function createFormDraftEnvelope<TPayload extends Record<string, unknown>>(
+  schemaKey: string,
+  tenantCode: string,
+  payload: TPayload,
+): FormDraftEnvelope<TPayload> {
+  return {
+    schemaKey,
+    tenantCode,
+    updatedAtIso: new Date().toISOString(),
+    payload,
+  };
+}
+
+/** Parse JSON written by `@enagar/mobile` or other callers; rejects malformed shapes. */
+export function parseFormDraftJson<TPayload extends Record<string, unknown>>(
+  raw: string,
+): FormDraftEnvelope<TPayload> | null {
+  try {
+    const parsed = JSON.parse(raw) as FormDraftEnvelope<TPayload>;
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    if (
+      typeof (parsed as FormDraftEnvelope<TPayload>).schemaKey !== 'string' ||
+      typeof (parsed as FormDraftEnvelope<TPayload>).tenantCode !== 'string'
+    ) {
+      return null;
+    }
+    if (
+      typeof (parsed as FormDraftEnvelope<TPayload>).payload !== 'object' ||
+      (parsed as FormDraftEnvelope<TPayload>).payload === null
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}

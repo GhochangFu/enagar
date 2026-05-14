@@ -90,6 +90,7 @@ If/when more contributors join, this sequencing collapses naturally into true pa
 ## References
 
 - `ARCHITECTURE.md` §1 — Open-source stack rationale
+- **`docs/runbooks/citizen-unified-hub.md`** — Citizen Unified Hub (Option A portal PWA hub vs workspace semantics; Hub programme **H4.x–H6.1**)
 - `ROADMAP.md` Phase 5 — Citizen Mobile + PWA Polish
 - Charter §9 — Schedule Reality Check (solo MVP cut)
 - Existing prototype: `index.html`, `MunicipalApp.jsx`

@@ -137,6 +137,8 @@ Leave this terminal open.
 
 By default the PWA talks to **`http://localhost:3001/api`**. Change that only if you run the API on another host/port (`NEXT_PUBLIC_API_BASE_URL` — see [`apps/citizen-pwa/README.md`](../../apps/citizen-pwa/README.md)).
 
+**Tailwind:** the PWA config scans **`packages/ui`** and **`@enagar/forms/web`** paths so citizen form widgets keep styles in **`next build`**. Avoid trimming those **`content`** entries when adding primitives.
+
 ---
 
 ## Step 10 — Log in locally (OTP)

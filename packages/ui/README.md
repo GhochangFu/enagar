@@ -1,7 +1,22 @@
-# @enagar/ui — STUB (Phase 2)
+# `@enagar/ui`
 
-Web UI primitives — accessible (Radix), theme-aware (CSS vars), Tailwind-styled. Consumed by `citizen-pwa`, `admin-tenant`, `admin-state`.
+Web primitives for **`apps/citizen-pwa`**, **`apps/admin-tenant`**, **`apps/admin-state`** — Tailwind presets from **`@enagar/config/tailwind/base`** ( **`brand`** tokens read **`rgb(var(--brand-rgb))`** at runtime from **`@enagar/tenant-theme`**).
 
-## Status
+## Current exports (Phase 5 / Sprint 5.3+)
 
-Phase-0 stub. Components added incrementally in Phase 2 (Sprint 2.1: design tokens + Button + Input + Card; Sprint 2.2: forms widgets; Sprint 2.3: navigation + theming).
+See **`src/form-primitives.tsx`**: **`TextField`**, **`NumberField`**, **`DateField`**, **`TextAreaField`**, **`SelectField`**, **`FieldLabel`**, **`SectionHeading`**, **`ChoicePill`**, **`ChoiceGrid`**, **`fieldControlClass`**, …
+
+Citizen **`@enagar/forms/web`** (`DynamicFormFields`) composes these for **`createRenderPlan`** nodes (`platform: 'web'`).
+
+## Consumer Tailwind **`content`** contract
+
+Bundlers only emit classes appearing in scanned files — **apps MUST include**:
+
+- `../../packages/ui/src/**/*.{ts,tsx}`
+- **`@enagar/forms/web`** widgets: `../../packages/forms/src/web/**/*.{tsx}`
+
+Reference: **`apps/citizen-pwa/tailwind.config.ts`**.
+
+## Storybook / Radix backlog
+
+Higher-level composites ( **`Button`**, **`Card`**, **Sheet**, … ) remain ROADMAP Phase **2 Storybook / Radix track** unless pulled forward deliberately.

@@ -1,4 +1,10 @@
 {
   "extends": "@enagar/config/tsconfig/react-native.json",
-  "include": ["src/**/*"]
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["App.tsx", "index.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

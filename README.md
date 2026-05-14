@@ -43,6 +43,8 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/security/threat-model.md`](./docs/security/threat-model.md)                     | STRIDE pass + security backlog                                                                                                                                   |
 | [`docs/service-catalogue.md`](./docs/service-catalogue.md)                             | 76 services, 6 workflow patterns, fee/SLA rules, ID formats, Phase-2 seed plan                                                                                   |
 | [`docs/design-system.md`](./docs/design-system.md)                                     | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows                                                                           |
+| [`docs/runbooks/citizen-unified-hub.md`](./docs/runbooks/citizen-unified-hub.md)       | Citizen **hub** (Option A): `X-Enagar-Tenant-Code`, aggregate vs workspace reads, **`GET /citizen/dashboard`** behaviour & logs (Hub **H6.1**)                   |
+| [`docs/runbooks/hub-h6-exit-checklist.md`](./docs/runbooks/hub-h6-exit-checklist.md)   | Hub programme **H6.1** product/engineering exit checklist                                                                                                        |
 
 ## Architecture at a glance
 
@@ -111,6 +113,9 @@ cp infrastructure/.env.example infrastructure/.env
 
 # 2. Start the default stack (Postgres, Redis, MinIO, Keycloak, Qdrant, Meilisearch, Mailhog)
 pnpm infra:up
+
+# Optional (dev): dummy Keycloak users — all roles × each ULB + portal citizen (see docs/runbooks/keycloak.md §7)
+pnpm infra:seed-keycloak-users
 
 # 3. Tail logs
 pnpm infra:logs
@@ -247,7 +252,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** See **`ROADMAP.md`** [Execution spine](./ROADMAP.md#execution-spine-master-phases--citizen-unified-hub). **Master:** **Phase 4 — Sprint 4.3** (grievance escalations / reopen / polish) **or** **Sprint 3.1B** when PSP credentials land. **Hub programme:** **H5.1** (Keycloak Option A staging) then **H6.1** — not Master Phase 5 Sprint 5.1.
+**Next:** **`ROADMAP.md`** [locked 10-sprint queue](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. Then **Hub H6.1**. **Sprint 3.1B** deferred. Master **Phase 4 backlog** slice follows queue slot **3**.
 
 ---
 

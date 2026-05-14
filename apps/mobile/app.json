@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "eNagarSeba Citizen",
+    "slug": "enagar-citizen",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F4C75"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.wb.enagarseba.citizen"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F4C75"
+      },
+      "package": "in.wb.enagarseba.citizen"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -420,7 +420,9 @@ Sprint 4.1 implements tenant-scoped grievance persistence under the global **`/a
 
 SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from **`grievance_routing_rules`** (validated by **`grievance-routing-bake-off`** unit tests — 200 permutations).
 
-**Citizen PWA (`apps/citizen-pwa`) — Sprint 4.2 + 4.3 + Phase 4 backlog:** authenticated **Grievances** tab calls the routes above (list, create with optional GPS pin fields, detail shows map pin / attachment keys, SLA banner, comment, **Re-open dispute** while `resolved`, feedback when resolved). List view surfaces unread **`sla_breach`** inbox notices when `GET /citizen/notifications` returns unread rows.
+**Citizen PWA (`apps/citizen-pwa`) — Sprint 4.2 + 4.3 + Phase 4 backlog + Sprint 5.3:** authenticated **Grievances** tab (same API contract as above). **Apply** flows use **`createRenderPlan`** (**`platform: 'web'`**) via **`@enagar/forms/web`** (`DynamicFormFields`) on **`@enagar/ui`** primitives; fixture maps + smoke defaults live in **`lib/service-schemas.ts`** (aligned with **`@enagar/mobile`**). List view surfaces unread **`sla_breach`** inbox notices when `GET /citizen/notifications` returns unread rows. Exit for the **5.3** spine: [`master-sprint-53-exit.md`](docs/runbooks/master-sprint-53-exit.md).
+
+**Citizen mobile (`apps/mobile`) — Master Sprint 5.1–5.2:** Expo **SDK 52** — **Splash** → **`GET /api/tenants`** → **OTP** → **Home** → **grievances** (**`/grievances`** + Bearer + **`x-enagar-tenant-code`**) · **services / applications / payments** (**`/services/tenants/:code`**, **`/applications/**`, **`/payments/**`**, **`/documents/**`** simulation) with **`createRenderPlan`** (**`platform: 'native'`**) from **`@enagar/forms/fixtures`**. Offline grievance composer drafts (**`@enagar/forms`** envelope). Exit: [`master-sprint-51-exit.md`](docs/runbooks/master-sprint-51-exit.md), [`master-sprint-52-exit.md`](docs/runbooks/master-sprint-52-exit.md), [`master-sprint-52b-exit.md`](docs/runbooks/master-sprint-52b-exit.md).
 
 ### Notifications
 
@@ -471,15 +473,13 @@ SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from
 ```
 wb-municipal/
 ├── apps/
-│   ├── mobile/                  # React Native + Expo
-│   │   ├── src/
-│   │   │   ├── screens/         # Home, Services, Grievance, Chat, Profile
-│   │   │   ├── components/
-│   │   │   ├── i18n/            # en.json, bn.json, hi.json
-│   │   │   ├── api/             # API client, interceptors
-│   │   │   ├── store/           # Zustand state
-│   │   │   └── navigation/
-│   │   └── app.config.ts
+│   ├── mobile/                  # React Native + Expo (`@enagar/mobile`) — Sprint 5.2 native flows
+│   │   ├── App.tsx
+│   │   └── src/
+│   │       ├── CitizenShell.tsx # SessionProvider + NavigationContainer + CitizenNavigator
+│   │       ├── navigation/      # CitizenNavigator + route types
+│   │       ├── api/             # grievances, applications, payments, documents (tenant-scoped)
+│   │       └── tenantApi.ts    # public tenant list client
 │   │
 │   ├── api/                     # NestJS backend
 │   │   ├── src/
@@ -540,7 +540,7 @@ pnpm dev                 # http://localhost:3000
 # Mobile
 cd ../mobile
 pnpm install
-pnpm start               # press 'a' for Android, 'i' for iOS
+pnpm dev                   # `expo start` — press `a` / `i`; set `EXPO_PUBLIC_API_BASE_URL` for device LAN
 
 # Admin
 cd ../admin-portal

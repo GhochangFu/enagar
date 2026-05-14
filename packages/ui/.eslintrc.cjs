@@ -1,4 +1,4 @@
 ﻿module.exports = {
   root: true,
-  extends: [require.resolve('@enagar/config/eslint/next')],
+  extends: [require.resolve('@enagar/config/eslint/react-library')],
 };

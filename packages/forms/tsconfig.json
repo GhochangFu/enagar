@@ -1,5 +1,14 @@
 {
-  "extends": "@enagar/config/tsconfig/node.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": "src" },
+  "extends": "@enagar/config/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": false
+  },
   "include": ["src/**/*"]
 }

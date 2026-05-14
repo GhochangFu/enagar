@@ -56,7 +56,7 @@ describe('Sprint 2.3 applications and workflow contract', () => {
 
   it('keeps citizen application reads tenant and owner scoped', () => {
     expect(service).toContain('application.tenant_id === principal.tenantId');
-    expect(service).toContain('application.citizen_subject === principal.subject');
+    expect(service).toContain('application.citizen_subject !== principal.subject');
     expect(service).toContain("throw new NotFoundException('Application not found')");
   });
 

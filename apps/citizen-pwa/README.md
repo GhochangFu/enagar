@@ -8,11 +8,18 @@ Citizen-facing **Progressive Web App** built on **Next.js 14** App Router (per A
 
 - **Onboarding (Phase 1 + 4.x hub):** splash → language → mobile OTP (**`tenant_code: WBPORTAL`**) → **pin ≥1 municipality** (first session) via **`PATCH /citizen/preferences`** → **Citizen hub** (Sprint 4.15/4.16 KPI strip & tabs): **`GET /citizen/dashboard`** (includes **`distinct_active_service_codes`** for the whole catalogue union), **`GET /tenants`**, **`GET /citizen/preferences`**, unscoped **`GET /applications`** + **`GET /payments`**, and **lazy** **`GET /services/tenants/{code}`** only for pinned + shortcut ULBs; hub **Home** shows the pinned row plus **Browse all**; **Shortcuts** tab edits pins (≤15) and favourite `{ tenant_code, service_code }` pairs (**independent** of **`POST /citizen/select-tenant`**). **`PATCH /citizen/language`** after OTP; Language KPI = session locale. Municipality workspace behaviour unchanged (scoped header after pick).
 - **Hub ↔ workspace:** **Back to hub** clears workspace selection and resets branding to defaults; dashboard cards show per‑ULB application / payment / grievance counts and theme badges.
-- **Services & applications (Phase 2):** tenant catalogue, `@enagar/forms` apply flow, draft → document scan simulation → submit, **My Applications** with detail + comments (writes include scope header when in workspace).
+- **Services & applications (Phase 2 + Sprint 5.3 spine):** tenant catalogue, **`createRenderPlan`** (**`platform: 'web'`**) via **`@enagar/forms/web`** (`DynamicFormFields` on **`@enagar/ui`**), draft → document scan simulation → submit, **My Applications** with detail + comments (writes include scope header when in workspace). Fixture map + smoke defaults: **`lib/service-schemas.ts`** (mirrors **`@enagar/mobile`**).
 - **Payments (Phase 3 stub rail):** initiate stub payment, simulate PSP capture, list payments, receipt metadata preview (**receipt GET** uses **ULB scope** from workspace or from the payment’s municipal tenant in hub).
 - **Grievances (Phase 4 — Sprints 4.2 / 4.3 / backlog slice):** **Grievances** tab — profile gate (`/citizen/register` when needed), category + priority + description, optional **GPS pin fields** (`latitude` / `longitude` + text hints), optional **service alerts banner** (**unread SLA breach notifications** via **`GET /citizen/notifications`**), list/detail with SLA chips (+ **structured attachment metadata** list on detail when API returns **`attachments`**), timeline, comments, **re-open resolved cases within 7 days** (`POST …/reopen`), and **rating after resolved**. **Registers evidence:** `POST /grievances/:id/attachments/register` (after uploading binary elsewhere). Same hub vs workspace **`X-Enagar-Tenant-Code`** semantics as Sprint 4.2. Automated **`lib/grievance-scope.spec.ts`**.
 
-Shared: Tailwind preset (`@enagar/config/tailwind/base`), `@enagar/i18n`, `@enagar/tenant-theme`.
+Shared: Tailwind preset (`@enagar/config/tailwind/base`), **`@enagar/forms`**, **`@enagar/forms/web`**, **`@enagar/ui`**, `@enagar/i18n`, `@enagar/tenant-theme`. **Tailwind `content`** scans **`packages/ui/src`** and **`packages/forms/src/web`** (see `tailwind.config.ts`).
+
+### Manual smoke — Sprint 5.3 (`@enagar/forms/web` + `@enagar/ui`)
+
+1. **Automated:** root **`pnpm lint`** / **`pnpm typecheck`** — or scoped **`pnpm --filter @enagar/citizen-pwa run typecheck`**.
+2. Municipal **workspace** → **Services** → **Apply** on a fixture service (e.g. birth certificate / property tax): choices render as **pills** (not legacy `<select>` only); **multi-select** schemas (if present) toggle multiple pills.
+3. **DevTools → Network:** **`POST /applications/drafts`**, upload-intent simulation, **`POST …/submit`** unchanged from pre-5.3 API contract.
+4. **Production build parity:** `pnpm --filter @enagar/citizen-pwa run build` — form controls keep **focus ring / border-brand** styles (confirms Tailwind **content** globs include shared packages).
 
 ### Manual smoke — Sprint 4.2 (grievances scope + regression)
 
