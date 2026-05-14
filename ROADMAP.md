@@ -39,36 +39,40 @@ This file carries **two coordinated naming schemes**:
 
 Use this when prioritising what to pull next across tracks (adjust for staffing and credential unblock).
 
-| Seq | Track  | Item                                                                                                     | Notes                                                                                                                                                                           |
-| --- | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A   | Master | Phases **0 → 2**                                                                                         | Closed where marked in sections below                                                                                                                                           |
-| B   | Master | Phase **3** — payment core + stub rail                                                                   | **Sprint 3.1B deferred:** not in the [locked 10-sprint queue](#locked-next-10-sprint-queue-priority-execution-order); add back when PSP credentials **and** sponsor unpause     |
-| C   | Hub    | **H1 → H3** — portal tenant, hub reads, municipal writes                                                 | Mostly closed — see Hub programme section                                                                                                                                       |
-| D   | Master | Phase **4** — **Sprint 4.1–4.2** (grievance persistence + citizen tab MVP)                               | Closed 2026-05-11                                                                                                                                                               |
-| E   | Hub    | **H4.1 → H4.15 → H4.16 → H4.2** — citizen **PWA hub** UX + grievance scope in hub/workspace              | Mostly closed — hub sprint **order** is document order below                                                                                                                    |
-| F   | Hub    | **H5.1** — Keycloak Option A on staging/prod + **staff/admin user bootstrap**                            | **Next Hub-programme sprint** if continuing unified-hub identity rollout (after **H4.x**; no calendar lock — see [H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments)) |
-| G   | Master | Phase **4** backlog (post‑4.3 core): breach **notifications**, grievance UX polish beyond reopen/SLA MVP | Remaining bullets in Sprint **4.3** roadmap note                                                                                                                                |
-| H   | Hub    | **H6.1** — hub docs / observability / backlog triage                                                     | Exit polish for Hub programme slice                                                                                                                                             |
-| I   | Master | Phase **5** — Citizen Mobile + PWA polish (**Master Sprint 5.1–5.4**)                                    | Native shell + parity — **not** the same work as Hub **H5.1**                                                                                                                   |
+| Seq | Track  | Item                                                                                        | Notes                                                                                                                                                                           |
+| --- | ------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Master | Phases **0 → 2**                                                                            | Closed where marked in sections below                                                                                                                                           |
+| B   | Master | Phase **3** — payment core + stub rail                                                      | **Sprint 3.1B deferred:** not in the [locked 10-sprint queue](#locked-next-10-sprint-queue-priority-execution-order); add back when PSP credentials **and** sponsor unpause     |
+| C   | Hub    | **H1 → H3** — portal tenant, hub reads, municipal writes                                    | Mostly closed — see Hub programme section                                                                                                                                       |
+| D   | Master | Phase **4** — **Sprint 4.1–4.2** (grievance persistence + citizen tab MVP)                  | Closed 2026-05-11                                                                                                                                                               |
+| E   | Hub    | **H4.1 → H4.15 → H4.16 → H4.2** — citizen **PWA hub** UX + grievance scope in hub/workspace | Mostly closed — hub sprint **order** is document order below                                                                                                                    |
+| F   | Hub    | **H5.1** — Keycloak Option A on staging/prod + **staff/admin user bootstrap**               | **Next Hub-programme sprint** if continuing unified-hub identity rollout (after **H4.x**; no calendar lock — see [H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments)) |
+| G   | Master | Phase **4** backlog (post‑4.3 core): breach inbox + public KPI slices                       | **Closed engineering 2026-05-14** — [`phase4-backlog-slice-exit.md`](docs/runbooks/phase4-backlog-slice-exit.md); native breach push deferred                                   |
+| H   | Hub    | **H6.1** — hub docs / observability / backlog triage                                        | Exit polish for Hub programme slice                                                                                                                                             |
+| I   | Master | Phase **5** — Citizen Mobile + PWA polish (**Master Sprint 5.1–5.4**)                       | Native shell + parity — **not** the same work as Hub **H5.1**                                                                                                                   |
 
 ### Locked next-10 sprint queue (priority execution order)
 
 **Lock:** Execute **1 → 10** in order unless a sponsor-approved exception or a sprint exit failure forces a pause. **Sprint 3.1B** (PSP payment gateway) is **explicitly deferred** — it does **not** appear here; reinstate when credentials land **and** the sponsor pulls it from deferral.
 
-**Progress:** **1 — Hub H5.1:** Repo slice merged — `realm-export` role parity + **runbook** + API **`tenant_clerk`/`municipality_*` acceptance** + **JWT tenant claim synonym resolution** (`tenantId`/`tenantCode` vs `tenant_id`/`tenant_code`). **Staging / pilot** still needs deliberate realm deploy, named operator inventory, Security/DevOps sign-off; **`pnpm infra:seed-keycloak-users`** ([runbook §7](./docs/runbooks/keycloak.md)) dummy ULB accounts suffice for QA smoke until pilot users exist.
+**Progress:** **1 — Hub H5.1:** Repo slice merged — `realm-export` role parity + **runbook** + API **`tenant_clerk`/`municipality_*` acceptance** + **JWT tenant claim synonym resolution** (`tenantId`/`tenantCode` vs `tenant_id`/`tenant_code`). **Staging / pilot** still needs deliberate realm deploy, named operator inventory, Security/DevOps sign-off; **`pnpm infra:seed-keycloak-users`** ([runbook §7](./docs/runbooks/keycloak.md)) dummy ULB accounts suffice for QA smoke until pilot users exist. **2 — Hub H6.1:** **Closed in-repo (engineering)** **2026-05-14** — **[`hub-h6-exit-checklist`](./docs/runbooks/hub-h6-exit-checklist.md)** (**CI:** `pnpm lint` / `typecheck` / `test` / `test:security` green); **`citizen_hub_dashboard`** logs + KPI aggregation documented in **[`citizen-unified-hub`](./docs/runbooks/citizen-unified-hub.md)**; sponsor **PO initials** on the checklist optional; **tracker issue IDs** for deferred §6 backlog items still TBD when your board is wired. **3 — Master Phase 4 backlog slice:** **Closed in-repo (engineering)** **2026-05-14** — **[`phase4-backlog-slice-exit.md`](./docs/runbooks/phase4-backlog-slice-exit.md)** (citizen **`sla_breach` inbox**, public **`aggregate-metrics`**, attachment register + GPS-validated **`location`**, **200-case routing bake-off**; native breach push deferred). **Next in queue:** **#4 — Master Sprint 5.1** (RN shell).
 
-| #      | Sprint                             | Track            | Scope (pointer)                                                                                                                                                                                                  |
-| ------ | ---------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1**  | **Hub H5.1**                       | Hub              | [Hub Phase H5 / H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments) — Keycloak Option A + staff/admin user bootstrap                                                                                    |
-| **2**  | **Hub H6.1**                       | Hub              | [Hub Phase H6 / H6.1](#hub-phase-h6--hardening--hub-programme-exit) — docs, observability spot-check, backlog triage                                                                                             |
-| **3**  | **Master Phase 4 — backlog slice** | Master           | Post–4.3 gap: breach **push notifications**, attachments / GPS polish, **anonymised aggregates**, **200-grievance routing** bake-off ([Sprint 4.3 note](#sprint-43--delivery-note-core-slice-closed-2026-05-13)) |
-| **4**  | **Sprint 5.1**                     | Master · Phase 5 | RN app shell + screen porting (Splash → Tenant select → Home) — [§ Phase 5](#phase-5--citizen-mobile--pwa-polish)                                                                                                |
-| **5**  | **Sprint 5.2**                     | Master · Phase 5 | RN apply / payments / grievance flows + offline drafts                                                                                                                                                           |
-| **6**  | **Sprint 5.3**                     | Master · Phase 5 | PWA equivalent (`packages/forms`, `packages/ui`)                                                                                                                                                                 |
-| **7**  | **Sprint 5.4**                     | Master · Phase 5 | Push, deep links, accessibility, perf, store metadata                                                                                                                                                            |
-| **8**  | **Sprint 6.1**                     | Master · Phase 6 | Tenant Admin Portal shell, dashboard, service catalogue list/edit — [§ Phase 6](#phase-6--admin-portals-state--tenant)                                                                                           |
-| **9**  | **Sprint 6.2**                     | Master · Phase 6 | Form-Schema Builder + Workflow Designer                                                                                                                                                                          |
-| **10** | **Sprint 6.3**                     | Master · Phase 6 | Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads                                                                                                                           |
+| #      | Sprint                             | Track            | Scope (pointer)                                                                                                                                                                                                                                                    |
+| ------ | ---------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1**  | **Hub H5.1**                       | Hub              | [Hub Phase H5 / H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments) — Keycloak Option A + staff/admin user bootstrap                                                                                                                                      |
+| **2**  | **Hub H6.1**                       | Hub              | [Hub Phase H6 / H6.1](#hub-phase-h6--hardening--hub-programme-exit) — docs, observability spot-check, backlog triage                                                                                                                                               |
+| **3**  | **Master Phase 4 — backlog slice** | Master           | **Closed engineering 2026-05-14** — [`phase4-backlog-slice-exit.md`](docs/runbooks/phase4-backlog-slice-exit.md) · post–4.3: SLA breach **`notifications`** + **`/public/grievances/aggregate-metrics`**, attachments/GPS polish, **`grievance-routing-bake-off`** |
+| **4**  | **Sprint 5.1**                     | Master · Phase 5 | RN app shell + screen porting (Splash → Tenant select → Home) — [§ Phase 5](#phase-5--citizen-mobile--pwa-polish)                                                                                                                                                  |
+| **5**  | **Sprint 5.2**                     | Master · Phase 5 | RN apply / payments / grievance flows + offline drafts                                                                                                                                                                                                             |
+| **6**  | **Sprint 5.3**                     | Master · Phase 5 | PWA equivalent (`packages/forms`, `packages/ui`)                                                                                                                                                                                                                   |
+| **7**  | **Sprint 5.4**                     | Master · Phase 5 | Push, deep links, accessibility, perf, store metadata                                                                                                                                                                                                              |
+| **8**  | **Sprint 6.1**                     | Master · Phase 6 | Tenant Admin Portal shell, dashboard, service catalogue list/edit — [§ Phase 6](#phase-6--admin-portals-state--tenant)                                                                                                                                             |
+| **9**  | **Sprint 6.2**                     | Master · Phase 6 | Form-Schema Builder + Workflow Designer                                                                                                                                                                                                                            |
+| **10** | **Sprint 6.3**                     | Master · Phase 6 | Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads                                                                                                                                                                             |
+
+**Master Phase 4 backlog slice (#3) — closed in-repo (engineering, 2026-05-14):** [`phase4-backlog-slice-exit.md`](docs/runbooks/phase4-backlog-slice-exit.md) — **`POST …/staff/sweep-sla`** fans out **`sla_breach` notification** rows (`GET/PATCH …/citizen/notifications`), **`POST …/:id/attachments/register`**, validated **`location` WGS-84** fields on create, **`GET /public/grievances/aggregate-metrics`**, deterministic **200-row** routing permutation test (`grievance-routing-bake-off.spec.ts`). **Still deferred:** sub-minute native breach push (**FCM/APNs**) + production rate limits on **`/public/*`**.
+
+**Hub H6.1 — closed in-repo (engineering, 2026-05-14):** [`docs/runbooks/citizen-unified-hub.md`](./docs/runbooks/citizen-unified-hub.md) (hub header troubleshooting + verbatim portal-`400` bodies + dashboard notes), **`citizen_hub_dashboard`** structured logs (**`jwt_tenant_code`**, row counts, **`distinct_active_service_codes`** numeric count aligned with JSON, `duration_ms`) in `CitizenHubDashboardService`, O(U+R) KPI bucketing — see service JSDoc. **CI doc contract:** `tests/security/hub-h61-contract.spec.ts`. **Exit record:** [`hub-h6-exit-checklist.md`](./docs/runbooks/hub-h6-exit-checklist.md) (**Status: closed — engineering**). **Deferred hub polish:** [citizen-unified-hub §6](./docs/runbooks/citizen-unified-hub.md#6-backlog-pointers-triaged-under-h61); file discrete tracker issues when available.
 
 **After #10:** Continue Phase **6** with **Sprint 6.4** onward, or replan with sponsor.
 
@@ -823,9 +827,9 @@ Reliable, idempotent, gateway-agnostic payments tied to applications, plus the f
 
 > "A grievance with no timeline is a grievance ignored."
 
-### Programme status (2026-05-13 refresh)
+### Programme status (2026-05-14 refresh)
 
-**Sprints 4.1–4.2** are **closed**. **Sprint 4.3 — core MVP slice closed 2026-05-13** (citizen **re-open** within 7 days of resolution + **SLA sweep queue escalation**; still **no** realtime breach push channel). Larger Phase‑4 backlog (200-case routing regression, anonymised aggregates, richer attachments/GPS) remains unpicked. Citizen **hub** UX continues under Hub **H4.x** ([Citizen Unified Hub programme](#citizen-unified-hub-programme-option-a)); interrupt track **Sprint 3.1B** unchanged when PSP credentials land.
+**Sprints 4.1–4.2** are **closed**. **Sprint 4.3 — core MVP slice closed 2026-05-13** (citizen **re-open** + **SLA sweep queue escalation**). **Master Phase 4 backlog slice (locked queue #3) closed engineering 2026-05-14** — SLA breach **`notifications`** + citizen inbox API, **`/public/grievances/aggregate-metrics`**, structured attachment register + validated GPS **`location`**, **200-case routing regression** — see [`phase4-backlog-slice-exit.md`](./docs/runbooks/phase4-backlog-slice-exit.md); **native** breach push still future. Citizen **hub** UX continues under Hub **H4.x** ([Citizen Unified Hub programme](#citizen-unified-hub-programme-option-a)); interrupt track **Sprint 3.1B** unchanged when PSP credentials land.
 
 ### Goal
 
@@ -871,14 +875,14 @@ End-to-end grievance management: file → categorise → route to ward / departm
 ### Exit Criteria
 
 - Citizen can file → track → see SLA timer → rate, end-to-end.
-- A breached SLA triggers an escalation push to the next role within 1 minute of breach.
-- 80 % of seeded grievances auto-route to the correct role without human intervention (validated with 200-grievance fixture).
+- A breached SLA is visible to municipal staff (**escalating queue / timeline**) within the sweep horizon; citizen receives a **`sla_breach` inbox ping** keyed to grievance numbers only (**native FCM/APNs breach push** remains future **`notification-worker`** work).
+- 80 % of seeded grievances auto-route without human intervention (**200-permutation deterministic bake-off**: `apps/api/src/modules/grievances/grievance-routing-bake-off.spec.ts`).
 
 ### Suggested Sprint Slice
 
 - **Sprint 4.1**: DB + APIs + SLA engine.
 - **Sprint 4.2**: Citizen UI + auto-routing.
-- **Sprint 4.3**: ✅ Partial — citizen **re-open** + **SLA sweep escalation** (2026-05-13). Remaining: push notifications / attachments / anonymised KPIs / 200-case routing regression.
+- **Sprint 4.3**: ✅ Core — citizen **re-open** + **SLA sweep escalation** (2026-05-13). ✅ Backlog slice — notifications/public KPI/GPS/routing bake-off (**2026-05-14**). **Still open**: sub-minute native breach push (FCM), production-grade **`/public/*`** hardening beyond anonymised aggregates.
 
 #### Sprint 4.1 — kickoff backlog _(implemented; see delivery note below)_
 
@@ -915,7 +919,7 @@ MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (l
 | `tests/security/grievance-sprint42-pwa.spec.ts`; `pnpm test:security` clean                         | ✅  |
 | Phase-2 file-size discipline (`phase2-hardening.spec`): shared panels + `lib/workspace-*.ts`        | ✅  |
 
-**Deferred after Sprint 4.3 core slice**: breach **push notifications**, attachments / GPS, dedicated staff UX, anonymised aggregates, 200-grievance routing bake-off.
+**Remaining after Sprint 4.3 backlog slice (engineering 2026-05-14)**: breach **native mobile push**, dedicated **field-officer** workflows, hardened **production Open Data `/public/*` policies** beyond today's aggregate counts.
 
 #### Sprint 4.3 — delivery note (core slice closed 2026-05-13)
 
@@ -924,7 +928,7 @@ MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (l
 | ✅ Citizen **re-open**            | `POST /api/grievances/:id/reopen` (optional `reason`) while `status=resolved`, within **7 days** of `resolved_at`; returns case to **`under_review`**, clears `resolved_at` / prior breach flags, recalculates **`sla_due_at`** from policy; timeline event **`reopen`**. Uses the same **`X-Enagar-Tenant-Code`** read-scope rules as hub/workspace detail reads. **`POST …/feedback`** now resolves ownership via the same **`getById`** path (**portal JWT–safe**). |
 | ✅ **SLA sweep escalation** (MVP) | `POST /api/grievances/staff/sweep-sla` marks breach **and** bumps **`routed_role_code`** (`municipality_clerk` → **`municipality_admin`** → **`tenant_admin`** → **`state_admin`**) with **`assigned_to_user_id` cleared** so admin queues can pick up; adds **`sla_escalation`** timeline row (+ enriched **`sla_breach`** metadata).                                                                                                                                 |
 
-**Explicitly still open vs product charter**: sub-minute breach **push**, Field Officer workflows, grievance anonymised public dashboard, richer attachment handling.
+**Explicit MVP vs charter gap (post–backlog slice)**: sub-minute breach **native push** (+ shared-device notification hygiene — see threat model), Field Officer workflows, hardened rate limits/WAF stance on **`/public/*`**.
 
 **Manual E2E smoke (README) — deferred:** Full **Sprint 4.3** smoke (staff resolve/`PATCH` status, `POST …/staff/sweep-sla`, citizen re-open + feedback chain) stays **on hold** until **Keycloak staff/admin logins** and staff-gated APIs are configured end-to-end — target alignment with **Hub H5.1** (see [locked queue](#locked-next-10-sprint-queue-priority-execution-order)). Checklist remains in **`apps/citizen-pwa/README.md`** § **Manual smoke — Sprint 4.3**.
 
@@ -936,7 +940,7 @@ MVP slice in `apps/citizen-pwa`: **Grievances** tab calling `/api/grievances` (l
 >
 > **Naming:** Hub work uses **`H`-prefixed** sprint IDs (**`H4.16`**, **`H5.1`**, …). Do **not** confuse **`H5.1`** (Keycloak staging) with **Master Phase 5 Sprint 5.1** (React Native shell) later in this document.
 
-**Status:** Hub phases **H1–H4** largely delivered per sprint notes below; **H5.1 / H6.1** remain the forward-looking Hub-programme slices unless reprioritised.
+**Status:** Hub phases **H1–H4** largely delivered per sprint notes below; **Hub H6.1** engineering exit **closed 2026-05-14** ([checklist](./docs/runbooks/hub-h6-exit-checklist.md)). **Hub H5.1** staging / pilot deployment and formal Security–DevOps sign-off remain forward-looking unless reprioritised.
 
 **Keycloak:** **Option A (chosen)** — tokens carry **portal** tenant claims and a **single stable `sub`** per citizen; ULB scope is header/body — not different logins per ULB.
 
@@ -1198,6 +1202,10 @@ Rough order remains: catalogue + auth parity → hub reads → municipality writ
 | **Deliverables**  | README/ADR excerpt; troubleshooting (missing header on write); structured log fields if useful; performance smoke on dashboard query (N+1 avoided or documented). |
 | **Tests**         | Full CI green; optional k6 or manual “100 hub loads” if risk flagged.                                                                                             |
 | **Exit criteria** | Product owner accepts exit demo + written checklist; remaining items moved to backlog with IDs.                                                                   |
+
+**Closure (engineering):** **2026-05-14** — [`hub-h6-exit-checklist.md`](docs/runbooks/hub-h6-exit-checklist.md) marked **Status: closed — engineering (repo)** with full CI green; PO column left optional.
+
+**Engineering artefacts (started / maintained under H6.1):** [`docs/runbooks/citizen-unified-hub.md`](docs/runbooks/citizen-unified-hub.md) · [`docs/runbooks/hub-h6-exit-checklist.md`](docs/runbooks/hub-h6-exit-checklist.md) · [`CitizenHubDashboardService`](apps/api/src/modules/citizen/citizen-hub-dashboard.service.ts) (**`citizen_hub_dashboard`** structured logs) · **`apps/api`** unit **`citizen-hub-dashboard.service.spec.ts`**.
 
 ---
 
@@ -1751,7 +1759,7 @@ See `AGENT.md` §10 for the canonical glossary. Phase-specific terms are introdu
 
 ## Status
 
-**Current state**: **Phase 2 complete.** **Master Phase 4:** **Sprints 4.1–4.2** closed **2026-05-11**; **Sprint 4.3 core reopen + SLA sweep escalation** closed **2026-05-13** (`ROADMAP.md` Phase 4). Phase 3 payment/finance slices through **3.3A** closed on stub rail; **Sprint 3.1B** **deferred**. **Citizen Unified Hub programme** **H1–H4** closed; **Hub H5.1** repo engineering slice (**runbook, realm roles, API role parity, JWT `tenant_*` synonym handling**) merged — see [Hub Phase H5 / Sprint H5.1](#hub-phase-h5--keycloak-option-a-non-dev-environments); **Hub H6.1** next on the [locked queue](#locked-next-10-sprint-queue-priority-execution-order).
+**Current state**: **Phase 2 complete.** **Master Phase 4:** **Sprints 4.1–4.2** closed **2026-05-11**; **Sprint 4.3 core** closed **2026-05-13**; **Master Phase 4 backlog slice (#3)** **closed engineering 2026-05-14** ([exit record](./docs/runbooks/phase4-backlog-slice-exit.md)). Phase 3 payment/finance slices through **3.3A** closed on stub rail; **Sprint 3.1B** **deferred**. **Citizen Unified Hub programme** **H1–H4** closed; **Hub H5.1** repo engineering slice merged; **Hub H6.1** **closed in-repo (engineering, 2026-05-14)** per [exit checklist](./docs/runbooks/hub-h6-exit-checklist.md) ([runbook](./docs/runbooks/citizen-unified-hub.md)); sponsor PO line optional. See [locked queue](#locked-next-10-sprint-queue-priority-execution-order).
 
 ### Phase 0 closure note (2026-05-06)
 
@@ -1797,7 +1805,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action:** Follow the [locked next-10 sprint queue](#locked-next-10-sprint-queue-priority-execution-order) — **Hub H5.1** repo deliverables are merged; pick up **Hub H6.1**, then the **Phase 4 backlog** slice, then **Master Sprint 5.1–5.4**, then **Sprint 6.1–6.3**. **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause. _(Hub **H5.1** and Master **Sprint 5.1** are different labels — do not confuse.)_
+**Next action:** Start **[Master Sprint 5.1](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)** (**queue #4**) — React Native citizen shell polish; parallel **Hub H5.1** staging / pilot readiness as capacity allows; then **Master Sprints 5.2–5.4**, **Sprint 6.1–6.3**. **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause. _(Hub **H5.1**, Master **Phase 4 backlog**, and Master **Sprint 5.1** are distinct labels — do not confuse.)_
 
 ---
 

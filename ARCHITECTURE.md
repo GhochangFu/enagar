@@ -399,36 +399,38 @@ Staff JWT + roles `tenant_admin` / `municipality_admin` / `state_admin`. No live
 
 Phase 3 Sprint 3.1A introduced ADR-0006's `IPaymentGateway` adapter. Until gateway sandbox credentials exist, only the `stub` gateway is used for initiations. **Sprints 3.2, 3.4A, and 3.3A are closed (2026-05-11)** — receipts/GL, citizen stub payments UX, and **`/api/finance/*`** deposits, refund dispatches, and challans (no live PSP refund RPC until **Sprint 3.1B**). Citizen data uses `PostgresCitizenStore`; applications and payments use Postgres stores behind `APPLICATION_STORE_PROVIDER` / `PAYMENT_STORE_PROVIDER`. `RUN_DB_TESTS=1` gates DB integration tests, including finance.
 
-**Programme note (2026-05-11):** PSP credentials are still unavailable — **Sprint 3.1B** remains the deferred **interrupt lane**. **Phase 4 — Grievances & SLA**: **Sprints 4.1–4.2 are closed** (tenant APIs + `apps/citizen-pwa` grievance tab); **`ROADMAP.md`** tracks **Sprint 4.3**.
+**Programme note (2026-05-14 refresh):** PSP credentials are still unavailable — **Sprint 3.1B** remains the deferred **interrupt lane**. **Phase 4 — Grievances & SLA**: **Sprints 4.1–4.2** closed (**2026-05-11**); **Sprint 4.3 core slice closed 2026-05-13**; **Master Phase 4 backlog slice (locked queue #3)** closed in-repo **2026-05-14** — in-app SLA breach inbox (`notifications` rows + `GET /api/citizen/notifications`), **public anonymised KPIs**, structured **attachments** API, validated **GPS** on `location`, and **200-scenario routing bake-off**. Native FCM/APNs breach push stays future (`notification-worker`).
 
 ### Grievances
 
 Sprint 4.1 implements tenant-scoped grievance persistence under the global **`/api`** prefix:
 
-- `POST /api/grievances` — `{ category, description, location?, photos?, grievance_priority? }` — **citizen**
+- `POST /api/grievances` — `{ category, description, location? { address?, ward_hint?, latitude?, longitude? }, photos?, grievance_priority? }` — **citizen**
 - `GET /api/grievances` — citizen: own; staff: whole tenant (RBAC)
-- `GET /api/grievances/:id` — detail + `timeline[]` — owner or staff
+- `GET /api/grievances/:id` — detail (`attachments[]` when registered) + `timeline[]` — owner or staff
+- `POST /api/grievances/:id/attachments/register` — `{ storage_key, content_type? }` — citizen, ownership via same scope as **`getById`**
 - `POST /api/grievances/:id/comment` — `{ body }` — owner or staff
-- `POST /api/grievances/:id/feedback` — `{ rating, comment? }` — **citizen**, when `status = resolved`
+- `POST /api/grievances/:id/reopen` — `{ reason? }` — **citizen**, while `status = resolved`, within **7 days** of `resolved_at`; returns grievance to **`under_review`** and refreshes SLA clock (Sprint **4.3**)
+- `POST /api/grievances/:id/feedback` — `{ rating, comment? }` — **citizen**, when `status = resolved` (**portal JWT reads use the same `getById` ownership path as hub/workspace detail**, optional **`X-Enagar-Tenant-Code`** parity with **GET** — Sprint **4.3** hardened)
 - `POST /api/grievances/:id/assign` — `{ user_id }` — **staff** (`municipality_clerk` | `municipality_admin` | `tenant_admin` | `state_admin`)
 - `PATCH /api/grievances/:id/status` — `{ status, note? }` — **staff**, lifecycle-guarded
-- `POST /api/grievances/staff/sweep-sla` — set `sla_breached_at` for overdue open cases — **staff**
+- `POST /api/grievances/staff/sweep-sla` — marks breaches for overdue non-terminal cases — **staff** — also applies **MVP queue escalation** (`routed_role_code` bump + clears `assigned_to_user_id`, timeline **`sla_escalation`**), persists **`sla_breach` notifications** for the filing citizen _(Phase 4 backlog slice)_ — native push fan-out still `notification-worker` future\*
 
-SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from **`grievance_routing_rules`** (MVP `municipality_clerk`). Real-time notifications remain future work (`notification-worker`).
+- `GET /api/public/grievances/aggregate-metrics?tenant_code?&window_days?` — **no JWT** — anonymised `{ totals_by_status, totals_by_category, breached_open_count }` for dashboards / Phase-12-style open data previews
 
-**Citizen PWA (`apps/citizen-pwa`) — Sprint 4.2:** authenticated **Grievances** tab calls the routes above (list, create, detail where `:id` may be UUID or public **`grievance_no`**, comment, feedback when resolved). Users without a citizen row run `POST /citizen/register` after `GET /citizen/profile` fails.
+SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from **`grievance_routing_rules`** (validated by **`grievance-routing-bake-off`** unit tests — 200 permutations).
+
+**Citizen PWA (`apps/citizen-pwa`) — Sprint 4.2 + 4.3 + Phase 4 backlog:** authenticated **Grievances** tab calls the routes above (list, create with optional GPS pin fields, detail shows map pin / attachment keys, SLA banner, comment, **Re-open dispute** while `resolved`, feedback when resolved). List view surfaces unread **`sla_breach`** inbox notices when `GET /citizen/notifications` returns unread rows.
+
+### Notifications
+
+- `GET /api/citizen/notifications`, `PATCH /api/citizen/notifications/:id/read` — authenticated **citizen JWT** inbox (persisted SLA breach pings today; **`POST /notifications/register-token`** FCM plumbing remains future scaffold)
 
 ### Chatbot
 
 - `POST /chatbot/query` — `{ message, session_id }` → SSE stream
 - `GET  /chatbot/history/:session_id`
 - `POST /chatbot/feedback` — thumbs up/down per response
-
-### Notifications
-
-- `GET  /notifications` — paginated
-- `PATCH /notifications/:id/read`
-- `POST /notifications/register-token` — FCM push token
 
 ### Documents
 
@@ -446,21 +448,21 @@ SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from
 
 ## 6. Security
 
-| Concern                | Control                                                                                       |
-| ---------------------- | --------------------------------------------------------------------------------------------- |
-| Authentication         | OTP + JWT (15 min access, 7 day refresh), optional Aadhaar OIDC via DigiLocker                |
-| Authorization          | RBAC via Keycloak roles: `citizen`, `municipality_clerk`, `municipality_admin`, `state_admin` |
-| Tenant Isolation       | Postgres RLS — defence in depth even if app code has a bug                                    |
-| Data at Rest           | Postgres TDE, MinIO server-side encryption (SSE-S3)                                           |
-| Data in Transit        | TLS 1.3 only, HSTS, certificate pinning in mobile app                                         |
-| Sensitive Fields       | Aadhaar stored as SHA-256 hash + last 4 digits (for display only); never logged               |
-| Mobile Storage         | Encrypted secure store (Expo SecureStore / Keychain / Keystore) for tokens                    |
-| Rate Limiting          | Redis-backed: 5 OTP/hour/mobile, 100 req/min/citizen                                          |
-| File Uploads           | MIME sniffing, ClamAV scan via BullMQ, max 10 MB per file                                     |
-| Audit                  | Every state change in `application_timeline` + immutable Loki logs                            |
-| OWASP MASVS            | Following Mobile App Security Verification Standard L2                                        |
-| Vulnerability Scanning | Trivy in CI, Dependabot, manual quarterly pen-test                                            |
-| GDPR / DPDP Act        | Data export, account deletion endpoints; explicit consent ledger                              |
+| Concern                | Control                                                                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication         | OTP + JWT (15 min access, 7 day refresh), optional Aadhaar OIDC via DigiLocker                                                                                                                                |
+| Authorization          | RBAC via Keycloak roles on JWT `role` — **`citizen`**; grievance staff: **`municipality_clerk`**, **`municipality_admin`**, **`tenant_clerk`** (realm alias, Hub H5.1), **`tenant_admin`**, **`state_admin`** |
+| Tenant Isolation       | Postgres RLS — defence in depth even if app code has a bug                                                                                                                                                    |
+| Data at Rest           | Postgres TDE, MinIO server-side encryption (SSE-S3)                                                                                                                                                           |
+| Data in Transit        | TLS 1.3 only, HSTS, certificate pinning in mobile app                                                                                                                                                         |
+| Sensitive Fields       | Aadhaar stored as SHA-256 hash + last 4 digits (for display only); never logged                                                                                                                               |
+| Mobile Storage         | Encrypted secure store (Expo SecureStore / Keychain / Keystore) for tokens                                                                                                                                    |
+| Rate Limiting          | Redis-backed: 5 OTP/hour/mobile, 100 req/min/citizen                                                                                                                                                          |
+| File Uploads           | MIME sniffing, ClamAV scan via BullMQ, max 10 MB per file                                                                                                                                                     |
+| Audit                  | Every state change in `application_timeline` + immutable Loki logs                                                                                                                                            |
+| OWASP MASVS            | Following Mobile App Security Verification Standard L2                                                                                                                                                        |
+| Vulnerability Scanning | Trivy in CI, Dependabot, manual quarterly pen-test                                                                                                                                                            |
+| GDPR / DPDP Act        | Data export, account deletion endpoints; explicit consent ledger                                                                                                                                              |
 
 ---
 

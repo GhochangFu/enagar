@@ -28,10 +28,13 @@ import { principalHasGrievanceStaffAccess } from './grievance-staff-roles';
 import type {
   AssignGrievanceDto,
   CreateGrievanceDto,
+  GrievanceAttachmentResponse,
   GrievanceCommentDto,
   GrievanceFeedbackDto,
+  GrievanceReopenDto,
   GrievanceResponse,
   GrievanceTimelineResponse,
+  RegisterGrievanceAttachmentDto,
   UpdateGrievanceStatusDto,
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -44,6 +47,26 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 function isUuid(value: string): boolean {
   return UUID_REGEX.test(value);
 }
+
+/** One-time reopen window after staff marks resolved (mirror `docs/glossary.md` SLA / re-open wording). */
+const GRIEVANCE_REOPEN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** First SLA breach escalation: bump routing queue so admins see the backlog (Master Sprint 4.3). */
+function escalationRoleAfterBreach(routedRoleCode: string | null): string {
+  if (routedRoleCode === 'municipality_clerk') {
+    return 'municipality_admin';
+  }
+  if (routedRoleCode === 'municipality_admin') {
+    return 'tenant_admin';
+  }
+  if (routedRoleCode === 'tenant_admin') {
+    return 'state_admin';
+  }
+  return 'municipality_admin';
+}
+
+/** Max structured attachments beyond legacy `photo_keys` JSON array. */
+const MAX_ATTACHMENTS_PER_GRIEVANCE = 12;
 
 @Injectable()
 export class GrievancesService {
@@ -65,6 +88,40 @@ export class GrievancesService {
       return { id: idOrGrievanceNo };
     }
     return { grievanceNo: idOrGrievanceNo };
+  }
+
+  private grievanceLocationToJson(location: CreateGrievanceDto['location']): Prisma.InputJsonValue {
+    if (!location) {
+      return {};
+    }
+    const o: Record<string, string | number> = {};
+    if (location.address !== undefined) {
+      o.address = location.address;
+    }
+    if (location.ward_hint !== undefined) {
+      o.ward_hint = location.ward_hint;
+    }
+    if (location.latitude !== undefined) {
+      o.latitude = location.latitude;
+    }
+    if (location.longitude !== undefined) {
+      o.longitude = location.longitude;
+    }
+    return o as Prisma.InputJsonValue;
+  }
+
+  /** Reject traversal / opaque schemes in client-supplied object keys */
+  private assertSafeStorageKey(key: string): void {
+    const k = key.trim();
+    if (!k || k.includes('..') || k.startsWith('/') || k.includes('\\')) {
+      throw new BadRequestException('Invalid storage_key');
+    }
+    for (let i = 0; i < k.length; i += 1) {
+      const code = k.charCodeAt(i);
+      if (code < 0x20) {
+        throw new BadRequestException('Invalid storage_key');
+      }
+    }
   }
 
   private toResponse(row: GrievanceRow): GrievanceResponse {
@@ -171,6 +228,8 @@ export class GrievancesService {
       wardRow?.wardId ?? null,
     );
 
+    const locationJson = this.grievanceLocationToJson(dto.location);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const grievanceNo = await this.allocateGrievanceNumber(tx, tenantId, tenantCode);
       const now = new Date();
@@ -183,7 +242,7 @@ export class GrievancesService {
           grievanceNo,
           category,
           description: dto.description,
-          location: (dto.location ?? {}) as Prisma.InputJsonValue,
+          location: locationJson,
           photoKeys: (dto.photos ?? []) as Prisma.InputJsonValue,
           grievancePriority: priority,
           status: routing.assignUserId ? 'under_review' : 'submitted',
@@ -335,6 +394,18 @@ export class GrievancesService {
       orderBy: { occurredAt: 'asc' },
     });
 
+    const attachmentRows = await this.prisma.grievanceAttachment.findMany({
+      where: { grievanceId: row.id, tenantId: row.tenantId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const attachments: GrievanceAttachmentResponse[] = attachmentRows.map((a) => ({
+      id: a.id,
+      storage_key: a.storageKey,
+      content_type: a.contentType,
+      created_at: a.createdAt.toISOString(),
+    }));
+
     const timeline: GrievanceTimelineResponse[] = timelineRows.map((t) => ({
       id: t.id,
       event_type: t.eventType,
@@ -344,7 +415,7 @@ export class GrievancesService {
       occurred_at: t.occurredAt.toISOString(),
     }));
 
-    return { grievance: this.toResponse(row), timeline };
+    return { grievance: { ...this.toResponse(row), attachments }, timeline };
   }
 
   async addComment(
@@ -373,27 +444,22 @@ export class GrievancesService {
     principal: AuthenticatedPrincipal,
     grievanceId: string,
     dto: GrievanceFeedbackDto,
+    readScope?: ApplicationReadScope,
   ): Promise<GrievanceResponse> {
     this.assertCitizenOnly(principal);
-    const citizenId = await this.requireCitizenId(principal);
-    const row = await this.prisma.grievance.findFirst({
-      where: {
-        ...this.grievanceLookupWhere(principal.tenantId, grievanceId),
-        citizenId,
-      },
-    });
-    if (!row) {
-      throw new NotFoundException('Grievance not found');
-    }
-    if (row.status !== 'resolved') {
+
+    const { grievance } = await this.getById(principal, grievanceId, readScope);
+    if (grievance.status !== 'resolved') {
       throw new BadRequestException('Feedback is allowed only when status is resolved');
     }
 
     assertGrievanceTransition('resolved', 'closed');
 
+    const canonicalId = grievance.id;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.grievance.update({
-        where: { id: row.id },
+        where: { id: canonicalId },
         data: {
           rating: dto.rating,
           feedback: dto.comment ?? null,
@@ -402,12 +468,92 @@ export class GrievancesService {
       });
       await tx.grievanceTimelineEntry.create({
         data: {
-          tenantId: row.tenantId,
-          grievanceId: row.id,
+          tenantId: u.tenantId,
+          grievanceId: u.id,
           eventType: 'feedback',
           actorSubject: principal.subject,
           body: `Rating ${dto.rating}`,
           metadata: { comment: dto.comment ?? null },
+        },
+      });
+      return u;
+    });
+
+    return this.toResponse(updated);
+  }
+
+  /**
+   * Citizen re-opens a grievance shortly after municipal staff marked `resolved`,
+   * before rating/feedback closes the case (`POST …/feedback`). Portal JWT paths use the same
+   * read scope semantics as GET detail.
+   */
+  async reopenCitizenCase(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    dto: GrievanceReopenDto,
+    readScope?: ApplicationReadScope,
+  ): Promise<GrievanceResponse> {
+    this.assertCitizenOnly(principal);
+
+    const { grievance } = await this.getById(principal, grievanceId, readScope);
+    if (grievance.status !== 'resolved') {
+      throw new BadRequestException('Re-open is allowed only while status is resolved');
+    }
+
+    const resolvedAt = grievance.resolved_at ? new Date(grievance.resolved_at) : null;
+    if (!resolvedAt || Number.isNaN(resolvedAt.getTime())) {
+      throw new BadRequestException('Grievance has no resolved timestamp');
+    }
+
+    const elapsed = Date.now() - resolvedAt.getTime();
+    if (elapsed > GRIEVANCE_REOPEN_WINDOW_MS) {
+      throw new BadRequestException('Re-open window expired (resolve was more than 7 days ago)');
+    }
+
+    try {
+      assertGrievanceTransition('resolved', 'under_review');
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'Invalid transition');
+    }
+
+    const canonicalId = grievance.id;
+    const tenantId = grievance.tenant_id;
+
+    const hours = await resolveSlaHours(
+      this.prisma,
+      tenantId,
+      grievance.category,
+      grievance.grievance_priority,
+    );
+
+    const now = new Date();
+    const slaDueAt = addHours(now, hours);
+
+    const reopenBody = dto.reason?.trim()
+      ? `Citizen re-opened: ${dto.reason.trim()}`
+      : 'Citizen re-opened the grievance';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.grievance.update({
+        where: { id: canonicalId },
+        data: {
+          status: 'under_review',
+          resolvedAt: null,
+          slaBreachedAt: null,
+          slaDueAt,
+        },
+      });
+      await tx.grievanceTimelineEntry.create({
+        data: {
+          tenantId,
+          grievanceId: canonicalId,
+          eventType: 'reopen',
+          actorSubject: principal.subject,
+          body: reopenBody,
+          metadata: {
+            reopened_within_hours: Math.round(elapsed / 3600000),
+            previous_resolved_at: resolvedAt.toISOString(),
+          },
         },
       });
       return u;
@@ -524,6 +670,117 @@ export class GrievancesService {
     return this.toResponse(updated);
   }
 
+  /**
+   * Persist attachment metadata after the client uploads binary to object storage.
+   * Ownership is enforced via the same read path as grievance detail (portal scope supported).
+   */
+  async registerCitizenAttachment(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    dto: RegisterGrievanceAttachmentDto,
+    readScope?: ApplicationReadScope,
+  ): Promise<GrievanceAttachmentResponse> {
+    this.assertCitizenOnly(principal);
+    this.assertSafeStorageKey(dto.storage_key);
+    const { grievance } = await this.getById(principal, grievanceId, readScope);
+    const canonicalId = grievance.id;
+
+    const count = await this.prisma.grievanceAttachment.count({
+      where: { grievanceId: canonicalId, tenantId: grievance.tenant_id },
+    });
+    if (count >= MAX_ATTACHMENTS_PER_GRIEVANCE) {
+      throw new BadRequestException('Maximum attachments reached for this grievance');
+    }
+
+    const ct = dto.content_type?.trim();
+    const row = await this.prisma.grievanceAttachment.create({
+      data: {
+        tenantId: grievance.tenant_id,
+        grievanceId: canonicalId,
+        storageKey: dto.storage_key.trim(),
+        contentType: ct && ct.length > 0 ? ct.slice(0, 120) : 'application/octet-stream',
+      },
+    });
+
+    return {
+      id: row.id,
+      storage_key: row.storageKey,
+      content_type: row.contentType,
+      created_at: row.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * Citizens / open-data: counts only — no narratives, no row-level disclosure.
+   */
+  async getPublicAggregate(params: { tenantCode?: string; windowDays?: number }): Promise<{
+    window_days: number;
+    generated_at: string;
+    tenant_code: string | null;
+    totals_by_status: Record<string, number>;
+    totals_by_category: Record<string, number>;
+    breached_open_count: number;
+  }> {
+    const windowDaysRaw = params.windowDays ?? 30;
+    const window_days = Math.min(365, Math.max(1, Math.floor(Number(windowDaysRaw)) || 30));
+    const since = new Date(Date.now() - window_days * 86_400_000);
+    const where: Prisma.GrievanceWhereInput = {
+      createdAt: { gte: since },
+    };
+    let tenant_code: string | null = null;
+
+    const trimmed = params.tenantCode?.trim();
+    if (trimmed) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { code: trimmed },
+        select: { id: true, code: true },
+      });
+      if (!tenant) {
+        throw new NotFoundException('Unknown tenant_code');
+      }
+      where.tenantId = tenant.id;
+      tenant_code = tenant.code;
+    }
+
+    const [byStatus, byCategory, breachedOpen] = await Promise.all([
+      this.prisma.grievance.groupBy({
+        by: ['status'],
+        where,
+        _count: true,
+      }),
+      this.prisma.grievance.groupBy({
+        by: ['category'],
+        where,
+        _count: true,
+      }),
+      this.prisma.grievance.count({
+        where: {
+          ...where,
+          slaBreachedAt: { not: null },
+          status: { notIn: ['resolved', 'closed'] },
+        },
+      }),
+    ]);
+
+    const totals_by_status: Record<string, number> = {};
+    for (const row of byStatus) {
+      totals_by_status[row.status] = row._count;
+    }
+    const totals_by_category: Record<string, number> = {};
+    for (const row of byCategory) {
+      totals_by_category[row.category] = row._count;
+    }
+
+    return {
+      window_days,
+      generated_at: new Date().toISOString(),
+      tenant_code,
+      totals_by_status,
+      totals_by_category,
+      breached_open_count: breachedOpen,
+    };
+  }
+
   async sweepSlaBreaches(principal: AuthenticatedPrincipal): Promise<{ breached_count: number }> {
     this.assertStaff(principal);
 
@@ -539,10 +796,15 @@ export class GrievancesService {
 
     let count = 0;
     for (const row of open) {
+      const nextRole = escalationRoleAfterBreach(row.routedRoleCode);
       await this.prisma.$transaction(async (tx) => {
         await tx.grievance.update({
           where: { id: row.id },
-          data: { slaBreachedAt: now },
+          data: {
+            slaBreachedAt: now,
+            routedRoleCode: nextRole,
+            assignedToUserId: null,
+          },
         });
         await tx.grievanceTimelineEntry.create({
           data: {
@@ -551,7 +813,36 @@ export class GrievancesService {
             eventType: 'sla_breach',
             actorSubject: 'system:sla-sweep',
             body: 'SLA deadline passed',
-            metadata: { sla_due_at: row.slaDueAt?.toISOString() ?? null },
+            metadata: {
+              sla_due_at: row.slaDueAt?.toISOString() ?? null,
+              escalated_role_code: nextRole,
+              previous_routed_role_code: row.routedRoleCode ?? null,
+            },
+          },
+        });
+        await tx.grievanceTimelineEntry.create({
+          data: {
+            tenantId: principal.tenantId,
+            grievanceId: row.id,
+            eventType: 'sla_escalation',
+            actorSubject: 'system:sla-sweep',
+            body: `Escalated queue to role ${nextRole}`,
+            metadata: {
+              escalated_role_code: nextRole,
+              previous_assignee_user_id: row.assignedToUserId ?? null,
+            },
+          },
+        });
+
+        /** In-app SLA breach ping (deep link carries docket ID only — no PII body). Phase 12 may fan out native push here. */
+        await tx.notification.create({
+          data: {
+            tenantId: row.tenantId,
+            citizenId: row.citizenId,
+            type: 'sla_breach',
+            title: 'Grievance deadline passed',
+            body: `${row.grievanceNo} — service timeline crossed. Tap to track your case.`,
+            deepLink: `grievances/${row.grievanceNo}`,
           },
         });
       });

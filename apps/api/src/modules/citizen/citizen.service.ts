@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
+import { PrismaService } from '../../common/database/prisma.service';
 import { ServicesService } from '../services/services.service';
 import { TenantsService } from '../tenants/tenants.service';
 
@@ -9,6 +17,7 @@ import { CITIZEN_STORE } from './citizen-store';
 
 import type { CitizenStore } from './citizen-store';
 import type {
+  CitizenNotificationResponse,
   CitizenPreferencesResponse,
   CitizenProfileResponse,
   PatchCitizenPreferencesDto,
@@ -24,6 +33,7 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 @Injectable()
 export class CitizenService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly tenants: TenantsService,
     private readonly catalogue: ServicesService,
     @Inject(CITIZEN_STORE)
@@ -148,6 +158,75 @@ export class CitizenService {
       theme_color: tenant.theme_color,
       ward_count: tenant.ward_count,
     };
+  }
+
+  async listNotifications(
+    principal: AuthenticatedPrincipal,
+  ): Promise<CitizenNotificationResponse[]> {
+    const sub = principal.subject?.trim();
+    if (!sub) {
+      throw new UnauthorizedException('Subject required');
+    }
+    if (!principal.roles.includes('citizen')) {
+      throw new ForbiddenException('Citizen role required');
+    }
+
+    const rows = await this.prisma.notification.findMany({
+      where: { citizen: { keycloakSubject: sub } },
+      orderBy: { sentAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        body: true,
+        deepLink: true,
+        isRead: true,
+        sentAt: true,
+        readAt: true,
+      },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      body: r.body,
+      deep_link: r.deepLink,
+      is_read: r.isRead,
+      sent_at: r.sentAt.toISOString(),
+      read_at: r.readAt?.toISOString() ?? null,
+    }));
+  }
+
+  async markNotificationRead(
+    principal: AuthenticatedPrincipal,
+    notificationId: string,
+  ): Promise<{ ok: true }> {
+    const sub = principal.subject?.trim();
+    if (!sub) {
+      throw new UnauthorizedException('Subject required');
+    }
+    if (!principal.roles.includes('citizen')) {
+      throw new ForbiddenException('Citizen role required');
+    }
+
+    const rowFirst = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        citizen: { keycloakSubject: sub },
+      },
+    });
+    if (!rowFirst) {
+      throw new NotFoundException('Notification not found');
+    }
+    if (!rowFirst.isRead) {
+      await this.prisma.notification.update({
+        where: { id: rowFirst.id },
+        data: { isRead: true, readAt: new Date() },
+      });
+    }
+    return { ok: true };
   }
 
   /** Maps each incoming code (post-DTO uniqueness) onto an operational municipality from `GET /tenants`. */

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-scope';
@@ -76,6 +76,23 @@ export class CitizenController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ): Promise<CitizenPreferencesResponse> {
     return this.citizens.getPreferences(principal);
+  }
+
+  @Get('notifications')
+  @ApiOperation({
+    summary: 'In-app notifications (e.g. SLA breach after staff sweep)',
+  })
+  listNotifications(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.citizens.listNotifications(principal);
+  }
+
+  @Patch('notifications/:id/read')
+  @ApiOperation({ summary: 'Mark one notification as read' })
+  markNotificationRead(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.citizens.markNotificationRead(principal, id);
   }
 
   @Patch('preferences')

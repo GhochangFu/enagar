@@ -141,3 +141,15 @@ export interface CitizenHubDashboardResponse {
   /** Distinct active `service.code` values unioned across all operational ULBs (catalogue semantics). Sprint 4.16. */
   distinct_active_service_codes: number;
 }
+
+/** Persisted inbox row — API mirrors `notifications` table (Phase 4 backlog SLA breach pings). */
+export type CitizenNotificationResponse = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  deep_link: string | null;
+  is_read: boolean;
+  sent_at: string;
+  read_at: string | null;
+};

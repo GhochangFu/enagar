@@ -25,6 +25,33 @@ export type GrievanceCategoryCode = (typeof GRIEVANCE_CATEGORY_CODES)[number];
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
+/** Optional WGS-84 coordinate from grievance compose form — blank means omit. */
+function parseLatLngField(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const n = Number.parseFloat(trimmed);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Same calendar window as `@enagar/api` `GRIEVANCE_REOPEN_WINDOW_MS` — keep in sync mentally. */
+const GRIEVANCE_REOPEN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function grievanceEligibleForCitizenReopen(g: GrievanceApiRow): boolean {
+  if (g.status !== 'resolved') {
+    return false;
+  }
+  if (!g.resolved_at) {
+    return false;
+  }
+  const resolvedAtMs = Date.parse(g.resolved_at);
+  if (Number.isNaN(resolvedAtMs)) {
+    return false;
+  }
+  return Date.now() - resolvedAtMs <= GRIEVANCE_REOPEN_WINDOW_MS;
+}
+
 export type GrievanceApiRow = {
   id: string;
   tenant_id: string;
@@ -34,6 +61,13 @@ export type GrievanceApiRow = {
   description: string;
   location: unknown;
   photo_keys: string[];
+  /** Present on detail responses when structured attachments are registered. */
+  attachments?: {
+    id: string;
+    storage_key: string;
+    content_type: string;
+    created_at: string;
+  }[];
   grievance_priority: string;
   status: string;
   routed_role_code: string | null;
@@ -137,12 +171,15 @@ export function GrievancesWorkspace({
   const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>('medium');
   const [locNote, setLocNote] = useState('');
   const [wardHint, setWardHint] = useState('');
-
+  const [latitudeStr, setLatitudeStr] = useState('');
+  const [longitudeStr, setLongitudeStr] = useState('');
+  const [slaInboxUnread, setSlaInboxUnread] = useState(0);
   const [lastCreated, setLastCreated] = useState<GrievanceApiRow | null>(null);
   const [detailPayload, setDetailPayload] = useState<GrievanceDetailResponse | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [rating, setRating] = useState(5);
   const [feedbackComment, setFeedbackComment] = useState('');
+  const [reopenDraft, setReopenDraft] = useState('');
 
   const reloadList = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -157,6 +194,20 @@ export function GrievancesWorkspace({
         throw new Error(await readApiError(response));
       }
       setList((await response.json()) as GrievanceApiRow[]);
+      try {
+        const inboxRes = await fetch(`${apiBaseUrl}/citizen/notifications`, {
+          headers: authHeaders(token, false, workspaceScope),
+        });
+        if (inboxRes.ok) {
+          const notes = (await inboxRes.json()) as Array<{ type: string; is_read: boolean }>;
+          const unread = notes.filter((n) => n.type === 'sla_breach' && !n.is_read).length;
+          setSlaInboxUnread(unread);
+        } else {
+          setSlaInboxUnread(0);
+        }
+      } catch {
+        setSlaInboxUnread(0);
+      }
       onBanner(t('status.ready', language));
     } catch (e: unknown) {
       onBanner(e instanceof Error ? e.message : t('grievance.loadError', language));
@@ -188,8 +239,16 @@ export function GrievancesWorkspace({
       const response = await fetch(`${apiBaseUrl}/citizen/profile`, {
         headers: authHeaders(token, false, workspaceScope),
       });
-      setProfileReady(response.ok);
       if (!response.ok) {
+        setProfileReady(false);
+        onBanner(t('grievance.registerTitle', language));
+        return;
+      }
+      const profile = (await response.json()) as { mobile?: string };
+      const digits = (profile.mobile ?? '').replace(/\D/g, '').slice(-10);
+      const ready = /^[6-9]\d{9}$/.test(digits);
+      setProfileReady(ready);
+      if (!ready) {
         onBanner(t('grievance.registerTitle', language));
       }
     } catch {
@@ -247,6 +306,7 @@ export function GrievancesWorkspace({
     setSurface('detail');
     setCommentDraft('');
     setFeedbackComment('');
+    setReopenDraft('');
     setRating(5);
     const scope = grievanceRowTenantScope({
       workspaceTenantCode: tenantScopeCode,
@@ -371,6 +431,55 @@ export function GrievancesWorkspace({
     onBanner(t('status.ready', language));
   }
 
+  async function postReopen(): Promise<void> {
+    if (!token || !detailPayload) {
+      return;
+    }
+    const ref = detailPayload.grievance.grievance_no;
+    const scope = grievanceRowTenantScope({
+      workspaceTenantCode: tenantScopeCode,
+      grievanceTenantId: detailPayload.grievance.tenant_id,
+      hubCatalogue: hubMunicipalityCatalogue,
+    });
+    const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}/reopen`, {
+      method: 'POST',
+      headers: authHeaders(token, true, scope),
+      body: JSON.stringify({
+        ...(reopenDraft.trim() ? { reason: reopenDraft.trim() } : {}),
+      }),
+    });
+    if (!response.ok) {
+      onBanner(await readApiError(response));
+      return;
+    }
+    const row = (await response.json()) as GrievanceApiRow;
+
+    try {
+      const detailRes = await fetch(
+        `${apiBaseUrl}/grievances/${encodeURIComponent(row.grievance_no)}`,
+        { headers: authHeaders(token, false, scope) },
+      );
+      if (!detailRes.ok) {
+        setDetailPayload({
+          grievance: row,
+          timeline: [],
+        });
+      } else {
+        setDetailPayload((await detailRes.json()) as GrievanceDetailResponse);
+      }
+    } catch {
+      setDetailPayload({
+        grievance: row,
+        timeline: [],
+      });
+    }
+
+    setReopenDraft('');
+    await reloadList();
+    onGrievancesMutated?.();
+    onBanner(t('status.ready', language));
+  }
+
   async function submitNew(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!token || !pickedCategory || description.trim().length < 3) {
@@ -378,12 +487,44 @@ export function GrievancesWorkspace({
       return;
     }
 
-    const location: Record<string, string> = {};
+    const location: Record<string, string | number> = {};
     if (locNote.trim()) {
       location.address = locNote.trim();
     }
     if (wardHint.trim()) {
       location.ward_hint = wardHint.trim();
+    }
+    const lat = parseLatLngField(latitudeStr);
+    const lng = parseLatLngField(longitudeStr);
+    if (latitudeStr.trim() && lat === undefined) {
+      onBanner('Latitude must be a valid number between -90 and 90, or leave the field blank.');
+      return;
+    }
+    if (longitudeStr.trim() && lng === undefined) {
+      onBanner('Longitude must be a valid number between -180 and 180, or leave the field blank.');
+      return;
+    }
+    if (lat !== undefined && lng === undefined && !longitudeStr.trim()) {
+      onBanner('Longitude is required when latitude is provided.');
+      return;
+    }
+    if (lng !== undefined && lat === undefined && !latitudeStr.trim()) {
+      onBanner('Latitude is required when longitude is provided.');
+      return;
+    }
+    if (lat !== undefined && (lat < -90 || lat > 90)) {
+      onBanner('Latitude must be between -90 and 90.');
+      return;
+    }
+    if (lng !== undefined && (lng < -180 || lng > 180)) {
+      onBanner('Longitude must be between -180 and 180.');
+      return;
+    }
+    if (lat !== undefined) {
+      location.latitude = lat;
+    }
+    if (lng !== undefined) {
+      location.longitude = lng;
     }
 
     if (!grievanceWriteScope) {
@@ -427,6 +568,8 @@ export function GrievancesWorkspace({
     setDescription('');
     setLocNote('');
     setWardHint('');
+    setLatitudeStr('');
+    setLongitudeStr('');
     setPickedCategory(null);
     if (!workspaceScope) {
       setFilingTenantCode(null);
@@ -706,6 +849,34 @@ export function GrievancesWorkspace({
             />
           </label>
 
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700">
+              Optional map pin (decimal degrees, WGS-84)
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-xs text-slate-600">
+                Latitude
+                <input
+                  className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                  inputMode="decimal"
+                  onChange={(event) => setLatitudeStr(event.target.value)}
+                  placeholder="-90 … 90"
+                  value={latitudeStr}
+                />
+              </label>
+              <label className="block text-xs text-slate-600">
+                Longitude
+                <input
+                  className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                  inputMode="decimal"
+                  onChange={(event) => setLongitudeStr(event.target.value)}
+                  placeholder="-180 … 180"
+                  value={longitudeStr}
+                />
+              </label>
+            </div>
+          </fieldset>
+
           <button
             className="w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
             type="submit"
@@ -758,6 +929,7 @@ export function GrievancesWorkspace({
           : '';
 
     const showRating = g.status === 'resolved';
+    const showReopen = grievanceEligibleForCitizenReopen(g);
 
     return (
       <section className="space-y-4">
@@ -768,6 +940,15 @@ export function GrievancesWorkspace({
           <p className="text-xs font-semibold uppercase text-brand">{g.grievance_no}</p>
           <h3 className="mt-2 text-2xl font-bold">{g.category}</h3>
           <p className="mt-3 whitespace-pre-wrap text-slate-700">{g.description}</p>
+          {typeof g.location === 'object' &&
+          g.location !== null &&
+          'latitude' in g.location &&
+          'longitude' in g.location ? (
+            <p className="mt-2 text-sm font-medium text-slate-700">
+              Map pin (WGS-84): {(g.location as { latitude: number }).latitude},{' '}
+              {(g.location as { longitude: number }).longitude}
+            </p>
+          ) : null}
           <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
             <DetailStat label={t('grievance.statusLabel', language)} value={g.status} />
             <DetailStat
@@ -788,6 +969,18 @@ export function GrievancesWorkspace({
               {slaChip}
             </p>
           )}
+          {Array.isArray(g.attachments) && g.attachments.length > 0 ? (
+            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+              <p className="font-semibold text-slate-800">Evidence files (storage keys)</p>
+              <ul className="mt-2 space-y-1 font-mono text-xs text-slate-600">
+                {g.attachments.map((a) => (
+                  <li key={a.id}>
+                    {a.content_type} · {a.storage_key}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-3xl bg-white p-6 shadow-sm">
@@ -830,6 +1023,38 @@ export function GrievancesWorkspace({
           </form>
         </div>
 
+        {showReopen ? (
+          <div className="rounded-3xl border border-rose-100 bg-rose-50 p-6 shadow-sm">
+            <h4 className="font-bold text-rose-900">
+              {t('grievance.reopenSectionTitle', language)}
+            </h4>
+            <p className="mt-2 text-sm text-rose-900/90">{t('grievance.reopenHelp', language)}</p>
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void postReopen();
+              }}
+            >
+              <label className="block text-sm font-medium text-rose-950">
+                {t('grievance.reopenReasonPlaceholder', language)}
+                <textarea
+                  className="mt-2 w-full rounded-2xl border border-rose-200 bg-white px-4 py-3"
+                  onChange={(event) => setReopenDraft(event.target.value)}
+                  rows={3}
+                  value={reopenDraft}
+                />
+              </label>
+              <button
+                className="rounded-2xl bg-rose-700 px-4 py-2 font-semibold text-white"
+                type="submit"
+              >
+                {t('grievance.reopenSubmit', language)}
+              </button>
+            </form>
+          </div>
+        ) : null}
+
         {showRating ? (
           <div className="rounded-3xl bg-brand/10 p-6 shadow-sm">
             <h4 className="font-bold text-brand">{t('grievance.feedbackTitle', language)}</h4>
@@ -864,9 +1089,15 @@ export function GrievancesWorkspace({
           </div>
         ) : null}
 
-        {!showRating ? (
+        {g.status === 'closed' ? (
           <p className="text-center text-xs text-slate-500">
-            {t('grievance.closedHint', language)}
+            {t('grievance.caseClosedFootnote', language)}
+          </p>
+        ) : null}
+
+        {g.status !== 'closed' && g.status !== 'resolved' ? (
+          <p className="text-center text-xs text-slate-500">
+            {t('grievance.caseProgressFootnote', language)}
           </p>
         ) : null}
       </section>
@@ -897,6 +1128,14 @@ export function GrievancesWorkspace({
           </button>
         </div>
       </div>
+
+      {slaInboxUnread > 0 ? (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <strong>Service alerts:</strong> you have {slaInboxUnread} unread SLA{' '}
+          {slaInboxUnread === 1 ? 'notice' : 'notices'} — open a grievance below and review the
+          timeline.
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
         {list.map((item) => (

@@ -1,9 +1,10 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsInt,
-  IsObject,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -11,9 +12,35 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+
+/** Optional filing location: text hints + WGS-84 pin (Phase 4 backlog — GPS polish). */
+export class GrievanceLocationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  ward_hint?: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'latitude must be a number' })
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'longitude must be a number' })
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+}
 
 export class CreateGrievanceDto {
   @IsString()
@@ -27,17 +54,33 @@ export class CreateGrievanceDto {
   description!: string;
 
   @IsOptional()
-  @IsObject()
-  location?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => GrievanceLocationDto)
+  location?: GrievanceLocationDto;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(12)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   photos?: string[];
 
   @IsOptional()
   @IsIn([...PRIORITIES])
   grievance_priority?: (typeof PRIORITIES)[number];
+}
+
+/** Register MinIO-compatible object key after client upload (citizen-owned grievance). */
+export class RegisterGrievanceAttachmentDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(500)
+  storage_key!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  content_type?: string;
 }
 
 export class GrievanceCommentDto {
@@ -60,6 +103,14 @@ export class GrievanceFeedbackDto {
   comment?: string;
 }
 
+/** Citizen Sprint 4.3 — reopen a resolved grievance within the policy window. */
+export class GrievanceReopenDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  reason?: string;
+}
+
 export class AssignGrievanceDto {
   @IsUUID('4')
   user_id!: string;
@@ -76,6 +127,13 @@ export class UpdateGrievanceStatusDto {
   note?: string;
 }
 
+export type GrievanceAttachmentResponse = {
+  id: string;
+  storage_key: string;
+  content_type: string;
+  created_at: string;
+};
+
 export type GrievanceResponse = {
   id: string;
   tenant_id: string;
@@ -85,6 +143,7 @@ export type GrievanceResponse = {
   description: string;
   location: unknown;
   photo_keys: string[];
+  attachments?: GrievanceAttachmentResponse[];
   grievance_priority: string;
   status: string;
   routed_role_code: string | null;

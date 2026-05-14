@@ -9,6 +9,8 @@ import {
   CreateGrievanceDto,
   GrievanceCommentDto,
   GrievanceFeedbackDto,
+  GrievanceReopenDto,
+  RegisterGrievanceAttachmentDto,
   UpdateGrievanceStatusDto,
 } from './dto';
 import { GrievancesService } from './grievances.service';
@@ -21,7 +23,7 @@ function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
   return trimmed ? { municipalityTenantCode: trimmed } : undefined;
 }
 
-@ApiTags('grievances (Phase 4 Sprint 4.1)')
+@ApiTags('grievances (Phase 4 Sprints 4.1 / 4.3)')
 @ApiBearerAuth()
 @ApiHeader({
   name: CITIZEN_MUNICIPALITY_SCOPE_HEADER,
@@ -62,6 +64,24 @@ export class GrievancesController {
     return this.grievances.sweepSlaBreaches(principal);
   }
 
+  @Post(':id/attachments/register')
+  @ApiOperation({
+    summary: 'Register object-storage key after upload (citizen; portal scope supported)',
+  })
+  registerAttachment(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Body() dto: RegisterGrievanceAttachmentDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.grievances.registerCitizenAttachment(
+      principal,
+      id,
+      dto,
+      readScopeFromHeader(municipalityTenantCode),
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Grievance detail + timeline' })
   getById(
@@ -82,14 +102,36 @@ export class GrievancesController {
     return this.grievances.addComment(principal, id, dto);
   }
 
+  @Post(':id/reopen')
+  @ApiOperation({ summary: 'Re-open resolved grievance within 7 days (citizen)' })
+  reopenCitizen(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Body() dto: GrievanceReopenDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.grievances.reopenCitizenCase(
+      principal,
+      id,
+      dto,
+      readScopeFromHeader(municipalityTenantCode),
+    );
+  }
+
   @Post(':id/feedback')
   @ApiOperation({ summary: 'Submit rating after resolved (citizen)' })
   submitFeedback(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('id') id: string,
     @Body() dto: GrievanceFeedbackDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ) {
-    return this.grievances.submitFeedback(principal, id, dto);
+    return this.grievances.submitFeedback(
+      principal,
+      id,
+      dto,
+      readScopeFromHeader(municipalityTenantCode),
+    );
   }
 
   @Post(':id/assign')

@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from '../services/services.service';
 import { TenantsService } from '../tenants/tenants.service';
@@ -20,11 +20,41 @@ describe('CitizenService', () => {
   let service: CitizenService;
 
   beforeEach(() => {
+    const prismaStub = {
+      notification: {
+        findMany: async () =>
+          Promise.resolve([
+            {
+              id: 'n1',
+              type: 'sla_breach',
+              title: 't',
+              body: 'b',
+              deepLink: null,
+              isRead: false,
+              sentAt: new Date(),
+              readAt: null,
+            },
+          ]),
+        findFirst: async () => Promise.resolve(null),
+        update: async () => Promise.resolve({}),
+      },
+    } as unknown as import('../../common/database/prisma.service').PrismaService;
+
     service = new CitizenService(
+      prismaStub,
       new TenantsService(),
       new ServicesService(),
       new InMemoryCitizenStore(),
     );
+  });
+
+  it('lists notifications only for citizen JWTs', async () => {
+    const rows = await service.listNotifications(principal);
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+
+    await expect(
+      service.listNotifications({ ...principal, roles: ['municipality_clerk'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('registers and returns a citizen profile bound to the JWT tenant', async () => {
