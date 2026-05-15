@@ -21,6 +21,9 @@ describe('CitizenService', () => {
 
   beforeEach(() => {
     const prismaStub = {
+      citizenPushDevice: {
+        upsert: async () => Promise.resolve({}),
+      },
       notification: {
         findMany: async () =>
           Promise.resolve([
@@ -46,6 +49,22 @@ describe('CitizenService', () => {
       new ServicesService(),
       new InMemoryCitizenStore(),
     );
+  });
+
+  it('registers push tokens for citizens', async () => {
+    await expect(
+      service.registerPushToken(principal, {
+        platform: 'android',
+        token: 'expo-push-test-12345678',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    await expect(
+      service.registerPushToken(
+        { ...principal, roles: ['tenant_clerk'] },
+        { platform: 'android', token: 'expo-push-test-12345678' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('lists notifications only for citizen JWTs', async () => {

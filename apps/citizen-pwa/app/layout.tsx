@@ -1,3 +1,5 @@
+import { PwaBootstrap } from '../components/pwa-bootstrap';
+
 import type { Metadata, Viewport } from 'next';
 
 import './globals.css';
@@ -16,7 +18,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <PwaBootstrap>{children}</PwaBootstrap>
+      </body>
     </html>
   );
 }

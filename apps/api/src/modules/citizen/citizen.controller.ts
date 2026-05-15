@@ -9,6 +9,7 @@ import { CitizenService } from './citizen.service';
 import {
   PatchCitizenPreferencesDto,
   RegisterCitizenDto,
+  RegisterPushTokenDto,
   SelectTenantDto,
   UpdateCitizenLanguageDto,
   UpdateCitizenProfileDto,
@@ -93,6 +94,17 @@ export class CitizenController {
     @Param('id') id: string,
   ) {
     return this.citizens.markNotificationRead(principal, id);
+  }
+
+  @Post('notifications/push-token')
+  @ApiOperation({
+    summary: 'Register native or web push token for the signed-in citizen (Master Sprint 5.4)',
+  })
+  registerPushToken(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: RegisterPushTokenDto,
+  ) {
+    return this.citizens.registerPushToken(principal, dto);
   }
 
   @Patch('preferences')

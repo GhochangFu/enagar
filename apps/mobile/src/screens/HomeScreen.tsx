@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useSession } from '../context/SessionContext';
+import { useCitizenPushRegistration } from '../hooks/useCitizenPushRegistration';
 import type { CitizenRootStackParamList } from '../navigation/types';
 import type { TenantListItem } from '../tenantApi';
 
@@ -29,6 +30,8 @@ async function probeSecureStorage(): Promise<boolean> {
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<CitizenRootStackParamList>>();
   const { locale, selectedTenant, setLocale, mobile, signOut } = useSession();
+
+  useCitizenPushRegistration();
 
   const [secureOk, setSecureOk] = useState(false);
 

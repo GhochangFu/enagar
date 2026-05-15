@@ -1,6 +1,6 @@
 # @enagar/mobile — Citizen (Expo)
 
-React Native + **Expo SDK 52** citizen app — **Master Sprint 5.1** shell, **`5.2a`** grievances/auth (`docs/runbooks/master-sprint-52-exit.md`), **`5.2b`** catalogue / apply / applications / stub payments (`docs/runbooks/master-sprint-52b-exit.md`).
+React Native + **Expo SDK 52** citizen app — **Master Sprint 5.1** shell, **`5.2a`** grievances/auth (`docs/runbooks/master-sprint-52-exit.md`), **`5.2b`** catalogue / apply / applications / stub payments (`docs/runbooks/master-sprint-52b-exit.md`), **`5.4`** push + deep links (`docs/runbooks/master-sprint-54-exit.md`).
 
 **Flow**
 

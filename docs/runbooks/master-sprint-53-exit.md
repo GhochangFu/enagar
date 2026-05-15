@@ -26,9 +26,9 @@ This sprint delivers the **dual-surface parity spine** mandated for Phase 5: cit
 - [x] **`pnpm lint`**, **`pnpm typecheck`**, **`pnpm test`**, **`pnpm test:security`** succeed.
 - [x] **`ARCHITECTURE.md`**, **`ROADMAP.md`**, **`packages/ui/README.md`**, **`apps/citizen-pwa/README.md`**, **`docs/help/start-the-app-step-by-step.md`** cite this sprint.
 
-### Deferred (unchanged roadmap owners)
+### Deferred (superseded by Sprint 5.4 closure)
 
-**Sprint 5.4:** Web Push / deep-links / axe perf gates / Lighthouse hard CI (Phase 5 exit).
+**Sprint 5.4** items were tracked as follow-up from 5.3 — see **[`master-sprint-54-exit.md`](master-sprint-54-exit.md)**.
 
 ### Sign-off
 

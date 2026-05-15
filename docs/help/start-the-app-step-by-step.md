@@ -172,6 +172,8 @@ That starts multiple apps via Turbo (can be noisy; filtering two packages as abo
 | API docs (Swagger) | http://localhost:3001/docs   |
 | Keycloak console   | http://localhost:8080        |
 
+**Master Sprint 5.4:** PWA installability (manifest + `/sw.js`) and query deep links (`?grievance=`, `?application=`) — see [`docs/runbooks/master-sprint-54-exit.md`](../runbooks/master-sprint-54-exit.md). Optional web push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` on the PWA; Expo mobile registers push tokens after sign-in when running on a physical device.
+
 Exact Keycloak admin user/password come from **`infrastructure/.env`**.
 
 ---

@@ -11,6 +11,7 @@ import {
   IsString,
   Matches,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -98,6 +99,22 @@ export class PinnedServicePreferenceDto {
   @IsNotEmpty()
   @MaxLength(80)
   service_code!: string;
+}
+
+/** Master Sprint 5.4 — Expo / FCM / web push subscription blob persisted for notification-worker fan-out. */
+export class RegisterPushTokenDto {
+  @ApiProperty({ enum: ['ios', 'android', 'web'] })
+  @IsIn(['ios', 'android', 'web'])
+  platform!: 'ios' | 'android' | 'web';
+
+  @ApiProperty({
+    description: 'Native push token or serialised Web Push `PushSubscription` JSON.',
+    maxLength: 8192,
+  })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(8192)
+  token!: string;
 }
 
 /** Sprint 4.16 — pinned ULBs (≤15) and favourite `{ tenant_code, service_code }` pairs (server-validated). */

@@ -1,7 +1,7 @@
 'use client';
 
 import { t, type Locale, type MessageKey } from '@enagar/i18n';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import { grievanceCreateWriteScope, grievanceRowTenantScope } from '../lib/grievance-scope';
 import { authHeaders, readApiError } from '../lib/workspace-http';
@@ -133,6 +133,7 @@ export function GrievancesWorkspace({
   tenantScopeCode,
   hubMunicipalityCatalogue,
   token,
+  deepLinkGrievanceRef,
 }: {
   apiBaseUrl: string;
   language: LanguageCode;
@@ -144,6 +145,8 @@ export function GrievancesWorkspace({
   /** Hub aggregate mode: catalogue from `GET /tenants` so the citizen can pick a target ULB before filing. */
   hubMunicipalityCatalogue?: readonly HubGrievanceTenantOption[] | null;
   token: TokenResponse | null;
+  /** Open detail for grievance UUID or grievance_no (e.g. `?grievance=` deep link — Sprint 5.4). */
+  deepLinkGrievanceRef?: string | null;
 }): JSX.Element {
   const [profileReady, setProfileReady] = useState<boolean | null>(null);
   const [registerName, setRegisterName] = useState('');
@@ -180,6 +183,7 @@ export function GrievancesWorkspace({
   const [rating, setRating] = useState(5);
   const [feedbackComment, setFeedbackComment] = useState('');
   const [reopenDraft, setReopenDraft] = useState('');
+  const deepLinkHandledRef = useRef<string | null>(null);
 
   const reloadList = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -266,6 +270,52 @@ export function GrievancesWorkspace({
       void reloadList();
     }
   }, [profileReady, reloadList, token]);
+
+  useEffect(() => {
+    if (!deepLinkGrievanceRef?.trim()) {
+      deepLinkHandledRef.current = null;
+    }
+  }, [deepLinkGrievanceRef]);
+
+  useEffect(() => {
+    const ref = deepLinkGrievanceRef?.trim();
+    if (!ref || !token || profileReady !== true) {
+      return;
+    }
+    if (deepLinkHandledRef.current === ref) {
+      return;
+    }
+    deepLinkHandledRef.current = ref;
+
+    void (async () => {
+      setSurface('detail');
+      setCommentDraft('');
+      setFeedbackComment('');
+      setReopenDraft('');
+      setRating(5);
+      try {
+        const response = await fetch(`${apiBaseUrl}/grievances/${encodeURIComponent(ref)}`, {
+          headers: authHeaders(token, false, workspaceScope),
+        });
+        if (!response.ok) {
+          onBanner(await readApiError(response));
+          setSurface('list');
+          return;
+        }
+        setDetailPayload((await response.json()) as GrievanceDetailResponse);
+        onBanner(t('status.ready', language));
+      } catch (e: unknown) {
+        const message =
+          e instanceof TypeError
+            ? 'Network error — check the API is reachable and NEXT_PUBLIC_API_BASE_URL is correct.'
+            : e instanceof Error
+              ? e.message
+              : 'Request failed';
+        onBanner(message);
+        setSurface('list');
+      }
+    })();
+  }, [apiBaseUrl, deepLinkGrievanceRef, language, onBanner, profileReady, token, workspaceScope]);
 
   async function registerCitizen(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

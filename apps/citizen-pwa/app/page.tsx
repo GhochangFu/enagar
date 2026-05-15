@@ -18,6 +18,7 @@ import {
   ReceiptPreviewPlaceholder,
 } from '../components/application-detail-panel';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
+import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { defaultFormValuesForService, schemaByServiceCode } from '../lib/service-schemas';
 import {
   authHeaders,
@@ -190,6 +191,11 @@ export default function HomePage(): JSX.Element {
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState(t('status.ready', 'en'));
+  /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
+  const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
+  const [urlApplicationDocket, setUrlApplicationDocket] = useState<string | null>(null);
+  const applicationDeepLinkConsumed = useRef(false);
+  const workspaceApplicationDeepLinkConsumed = useRef(false);
 
   const cataloguedDashboardRows = useMemo(() => {
     if (!hubDashboard) {
@@ -967,6 +973,84 @@ export default function HomePage(): JSX.Element {
     }
     setApplicationDetail((await response.json()) as ApplicationDetail);
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get('grievance') ?? params.get('grievance_no');
+    const a = params.get('application') ?? params.get('docket');
+    if (g?.trim()) {
+      setUrlGrievanceRef(g.trim());
+    }
+    if (a?.trim()) {
+      setUrlApplicationDocket(a.trim());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token || step !== 'hub' || !urlGrievanceRef?.trim()) {
+      return;
+    }
+    setHubTab('grievances');
+  }, [token, step, urlGrievanceRef]);
+
+  useEffect(() => {
+    if (!token || step !== 'workspace' || !urlGrievanceRef?.trim()) {
+      return;
+    }
+    setActiveTab('grievances');
+  }, [token, step, urlGrievanceRef]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      step !== 'hub' ||
+      !urlApplicationDocket?.trim() ||
+      applicationDeepLinkConsumed.current
+    ) {
+      return;
+    }
+    applicationDeepLinkConsumed.current = true;
+    setHubTab('applications');
+    void (async () => {
+      const docket = urlApplicationDocket.trim();
+      const response = await fetch(`${apiBaseUrl}/applications/${encodeURIComponent(docket)}`, {
+        headers: authHeaders(token, false),
+      });
+      if (!response.ok) {
+        setStatus('Unable to open application from link.');
+        return;
+      }
+      setApplicationDetail((await response.json()) as ApplicationDetail);
+    })();
+  }, [token, step, urlApplicationDocket]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      step !== 'workspace' ||
+      !urlApplicationDocket?.trim() ||
+      workspaceApplicationDeepLinkConsumed.current ||
+      !selectedTenant?.code
+    ) {
+      return;
+    }
+    workspaceApplicationDeepLinkConsumed.current = true;
+    setActiveTab('applications');
+    void (async () => {
+      const docket = urlApplicationDocket.trim();
+      const response = await fetch(`${apiBaseUrl}/applications/${encodeURIComponent(docket)}`, {
+        headers: authHeaders(token, false, selectedTenant.code),
+      });
+      if (!response.ok) {
+        setStatus('Unable to open application from link.');
+        return;
+      }
+      setApplicationDetail((await response.json()) as ApplicationDetail);
+    })();
+  }, [token, step, urlApplicationDocket, selectedTenant?.code]);
 
   async function addComment(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1984,6 +2068,7 @@ export default function HomePage(): JSX.Element {
               </p>
               <GrievancesWorkspace
                 apiBaseUrl={apiBaseUrl}
+                deepLinkGrievanceRef={urlGrievanceRef}
                 hubMunicipalityCatalogue={tenants}
                 language={language}
                 mobileDigits={mobile}
@@ -2404,6 +2489,7 @@ export default function HomePage(): JSX.Element {
           {activeTab === 'grievances' && (
             <GrievancesWorkspace
               apiBaseUrl={apiBaseUrl}
+              deepLinkGrievanceRef={urlGrievanceRef}
               language={language}
               mobileDigits={mobile}
               onBanner={setStatus}
@@ -2414,6 +2500,7 @@ export default function HomePage(): JSX.Element {
           )}
         </section>
       )}
+      {token ? <PwaWebPushRegister token={token} /> : null}
     </main>
   );
 }

@@ -48,6 +48,7 @@ describe('Master Phase 4 backlog slice — contract fingerprints', () => {
   it('exposes citizen notification inbox routes', () => {
     expect(citizenCtl).toContain(`@Get('notifications')`);
     expect(citizenCtl).toContain(`@Patch('notifications/:id/read')`);
+    expect(citizenCtl).toContain(`@Post('notifications/push-token')`);
   });
 
   it('exposes anonymised aggregate-metrics without JWT', () => {

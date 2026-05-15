@@ -25,6 +25,7 @@ model Tenant {
   citizens         Citizen[]
   localities       Locality[]
   notifications    Notification[]
+  pushDevices      CitizenPushDevice[]
   applicationComments ApplicationComment[]
   applicationDocuments ApplicationDocument[]
   applicationTimeline ApplicationTimeline[]
@@ -91,6 +92,7 @@ model Citizen {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ward          Ward?          @relation(fields: [wardId], references: [id], onDelete: SetNull)
   notifications Notification[]
+  pushDevices   CitizenPushDevice[]
   applications   Application[]
   deposits       Deposit[]
   challans       Challan[]
@@ -219,6 +221,22 @@ model Notification {
 
   @@index([tenantId, citizenId, isRead])
   @@map("notifications")
+}
+
+model CitizenPushDevice {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  citizenId String   @map("citizen_id") @db.Uuid
+  platform  String   @db.VarChar(12)
+  token     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen   Citizen  @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([citizenId, token])
+  @@index([tenantId, citizenId])
+  @@map("citizen_push_devices")
 }
 
 model RevenueHead {

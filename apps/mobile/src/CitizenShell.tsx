@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 
 import { SessionProvider } from './context/SessionContext';
+import { citizenLinking } from './navigation/linking.config';
 import { CitizenNavigator } from './navigation/CitizenNavigator';
 
 /**
@@ -10,7 +11,7 @@ import { CitizenNavigator } from './navigation/CitizenNavigator';
 export function CitizenShell() {
   return (
     <SessionProvider>
-      <NavigationContainer>
+      <NavigationContainer linking={citizenLinking}>
         <CitizenNavigator />
       </NavigationContainer>
     </SessionProvider>

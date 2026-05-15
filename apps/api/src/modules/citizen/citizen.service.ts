@@ -24,6 +24,7 @@ import type {
   PinnedServicePreference,
   PinnedServicePreferenceDto,
   RegisterCitizenDto,
+  RegisterPushTokenDto,
   SelectTenantDto,
   UpdateCitizenLanguageDto,
   UpdateCitizenProfileDto,
@@ -197,6 +198,41 @@ export class CitizenService {
       sent_at: r.sentAt.toISOString(),
       read_at: r.readAt?.toISOString() ?? null,
     }));
+  }
+
+  async registerPushToken(
+    principal: AuthenticatedPrincipal,
+    dto: RegisterPushTokenDto,
+  ): Promise<{ ok: true }> {
+    const sub = principal.subject?.trim();
+    if (!sub) {
+      throw new UnauthorizedException('Subject required');
+    }
+    if (!principal.roles.includes('citizen')) {
+      throw new ForbiddenException('Citizen role required');
+    }
+
+    const profile = await this.getOrCreateProfile(principal);
+
+    await this.prisma.citizenPushDevice.upsert({
+      where: {
+        citizenId_token: {
+          citizenId: profile.id,
+          token: dto.token,
+        },
+      },
+      create: {
+        tenantId: profile.tenant_id,
+        citizenId: profile.id,
+        platform: dto.platform,
+        token: dto.token,
+      },
+      update: {
+        platform: dto.platform,
+      },
+    });
+
+    return { ok: true };
   }
 
   async markNotificationRead(

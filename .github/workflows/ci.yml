@@ -19,7 +19,7 @@ jobs:
   ts:
     name: TypeScript (lint, typecheck, test, build)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -47,6 +47,14 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Citizen PWA quality (Lighthouse)
+        run: |
+          pnpm --filter @enagar/citizen-pwa start &
+          SERVER_PID=$!
+          npx --yes wait-on@7.2.0 http://127.0.0.1:3000 -t 120000
+          pnpm --filter @enagar/citizen-pwa run quality:ci
+          kill $SERVER_PID
 
   python:
     name: Python (rag-indexer — ruff, mypy, pytest)
