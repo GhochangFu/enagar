@@ -196,7 +196,7 @@ enagarseba/
 ├── apps/
 │   ├── api/                    # NestJS backend (port 3001)
 │   ├── citizen-pwa/            # Next.js 14 PWA (port 3000)
-│   ├── admin-tenant/           # ULB admin portal (port 3002) — catalogue + form/workflow designer
+│   ├── admin-tenant/           # ULB admin portal (port 3002) — catalogue, designer, fee/doc/master config
 │   ├── admin-state/            # State super-admin portal (port 3003) — stub, Phase 6
 │   ├── mobile/                 # Citizen RN/Expo app                  — stub, Phase 5/8
 │   └── staff-mobile/           # Field-staff RN/Expo app              — stub, Phase 4
@@ -254,7 +254,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **`ROADMAP.md`** [locked 10-sprint queue](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1** and **Master Sprint 5.4** are **closed in-repo (engineering)** — see [`hub-h6-exit-checklist.md`](./docs/runbooks/hub-h6-exit-checklist.md) and [`master-sprint-54-exit.md`](./docs/runbooks/master-sprint-54-exit.md). **Queued next:** **Sprint 6.1** (Tenant Admin Portal). **Sprint 3.1B** deferred.
+**Next:** **`ROADMAP.md`** [locked 10-sprint queue](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.3** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Queued next:** **Sprint 6.4** (notification templates, KB CMS, branding, feature flags, staff & roles). **Sprint 3.1B** deferred.
 
 ---
 

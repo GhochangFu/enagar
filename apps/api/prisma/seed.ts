@@ -17,6 +17,84 @@ import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../src/modules/tenants/
 const defaultDatabaseUrl =
   'postgresql://enagar:enagar_dev_pw_change_me@localhost:5432/enagarseba?schema=public';
 
+const addressMasterSeeds = [
+  {
+    tenant_code: 'KMC',
+    borough_code: 'borough-vii',
+    borough_name: 'Borough VII',
+    ward_number: '64',
+    ward_name: 'Ward 64',
+    mouza: 'Kasba',
+    locality_name: 'Ballygunge Place',
+    pincode: '700019',
+  },
+  {
+    tenant_code: 'KMC',
+    borough_code: 'borough-xii',
+    borough_name: 'Borough XII',
+    ward_number: '101',
+    ward_name: 'Ward 101',
+    mouza: 'Behala',
+    locality_name: 'Behala Chowrasta',
+    pincode: '700034',
+  },
+  {
+    tenant_code: 'HMC',
+    borough_code: 'borough-i',
+    borough_name: 'Borough I',
+    ward_number: '12',
+    ward_name: 'Ward 12',
+    mouza: 'Shibpur',
+    locality_name: 'Shibpur Road',
+    pincode: '711102',
+  },
+];
+
+const tariffSeeds = [
+  {
+    tenant_code: 'KMC',
+    code: 'property-residential-v1',
+    category: 'property',
+    name: {
+      en: 'Residential Property Tax',
+      bn: 'Residential Property Tax',
+      hi: 'Residential Property Tax',
+    },
+    rate_config: {
+      type: 'computed',
+      input_key: 'built_up_area_sqft',
+      base_amount_paise: 5000,
+      unit_amount_paise: 125,
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    code: 'water-domestic-v1',
+    category: 'water',
+    name: { en: 'Domestic Water Tariff', bn: 'Domestic Water Tariff', hi: 'Domestic Water Tariff' },
+    rate_config: {
+      type: 'slab',
+      input_key: 'monthly_kl',
+      slabs: [
+        { upto: 10, amount_paise: 0 },
+        { upto: 25, amount_paise: 2500 },
+        { upto: null, amount_paise: 6000 },
+      ],
+    },
+  },
+  {
+    tenant_code: 'HMC',
+    code: 'conservancy-commercial-v1',
+    category: 'conservancy',
+    name: {
+      en: 'Commercial Conservancy Tariff',
+      bn: 'Commercial Conservancy Tariff',
+      hi: 'Commercial Conservancy Tariff',
+    },
+    rate_config: { type: 'fixed', amount_paise: 15000, currency: 'INR' },
+  },
+];
+
 async function seedGrievancePoliciesForTenant(
   prisma: PrismaClient,
   tenantId: string,
@@ -69,6 +147,88 @@ async function seedGrievancePoliciesForTenant(
           targetRoleCode: 'municipality_clerk',
         },
       ],
+    });
+  }
+}
+
+async function seedAddressAndTariffMasters(prisma: PrismaClient): Promise<void> {
+  const tenants = await prisma.tenant.findMany({
+    where: { code: { in: ['KMC', 'HMC'] } },
+    select: { id: true, code: true },
+  });
+  const tenantByCode = new Map(tenants.map((tenant) => [tenant.code, tenant]));
+
+  for (const seed of addressMasterSeeds) {
+    const tenant = tenantByCode.get(seed.tenant_code);
+    if (!tenant) {
+      continue;
+    }
+    const borough = await prisma.borough.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: seed.borough_code } },
+      create: {
+        tenantId: tenant.id,
+        code: seed.borough_code,
+        name: seed.borough_name,
+      },
+      update: {
+        name: seed.borough_name,
+      },
+    });
+    const ward = await prisma.ward.upsert({
+      where: { tenantId_number: { tenantId: tenant.id, number: seed.ward_number } },
+      create: {
+        tenantId: tenant.id,
+        boroughId: borough.id,
+        number: seed.ward_number,
+        name: seed.ward_name,
+      },
+      update: {
+        boroughId: borough.id,
+        name: seed.ward_name,
+      },
+    });
+    await prisma.locality.upsert({
+      where: {
+        tenantId_name_pincode: {
+          tenantId: tenant.id,
+          name: seed.locality_name,
+          pincode: seed.pincode,
+        },
+      },
+      create: {
+        tenantId: tenant.id,
+        wardId: ward.id,
+        mouza: seed.mouza,
+        name: seed.locality_name,
+        pincode: seed.pincode,
+      },
+      update: {
+        wardId: ward.id,
+        mouza: seed.mouza,
+      },
+    });
+  }
+
+  for (const seed of tariffSeeds) {
+    const tenant = tenantByCode.get(seed.tenant_code);
+    if (!tenant) {
+      continue;
+    }
+    await prisma.tenantTariff.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: seed.code } },
+      create: {
+        tenantId: tenant.id,
+        code: seed.code,
+        category: seed.category,
+        name: seed.name,
+        rateConfig: seed.rate_config as Prisma.InputJsonValue,
+      },
+      update: {
+        category: seed.category,
+        name: seed.name,
+        rateConfig: seed.rate_config as Prisma.InputJsonValue,
+        isActive: true,
+      },
     });
   }
 }
@@ -258,6 +418,8 @@ async function main(): Promise<void> {
     }
     await seedServiceCatalogue(prisma);
     console.info('Seeded service catalogue for operational tenants');
+    await seedAddressAndTariffMasters(prisma);
+    console.info('Seeded address and tariff masters for smoke tenants');
   } finally {
     await prisma.$disconnect();
   }

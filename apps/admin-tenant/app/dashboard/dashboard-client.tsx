@@ -194,6 +194,12 @@ export default function DashboardClient(): JSX.Element {
           </p>
         </div>
         <div className="flex gap-3">
+          <a
+            href="/dashboard/masters"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Masters
+          </a>
           <button
             type="button"
             onClick={() => void loadAll()}

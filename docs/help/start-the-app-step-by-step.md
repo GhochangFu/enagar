@@ -151,10 +151,10 @@ pnpm --filter @enagar/admin-tenant dev
 
 - Tenant Admin: **`http://localhost:3002`**
 - Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
-- Exit checklists: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**
+- Exit checklists: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
-After login, click **Configure** on a service to open the Sprint 6.2 form/workflow designer.
+After login, click **Configure** on a service to open the Sprint 6.2 form/workflow designer and Sprint 6.3 fee/document/revenue configuration panel. Use **Masters** on the dashboard for revenue heads, address master rows, and tax/tariff rows.
 
 ---
 

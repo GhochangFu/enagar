@@ -68,7 +68,7 @@ Use this when prioritising what to pull next across tracks (adjust for staffing 
 | **7**  | **Sprint 5.4**                     | Master · Phase 5 | **Closed engineering 2026-05-15** — [`master-sprint-54-exit.md`](docs/runbooks/master-sprint-54-exit.md) · push registration, deep links, PWA installability + Lighthouse CI, store metadata                                                                       |
 | **8**  | **Sprint 6.1**                     | Master · Phase 6 | **Closed engineering 2026-05-15** — [`master-sprint-61-exit.md`](docs/runbooks/master-sprint-61-exit.md) · Tenant Admin Portal shell (**3002**), KPI dashboard + catalogue list/edit (`TenantService`) · [§ Phase 6](#phase-6--admin-portals-state--tenant)        |
 | **9**  | **Sprint 6.2**                     | Master · Phase 6 | **Closed engineering 2026-05-15** — [`master-sprint-62-exit.md`](docs/runbooks/master-sprint-62-exit.md) · Form-schema draft/publish + shared preview; workflow draft/publish + validation                                                                         |
-| **10** | **Sprint 6.3**                     | Master · Phase 6 | Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads                                                                                                                                                                             |
+| **10** | **Sprint 6.3**                     | Master · Phase 6 | **Closed engineering 2026-05-15** — [`master-sprint-63-exit.md`](docs/runbooks/master-sprint-63-exit.md) · Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads                                                                  |
 
 **Master Phase 4 backlog slice (#3) — closed in-repo (engineering, 2026-05-14):** [`phase4-backlog-slice-exit.md`](docs/runbooks/phase4-backlog-slice-exit.md) — **`POST …/staff/sweep-sla`** fans out **`sla_breach` notification** rows (`GET/PATCH …/citizen/notifications`), **`POST …/:id/attachments/register`**, validated **`location` WGS-84** fields on create, **`GET /public/grievances/aggregate-metrics`**, deterministic **200-row** routing permutation test (`grievance-routing-bake-off.spec.ts`). **Still deferred:** sub-minute native breach push (**FCM/APNs**) + production rate limits on **`/public/*`**.
 
@@ -85,6 +85,8 @@ Use this when prioritising what to pull next across tracks (adjust for staffing 
 **Master Sprint 6.1 (#8) — closed in-repo (engineering, 2026-05-15):** [`master-sprint-61-exit.md`](./docs/runbooks/master-sprint-61-exit.md) — **`apps/admin-tenant`** Next.js (**PKCE** `admin-tenant` client); **`AdminTenantModule`** (`GET /admin/tenant/dashboard`, services **GET/PATCH**); **CORS** adds **`localhost:3002`**. **Explicit deferral:** citizen **`GET /services/tenants/:code`** stays seed-backed until a catalogue-alignment sprint.
 
 **Master Sprint 6.2 (#9) — closed in-repo (engineering, 2026-05-15):** [`master-sprint-62-exit.md`](./docs/runbooks/master-sprint-62-exit.md) — **form-schema draft/publish** (`service_form_versions`), **workflow draft/publish** (`workflows`, `workflow_stages`, `workflow_transitions`), shared **`@enagar/forms/web`** preview in **`apps/admin-tenant`**, and workflow validation helpers in **`@enagar/workflow`**. **Explicit deferral:** drag-and-drop graph UI and citizen DB-backed schema consumption stay future slices.
+
+**Master Sprint 6.3 (#10) — closed in-repo (engineering, 2026-05-15):** [`master-sprint-63-exit.md`](./docs/runbooks/master-sprint-63-exit.md) — Tenant Admin service **fee rule**, **document checklist**, and **revenue-head mapping** config; tenant **address master** + **tax/tariff master** APIs and UI; local seed data for KMC/HMC masters. **Explicit deferral:** citizen runtime still does not consume DB-backed admin config as the primary catalogue/source-of-truth.
 
 **After #10:** Continue Phase **6** with **Sprint 6.4** onward, or replan with sponsor.
 
@@ -1817,7 +1819,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action:** Start **[Master Sprint 6.3](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)** (**queue #10**) — Fee-rule engine, document checklists, tax/tariff master, address master, revenue heads. Parallel **Hub H5.1** staging / pilot readiness as capacity allows. **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause. _(Hub **H5.1** and Master **Phase 5** sprints are distinct labels — do not confuse.)_
+**Next action:** Continue Phase **6** with **Sprint 6.4** — notification templates, KB CMS, branding, feature flags, staff & roles. Parallel **Hub H5.1** staging / pilot readiness as capacity allows. **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause. _(Hub **H5.1** and Master **Phase 5** sprints are distinct labels — do not confuse.)_
 
 ---
 

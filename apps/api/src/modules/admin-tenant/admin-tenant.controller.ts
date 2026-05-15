@@ -1,10 +1,16 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
 import { AdminTenantService } from './admin-tenant.service';
 import { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
+import {
+  PatchTenantServiceConfigDto,
+  UpsertAddressMasterDto,
+  UpsertRevenueHeadDto,
+  UpsertTariffDto,
+} from './dto/service-config.dto';
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -37,6 +43,96 @@ export class AdminTenantController {
     @Body() dto: PatchTenantServiceDto,
   ) {
     return this.adminTenant.patchService(principal, serviceId, dto);
+  }
+
+  @Get('services/:serviceId/config')
+  @ApiOperation({ summary: 'Load fee, document checklist, and revenue mapping for a service' })
+  getServiceConfig(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceId') serviceId: string,
+  ) {
+    return this.adminTenant.getServiceConfig(principal, serviceId);
+  }
+
+  @Patch('services/:serviceId/config')
+  @ApiOperation({
+    summary: 'Patch fee rule, document checklist, and revenue mapping for a service',
+  })
+  patchServiceConfig(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceId') serviceId: string,
+    @Body() dto: PatchTenantServiceConfigDto,
+  ) {
+    return this.adminTenant.patchServiceConfig(principal, serviceId, dto);
+  }
+
+  @Get('revenue-heads')
+  @ApiOperation({ summary: 'List revenue heads and GL mappings available to tenant services' })
+  listRevenueHeads(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listRevenueHeads(principal);
+  }
+
+  @Patch('revenue-heads')
+  @ApiOperation({ summary: 'Create or update a revenue head and GL mapping' })
+  upsertRevenueHead(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertRevenueHeadDto,
+  ) {
+    return this.adminTenant.upsertRevenueHead(principal, dto);
+  }
+
+  @Post('revenue-heads')
+  @ApiOperation({ summary: 'Create or update a revenue head and GL mapping' })
+  postRevenueHead(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertRevenueHeadDto,
+  ) {
+    return this.adminTenant.upsertRevenueHead(principal, dto);
+  }
+
+  @Get('address-master')
+  @ApiOperation({ summary: 'List tenant address master rows' })
+  listAddressMaster(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listAddressMaster(principal);
+  }
+
+  @Patch('address-master')
+  @ApiOperation({ summary: 'Create or update a tenant address master row' })
+  upsertAddressMaster(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertAddressMasterDto,
+  ) {
+    return this.adminTenant.upsertAddressMaster(principal, dto);
+  }
+
+  @Post('address-master')
+  @ApiOperation({ summary: 'Create or update a tenant address master row' })
+  postAddressMaster(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertAddressMasterDto,
+  ) {
+    return this.adminTenant.upsertAddressMaster(principal, dto);
+  }
+
+  @Get('tariffs')
+  @ApiOperation({ summary: 'List tenant tax and tariff master rows' })
+  listTariffs(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listTariffs(principal);
+  }
+
+  @Patch('tariffs')
+  @ApiOperation({ summary: 'Create or update a tenant tax/tariff master row' })
+  upsertTariff(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertTariffDto,
+  ) {
+    return this.adminTenant.upsertTariff(principal, dto);
+  }
+
+  @Post('tariffs')
+  @ApiOperation({ summary: 'Create or update a tenant tax/tariff master row' })
+  postTariff(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Body() dto: UpsertTariffDto) {
+    return this.adminTenant.upsertTariff(principal, dto);
   }
 
   @Get('services/:serviceId/designer')

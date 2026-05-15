@@ -24,6 +24,7 @@ model Tenant {
   boroughs         Borough[]
   citizens         Citizen[]
   localities       Locality[]
+  tariffs          TenantTariff[]
   notifications    Notification[]
   pushDevices      CitizenPushDevice[]
   applicationComments ApplicationComment[]
@@ -194,6 +195,7 @@ model Locality {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
   wardId    String?  @map("ward_id") @db.Uuid
+  mouza     String?  @db.VarChar(120)
   name      String   @db.VarChar(150)
   pincode   String?  @db.VarChar(10)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -202,7 +204,25 @@ model Locality {
 
   @@unique([tenantId, name, pincode])
   @@index([tenantId, wardId])
+  @@index([tenantId, mouza])
   @@map("localities")
+}
+
+model TenantTariff {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  code        String   @db.VarChar(80)
+  category    String   @db.VarChar(40)
+  name        Json
+  rateConfig  Json     @default(dbgenerated("'{}'::jsonb")) @map("rate_config")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category, isActive])
+  @@map("tenant_tariffs")
 }
 
 model Notification {

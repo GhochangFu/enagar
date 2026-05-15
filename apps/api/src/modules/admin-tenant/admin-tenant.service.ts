@@ -4,9 +4,24 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 
 import { PrismaService } from '../../common/database/prisma.service';
 
+import {
+  assertCode,
+  assertLocaleLabel,
+  assertValidDocumentChecklist,
+  assertValidFeeRule,
+  assertValidTariffCategory,
+  calculateFeePreview,
+} from './admin-tenant-config.contracts';
 import { assertTenantPortalStaff } from './tenant-admin-portal-roles';
 
+import type { FeeRule } from './admin-tenant-config.contracts';
 import type { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
+import type {
+  PatchTenantServiceConfigDto,
+  UpsertAddressMasterDto,
+  UpsertRevenueHeadDto,
+  UpsertTariffDto,
+} from './dto/service-config.dto';
 import type {
   SaveServiceFormDraftDto,
   SaveServiceWorkflowDraftDto,
@@ -34,6 +49,48 @@ export type TenantAdminServiceRow = {
   description: Prisma.JsonValue;
   is_active: boolean;
   effective_sla_days: number | null;
+  updated_at: string;
+};
+
+export type TenantAdminServiceConfig = TenantAdminServiceRow & {
+  fee_rule: Prisma.JsonValue;
+  fee_preview_paise: number | null;
+  required_documents: Prisma.JsonValue;
+  revenue_head: {
+    id: string;
+    code: string;
+    name: Prisma.JsonValue;
+    accounting_code: string;
+  } | null;
+};
+
+export type TenantAdminRevenueHeadRow = {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  accounting_code: string;
+  is_active: boolean;
+};
+
+export type TenantAdminAddressMasterRow = {
+  borough_code: string | null;
+  borough_name: string | null;
+  ward_number: string | null;
+  ward_name: string | null;
+  mouza: string | null;
+  locality_id: string;
+  locality_name: string;
+  pincode: string | null;
+};
+
+export type TenantAdminTariffRow = {
+  id: string;
+  code: string;
+  category: string;
+  name: Prisma.JsonValue;
+  rate_config: Prisma.JsonValue;
+  preview_paise: number | null;
+  is_active: boolean;
   updated_at: string;
 };
 
@@ -237,6 +294,227 @@ export class AdminTenantService {
       effective_sla_days: updated.effectiveSlaDays,
       updated_at: updated.updatedAt.toISOString(),
     };
+  }
+
+  async getServiceConfig(
+    principal: AuthenticatedPrincipal,
+    serviceId: string,
+  ): Promise<TenantAdminServiceConfig> {
+    assertTenantPortalStaff(principal);
+    const row = await this.prisma.tenantService.findFirst({
+      where: { id: serviceId, tenantId: principal.tenantId },
+      include: { revenueHead: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Service not found for this tenant');
+    }
+
+    return toServiceConfigRow(row);
+  }
+
+  async patchServiceConfig(
+    principal: AuthenticatedPrincipal,
+    serviceId: string,
+    dto: PatchTenantServiceConfigDto,
+  ): Promise<TenantAdminServiceConfig> {
+    assertTenantPortalStaff(principal);
+    const existing = await this.prisma.tenantService.findFirst({
+      where: { id: serviceId, tenantId: principal.tenantId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Service not found for this tenant');
+    }
+
+    let revenueHeadId: string | null | undefined;
+    if (dto.revenue_head_code !== undefined) {
+      const code = dto.revenue_head_code.trim();
+      if (!code) {
+        revenueHeadId = null;
+      } else {
+        const revenueHead = await this.prisma.revenueHead.findUnique({ where: { code } });
+        if (!revenueHead || !revenueHead.isActive) {
+          throw new BadRequestException('Revenue head is not active or does not exist');
+        }
+        revenueHeadId = revenueHead.id;
+      }
+    }
+
+    const data: Prisma.TenantServiceUpdateInput = {};
+    if (dto.fee_rule !== undefined) {
+      assertValidFeeRule(dto.fee_rule);
+      data.effectiveFeeConfig = dto.fee_rule as unknown as Prisma.InputJsonValue;
+    }
+    if (dto.required_documents !== undefined) {
+      assertValidDocumentChecklist(dto.required_documents);
+      data.requiredDocuments = dto.required_documents as unknown as Prisma.InputJsonValue;
+    }
+    if (revenueHeadId !== undefined) {
+      data.revenueHead = revenueHeadId ? { connect: { id: revenueHeadId } } : { disconnect: true };
+    }
+
+    const updated = await this.prisma.tenantService.update({
+      where: { id: existing.id },
+      data,
+      include: { revenueHead: true },
+    });
+
+    return toServiceConfigRow(updated);
+  }
+
+  async listRevenueHeads(principal: AuthenticatedPrincipal): Promise<TenantAdminRevenueHeadRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.revenueHead.findMany({
+      orderBy: [{ code: 'asc' }],
+    });
+    return rows.map(toRevenueHeadRow);
+  }
+
+  async upsertRevenueHead(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertRevenueHeadDto,
+  ): Promise<TenantAdminRevenueHeadRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'revenue head code');
+    assertLocaleLabel(dto.name, 'revenue head name');
+    if (!/^RH-[A-Z0-9-]+$/.test(dto.accounting_code)) {
+      throw new BadRequestException('accounting_code must use RH-* format');
+    }
+
+    const row = await this.prisma.revenueHead.upsert({
+      where: { code: dto.code },
+      create: {
+        code: dto.code,
+        name: dto.name as Prisma.InputJsonValue,
+        accountingCode: dto.accounting_code,
+        isActive: dto.is_active ?? true,
+      },
+      update: {
+        name: dto.name as Prisma.InputJsonValue,
+        accountingCode: dto.accounting_code,
+        isActive: dto.is_active ?? true,
+      },
+    });
+    return toRevenueHeadRow(row);
+  }
+
+  async listAddressMaster(
+    principal: AuthenticatedPrincipal,
+  ): Promise<TenantAdminAddressMasterRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.locality.findMany({
+      where: { tenantId: principal.tenantId },
+      include: { ward: { include: { borough: true } } },
+      orderBy: [{ mouza: 'asc' }, { name: 'asc' }],
+    });
+    return rows.map(toAddressMasterRow);
+  }
+
+  async upsertAddressMaster(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertAddressMasterDto,
+  ): Promise<TenantAdminAddressMasterRow> {
+    assertTenantPortalStaff(principal);
+    const wardNumber = dto.ward_number.trim();
+    const localityName = dto.locality_name.trim();
+    const pincode = dto.pincode?.trim() || '';
+    if (!wardNumber || !localityName) {
+      throw new BadRequestException('ward_number and locality_name are required');
+    }
+
+    const boroughCode = dto.borough_code?.trim();
+    let boroughId: string | null = null;
+    if (boroughCode) {
+      const borough = await this.prisma.borough.upsert({
+        where: { tenantId_code: { tenantId: principal.tenantId, code: boroughCode } },
+        create: {
+          tenantId: principal.tenantId,
+          code: boroughCode,
+          name: dto.borough_name?.trim() || boroughCode,
+        },
+        update: {
+          name: dto.borough_name?.trim() || boroughCode,
+        },
+      });
+      boroughId = borough.id;
+    }
+
+    const ward = await this.prisma.ward.upsert({
+      where: { tenantId_number: { tenantId: principal.tenantId, number: wardNumber } },
+      create: {
+        tenantId: principal.tenantId,
+        boroughId,
+        number: wardNumber,
+        name: dto.ward_name?.trim() || null,
+      },
+      update: {
+        boroughId,
+        name: dto.ward_name?.trim() || null,
+      },
+    });
+
+    const locality = await this.prisma.locality.upsert({
+      where: {
+        tenantId_name_pincode: {
+          tenantId: principal.tenantId,
+          name: localityName,
+          pincode,
+        },
+      },
+      create: {
+        tenantId: principal.tenantId,
+        wardId: ward.id,
+        mouza: dto.mouza?.trim() || null,
+        name: localityName,
+        pincode,
+      },
+      update: {
+        wardId: ward.id,
+        mouza: dto.mouza?.trim() || null,
+      },
+      include: { ward: { include: { borough: true } } },
+    });
+
+    return toAddressMasterRow(locality);
+  }
+
+  async listTariffs(principal: AuthenticatedPrincipal): Promise<TenantAdminTariffRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.tenantTariff.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ category: 'asc' }, { code: 'asc' }],
+    });
+    return rows.map(toTariffRow);
+  }
+
+  async upsertTariff(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertTariffDto,
+  ): Promise<TenantAdminTariffRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'tariff code');
+    assertValidTariffCategory(dto.category);
+    assertLocaleLabel(dto.name, 'tariff name');
+    assertValidFeeRule(dto.rate_config);
+
+    const row = await this.prisma.tenantTariff.upsert({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: dto.code } },
+      create: {
+        tenantId: principal.tenantId,
+        code: dto.code,
+        category: dto.category,
+        name: dto.name as Prisma.InputJsonValue,
+        rateConfig: dto.rate_config as Prisma.InputJsonValue,
+        isActive: dto.is_active ?? true,
+      },
+      update: {
+        category: dto.category,
+        name: dto.name as Prisma.InputJsonValue,
+        rateConfig: dto.rate_config as Prisma.InputJsonValue,
+        isActive: dto.is_active ?? true,
+      },
+    });
+    return toTariffRow(row);
   }
 
   async getServiceDesigner(
@@ -572,6 +850,117 @@ function toFormVersionRow(row: {
     ui_schema: row.uiSchema,
     published_at: row.publishedAt?.toISOString() ?? null,
   };
+}
+
+function toServiceConfigRow(row: {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  description: Prisma.JsonValue;
+  isActive: boolean;
+  effectiveSlaDays: number | null;
+  effectiveFeeConfig: Prisma.JsonValue;
+  requiredDocuments: Prisma.JsonValue;
+  updatedAt: Date;
+  revenueHead: {
+    id: string;
+    code: string;
+    name: Prisma.JsonValue;
+    accountingCode: string;
+  } | null;
+}): TenantAdminServiceConfig {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    is_active: row.isActive,
+    effective_sla_days: row.effectiveSlaDays,
+    updated_at: row.updatedAt.toISOString(),
+    fee_rule: row.effectiveFeeConfig,
+    fee_preview_paise: previewFeeRule(row.effectiveFeeConfig),
+    required_documents: row.requiredDocuments,
+    revenue_head: row.revenueHead
+      ? {
+          id: row.revenueHead.id,
+          code: row.revenueHead.code,
+          name: row.revenueHead.name,
+          accounting_code: row.revenueHead.accountingCode,
+        }
+      : null,
+  };
+}
+
+function toRevenueHeadRow(row: {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  accountingCode: string;
+  isActive: boolean;
+}): TenantAdminRevenueHeadRow {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    accounting_code: row.accountingCode,
+    is_active: row.isActive,
+  };
+}
+
+function toAddressMasterRow(row: {
+  id: string;
+  name: string;
+  pincode: string | null;
+  mouza: string | null;
+  ward: {
+    number: string;
+    name: string | null;
+    borough: { code: string; name: string } | null;
+  } | null;
+}): TenantAdminAddressMasterRow {
+  return {
+    borough_code: row.ward?.borough?.code ?? null,
+    borough_name: row.ward?.borough?.name ?? null,
+    ward_number: row.ward?.number ?? null,
+    ward_name: row.ward?.name ?? null,
+    mouza: row.mouza,
+    locality_id: row.id,
+    locality_name: row.name,
+    pincode: row.pincode,
+  };
+}
+
+function toTariffRow(row: {
+  id: string;
+  code: string;
+  category: string;
+  name: Prisma.JsonValue;
+  rateConfig: Prisma.JsonValue;
+  isActive: boolean;
+  updatedAt: Date;
+}): TenantAdminTariffRow {
+  return {
+    id: row.id,
+    code: row.code,
+    category: row.category,
+    name: row.name,
+    rate_config: row.rateConfig,
+    preview_paise: previewFeeRule(row.rateConfig),
+    is_active: row.isActive,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function previewFeeRule(value: Prisma.JsonValue): number | null {
+  try {
+    assertValidFeeRule(value);
+    return calculateFeePreview(value as FeeRule, {
+      built_up_area_sqft: 1000,
+      monthly_kl: 20,
+    });
+  } catch {
+    return null;
+  }
 }
 
 function toWorkflowRow(row: WorkflowWithChildren): TenantAdminWorkflowRow {
