@@ -50,7 +50,12 @@ export class JwtVerifierService {
 
       return this.toPrincipal(payload);
     } catch (error) {
-      throw new UnauthorizedException('Invalid or expired access token', { cause: error });
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      const hint =
+        process.env.NODE_ENV !== 'production' && error instanceof Error ? `: ${error.message}` : '';
+      throw new UnauthorizedException(`Invalid or expired access token${hint}`, { cause: error });
     }
   }
 
@@ -98,7 +103,11 @@ export class JwtVerifierService {
     }
 
     const roles = this.extractRoles(claims);
-    if (this.requiresMfa(roles) && !this.hasMfa(claims)) {
+    if (
+      this.requiresMfa(roles) &&
+      !this.hasMfa(claims) &&
+      !this.allowsLocalDummyAdminMfaBypass(claims, roles)
+    ) {
       throw new UnauthorizedException('Admin role requires MFA');
     }
 
@@ -131,7 +140,36 @@ export class JwtVerifierService {
     return roles.some((role) => role === 'tenant_admin' || role === 'state_admin');
   }
 
+  private allowsLocalDummyAdminMfaBypass(claims: EnagarJwtClaims, roles: string[]): boolean {
+    if (!this.devAuthEnabled || process.env.NODE_ENV === 'production') {
+      return false;
+    }
+    if (!this.requiresMfa(roles)) {
+      return false;
+    }
+    return /^([a-z0-9]+-)?(tenant|state)-admin-dummy$/i.test(claims.sub);
+  }
+
   private hasMfa(claims: EnagarJwtClaims): boolean {
-    return claims.acr === 'mfa' || claims.amr?.includes('otp') === true;
+    if (claims.acr === 'mfa') {
+      return true;
+    }
+    const amr = this.normalizeAmr(claims.amr);
+    if (amr.some((value) => value === 'otp' || value === 'totp' || value === 'mfa')) {
+      return true;
+    }
+    // Keycloak step-up auth maps LoA to acr (often "2" after password + OTP).
+    const acrLevel = Number(claims.acr);
+    return !Number.isNaN(acrLevel) && acrLevel >= 2;
+  }
+
+  private normalizeAmr(amr: EnagarJwtClaims['amr']): string[] {
+    if (Array.isArray(amr)) {
+      return amr.map((value) => String(value));
+    }
+    if (typeof amr === 'string' && amr.length > 0) {
+      return [amr];
+    }
+    return [];
   }
 }

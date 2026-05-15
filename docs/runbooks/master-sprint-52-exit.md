@@ -1,7 +1,7 @@
 # Master Phase 5 — **Sprint 5.2a** exit (**locked queue #5**, engineering slice)
 
 **Status: closed — engineering (repo)** · **2026-05-14**  
-_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)._
+_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-sprint-queue-priority-order-114)._
 
 Master **ROADMAP** row **Sprint 5.2** listed “RN apply / payments / grievance flows + offline drafts.” This sprint delivers the **engineering subsprint `5.2a`**: **OTP parity**, **grievances** (list / create / detail) against **`/grievances`** with **`Authorization: Bearer …`** plus **`x-enagar-tenant-code`** (municipality **code**, e.g. KMC), and **offline composer drafts** persisted with the shared **`@enagar/forms`** draft envelope helpers.
 

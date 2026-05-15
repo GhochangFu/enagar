@@ -38,6 +38,41 @@ describe('AdminTenantService', () => {
       findMany?: jest.Mock;
       upsert?: jest.Mock;
     };
+    tenant?: {
+      findUnique?: jest.Mock;
+      update?: jest.Mock;
+    };
+    tenantConfig?: {
+      create?: jest.Mock;
+      upsert?: jest.Mock;
+    };
+    notificationTemplate?: {
+      findMany?: jest.Mock;
+      upsert?: jest.Mock;
+    };
+    kbArticle?: {
+      findMany?: jest.Mock;
+      upsert?: jest.Mock;
+    };
+    role?: {
+      findMany?: jest.Mock;
+      findUnique?: jest.Mock;
+    };
+    user?: {
+      findMany?: jest.Mock;
+      findUnique?: jest.Mock;
+      findUniqueOrThrow?: jest.Mock;
+      create?: jest.Mock;
+      update?: jest.Mock;
+    };
+    userRole?: {
+      deleteMany?: jest.Mock;
+      create?: jest.Mock;
+    };
+    roleStageMap?: {
+      findMany?: jest.Mock;
+      upsert?: jest.Mock;
+    };
     serviceFormVersion?: {
       aggregate?: jest.Mock;
       create?: jest.Mock;
@@ -83,6 +118,41 @@ describe('AdminTenantService', () => {
         findMany: overrides.tenantTariff?.findMany ?? jest.fn(),
         upsert: overrides.tenantTariff?.upsert ?? jest.fn(),
       },
+      tenant: {
+        findUnique: overrides.tenant?.findUnique ?? jest.fn(),
+        update: overrides.tenant?.update ?? jest.fn(),
+      },
+      tenantConfig: {
+        create: overrides.tenantConfig?.create ?? jest.fn(),
+        upsert: overrides.tenantConfig?.upsert ?? jest.fn(),
+      },
+      notificationTemplate: {
+        findMany: overrides.notificationTemplate?.findMany ?? jest.fn(),
+        upsert: overrides.notificationTemplate?.upsert ?? jest.fn(),
+      },
+      kbArticle: {
+        findMany: overrides.kbArticle?.findMany ?? jest.fn(),
+        upsert: overrides.kbArticle?.upsert ?? jest.fn(),
+      },
+      role: {
+        findMany: overrides.role?.findMany ?? jest.fn(),
+        findUnique: overrides.role?.findUnique ?? jest.fn(),
+      },
+      user: {
+        findMany: overrides.user?.findMany ?? jest.fn(),
+        findUnique: overrides.user?.findUnique ?? jest.fn(),
+        findUniqueOrThrow: overrides.user?.findUniqueOrThrow ?? jest.fn(),
+        create: overrides.user?.create ?? jest.fn(),
+        update: overrides.user?.update ?? jest.fn(),
+      },
+      userRole: {
+        deleteMany: overrides.userRole?.deleteMany ?? jest.fn(),
+        create: overrides.userRole?.create ?? jest.fn(),
+      },
+      roleStageMap: {
+        findMany: overrides.roleStageMap?.findMany ?? jest.fn(),
+        upsert: overrides.roleStageMap?.upsert ?? jest.fn(),
+      },
       serviceFormVersion: {
         aggregate: overrides.serviceFormVersion?.aggregate ?? jest.fn(),
         create: overrides.serviceFormVersion?.create ?? jest.fn(),
@@ -93,6 +163,19 @@ describe('AdminTenantService', () => {
         aggregate: overrides.workflow?.aggregate ?? jest.fn(),
         findFirst: overrides.workflow?.findFirst ?? jest.fn(),
       },
+      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
+        callback({
+          user: {
+            create: overrides.user?.create ?? jest.fn(),
+            update: overrides.user?.update ?? jest.fn(),
+            findUniqueOrThrow: overrides.user?.findUniqueOrThrow ?? jest.fn(),
+          },
+          userRole: {
+            deleteMany: overrides.userRole?.deleteMany ?? jest.fn(),
+            create: overrides.userRole?.create ?? jest.fn(),
+          },
+        }),
+      ),
     } as unknown as import('../../common/database/prisma.service').PrismaService;
   }
 
@@ -406,5 +489,143 @@ describe('AdminTenantService', () => {
         where: { tenantId_code: { tenantId, code: 'water-domestic-v1' } },
       }),
     );
+  });
+
+  it('patchSettings validates branding and feature flags', async () => {
+    const prisma = mockPrisma({
+      tenant: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: tenantId,
+          code: 'KMC',
+          languagesEnabled: ['en', 'bn', 'hi'],
+          tenantConfig: {
+            branding: {},
+            featureFlags: {},
+            defaultLanguage: 'en',
+            contactPhone: null,
+            contactEmail: null,
+          },
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: tenantId,
+          code: 'KMC',
+          languagesEnabled: ['en', 'bn'],
+        }),
+      },
+      tenantConfig: {
+        upsert: jest.fn().mockResolvedValue({
+          branding: { theme_color: '#0f766e' },
+          featureFlags: { kb_cms: true },
+          defaultLanguage: 'en',
+          contactPhone: null,
+          contactEmail: null,
+        }),
+      },
+    });
+    const service = new AdminTenantService(prisma);
+    const row = await service.patchSettings(staffPrincipal, {
+      branding: { theme_color: '#0f766e' },
+      feature_flags: { kb_cms: true },
+      languages_enabled: ['en', 'bn'],
+      default_language: 'en',
+    });
+
+    expect(row.languages_enabled).toEqual(['en', 'bn']);
+    expect(prisma.tenant.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: tenantId },
+      }),
+    );
+  });
+
+  it('rejects notification template placeholders that are not declared', async () => {
+    const prisma = mockPrisma({
+      notificationTemplate: { upsert: jest.fn() },
+    });
+    const service = new AdminTenantService(prisma);
+
+    await expect(
+      service.upsertNotificationTemplate(staffPrincipal, {
+        code: 'application-submitted',
+        channel: 'sms',
+        locale: 'en',
+        trigger: 'application-submitted',
+        body: 'Application {{docket_no}} for {{missing_value}}',
+        variables: ['docket_no'],
+      }),
+    ).rejects.toThrow('missing_value');
+  });
+
+  it('upserts KB articles with tenant scope and publish timestamp', async () => {
+    const upsert = jest.fn().mockResolvedValue({
+      id: 'kb-1',
+      slug: 'birth-certificate-help',
+      title: { en: 'Birth certificate help' },
+      body: { en: 'Markdown body' },
+      tags: ['birth'],
+      status: 'published',
+      publishedAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const prisma = mockPrisma({ kbArticle: { upsert } });
+    const service = new AdminTenantService(prisma);
+    const row = await service.upsertKbArticle(staffPrincipal, {
+      slug: 'birth-certificate-help',
+      title: { en: 'Birth certificate help' },
+      body: { en: 'Markdown body' },
+      tags: ['birth'],
+      status: 'published',
+    });
+
+    expect(row.status).toBe('published');
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_slug: { tenantId, slug: 'birth-certificate-help' } },
+      }),
+    );
+  });
+
+  it('upserts staff and replaces role assignments in the principal tenant', async () => {
+    const createdUser = {
+      id: 'user-1',
+      tenantId,
+      keycloakUserId: '10000000-0000-4000-8000-000000000201',
+      username: 'kmc-clerk',
+      displayName: 'KMC Clerk',
+      email: null,
+      mobile: null,
+      status: 'active',
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      userRoles: [{ role: { code: 'tenant_clerk', name: 'Tenant Clerk' }, ward: null }],
+    };
+    const prisma = mockPrisma({
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdUser),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(createdUser),
+      },
+      role: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'role-1', code: 'tenant_clerk', name: 'Tenant Clerk' }]),
+      },
+      userRole: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'user-role-1' }),
+      },
+    });
+    const service = new AdminTenantService(prisma);
+    const row = await service.upsertStaff(staffPrincipal, {
+      keycloak_user_id: '10000000-0000-4000-8000-000000000201',
+      username: 'kmc-clerk',
+      display_name: 'KMC Clerk',
+      status: 'active',
+      role_codes: ['tenant_clerk'],
+    });
+
+    expect(row.roles).toEqual([{ code: 'tenant_clerk', name: 'Tenant Clerk', ward_number: null }]);
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { keycloakUserId: '10000000-0000-4000-8000-000000000201' },
+    });
   });
 });

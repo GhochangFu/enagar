@@ -35,10 +35,10 @@ All routes remain authenticated and tenant-scoped through the Sprint 6.1 portal 
 
 ## Explicit non-goals / deferrals
 
-- Drag-and-drop canvas polish. The v1 designer uses structured JSON editing with validation and live preview.
-- Citizen intake is not yet switched from seed-backed runtime schemas to DB-published `service_form_versions`.
+- Drag-and-drop canvas polish — scheduled **ROADMAP queue #14** (**Sprint 6.7 — designer polish**). The v1 designer uses structured JSON editing with validation and live preview.
+- Citizen intake is not yet switched from seed-backed runtime schemas to DB-published `service_form_versions` — scheduled **ROADMAP queue #13** (**Sprint 6.6 — catalogue alignment**).
 - Full audit-log persistence for every admin action remains a broader Phase 6 hardening item.
-- React Flow / X6 visual graph editing is deferred until after the persisted workflow contract is stable.
+- React Flow / X6 visual graph editing is part of **#14 (6.7)**; publish contracts from this sprint stay unchanged.
 
 ## Manual smoke checklist
 

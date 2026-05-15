@@ -22,6 +22,7 @@ Copy **`apps/admin-tenant/.env.example`** → **`.env.local`** and adjust if you
 2. **Callback** → `/auth/callback` exchanges `authorization_code`, stores tokens in **`sessionStorage`** under `enagar.admin.oauth`, redirects to **`/dashboard`**.
 3. Dashboard calls **`GET /api/admin/tenant/dashboard`** and **`GET/PATCH /api/admin/tenant/services/...`** with `Authorization: Bearer …`.
 4. Service **Configure** opens **`/dashboard/services/[serviceId]`** for form schema and workflow draft/publish.
+5. **Operations** opens **`/dashboard/operations`** for Sprint 6.4 templates, KB, branding, feature flags, staff, and role-stage maps.
 
 JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin`** with **`tenant_id` / `tenant_code`** claims (`tenant-claims` scope). **`tenant_admin`** tokens must satisfy MFA evidence expected by **`JwtVerifierService`** (`amr` / `acr`) unless you test with **`municipality_admin`** dummy users — see **`docs/runbooks/keycloak.md`**.
 
@@ -30,13 +31,15 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - **Form draft/publish** persists to **`service_form_versions`** through `PATCH /api/admin/tenant/services/:serviceId/form-draft`.
 - **Workflow draft/publish** persists to **`workflows`**, **`workflow_stages`**, and **`workflow_transitions`** through `PATCH /api/admin/tenant/services/:serviceId/workflow-draft`.
 - The right-side preview uses **`@enagar/forms/web`** so admin preview and citizen runtime share the renderer.
-- v1 intentionally uses structured JSON editing + validation; drag-and-drop graph polish is deferred.
+- v1 intentionally uses structured JSON editing + validation; drag-and-drop graph polish is scheduled at **ROADMAP queue #14** (**Sprint 6.7 — designer polish**).
 
 ## Relation to citizen catalogue API
 
-Public **`GET /api/services/tenants/:tenantCode`** remains **seed-derived** (`ServicesService`). Sprint **6.1** persists edits in **`services`** (Prisma `TenantService`) for operator workflows; aligning citizen intake with DB-backed catalogue is a later sprint.
+Public **`GET /api/services/tenants/:tenantCode`** remains **seed-derived** (`ServicesService`). Sprint **6.1** persists edits in **`services`** (Prisma `TenantService`) for operator workflows; aligning citizen intake with DB-backed catalogue is scheduled at **ROADMAP queue #13** (**Sprint 6.6 — catalogue alignment**).
 
 ## Engineering exit record
 
 Master Sprint **6.1**: **`docs/runbooks/master-sprint-61-exit.md`**.
 Master Sprint **6.2**: **`docs/runbooks/master-sprint-62-exit.md`**.
+Master Sprint **6.3**: **`docs/runbooks/master-sprint-63-exit.md`**.
+Master Sprint **6.4**: **`docs/runbooks/master-sprint-64-exit.md`**.

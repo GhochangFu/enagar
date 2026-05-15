@@ -23,7 +23,7 @@
 
 ## Explicit non-goals (defer)
 
-- Replacing seed-backed **`GET /services/tenants/:code`** with DB-backed resolution for citizens.
+- Replacing seed-backed **`GET /services/tenants/:code`** with DB-backed resolution for citizens — scheduled **ROADMAP queue #13** (**Sprint 6.6 — catalogue alignment**).
 - Form-schema builder, workflow designer, fee engine (later Sprint **6.2+**).
 
 ## Manual smoke checklist

@@ -151,10 +151,26 @@ pnpm --filter @enagar/admin-tenant dev
 
 - Tenant Admin: **`http://localhost:3002`**
 - Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
-- Exit checklists: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**
+- Exit checklists: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**, **`docs/runbooks/master-sprint-64-exit.md`**
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
-After login, click **Configure** on a service to open the Sprint 6.2 form/workflow designer and Sprint 6.3 fee/document/revenue configuration panel. Use **Masters** on the dashboard for revenue heads, address master rows, and tax/tariff rows.
+After login, click **Configure** on a service to open the Sprint 6.2 form/workflow designer and Sprint 6.3 fee/document/revenue configuration panel. Use **Masters** on the dashboard for revenue heads, address master rows, and tax/tariff rows. Use **Operations** for Sprint 6.4 branding, feature flags, notification templates, KB articles, and staff/role assignments.
+
+---
+
+## Step 9c — (Optional) State Super-Admin portal
+
+Only if you seeded Keycloak dummy operators and need the state-level Phase 6 UI:
+
+```bash
+pnpm --filter @enagar/admin-state dev
+```
+
+- State Admin: **`http://localhost:3003`**
+- Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
+- Exit checklist: **`docs/runbooks/master-sprint-65-exit.md`**
+
+Sign in with a **`state_admin`** dummy user. The dashboard supports municipality onboarding, tenant directory review, audited impersonation token creation, cross-tenant analytics, and recent audit log review.
 
 ---
 
@@ -186,6 +202,7 @@ That starts multiple apps via Turbo (can be noisy; filtering two packages as abo
 | ------------------ | ---------------------------- |
 | Citizen PWA        | http://localhost:3000        |
 | Tenant Admin       | http://localhost:3002        |
+| State Admin        | http://localhost:3003        |
 | API health         | http://localhost:3001/health |
 | API docs (Swagger) | http://localhost:3001/docs   |
 | Keycloak console   | http://localhost:8080        |

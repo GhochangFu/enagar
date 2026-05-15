@@ -1,12 +1,35 @@
-# @enagar/admin-state — STUB (Phase 6)
+# @enagar/admin-state — State Super-Admin Portal
 
-State Super-Admin portal:
+Sprint 6.5 turns this package into the State Super-Admin portal on **http://localhost:3003**.
 
-- Onboard / disable / merge / split ULBs (municipalities)
-- Manage **global service templates** (Trade Licence, Birth Certificate, …) that ULBs can adopt
-- Cross-tenant audit log + DPDP compliance dashboard
-- Provider-failover dashboard for hosted LLMs (per ADR-0008)
+## What It Does
 
-## Status
+- Tenant onboarding wizard JSON editor backed by `PATCH /api/admin/state/tenants`
+- Tenant directory + cross-tenant KPI dashboard from `GET /api/admin/state/*`
+- Audited 15-minute tenant impersonation token creation
+- Recent state-admin audit log visibility
 
-Phase-0 stub only — `package.json` + `tsconfig.json` + this README. Full Next.js scaffold lands in Phase 6 (Sprint 6.2) per `ROADMAP.md`.
+## Local Run
+
+```bash
+pnpm --filter @enagar/admin-state dev
+```
+
+Copy `.env.example` to `.env.local` only if you need to override defaults.
+
+## Sign-In Flow
+
+The portal uses the Keycloak `admin-state` public client and Authorization Code + PKCE.
+The JWT must include the `state_admin` role and tenant claims from the `tenant-claims`
+scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA for
+`state_admin` accounts when the API verifier requires it.
+
+## Engineering Exit Record
+
+- `docs/runbooks/master-sprint-65-exit.md`
+
+## Explicit Non-Goals
+
+- No live Keycloak user provisioning from the onboarding wizard.
+- No production support-session handoff UI; this sprint generates and audits the short-lived token.
+- No global service library curator UI; inherited defaults use the existing catalogue seeds.

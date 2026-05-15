@@ -1,7 +1,7 @@
 # Master Phase 5 — **Sprint 5.3** exit (locked queue **#6**) — shared PWA form spine
 
 **Status: closed — engineering (repo)** · **2026-05-14**  
-_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)._
+_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-sprint-queue-priority-order-114)._
 
 This sprint delivers the **dual-surface parity spine** mandated for Phase 5: citizen **Apply** UX on **`apps/citizen-pwa`** consumes the same **`@enagar/forms`** render-plan contract as **`@enagar/mobile`**, layered on **`@enagar/ui`** Tailwind primitives (CSS vars **`--brand-rgb`** from **`@enagar/tenant-theme`**).
 

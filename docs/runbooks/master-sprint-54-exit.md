@@ -1,7 +1,7 @@
 # Master Phase 5 — **Sprint 5.4** exit (locked queue **#7**)
 
 **Status: closed — engineering (repo)** · **2026-05-15**  
-_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)._
+_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-sprint-queue-priority-order-114)._
 
 This sprint delivers **push registration**, **deep links**, **PWA installability (manifest + SW)**, **Lighthouse CI gates**, **store-listing copy**, and **baseline mobile a11y labels** across the dual citizen surfaces.
 

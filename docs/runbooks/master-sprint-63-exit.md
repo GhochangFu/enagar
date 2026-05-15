@@ -27,7 +27,7 @@ master, address master, and revenue heads.
 
 ## Explicit non-goals / deferrals
 
-- Citizen intake still does not consume DB-published form/config as its primary runtime source.
+- Citizen intake still does not consume DB-published form/config as its primary runtime source — scheduled **ROADMAP queue #13** (**Sprint 6.6 — catalogue alignment**).
 - Full CSV bulk import for address master is deferred; v1 uses structured JSON upserts.
 - Production-grade audit logging for every admin action remains a broader Phase 6 hardening item.
 - PSP integration for external fee providers remains deferred with Sprint 3.1B.

@@ -130,6 +130,76 @@ async function adminReq(token, method, path, jsonBody = undefined) {
   return fetch(url, opts);
 }
 
+async function ensureMfaTokenMappers(token) {
+  const scopesRes = await adminReq(token, 'GET', '/client-scopes');
+  if (!scopesRes.ok) {
+    throw new Error(`List client scopes failed: ${scopesRes.status} ${await scopesRes.text()}`);
+  }
+  /** @type {Array<{ id: string; name: string }>} */
+  const scopes = await scopesRes.json();
+  const tenantClaims = scopes.find((scope) => scope.name === 'tenant-claims');
+  if (!tenantClaims) {
+    throw new Error('Missing client scope "tenant-claims" — import realm-export first.');
+  }
+
+  const mappersRes = await adminReq(
+    token,
+    'GET',
+    `/client-scopes/${tenantClaims.id}/protocol-mappers/models`,
+  );
+  if (!mappersRes.ok) {
+    throw new Error(`List tenant-claims mappers failed: ${mappersRes.status}`);
+  }
+  /** @type {Array<{ name: string; protocolMapper: string }>} */
+  const existing = await mappersRes.json();
+  const have = new Set(existing.map((mapper) => mapper.protocolMapper));
+
+  const toCreate = [
+    {
+      name: 'amr',
+      protocolMapper: 'oidc-amr-mapper',
+      config: {
+        'access.token.claim': 'true',
+        'id.token.claim': 'true',
+        'userinfo.token.claim': 'true',
+      },
+    },
+    {
+      name: 'acr',
+      protocolMapper: 'oidc-acr-mapper',
+      config: {
+        'access.token.claim': 'true',
+        'id.token.claim': 'true',
+        'userinfo.token.claim': 'true',
+        'introspection.token.claim': 'true',
+      },
+    },
+  ];
+
+  for (const mapper of toCreate) {
+    if (have.has(mapper.protocolMapper)) {
+      continue;
+    }
+    const create = await adminReq(
+      token,
+      'POST',
+      `/client-scopes/${tenantClaims.id}/protocol-mappers/models`,
+      {
+        name: mapper.name,
+        protocol: 'openid-connect',
+        protocolMapper: mapper.protocolMapper,
+        config: mapper.config,
+      },
+    );
+    if (!create.ok && create.status !== 409) {
+      throw new Error(
+        `Create mapper ${mapper.name}: ${create.status} ${await create.text()}`,
+      );
+    }
+    console.info(`Added tenant-claims mapper: ${mapper.name}`);
+  }
+}
+
 async function listRealmRoles(token) {
   const res = await adminReq(token, 'GET', '/roles');
   if (!res.ok) {
@@ -314,6 +384,7 @@ async function main() {
   console.info(`Dummy password for all scripted users: ${PASSWORD}`);
   const token = await adminToken();
   await ensureTenantUserProfileAttributes(token);
+  await ensureMfaTokenMappers(token);
 
   /** @type {Array<{ id: string; name: string }>} */
   const roleCatalog = await listRealmRoles(token);

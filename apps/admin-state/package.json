@@ -5,20 +5,30 @@
   "description": "State Super-Admin portal (onboard ULBs, manage global services, audit). Phase 6.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "dev": "echo '@enagar/admin-state: Phase-6 stub — see ROADMAP.md'",
-    "build": "echo 'noop (stub)'",
-    "lint": "echo 'noop (stub)'",
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "echo 'no tests yet'",
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {
-    "@enagar/types": "workspace:*"
+    "@enagar/types": "workspace:*",
+    "next": "14.2.13",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@enagar/config": "workspace:*",
     "@types/node": "^20.16.10",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.13",
+    "postcss": "^8.4.47",
     "rimraf": "^6.0.1",
+    "tailwindcss": "^3.4.13",
     "typescript": "^5.5.4"
   }
 }

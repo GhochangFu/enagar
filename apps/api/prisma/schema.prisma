@@ -26,7 +26,11 @@ model Tenant {
   localities       Locality[]
   tariffs          TenantTariff[]
   notifications    Notification[]
+  notificationTemplates NotificationTemplate[]
   pushDevices      CitizenPushDevice[]
+  kbArticles       KbArticle[]
+  stateAuditLogs   StateAuditLog[]
+  impersonationTokens ImpersonationToken[]
   applicationComments ApplicationComment[]
   applicationDocuments ApplicationDocument[]
   applicationTimeline ApplicationTimeline[]
@@ -243,6 +247,27 @@ model Notification {
   @@map("notifications")
 }
 
+model NotificationTemplate {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  code      String   @db.VarChar(80)
+  channel   String   @db.VarChar(20)
+  locale    String   @db.VarChar(5)
+  trigger   String   @db.VarChar(80)
+  subject   String?  @db.VarChar(255)
+  body      String
+  variables Json     @default(dbgenerated("'[]'::jsonb"))
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code, channel, locale])
+  @@index([tenantId, channel, locale, isActive])
+  @@index([tenantId, trigger])
+  @@map("notification_templates")
+}
+
 model CitizenPushDevice {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
@@ -257,6 +282,59 @@ model CitizenPushDevice {
   @@unique([citizenId, token])
   @@index([tenantId, citizenId])
   @@map("citizen_push_devices")
+}
+
+model KbArticle {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  slug        String    @db.VarChar(120)
+  title       Json
+  body        Json
+  tags        String[]  @default([])
+  status      String    @default("draft") @db.VarChar(20)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tags], type: Gin)
+  @@map("kb_articles")
+}
+
+model StateAuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorSubject   String   @map("actor_subject") @db.VarChar(255)
+  actorRole      String   @map("actor_role") @db.VarChar(80)
+  action         String   @db.VarChar(80)
+  targetTenantId String?  @map("target_tenant_id") @db.Uuid
+  targetCode     String?  @map("target_code") @db.VarChar(80)
+  metadata       Json     @default(dbgenerated("'{}'::jsonb"))
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  targetTenant   Tenant?  @relation(fields: [targetTenantId], references: [id], onDelete: SetNull)
+
+  @@index([actorSubject, createdAt])
+  @@index([targetTenantId, createdAt])
+  @@index([action, createdAt])
+  @@map("state_audit_logs")
+}
+
+model ImpersonationToken {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetTenantId String    @map("target_tenant_id") @db.Uuid
+  actorSubject   String    @map("actor_subject") @db.VarChar(255)
+  actorRole      String    @map("actor_role") @db.VarChar(80)
+  reason         String    @db.VarChar(255)
+  tokenId        String    @unique @map("token_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  targetTenant   Tenant    @relation(fields: [targetTenantId], references: [id], onDelete: Cascade)
+
+  @@index([targetTenantId, expiresAt])
+  @@index([actorSubject, createdAt])
+  @@map("impersonation_tokens")
 }
 
 model RevenueHead {

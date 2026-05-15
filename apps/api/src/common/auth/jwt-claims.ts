@@ -16,7 +16,7 @@ export interface EnagarJwtClaims {
   role?: string | string[];
   ward_id?: string;
   acr?: string;
-  amr?: string[];
+  amr?: string | string[];
   realm_access?: {
     roles?: string[];
   };

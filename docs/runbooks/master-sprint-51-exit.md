@@ -1,7 +1,7 @@
 # Master Phase 5 — **Sprint 5.1** exit (locked queue **#4**)
 
 **Status: closed — engineering (repo)** · **2026-05-14**  
-_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)._  
+_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-sprint-queue-priority-order-114)._  
 _ADR: [ADR-0003](../ADRs/ADR-0003-mobile-pwa-parallel.md) — dual citizen surfaces; sequencing note defers RN polish to **5.3** where staffing is constrained; **`ROADMAP` locked-queue Sprint 5.1 is RN-first (`Splash → Tenant → Home`)**, so **this sprint follows `ROADMAP` scope**._
 
 _CI on closure: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:security` (all green on **2026-05-14**). Mobile: `pnpm --filter @enagar/mobile run lint` (via turbo)._

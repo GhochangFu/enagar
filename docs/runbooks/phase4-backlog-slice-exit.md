@@ -1,7 +1,7 @@
 # Master Phase 4 — backlog slice exit (locked queue **#3**)
 
 **Status: closed — engineering (repo)** · **2026-05-14**  
-_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order)._
+_ROADMAP pointer: [`ROADMAP.md` § Locked queue](../../ROADMAP.md#locked-sprint-queue-priority-order-114)._
 
 Full CI on closure: **`pnpm lint`**, **`pnpm typecheck`**, **`pnpm test`**, **`pnpm test:security`**.
 

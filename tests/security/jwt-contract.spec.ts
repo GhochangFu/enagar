@@ -71,7 +71,10 @@ describe('Sprint 1.2 API JWT tenant-binding contract', () => {
   it('requires MFA evidence for admin-role JWTs', () => {
     expect(verifierSource).toContain('requiresMfa');
     expect(verifierSource).toContain("role === 'tenant_admin' || role === 'state_admin'");
-    expect(verifierSource).toContain("claims.amr?.includes('otp')");
+    expect(verifierSource).toContain("value === 'otp' || value === 'totp' || value === 'mfa'");
+    expect(verifierSource).toContain('acrLevel >= 2');
+    expect(verifierSource).toContain('allowsLocalDummyAdminMfaBypass');
+    expect(verifierSource).toContain("process.env.NODE_ENV === 'production'");
     expect(verifierSource).toContain('Admin role requires MFA');
   });
 });

@@ -9,6 +9,15 @@ import {
   assertLocaleLabel,
   assertValidDocumentChecklist,
   assertValidFeeRule,
+  assertSupportedLocale,
+  assertValidBranding,
+  assertValidFeatureFlags,
+  assertValidKbArticleStatus,
+  assertValidLanguageList,
+  assertValidLocalizedMarkdown,
+  assertValidNotificationChannel,
+  assertValidNotificationVariables,
+  assertValidTagList,
   assertValidTariffCategory,
   calculateFeePreview,
 } from './admin-tenant-config.contracts';
@@ -26,6 +35,13 @@ import type {
   SaveServiceFormDraftDto,
   SaveServiceWorkflowDraftDto,
 } from './dto/service-designer.dto';
+import type {
+  PatchTenantSettingsDto,
+  UpsertKbArticleDto,
+  UpsertNotificationTemplateDto,
+  UpsertRoleStageMapDto,
+  UpsertStaffDto,
+} from './dto/tenant-operations.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Prisma } from '../../generated/prisma';
 import type { EnagarFormSchema } from '@enagar/forms';
@@ -121,6 +137,70 @@ export type TenantAdminServiceDesigner = {
   workflow_published: TenantAdminWorkflowRow | null;
   starter_form_schema: EnagarFormSchema;
   starter_workflow: WorkflowDefinition;
+};
+
+export type TenantAdminSettings = {
+  tenant_id: string;
+  tenant_code?: string;
+  branding: Prisma.JsonValue;
+  feature_flags: Prisma.JsonValue;
+  languages_enabled: string[];
+  default_language: string;
+  contact_phone: string | null;
+  contact_email: string | null;
+};
+
+export type TenantAdminNotificationTemplateRow = {
+  id: string;
+  code: string;
+  channel: string;
+  locale: string;
+  trigger: string;
+  subject: string | null;
+  body: string;
+  variables: Prisma.JsonValue;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export type TenantAdminKbArticleRow = {
+  id: string;
+  slug: string;
+  title: Prisma.JsonValue;
+  body: Prisma.JsonValue;
+  tags: string[];
+  status: string;
+  published_at: string | null;
+  updated_at: string;
+};
+
+export type TenantAdminRoleRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+};
+
+export type TenantAdminStaffRow = {
+  id: string;
+  keycloak_user_id: string;
+  username: string;
+  display_name: string;
+  email: string | null;
+  mobile: string | null;
+  status: string;
+  roles: Array<{ code: string; name: string; ward_number: string | null }>;
+  updated_at: string;
+};
+
+export type TenantAdminRoleStageMapRow = {
+  id: string;
+  workflow_code: string;
+  stage_code: string;
+  stage_label: Prisma.JsonValue;
+  role_code: string;
+  can_view: boolean;
+  can_act: boolean;
 };
 
 type WorkflowWithChildren = Prisma.WorkflowGetPayload<{
@@ -776,6 +856,343 @@ export class AdminTenantService {
     return toWorkflowRow(published);
   }
 
+  async getSettings(principal: AuthenticatedPrincipal): Promise<TenantAdminSettings> {
+    assertTenantPortalStaff(principal);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: principal.tenantId },
+      include: { tenantConfig: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const config =
+      tenant.tenantConfig ??
+      (await this.prisma.tenantConfig.create({ data: { tenantId: principal.tenantId } }));
+    return toSettingsRow(tenant, config, principal.tenantCode);
+  }
+
+  async patchSettings(
+    principal: AuthenticatedPrincipal,
+    dto: PatchTenantSettingsDto,
+  ): Promise<TenantAdminSettings> {
+    assertTenantPortalStaff(principal);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: principal.tenantId },
+      include: { tenantConfig: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    if (dto.branding !== undefined) {
+      assertValidBranding(dto.branding);
+    }
+    if (dto.feature_flags !== undefined) {
+      assertValidFeatureFlags(dto.feature_flags);
+    }
+    if (dto.languages_enabled !== undefined) {
+      assertValidLanguageList(dto.languages_enabled);
+    }
+    if (dto.default_language !== undefined) {
+      assertSupportedLocale(dto.default_language);
+    }
+
+    const updatedTenant = await this.prisma.tenant.update({
+      where: { id: principal.tenantId },
+      data: {
+        ...(dto.languages_enabled !== undefined ? { languagesEnabled: dto.languages_enabled } : {}),
+        ...(dto.branding?.theme_color !== undefined
+          ? { themeColor: String(dto.branding.theme_color) || null }
+          : {}),
+        ...(dto.branding?.logo_url !== undefined
+          ? { logoUrl: String(dto.branding.logo_url) || null }
+          : {}),
+      },
+    });
+
+    const config = await this.prisma.tenantConfig.upsert({
+      where: { tenantId: principal.tenantId },
+      create: {
+        tenantId: principal.tenantId,
+        ...(dto.default_language !== undefined ? { defaultLanguage: dto.default_language } : {}),
+        ...(dto.contact_phone !== undefined ? { contactPhone: dto.contact_phone || null } : {}),
+        ...(dto.contact_email !== undefined ? { contactEmail: dto.contact_email || null } : {}),
+        ...(dto.branding !== undefined ? { branding: dto.branding as Prisma.InputJsonValue } : {}),
+        ...(dto.feature_flags !== undefined
+          ? { featureFlags: dto.feature_flags as Prisma.InputJsonValue }
+          : {}),
+      },
+      update: {
+        ...(dto.default_language !== undefined ? { defaultLanguage: dto.default_language } : {}),
+        ...(dto.contact_phone !== undefined ? { contactPhone: dto.contact_phone || null } : {}),
+        ...(dto.contact_email !== undefined ? { contactEmail: dto.contact_email || null } : {}),
+        ...(dto.branding !== undefined ? { branding: dto.branding as Prisma.InputJsonValue } : {}),
+        ...(dto.feature_flags !== undefined
+          ? { featureFlags: dto.feature_flags as Prisma.InputJsonValue }
+          : {}),
+      },
+    });
+
+    return toSettingsRow(updatedTenant, config, principal.tenantCode);
+  }
+
+  async listNotificationTemplates(
+    principal: AuthenticatedPrincipal,
+  ): Promise<TenantAdminNotificationTemplateRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.notificationTemplate.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ channel: 'asc' }, { code: 'asc' }, { locale: 'asc' }],
+    });
+    return rows.map(toNotificationTemplateRow);
+  }
+
+  async upsertNotificationTemplate(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertNotificationTemplateDto,
+  ): Promise<TenantAdminNotificationTemplateRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'template code');
+    assertCode(dto.trigger, 'template trigger');
+    assertValidNotificationChannel(dto.channel);
+    assertSupportedLocale(dto.locale);
+    if (!dto.body.trim()) {
+      throw new BadRequestException('Template body is required');
+    }
+    const variables = dto.variables ?? extractTemplateVariables(dto.subject, dto.body);
+    assertValidNotificationVariables(variables, dto.body, dto.subject);
+
+    const row = await this.prisma.notificationTemplate.upsert({
+      where: {
+        tenantId_code_channel_locale: {
+          tenantId: principal.tenantId,
+          code: dto.code,
+          channel: dto.channel,
+          locale: dto.locale,
+        },
+      },
+      create: {
+        tenantId: principal.tenantId,
+        code: dto.code,
+        channel: dto.channel,
+        locale: dto.locale,
+        trigger: dto.trigger,
+        subject: dto.subject?.trim() || null,
+        body: dto.body,
+        variables: variables as Prisma.InputJsonValue,
+        isActive: dto.is_active ?? true,
+      },
+      update: {
+        trigger: dto.trigger,
+        subject: dto.subject?.trim() || null,
+        body: dto.body,
+        variables: variables as Prisma.InputJsonValue,
+        isActive: dto.is_active ?? true,
+      },
+    });
+    return toNotificationTemplateRow(row);
+  }
+
+  async listKbArticles(principal: AuthenticatedPrincipal): Promise<TenantAdminKbArticleRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.kbArticle.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ status: 'asc' }, { slug: 'asc' }],
+    });
+    return rows.map(toKbArticleRow);
+  }
+
+  async upsertKbArticle(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertKbArticleDto,
+  ): Promise<TenantAdminKbArticleRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.slug, 'KB article slug');
+    assertValidLocalizedMarkdown(dto.title, 'KB article title');
+    assertValidLocalizedMarkdown(dto.body, 'KB article body');
+    assertValidTagList(dto.tags ?? []);
+    assertValidKbArticleStatus(dto.status);
+
+    const publishedAt = dto.status === 'published' ? new Date() : null;
+    const row = await this.prisma.kbArticle.upsert({
+      where: { tenantId_slug: { tenantId: principal.tenantId, slug: dto.slug } },
+      create: {
+        tenantId: principal.tenantId,
+        slug: dto.slug,
+        title: dto.title as Prisma.InputJsonValue,
+        body: dto.body as Prisma.InputJsonValue,
+        tags: (dto.tags ?? []) as string[],
+        status: dto.status,
+        publishedAt,
+      },
+      update: {
+        title: dto.title as Prisma.InputJsonValue,
+        body: dto.body as Prisma.InputJsonValue,
+        tags: (dto.tags ?? []) as string[],
+        status: dto.status,
+        publishedAt,
+      },
+    });
+    return toKbArticleRow(row);
+  }
+
+  async listRoles(principal: AuthenticatedPrincipal): Promise<TenantAdminRoleRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.role.findMany({ orderBy: { code: 'asc' } });
+    return rows.map((role) => ({
+      id: role.id,
+      code: role.code,
+      name: role.name,
+      description: role.description,
+    }));
+  }
+
+  async listStaff(principal: AuthenticatedPrincipal): Promise<TenantAdminStaffRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.user.findMany({
+      where: { tenantId: principal.tenantId },
+      include: { userRoles: { include: { role: true, ward: true } } },
+      orderBy: { username: 'asc' },
+    });
+    return rows.map(toStaffRow);
+  }
+
+  async upsertStaff(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertStaffDto,
+  ): Promise<TenantAdminStaffRow> {
+    assertTenantPortalStaff(principal);
+    assertUuid(dto.keycloak_user_id, 'keycloak_user_id');
+    assertStaffStatus(dto.status ?? 'active');
+    assertRoleCodes(dto.role_codes);
+
+    const existing = await this.prisma.user.findUnique({
+      where: { keycloakUserId: dto.keycloak_user_id },
+    });
+    if (existing && existing.tenantId !== principal.tenantId) {
+      throw new BadRequestException('Staff user belongs to another tenant');
+    }
+
+    const roles = await this.prisma.role.findMany({
+      where: { code: { in: dto.role_codes as string[] } },
+    });
+    if (roles.length !== dto.role_codes.length) {
+      throw new BadRequestException('One or more role_codes do not exist');
+    }
+
+    const ward = dto.ward_number
+      ? await this.prisma.ward.findFirst({
+          where: { tenantId: principal.tenantId, number: dto.ward_number },
+        })
+      : null;
+    if (dto.ward_number && !ward) {
+      throw new BadRequestException('ward_number does not exist for this tenant');
+    }
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const user = existing
+        ? await tx.user.update({
+            where: { id: existing.id },
+            data: {
+              username: dto.username,
+              displayName: dto.display_name,
+              email: dto.email || null,
+              mobile: dto.mobile || null,
+              status: dto.status ?? 'active',
+            },
+          })
+        : await tx.user.create({
+            data: {
+              tenantId: principal.tenantId,
+              keycloakUserId: dto.keycloak_user_id,
+              username: dto.username,
+              displayName: dto.display_name,
+              email: dto.email || null,
+              mobile: dto.mobile || null,
+              status: dto.status ?? 'active',
+            },
+          });
+
+      await tx.userRole.deleteMany({ where: { tenantId: principal.tenantId, userId: user.id } });
+      for (const role of roles) {
+        await tx.userRole.create({
+          data: {
+            tenantId: principal.tenantId,
+            userId: user.id,
+            roleId: role.id,
+            wardId: ward?.id ?? null,
+          },
+        });
+      }
+      return tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        include: { userRoles: { include: { role: true, ward: true } } },
+      });
+    });
+
+    return toStaffRow(saved);
+  }
+
+  async listRoleStageMaps(
+    principal: AuthenticatedPrincipal,
+  ): Promise<TenantAdminRoleStageMapRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.roleStageMap.findMany({
+      where: { tenantId: principal.tenantId },
+      include: { stage: { include: { workflow: true } } },
+      orderBy: [{ roleCode: 'asc' }],
+    });
+    return rows.map(toRoleStageMapRow);
+  }
+
+  async upsertRoleStageMap(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertRoleStageMapDto,
+  ): Promise<TenantAdminRoleStageMapRow> {
+    assertTenantPortalStaff(principal);
+    assertRoleCode(dto.role_code);
+    const role = await this.prisma.role.findUnique({ where: { code: dto.role_code } });
+    if (!role) {
+      throw new BadRequestException('role_code does not exist');
+    }
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { tenantId: principal.tenantId, code: dto.workflow_code },
+      include: { stages: true },
+      orderBy: { version: 'desc' },
+    });
+    if (!workflow) {
+      throw new BadRequestException('workflow_code does not exist for this tenant');
+    }
+    const stage = workflow.stages.find((candidate) => candidate.code === dto.stage_code);
+    if (!stage) {
+      throw new BadRequestException('stage_code does not exist for this workflow');
+    }
+
+    const row = await this.prisma.roleStageMap.upsert({
+      where: {
+        tenantId_stageId_roleCode: {
+          tenantId: principal.tenantId,
+          stageId: stage.id,
+          roleCode: dto.role_code,
+        },
+      },
+      create: {
+        tenantId: principal.tenantId,
+        stageId: stage.id,
+        roleCode: dto.role_code,
+        canView: dto.can_view ?? true,
+        canAct: dto.can_act ?? false,
+      },
+      update: {
+        canView: dto.can_view ?? true,
+        canAct: dto.can_act ?? false,
+      },
+      include: { stage: { include: { workflow: true } } },
+    });
+    return toRoleStageMapRow(row);
+  }
+
   private async getOwnedService(
     principal: AuthenticatedPrincipal,
     serviceId: string,
@@ -833,6 +1250,134 @@ const workflowInclude = {
     },
   },
 };
+
+function toSettingsRow(
+  tenant: {
+    id: string;
+    code: string;
+    languagesEnabled: string[];
+  },
+  config: {
+    branding: Prisma.JsonValue;
+    featureFlags: Prisma.JsonValue;
+    defaultLanguage: string;
+    contactPhone: string | null;
+    contactEmail: string | null;
+  },
+  tenantCode?: string,
+): TenantAdminSettings {
+  return {
+    tenant_id: tenant.id,
+    tenant_code: tenantCode ?? tenant.code,
+    branding: config.branding,
+    feature_flags: config.featureFlags,
+    languages_enabled: tenant.languagesEnabled,
+    default_language: config.defaultLanguage,
+    contact_phone: config.contactPhone,
+    contact_email: config.contactEmail,
+  };
+}
+
+function toNotificationTemplateRow(row: {
+  id: string;
+  code: string;
+  channel: string;
+  locale: string;
+  trigger: string;
+  subject: string | null;
+  body: string;
+  variables: Prisma.JsonValue;
+  isActive: boolean;
+  updatedAt: Date;
+}): TenantAdminNotificationTemplateRow {
+  return {
+    id: row.id,
+    code: row.code,
+    channel: row.channel,
+    locale: row.locale,
+    trigger: row.trigger,
+    subject: row.subject,
+    body: row.body,
+    variables: row.variables,
+    is_active: row.isActive,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toKbArticleRow(row: {
+  id: string;
+  slug: string;
+  title: Prisma.JsonValue;
+  body: Prisma.JsonValue;
+  tags: string[];
+  status: string;
+  publishedAt: Date | null;
+  updatedAt: Date;
+}): TenantAdminKbArticleRow {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    body: row.body,
+    tags: row.tags,
+    status: row.status,
+    published_at: row.publishedAt?.toISOString() ?? null,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toStaffRow(row: {
+  id: string;
+  keycloakUserId: string;
+  username: string;
+  displayName: string;
+  email: string | null;
+  mobile: string | null;
+  status: string;
+  updatedAt: Date;
+  userRoles: Array<{
+    role: { code: string; name: string };
+    ward: { number: string } | null;
+  }>;
+}): TenantAdminStaffRow {
+  return {
+    id: row.id,
+    keycloak_user_id: row.keycloakUserId,
+    username: row.username,
+    display_name: row.displayName,
+    email: row.email,
+    mobile: row.mobile,
+    status: row.status,
+    roles: row.userRoles.map((assignment) => ({
+      code: assignment.role.code,
+      name: assignment.role.name,
+      ward_number: assignment.ward?.number ?? null,
+    })),
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toRoleStageMapRow(row: {
+  id: string;
+  roleCode: string;
+  canView: boolean;
+  canAct: boolean;
+  stage: {
+    code: string;
+    label: Prisma.JsonValue;
+    workflow: { code: string };
+  };
+}): TenantAdminRoleStageMapRow {
+  return {
+    id: row.id,
+    workflow_code: row.stage.workflow.code,
+    stage_code: row.stage.code,
+    stage_label: row.stage.label,
+    role_code: row.roleCode,
+    can_view: row.canView,
+    can_act: row.canAct,
+  };
+}
 
 function toFormVersionRow(row: {
   id: string;
@@ -1012,4 +1557,50 @@ function labelFromJson(value: Prisma.JsonValue): { en: string; bn: string; hi: s
     };
   }
   return { en: 'Service', bn: 'Service', hi: 'Service' };
+}
+
+function extractTemplateVariables(subject: string | undefined, body: string): string[] {
+  const variables = new Set<string>();
+  for (const match of `${subject ?? ''}\n${body}`.matchAll(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g)) {
+    const variable = match[1];
+    if (variable) {
+      variables.add(variable);
+    }
+  }
+  return [...variables];
+}
+
+function assertUuid(value: unknown, field: string): asserts value is string {
+  if (
+    typeof value !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  ) {
+    throw new BadRequestException(`${field} must be a UUID`);
+  }
+}
+
+function assertStaffStatus(value: unknown): asserts value is string {
+  if (!['active', 'disabled', 'invited'].includes(String(value))) {
+    throw new BadRequestException('Unsupported staff status');
+  }
+}
+
+function assertRoleCodes(value: unknown): asserts value is string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new BadRequestException('role_codes must include at least one role');
+  }
+  const seen = new Set<string>();
+  for (const roleCode of value) {
+    assertRoleCode(roleCode);
+    seen.add(roleCode);
+  }
+  if (seen.size !== value.length) {
+    throw new BadRequestException('role_codes must be unique');
+  }
+}
+
+function assertRoleCode(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(value)) {
+    throw new BadRequestException('role_code must use a known role-code format');
+  }
 }

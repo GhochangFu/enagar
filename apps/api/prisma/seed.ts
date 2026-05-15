@@ -95,6 +95,77 @@ const tariffSeeds = [
   },
 ];
 
+const notificationTemplateSeeds = [
+  {
+    tenant_code: 'KMC',
+    code: 'application-submitted',
+    channel: 'sms',
+    locale: 'en',
+    trigger: 'application-submitted',
+    subject: null,
+    body: 'Your {{service_name}} application {{docket_no}} has been submitted.',
+    variables: ['service_name', 'docket_no'],
+  },
+  {
+    tenant_code: 'HMC',
+    code: 'application-submitted',
+    channel: 'push',
+    locale: 'en',
+    trigger: 'application-submitted',
+    subject: 'Application submitted',
+    body: '{{service_name}} application {{docket_no}} is now with the municipality.',
+    variables: ['service_name', 'docket_no'],
+  },
+];
+
+const kbArticleSeeds = [
+  {
+    tenant_code: 'KMC',
+    slug: 'birth-certificate-help',
+    title: {
+      en: 'Birth certificate help',
+      bn: 'Birth certificate help',
+      hi: 'Birth certificate help',
+    },
+    body: {
+      en: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
+      bn: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
+      hi: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
+    },
+    tags: ['certificates', 'birth'],
+    status: 'published',
+  },
+  {
+    tenant_code: 'HMC',
+    slug: 'water-tariff-help',
+    title: { en: 'Water tariff help', bn: 'Water tariff help', hi: 'Water tariff help' },
+    body: {
+      en: 'Use this article to explain water tariff slabs and payment expectations.',
+      bn: 'Use this article to explain water tariff slabs and payment expectations.',
+      hi: 'Use this article to explain water tariff slabs and payment expectations.',
+    },
+    tags: ['water', 'tariff'],
+    status: 'draft',
+  },
+];
+
+const staffSeeds = [
+  {
+    tenant_code: 'KMC',
+    keycloak_user_id: '10000000-0000-4000-8000-000000000101',
+    username: 'kmc-tenant-clerk-seed',
+    display_name: 'KMC Tenant Clerk Seed',
+    role_codes: ['tenant_clerk'],
+  },
+  {
+    tenant_code: 'HMC',
+    keycloak_user_id: '10000000-0000-4000-8000-000000000102',
+    username: 'hmc-tenant-clerk-seed',
+    display_name: 'HMC Tenant Clerk Seed',
+    role_codes: ['tenant_clerk'],
+  },
+];
+
 async function seedGrievancePoliciesForTenant(
   prisma: PrismaClient,
   tenantId: string,
@@ -230,6 +301,157 @@ async function seedAddressAndTariffMasters(prisma: PrismaClient): Promise<void> 
         isActive: true,
       },
     });
+  }
+}
+
+async function seedTenantOperations(prisma: PrismaClient): Promise<void> {
+  for (const role of [
+    {
+      code: 'municipality_admin',
+      name: 'Municipality Admin',
+      description: 'Municipality administrator aligned with Keycloak operator roles',
+    },
+    {
+      code: 'municipality_clerk',
+      name: 'Municipality Clerk',
+      description: 'Municipality clerk aligned with Keycloak operator roles',
+    },
+  ]) {
+    await prisma.role.upsert({
+      where: { code: role.code },
+      create: role,
+      update: { name: role.name, description: role.description },
+    });
+  }
+
+  const tenants = await prisma.tenant.findMany({
+    where: { code: { in: ['KMC', 'HMC'] } },
+    select: { id: true, code: true, themeColor: true, logoUrl: true, languagesEnabled: true },
+  });
+  const tenantByCode = new Map(tenants.map((tenant) => [tenant.code, tenant]));
+
+  for (const tenant of tenants) {
+    await prisma.tenantConfig.upsert({
+      where: { tenantId: tenant.id },
+      create: {
+        tenantId: tenant.id,
+        branding: {
+          theme_color: tenant.themeColor,
+          logo_url: tenant.logoUrl ?? '',
+          hero_image_url: '',
+        },
+        featureFlags: {
+          kb_cms: true,
+          notification_templates: true,
+          staff_roles: true,
+        },
+      },
+      update: {
+        branding: {
+          theme_color: tenant.themeColor,
+          logo_url: tenant.logoUrl ?? '',
+          hero_image_url: '',
+        },
+        featureFlags: {
+          kb_cms: true,
+          notification_templates: true,
+          staff_roles: true,
+        },
+      },
+    });
+  }
+
+  for (const seed of notificationTemplateSeeds) {
+    const tenant = tenantByCode.get(seed.tenant_code);
+    if (!tenant) {
+      continue;
+    }
+    await prisma.notificationTemplate.upsert({
+      where: {
+        tenantId_code_channel_locale: {
+          tenantId: tenant.id,
+          code: seed.code,
+          channel: seed.channel,
+          locale: seed.locale,
+        },
+      },
+      create: {
+        tenantId: tenant.id,
+        code: seed.code,
+        channel: seed.channel,
+        locale: seed.locale,
+        trigger: seed.trigger,
+        subject: seed.subject,
+        body: seed.body,
+        variables: seed.variables,
+      },
+      update: {
+        trigger: seed.trigger,
+        subject: seed.subject,
+        body: seed.body,
+        variables: seed.variables,
+        isActive: true,
+      },
+    });
+  }
+
+  for (const seed of kbArticleSeeds) {
+    const tenant = tenantByCode.get(seed.tenant_code);
+    if (!tenant) {
+      continue;
+    }
+    await prisma.kbArticle.upsert({
+      where: { tenantId_slug: { tenantId: tenant.id, slug: seed.slug } },
+      create: {
+        tenantId: tenant.id,
+        slug: seed.slug,
+        title: seed.title,
+        body: seed.body,
+        tags: seed.tags,
+        status: seed.status,
+        publishedAt: seed.status === 'published' ? new Date() : null,
+      },
+      update: {
+        title: seed.title,
+        body: seed.body,
+        tags: seed.tags,
+        status: seed.status,
+        publishedAt: seed.status === 'published' ? new Date() : null,
+      },
+    });
+  }
+
+  for (const seed of staffSeeds) {
+    const tenant = tenantByCode.get(seed.tenant_code);
+    if (!tenant) {
+      continue;
+    }
+    const user = await prisma.user.upsert({
+      where: { keycloakUserId: seed.keycloak_user_id },
+      create: {
+        tenantId: tenant.id,
+        keycloakUserId: seed.keycloak_user_id,
+        username: seed.username,
+        displayName: seed.display_name,
+        status: 'active',
+      },
+      update: {
+        username: seed.username,
+        displayName: seed.display_name,
+        status: 'active',
+      },
+    });
+    const roles = await prisma.role.findMany({ where: { code: { in: seed.role_codes } } });
+    await prisma.userRole.deleteMany({ where: { tenantId: tenant.id, userId: user.id } });
+    for (const role of roles) {
+      await prisma.userRole.create({
+        data: {
+          tenantId: tenant.id,
+          userId: user.id,
+          roleId: role.id,
+        },
+      });
+    }
   }
 }
 
@@ -371,6 +593,31 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
   }
 }
 
+async function seedStateAdminPortal(prisma: PrismaClient): Promise<void> {
+  const kmc = await prisma.tenant.findUnique({
+    where: { code: 'KMC' },
+    select: { id: true, code: true },
+  });
+  if (!kmc) return;
+  const existing = await prisma.stateAuditLog.count({
+    where: { action: 'tenant.review', actorSubject: 'seed:state-admin', targetTenantId: kmc.id },
+  });
+  if (existing > 0) return;
+  await prisma.stateAuditLog.create({
+    data: {
+      actorSubject: 'seed:state-admin',
+      actorRole: 'state_admin',
+      action: 'tenant.review',
+      targetTenantId: kmc.id,
+      targetCode: kmc.code,
+      metadata: {
+        sprint: '6.5',
+        note: 'Seeded state-admin audit marker for dashboard smoke tests',
+      } as Prisma.InputJsonValue,
+    },
+  });
+}
+
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? defaultDatabaseUrl;
   const prisma = new PrismaClient({
@@ -420,6 +667,10 @@ async function main(): Promise<void> {
     console.info('Seeded service catalogue for operational tenants');
     await seedAddressAndTariffMasters(prisma);
     console.info('Seeded address and tariff masters for smoke tenants');
+    await seedTenantOperations(prisma);
+    console.info('Seeded Sprint 6.4 tenant operations data for smoke tenants');
+    await seedStateAdminPortal(prisma);
+    console.info('Seeded Sprint 6.5 state-admin audit marker');
   } finally {
     await prisma.$disconnect();
   }

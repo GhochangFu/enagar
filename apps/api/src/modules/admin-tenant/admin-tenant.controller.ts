@@ -12,6 +12,13 @@ import {
   UpsertTariffDto,
 } from './dto/service-config.dto';
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
+import {
+  PatchTenantSettingsDto,
+  UpsertKbArticleDto,
+  UpsertNotificationTemplateDto,
+  UpsertRoleStageMapDto,
+  UpsertStaffDto,
+} from './dto/tenant-operations.dto';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -133,6 +140,117 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'Create or update a tenant tax/tariff master row' })
   postTariff(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Body() dto: UpsertTariffDto) {
     return this.adminTenant.upsertTariff(principal, dto);
+  }
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Load tenant branding, languages, and feature flags' })
+  getSettings(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getSettings(principal);
+  }
+
+  @Patch('settings')
+  @ApiOperation({ summary: 'Patch tenant branding, languages, and feature flags' })
+  patchSettings(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: PatchTenantSettingsDto,
+  ) {
+    return this.adminTenant.patchSettings(principal, dto);
+  }
+
+  @Get('notification-templates')
+  @ApiOperation({ summary: 'List tenant notification templates' })
+  listNotificationTemplates(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listNotificationTemplates(principal);
+  }
+
+  @Patch('notification-templates')
+  @ApiOperation({ summary: 'Create or update a tenant notification template' })
+  upsertNotificationTemplate(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertNotificationTemplateDto,
+  ) {
+    return this.adminTenant.upsertNotificationTemplate(principal, dto);
+  }
+
+  @Post('notification-templates')
+  @ApiOperation({ summary: 'Create or update a tenant notification template' })
+  postNotificationTemplate(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertNotificationTemplateDto,
+  ) {
+    return this.adminTenant.upsertNotificationTemplate(principal, dto);
+  }
+
+  @Get('kb-articles')
+  @ApiOperation({ summary: 'List tenant knowledge-base articles' })
+  listKbArticles(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listKbArticles(principal);
+  }
+
+  @Patch('kb-articles')
+  @ApiOperation({ summary: 'Create or update a tenant knowledge-base article' })
+  upsertKbArticle(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertKbArticleDto,
+  ) {
+    return this.adminTenant.upsertKbArticle(principal, dto);
+  }
+
+  @Post('kb-articles')
+  @ApiOperation({ summary: 'Create or update a tenant knowledge-base article' })
+  postKbArticle(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertKbArticleDto,
+  ) {
+    return this.adminTenant.upsertKbArticle(principal, dto);
+  }
+
+  @Get('roles')
+  @ApiOperation({ summary: 'List role codes available for tenant staff assignments' })
+  listRoles(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listRoles(principal);
+  }
+
+  @Get('staff')
+  @ApiOperation({ summary: 'List tenant staff and role assignments' })
+  listStaff(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listStaff(principal);
+  }
+
+  @Patch('staff')
+  @ApiOperation({ summary: 'Create or update a tenant staff record and role assignments' })
+  upsertStaff(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Body() dto: UpsertStaffDto) {
+    return this.adminTenant.upsertStaff(principal, dto);
+  }
+
+  @Post('staff')
+  @ApiOperation({ summary: 'Create or update a tenant staff record and role assignments' })
+  postStaff(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Body() dto: UpsertStaffDto) {
+    return this.adminTenant.upsertStaff(principal, dto);
+  }
+
+  @Get('role-stage-maps')
+  @ApiOperation({ summary: 'List workflow stage role mappings' })
+  listRoleStageMaps(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listRoleStageMaps(principal);
+  }
+
+  @Patch('role-stage-maps')
+  @ApiOperation({ summary: 'Create or update workflow stage role mapping' })
+  upsertRoleStageMap(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertRoleStageMapDto,
+  ) {
+    return this.adminTenant.upsertRoleStageMap(principal, dto);
+  }
+
+  @Post('role-stage-maps')
+  @ApiOperation({ summary: 'Create or update workflow stage role mapping' })
+  postRoleStageMap(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertRoleStageMapDto,
+  ) {
+    return this.adminTenant.upsertRoleStageMap(principal, dto);
   }
 
   @Get('services/:serviceId/designer')

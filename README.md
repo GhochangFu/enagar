@@ -167,6 +167,7 @@ pnpm dev                                  # run every dev server in parallel (tu
 pnpm --filter @enagar/api dev             # just the NestJS API → http://localhost:3001
 pnpm --filter @enagar/citizen-pwa dev     # just the citizen PWA → http://localhost:3000
 pnpm --filter @enagar/admin-tenant dev    # Tenant Admin portal → http://localhost:3002
+pnpm --filter @enagar/admin-state dev     # State Super-Admin portal → http://localhost:3003
 
 pnpm lint                                 # lint everything (max-warnings=0)
 pnpm typecheck                            # type-check everything
@@ -188,6 +189,7 @@ Smoke-test endpoints:
 | Tenant config | `http://localhost:3001/api/tenants/KMC/config` |
 | Citizen PWA   | `http://localhost:3000`                        |
 | Tenant Admin  | `http://localhost:3002`                        |
+| State Admin   | `http://localhost:3003`                        |
 
 ## Repository layout
 
@@ -197,7 +199,7 @@ enagarseba/
 │   ├── api/                    # NestJS backend (port 3001)
 │   ├── citizen-pwa/            # Next.js 14 PWA (port 3000)
 │   ├── admin-tenant/           # ULB admin portal (port 3002) — catalogue, designer, fee/doc/master config
-│   ├── admin-state/            # State super-admin portal (port 3003) — stub, Phase 6
+│   ├── admin-state/            # State super-admin portal (port 3003) — onboarding, support, analytics
 │   ├── mobile/                 # Citizen RN/Expo app                  — stub, Phase 5/8
 │   └── staff-mobile/           # Field-staff RN/Expo app              — stub, Phase 4
 ├── packages/
@@ -254,7 +256,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **`ROADMAP.md`** [locked 10-sprint queue](./ROADMAP.md#locked-next-10-sprint-queue-priority-execution-order). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.3** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Queued next:** **Sprint 6.4** (notification templates, KB CMS, branding, feature flags, staff & roles). **Sprint 3.1B** deferred.
+**Next:** **`ROADMAP.md`** [locked sprint queue #1–#14](./ROADMAP.md#locked-sprint-queue-priority-order-114). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.5** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Queued next:** **#13 Sprint 6.6** (catalogue alignment) → **#14** (6.7 designer polish). **Sprint 3.1B** deferred.
 
 ---
 
