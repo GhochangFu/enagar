@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-rgb: 15 76 117;
+  --tenant-font-family: Inter, system-ui, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+  font-family: var(--tenant-font-family);
+  -webkit-font-smoothing: antialiased;
+}

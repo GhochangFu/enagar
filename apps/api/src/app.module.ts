@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
 import { JwtVerifierService } from './common/auth/jwt-verifier.service';
 import { DatabaseModule } from './common/database/database.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
+import { AdminTenantModule } from './modules/admin-tenant/admin-tenant.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
@@ -52,8 +53,9 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     }),
     DatabaseModule,
     AuthModule,
-    CitizenModule,
+    AdminTenantModule,
     ApplicationsModule,
+    CitizenModule,
     DocumentsModule,
     FinanceModule,
     GrievancesModule,

@@ -2,23 +2,50 @@
   "name": "@enagar/admin-tenant",
   "version": "0.0.0",
   "private": true,
-  "description": "Per-municipality admin portal (services, fees, workflows, branding). Phase 6.",
+  "description": "Per-municipality admin portal (Phase 6 — Tenant Admin).",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "dev": "echo '@enagar/admin-tenant: Phase-6 stub — see ROADMAP.md'",
-    "build": "echo 'noop (stub)'",
-    "lint": "echo 'noop (stub)'",
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "jest --passWithNoTests",
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {
-    "@enagar/types": "workspace:*"
+    "@enagar/types": "workspace:*",
+    "next": "14.2.13",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@enagar/config": "workspace:*",
+    "@types/jest": "^29.5.13",
     "@types/node": "^20.16.10",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.13",
+    "jest": "^29.7.0",
+    "postcss": "^8.4.47",
     "rimraf": "^6.0.1",
+    "tailwindcss": "^3.4.13",
+    "ts-jest": "^29.2.5",
     "typescript": "^5.5.4"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "lib",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "testEnvironment": "node"
   }
 }

@@ -1,5 +1,18 @@
 {
-  "extends": "@enagar/config/tsconfig/node.json",
-  "compilerOptions": { "noEmit": true },
-  "include": ["src/**/*"]
+  "extends": "@enagar/config/tsconfig/next.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "lib/**/*.ts",
+    "tailwind.config.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
 }

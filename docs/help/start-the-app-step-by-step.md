@@ -141,6 +141,22 @@ By default the PWA talks to **`http://localhost:3001/api`**. Change that only if
 
 ---
 
+## Step 9b — (Optional) Tenant Admin portal
+
+Only if you seeded Keycloak dummy operators (**Step 7**) and want the ULB admin UI:
+
+```bash
+pnpm --filter @enagar/admin-tenant dev
+```
+
+- Tenant Admin: **`http://localhost:3002`**
+- Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
+- Exit checklist: **`docs/runbooks/master-sprint-61-exit.md`**
+
+Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
+
+---
+
 ## Step 10 — Log in locally (OTP)
 
 When **`DEV_AUTH_ENABLED=true`** and **`DEV_OTP_CODE`** is set in **`infrastructure/.env`**:
@@ -168,6 +184,7 @@ That starts multiple apps via Turbo (can be noisy; filtering two packages as abo
 | What               | Address                      |
 | ------------------ | ---------------------------- |
 | Citizen PWA        | http://localhost:3000        |
+| Tenant Admin       | http://localhost:3002        |
 | API health         | http://localhost:3001/health |
 | API docs (Swagger) | http://localhost:3001/docs   |
 | Keycloak console   | http://localhost:8080        |

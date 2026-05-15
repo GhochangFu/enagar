@@ -166,6 +166,7 @@ pnpm install                              # install all workspace deps
 pnpm dev                                  # run every dev server in parallel (turbo)
 pnpm --filter @enagar/api dev             # just the NestJS API → http://localhost:3001
 pnpm --filter @enagar/citizen-pwa dev     # just the citizen PWA → http://localhost:3000
+pnpm --filter @enagar/admin-tenant dev    # Tenant Admin portal → http://localhost:3002
 
 pnpm lint                                 # lint everything (max-warnings=0)
 pnpm typecheck                            # type-check everything
@@ -186,6 +187,7 @@ Smoke-test endpoints:
 | Tenant list   | `http://localhost:3001/api/tenants`            |
 | Tenant config | `http://localhost:3001/api/tenants/KMC/config` |
 | Citizen PWA   | `http://localhost:3000`                        |
+| Tenant Admin  | `http://localhost:3002`                        |
 
 ## Repository layout
 
@@ -194,7 +196,7 @@ enagarseba/
 ├── apps/
 │   ├── api/                    # NestJS backend (port 3001)
 │   ├── citizen-pwa/            # Next.js 14 PWA (port 3000)
-│   ├── admin-tenant/           # ULB admin portal (port 3002)        — stub, Phase 6
+│   ├── admin-tenant/           # ULB admin portal (port 3002) — Sprint 6.1 shell + catalogue
 │   ├── admin-state/            # State super-admin portal (port 3003) — stub, Phase 6
 │   ├── mobile/                 # Citizen RN/Expo app                  — stub, Phase 5/8
 │   └── staff-mobile/           # Field-staff RN/Expo app              — stub, Phase 4
