@@ -80,8 +80,8 @@ export class ApplicationsService {
       this.tenants.list(),
       municipalityScopeFromHeader,
     );
-    const service = this.services.getTenantService(tenantCode, dto.service_code);
-    const formSchema = this.formSchemasByServiceCode.get(dto.service_code);
+    const service = await this.services.getTenantService(tenantCode, dto.service_code);
+    const formSchema = service.form_schema ?? this.formSchemasByServiceCode.get(dto.service_code);
     if (!formSchema) {
       throw new BadRequestException('Service form schema is not available yet');
     }
@@ -105,6 +105,7 @@ export class ApplicationsService {
       citizen_subject: principal.subject,
       service_code: dto.service_code,
       service_name: service.name.en,
+      form_version_id: service.form_version_id,
       form_version: formSchema.version,
       workflow_code: workflow.code,
       workflow_version: workflow.version,
@@ -144,17 +145,20 @@ export class ApplicationsService {
       return cloneApplication(application);
     }
 
-    const formSchema = this.formSchemasByServiceCode.get(application.service_code);
-    if (!formSchema) {
-      throw new BadRequestException('Service form schema is not available yet');
-    }
     const workflowTenantCode = application.tenant_code;
     if (!workflowTenantCode) {
       throw new BadRequestException('Application missing tenant_code');
     }
-    const workflow = workflowForPattern(
-      this.services.getTenantService(workflowTenantCode, application.service_code).workflow_pattern,
+    const service = await this.services.getTenantService(
+      workflowTenantCode,
+      application.service_code,
     );
+    const formSchema =
+      service.form_schema ?? this.formSchemasByServiceCode.get(application.service_code);
+    if (!formSchema) {
+      throw new BadRequestException('Service form schema is not available yet');
+    }
+    const workflow = workflowForPattern(service.workflow_pattern);
     const initialStage = getInitialStage(workflow);
     if (options.enforceCleanDocuments !== false) {
       const cleanDocumentCodes = new Set(

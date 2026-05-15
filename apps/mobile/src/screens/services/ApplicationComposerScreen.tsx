@@ -4,14 +4,15 @@ import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { createApplicationDraft, submitDraft } from '../../api/applicationApi';
 import { finalizeDraftDocumentsMobile } from '../../api/documentsApi';
+import { fetchTenantService } from '../../api/servicesCatalogApi';
 import { sessionApiRoot, useSession } from '../../context/SessionContext';
 import { DynamicFormFields } from '../../forms/DynamicFormFields';
-import { defaultFormValuesForService, schemaByServiceCode } from '../../lib/serviceSchemas';
+import { defaultFormValuesForService } from '../../lib/serviceSchemas';
 import type { CitizenRootStackParamList } from '../../navigation/types';
 import type { FormSubmission, FormSubmissionValue } from '@enagar/forms';
 
@@ -27,13 +28,44 @@ export function ApplicationComposerScreen() {
   const { locale, accessToken, selectedTenant } = useSession();
   const municipality = selectedTenant?.code ?? null;
 
-  const schema = schemaByServiceCode.get(serviceCode);
+  const [service, setService] = useState(route.params.service ?? null);
+  const [loadingSchema, setLoadingSchema] = useState(false);
+  const schema = service?.form_schema ?? null;
 
   const [values, setValues] = useState<FormSubmission>(() =>
     defaultFormValuesForService(serviceCode),
   );
   const [busy, setBusy] = useState(false);
   const [errorLine, setErrorLine] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!municipality || service?.form_schema) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSchema(true);
+    void fetchTenantService(sessionApiRoot(), municipality, serviceCode)
+      .then((row) => {
+        if (!cancelled) {
+          setService(row);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setErrorLine(t('services.loadError', locale));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingSchema(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [locale, municipality, service?.form_schema, serviceCode]);
 
   const plan = useMemo(() => {
     if (!schema) {
@@ -98,10 +130,18 @@ export function ApplicationComposerScreen() {
     }
   }
 
+  if (loadingSchema) {
+    return (
+      <View style={styles.outer}>
+        <ActivityIndicator style={{ marginTop: 48 }} />
+      </View>
+    );
+  }
+
   if (!schema) {
     return (
       <View style={styles.outer}>
-        <Text style={styles.err}>{`Schema not bundled for ${serviceCode}.`}</Text>
+        <Text style={styles.err}>{`No published form is available for ${serviceCode}.`}</Text>
         <Pressable onPress={() => navigation.goBack()}>
           <Text style={styles.back}>{t('grievance.back', locale)}</Text>
         </Pressable>

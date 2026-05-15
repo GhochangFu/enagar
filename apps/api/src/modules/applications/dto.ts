@@ -68,6 +68,7 @@ export interface ApplicationResponse {
   citizen_subject: string;
   service_code: string;
   service_name: string;
+  form_version_id?: string;
   form_version: number;
   workflow_code: string;
   workflow_version: number;

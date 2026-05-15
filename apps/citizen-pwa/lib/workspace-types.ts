@@ -1,4 +1,4 @@
-import type { FormSubmission } from '@enagar/forms';
+import type { EnagarFormSchema, FormSubmission } from '@enagar/forms';
 
 /** Language bundle keys used across tenant payloads in the PWA. */
 export type PwaLocaleCode = 'en' | 'bn' | 'hi';
@@ -10,10 +10,13 @@ export interface TokenResponse {
 }
 
 export interface ServiceSummary {
+  service_id?: string;
+  form_version_id?: string;
   tenant_code: string;
   code: string;
   category_code: string;
   revenue_head_code: string | null;
+  accounting_code?: string | null;
   name: Record<PwaLocaleCode, string>;
   description: Record<PwaLocaleCode, string>;
   workflow_pattern: string;
@@ -25,6 +28,10 @@ export interface ServiceSummary {
   pushes_to_digilocker: boolean;
   source: string;
   popular: boolean;
+  form_version?: number;
+  form_schema?: EnagarFormSchema;
+  ui_schema?: Record<string, unknown>;
+  form_published_at?: string | null;
 }
 
 export interface ApplicationSummary {

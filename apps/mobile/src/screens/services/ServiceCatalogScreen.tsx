@@ -89,6 +89,7 @@ export function ServiceCatalogScreen() {
                     navigation.navigate('ApplicationComposer', {
                       serviceCode: item.code,
                       serviceName: title,
+                      service: item,
                     })
                   }
                   style={styles.cta}

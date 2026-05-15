@@ -45,6 +45,7 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/design-system.md`](./docs/design-system.md)                                     | Tokens, multi-tenant theming, component inventory, wireframes for the 6 critical flows                                                                           |
 | [`docs/runbooks/citizen-unified-hub.md`](./docs/runbooks/citizen-unified-hub.md)       | Citizen **hub** (Option A): `X-Enagar-Tenant-Code`, aggregate vs workspace reads, **`GET /citizen/dashboard`** behaviour & logs (Hub **H6.1**)                   |
 | [`docs/runbooks/hub-h6-exit-checklist.md`](./docs/runbooks/hub-h6-exit-checklist.md)   | Hub programme **H6.1** product/engineering exit checklist                                                                                                        |
+| [`docs/runbooks/master-sprint-66-exit.md`](./docs/runbooks/master-sprint-66-exit.md)   | Phase 6 catalogue alignment: citizen PWA/mobile consume DB-published tenant services and forms                                                                   |
 
 ## Architecture at a glance
 
@@ -117,7 +118,11 @@ pnpm infra:up
 # Optional (dev): dummy Keycloak users — all roles × each ULB + portal citizen (see docs/runbooks/keycloak.md §7)
 pnpm infra:seed-keycloak-users
 
-# 3. Tail logs
+# 3. Seed DB-backed tenant services + published citizen forms
+pnpm --filter @enagar/api prisma:migrate:deploy
+pnpm db:seed
+
+# 4. Tail logs
 pnpm infra:logs
 ```
 

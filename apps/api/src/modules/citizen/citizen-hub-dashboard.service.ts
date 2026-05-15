@@ -40,11 +40,13 @@ export class CitizenHubDashboardService {
     readScope?: ApplicationReadScope,
   ): Promise<CitizenHubDashboardResponse> {
     const started = performance.now();
-    const [applicationSummaries, paymentRows, grievanceRows] = await Promise.all([
-      this.applications.list(principal, readScope),
-      this.payments.list(principal, readScope),
-      this.grievances.list(principal, readScope),
-    ]);
+    const [applicationSummaries, paymentRows, grievanceRows, distinctActiveServiceCount] =
+      await Promise.all([
+        this.applications.list(principal, readScope),
+        this.payments.list(principal, readScope),
+        this.grievances.list(principal, readScope),
+        this.catalogue.distinctActiveServiceCodesAcrossMunicipalities(),
+      ]);
 
     const appCounts = countByTenantId(applicationSummaries);
     const paymentCounts = countByTenantId(paymentRows);
@@ -59,8 +61,6 @@ export class CitizenHubDashboardService {
       grievance_count: grievanceCounts.get(tenant.id) ?? 0,
     }));
 
-    const distinctActiveServiceCount =
-      this.catalogue.distinctActiveServiceCodesAcrossMunicipalities();
     const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
     /** Structured hub metric — searchable in logs as `citizen_hub_dashboard`. */
     this.logger.log({

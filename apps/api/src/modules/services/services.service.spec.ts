@@ -27,8 +27,8 @@ describe('ServicesService', () => {
     });
   });
 
-  it('resolves default global services for a tenant', () => {
-    const services = service.listTenantServices('KMC');
+  it('resolves default global services for a tenant', async () => {
+    const services = await service.listTenantServices('KMC');
 
     expect(services).toEqual(
       expect.arrayContaining([
@@ -41,8 +41,8 @@ describe('ServicesService', () => {
     );
   });
 
-  it('applies fee and SLA overrides without changing immutable service identity', () => {
-    const birthCertificate = service.getTenantService('KMC', 'birth-cert');
+  it('applies fee and SLA overrides without changing immutable service identity', async () => {
+    const birthCertificate = await service.getTenantService('KMC', 'birth-cert');
 
     expect(birthCertificate).toMatchObject({
       code: 'birth-cert',
@@ -56,48 +56,52 @@ describe('ServicesService', () => {
     });
   });
 
-  it('hides disabled tenant services from citizen-safe reads', () => {
-    expect(service.listTenantServices('HMC').some((item) => item.code === 'community-hall')).toBe(
-      false,
+  it('hides disabled tenant services from citizen-safe reads', async () => {
+    await expect(service.listTenantServices('HMC')).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'community-hall' })]),
     );
-    expect(() => service.getTenantService('HMC', 'community-hall')).toThrow(NotFoundException);
+    await expect(service.getTenantService('HMC', 'community-hall')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
-  it('includes tenant-only custom services only for that tenant', () => {
-    expect(service.getTenantService('KMC', 'pet-licence')).toMatchObject({
+  it('includes tenant-only custom services only for that tenant', async () => {
+    await expect(service.getTenantService('KMC', 'pet-licence')).resolves.toMatchObject({
       source: 'tenant_only',
       tenant_code: 'KMC',
     });
-    expect(service.listTenantServices('HMC').some((item) => item.code === 'pet-licence')).toBe(
-      false,
+    await expect(service.listTenantServices('HMC')).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'pet-licence' })]),
     );
   });
 
-  it('rejects unknown tenants and unknown service codes', () => {
-    expect(() => service.listTenantServices('NOPE')).toThrow(NotFoundException);
-    expect(() => service.getTenantService('KMC', 'missing-service')).toThrow(NotFoundException);
+  it('rejects unknown tenants and unknown service codes', async () => {
+    await expect(service.listTenantServices('NOPE')).rejects.toThrow(NotFoundException);
+    await expect(service.getTenantService('KMC', 'missing-service')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
-  it('resolves tenant catalogues within a local smoke budget', () => {
+  it('resolves tenant catalogues within a local smoke budget', async () => {
     const start = performance.now();
 
     for (let index = 0; index < 500; index += 1) {
-      service.listTenantServices(index % 2 === 0 ? 'KMC' : 'HMC');
+      await service.listTenantServices(index % 2 === 0 ? 'KMC' : 'HMC');
     }
 
     expect(performance.now() - start).toBeLessThan(100);
   });
 
-  it('maps catalogue revenue heads to GL accounting codes', () => {
-    const birth = service.getTenantService('KMC', 'birth-cert');
+  it('maps catalogue revenue heads to GL accounting codes', async () => {
+    const birth = await service.getTenantService('KMC', 'birth-cert');
     expect(service.resolveLedgerCodesForService(birth)).toEqual({
       revenue_head_code: 'cert-fee',
       accounting_code: 'RH-CERT',
     });
   });
 
-  it('blocks GL lookups when catalogue revenue heads are absent', () => {
-    const sanitation = service.getTenantService('KMC', 'sanitation-grievance');
+  it('blocks GL lookups when catalogue revenue heads are absent', async () => {
+    const sanitation = await service.getTenantService('KMC', 'sanitation-grievance');
     expect(() => service.resolveLedgerCodesForService(sanitation)).toThrow(BadRequestException);
   });
 });

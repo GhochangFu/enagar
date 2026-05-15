@@ -86,7 +86,7 @@ export class CitizenService {
 
     const nextServices =
       dto.pinned_services !== undefined
-        ? this.normalizePinnedServices(dto.pinned_services)
+        ? await this.normalizePinnedServices(dto.pinned_services)
         : profile.pinned_services.map((row) => ({ ...row }));
 
     const updated: CitizenProfileResponse = {
@@ -292,15 +292,15 @@ export class CitizenService {
     return ordered;
   }
 
-  private normalizePinnedServices(
+  private async normalizePinnedServices(
     entries: PinnedServicePreferenceDto[],
-  ): PinnedServicePreference[] {
+  ): Promise<PinnedServicePreference[]> {
     const seenPairKeys = new Set<string>();
     const ordered: PinnedServicePreference[] = [];
 
     for (const row of entries) {
       const tenantCode = this.resolveOperationalTenantCode(row.tenant_code.trim());
-      const summary = this.catalogue.getTenantService(tenantCode, row.service_code.trim());
+      const summary = await this.catalogue.getTenantService(tenantCode, row.service_code.trim());
       const pairKey = `${tenantCode.toLowerCase()}:${summary.code.toLowerCase()}`;
       if (seenPairKeys.has(pairKey)) {
         continue;

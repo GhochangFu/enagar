@@ -1,27 +1,6 @@
-import {
-  birthCertificateSchema,
-  communityHallSchema,
-  propertyTaxSchema,
-  rtiSchema,
-  tradeLicenceSchema,
-} from '@enagar/forms/fixtures';
+import type { FormSubmission } from '@enagar/forms';
 
-import type { EnagarFormSchema, FormSubmission } from '@enagar/forms';
-
-/** Fixture catalogue mirrored by `@enagar/mobile` and API `ApplicationsService` smoke paths. */
-export const serviceFormSchemas = [
-  birthCertificateSchema,
-  tradeLicenceSchema,
-  propertyTaxSchema,
-  communityHallSchema,
-  rtiSchema,
-] as const;
-
-export const schemaByServiceCode = new Map<string, EnagarFormSchema>(
-  serviceFormSchemas.map((schema) => [schema.service_code, schema]),
-);
-
-/** Dev-friendly defaults aligned with **`@enagar/mobile`** smoke + document simulation. */
+/** Dev-friendly defaults only; runtime schemas now come from published API catalogue rows. */
 export function defaultFormValuesForService(serviceCode: string): FormSubmission {
   if (serviceCode === 'birth-cert') {
     return {

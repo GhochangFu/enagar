@@ -12,6 +12,7 @@ import request from 'supertest';
 import { DocumentsModule } from '../documents/documents.module';
 import { HoldingsModule } from '../holdings/holdings.module';
 import { ServicesModule } from '../services/services.module';
+import { ServicesService } from '../services/services.service';
 
 import { ApplicationsModule } from './applications.module';
 
@@ -78,7 +79,10 @@ describe('Phase 2 API integration contract', () => {
           } satisfies CanActivate,
         },
       ],
-    }).compile();
+    })
+      .overrideProvider(ServicesService)
+      .useValue(new ServicesService())
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api', { exclude: ['health', 'healthz', 'ready'] });

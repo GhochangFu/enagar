@@ -88,7 +88,7 @@ pnpm db:seed
 ```
 
 - **`prisma:migrate:deploy`** applies SQL migrations (creates tables like `citizens`, `tenants`, etc.).
-- **`db:seed`** fills minimum data the app expects (tenants, etc.).
+- **`db:seed`** fills minimum data the app expects: tenants, service catalogue rows, and published citizen form versions used by PWA/mobile apply flows.
 
 If this step fails, fix **Postgres** / **`DATABASE_URL`** first (see troubleshooting below).
 
@@ -168,7 +168,7 @@ pnpm --filter @enagar/admin-state dev
 
 - State Admin: **`http://localhost:3003`**
 - Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
-- Exit checklist: **`docs/runbooks/master-sprint-65-exit.md`**
+- Exit checklists: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**
 
 Sign in with a **`state_admin`** dummy user. The dashboard supports municipality onboarding, tenant directory review, audited impersonation token creation, cross-tenant analytics, and recent audit log review.
 
@@ -208,6 +208,8 @@ That starts multiple apps via Turbo (can be noisy; filtering two packages as abo
 | Keycloak console   | http://localhost:8080        |
 
 **Master Sprint 5.4:** PWA installability (manifest + `/sw.js`) and query deep links (`?grievance=`, `?application=`) — see [`docs/runbooks/master-sprint-54-exit.md`](../runbooks/master-sprint-54-exit.md). Optional web push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` on the PWA; Expo mobile registers push tokens after sign-in when running on a physical device.
+
+**Master Sprint 6.6:** Citizen PWA/mobile service forms come from DB-published `service_form_versions`. If Services appears empty after admin form changes, rerun `pnpm db:seed` for local fixtures or publish a form from Tenant Admin, then refresh the citizen app.
 
 Exact Keycloak admin user/password come from **`infrastructure/.env`**.
 

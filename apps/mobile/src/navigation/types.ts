@@ -1,3 +1,5 @@
+import type { ServiceSummary } from '../types/dossier';
+
 /** Native-stack route map ({@link apps/mobile CitizenNavigator}). */
 export type CitizenRootStackParamList = {
   Splash: undefined;
@@ -8,7 +10,7 @@ export type CitizenRootStackParamList = {
   GrievanceComposer: undefined;
   GrievanceDetail: { id: string };
   ServiceCatalog: undefined;
-  ApplicationComposer: { serviceCode: string; serviceName?: string };
+  ApplicationComposer: { serviceCode: string; serviceName?: string; service?: ServiceSummary };
   ApplicationList: undefined;
   ApplicationDetail: { docketNo: string };
   PaymentList: undefined;

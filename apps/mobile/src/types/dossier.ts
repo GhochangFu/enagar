@@ -1,13 +1,16 @@
-import type { FormSubmission } from '@enagar/forms';
+import type { EnagarFormSchema, FormSubmission } from '@enagar/forms';
 
 export type PaymentGatewayMethod = 'upi' | 'card' | 'netbanking' | 'wallet';
 
 /** Mirrors `WorkspaceTypes` catalogue row from `apps/citizen-pwa`. */
 export interface ServiceSummary {
+  service_id?: string;
+  form_version_id?: string;
   tenant_code: string;
   code: string;
   category_code: string;
   revenue_head_code: string | null;
+  accounting_code?: string | null;
   name: Record<'en' | 'bn' | 'hi', string>;
   description: Record<'en' | 'bn' | 'hi', string>;
   workflow_pattern: string;
@@ -19,6 +22,10 @@ export interface ServiceSummary {
   pushes_to_digilocker: boolean;
   source: string;
   popular: boolean;
+  form_version?: number;
+  form_schema?: EnagarFormSchema;
+  ui_schema?: Record<string, unknown>;
+  form_published_at?: string | null;
 }
 
 export interface ApplicationSummary {

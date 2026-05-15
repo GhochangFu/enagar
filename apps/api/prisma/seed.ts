@@ -17,6 +17,265 @@ import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../src/modules/tenants/
 const defaultDatabaseUrl =
   'postgresql://enagar:enagar_dev_pw_change_me@localhost:5432/enagarseba?schema=public';
 
+const priorityServiceFormSchemas = [
+  {
+    schema_version: 1,
+    service_code: 'birth-cert',
+    version: 1,
+    title: label('Birth Certificate', 'জন্ম সনদ', 'जन्म प्रमाणपत्र'),
+    description: label(
+      'Register and issue a municipal birth certificate.',
+      'পৌর জন্ম সনদ নিবন্ধন ও ইস্যু করুন।',
+      'नगरपालिका जन्म प्रमाणपत्र पंजीकृत और जारी करें।',
+    ),
+    fields: [
+      section('applicant-section', 'Applicant Details', 'আবেদনকারীর বিবরণ', 'आवेदक विवरण'),
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('mobile', 'Mobile number', 'মোবাইল নম্বর', 'मोबाइल नंबर', {
+        required: true,
+        pattern: '^[6-9][0-9]{9}$',
+      }),
+      section('child-section', 'Child Details', 'শিশুর বিবরণ', 'बच्चे का विवरण'),
+      text('child_name', 'Child name', 'শিশুর নাম', 'बच्चे का नाम', {
+        required: true,
+        min_length: 1,
+        max_length: 120,
+      }),
+      dateField('date_of_birth', 'Date of birth', 'জন্ম তারিখ', 'जन्म तिथि', { required: true }),
+      selectField(
+        'relationship',
+        'Relationship to child',
+        'শিশুর সঙ্গে সম্পর্ক',
+        'बच्चे से संबंध',
+        [
+          option('parent', 'Parent', 'অভিভাবক', 'अभिभावक'),
+          option('guardian', 'Guardian', 'অভিভাবক প্রতিনিধি', 'संरक्षक'),
+        ],
+        { required: true },
+      ),
+      fileField(
+        'hospital_discharge',
+        'Hospital discharge proof',
+        'হাসপাতালের ছাড়পত্র',
+        'अस्पताल डिस्चार्ज प्रमाण',
+        {
+          required: true,
+          accept: ['application/pdf', 'image/jpeg'],
+          max_size_mb: 10,
+        },
+      ),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'trade-licence',
+    version: 1,
+    title: label('Trade Licence', 'ট্রেড লাইসেন্স', 'व्यापार लाइसेंस'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('business_name', 'Business name', 'ব্যবসার নাম', 'व्यवसाय का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 160,
+      }),
+      selectField(
+        'trade_type',
+        'Trade type',
+        'ব্যবসার ধরন',
+        'व्यापार का प्रकार',
+        [
+          option('food', 'Food', 'খাদ্য', 'खाद्य'),
+          option('retail', 'Retail', 'খুচরা', 'खुदरा'),
+          option('industrial', 'Industrial', 'শিল্প', 'औद्योगिक'),
+        ],
+        { required: true },
+      ),
+      fileField('premises_proof', 'Premises proof', 'প্রাঙ্গণের প্রমাণ', 'परिसर प्रमाण', {
+        required: true,
+        accept: ['application/pdf', 'image/jpeg'],
+        max_size_mb: 10,
+      }),
+      fileField('fssai_certificate', 'FSSAI certificate', 'এফএসএসএআই সনদ', 'एफएसएसएआई प्रमाणपत्र', {
+        accept: ['application/pdf'],
+        max_size_mb: 10,
+        show_if: { field: 'trade_type', equals: 'food' },
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'prop-tax',
+    version: 1,
+    title: label('Property Tax Payment', 'সম্পত্তি কর প্রদান', 'संपत्ति कर भुगतान'),
+    fields: [
+      text('holding_number', 'Holding number', 'হোল্ডিং নম্বর', 'होल्डिंग नंबर', {
+        required: true,
+        min_length: 3,
+        max_length: 50,
+      }),
+      radioField(
+        'payer_type',
+        'Payer type',
+        'প্রদানকারীর ধরন',
+        'भुगतानकर्ता प्रकार',
+        [
+          option('owner', 'Owner', 'মালিক', 'स्वामी'),
+          option('tenant', 'Tenant', 'ভাড়াটে', 'किरायेदार'),
+        ],
+        { required: true },
+      ),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'community-hall',
+    version: 1,
+    title: label('Community Hall Booking', 'কমিউনিটি হল বুকিং', 'सामुदायिक भवन बुकिंग'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+      }),
+      dateField('event_date', 'Event date', 'অনুষ্ঠানের তারিখ', 'कार्यक्रम तिथि', {
+        required: true,
+      }),
+      numberField('guest_count', 'Guest count', 'অতিথির সংখ্যা', 'अतिथि संख्या', {
+        required: true,
+        min: 1,
+        max: 500,
+      }),
+      textarea('event_details', 'Event details', 'অনুষ্ঠানের বিবরণ', 'कार्यक्रम विवरण', {
+        required: true,
+        min_length: 10,
+        max_length: 1000,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'rti',
+    version: 1,
+    title: label('RTI Application', 'আরটিআই আবেদন', 'आरटीआई आवेदन'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+      }),
+      textarea('information_requested', 'Information requested', 'চাওয়া তথ্য', 'मांगी गई सूचना', {
+        required: true,
+        min_length: 20,
+        max_length: 2000,
+      }),
+      radioField(
+        'bpl_applicant',
+        'BPL applicant?',
+        'বিপিএল আবেদনকারী?',
+        'बीपीएल आवेदक?',
+        [option('yes', 'Yes', 'হ্যাঁ', 'हाँ'), option('no', 'No', 'না', 'नहीं')],
+        { required: true },
+      ),
+      fileField('bpl_card', 'BPL card', 'বিপিএল কার্ড', 'बीपीएल कार्ड', {
+        accept: ['application/pdf', 'image/jpeg'],
+        max_size_mb: 10,
+        show_if: { field: 'bpl_applicant', equals: 'yes' },
+      }),
+    ],
+  },
+] as const;
+
+const publishedFormSchemaByServiceCode: Map<string, (typeof priorityServiceFormSchemas)[number]> =
+  new Map(priorityServiceFormSchemas.map((schema) => [schema.service_code, schema]));
+
+function label(en: string, bn: string, hi: string): Record<'en' | 'bn' | 'hi', string> {
+  return { en, bn, hi };
+}
+
+function option(value: string, en: string, bn: string, hi: string) {
+  return { value, label: label(en, bn, hi) };
+}
+
+function section(id: string, en: string, bn: string, hi: string) {
+  return { id, type: 'section', label: label(en, bn, hi) };
+}
+
+function text(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'text', label: label(en, bn, hi), ...options };
+}
+
+function textarea(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'textarea', label: label(en, bn, hi), ...options };
+}
+
+function numberField(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'number', label: label(en, bn, hi), ...options };
+}
+
+function dateField(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'date', label: label(en, bn, hi), ...options };
+}
+
+function selectField(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  optionsList: Array<ReturnType<typeof option>>,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'select', label: label(en, bn, hi), options: optionsList, ...options };
+}
+
+function radioField(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  optionsList: Array<ReturnType<typeof option>>,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'radio', label: label(en, bn, hi), options: optionsList, ...options };
+}
+
+function fileField(
+  id: string,
+  en: string,
+  bn: string,
+  hi: string,
+  options: Record<string, unknown> = {},
+) {
+  return { id, type: 'file', label: label(en, bn, hi), ...options };
+}
+
 const addressMasterSeeds = [
   {
     tenant_code: 'KMC',
@@ -573,14 +832,17 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
         description: service.description,
         isActive: service.active,
         overrideConfig: { source: service.source } as Prisma.InputJsonValue,
-        effectiveFeeConfig: service.fee_config as Prisma.InputJsonValue,
+        effectiveFeeConfig: {
+          type: service.fee_type,
+          ...service.fee_config,
+        } as Prisma.InputJsonValue,
         effectiveSlaDays: service.sla_days,
         requiredDocuments: service.required_documents as Prisma.InputJsonValue,
         formSchemaAdditions: (override?.form_schema_additions ?? {}) as Prisma.InputJsonValue,
         workflowOverrides: (override?.workflow_overrides ?? {}) as Prisma.InputJsonValue,
       };
 
-      await prisma.tenantService.upsert({
+      const tenantService = await prisma.tenantService.upsert({
         where: { tenantId_code: { tenantId: tenant.id, code: service.code } },
         create: {
           tenantId: tenant.id,
@@ -589,6 +851,34 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
         },
         update: data,
       });
+
+      const formSchema = publishedFormSchemaByServiceCode.get(service.code);
+      if (formSchema) {
+        await prisma.serviceFormVersion.upsert({
+          where: {
+            tenantId_serviceId_version: {
+              tenantId: tenant.id,
+              serviceId: tenantService.id,
+              version: formSchema.version,
+            },
+          },
+          create: {
+            tenantId: tenant.id,
+            serviceId: tenantService.id,
+            version: formSchema.version,
+            formSchema: formSchema as unknown as Prisma.InputJsonValue,
+            uiSchema: {},
+            status: 'published',
+            publishedAt: new Date(),
+          },
+          update: {
+            formSchema: formSchema as unknown as Prisma.InputJsonValue,
+            uiSchema: {},
+            status: 'published',
+            publishedAt: new Date(),
+          },
+        });
+      }
     }
   }
 }

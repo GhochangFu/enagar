@@ -75,7 +75,10 @@ export class PaymentsService {
     }
     const businessTenantId = application.tenant_id;
 
-    const service = this.services.getTenantService(businessTenantCode, application.service_code);
+    const service = await this.services.getTenantService(
+      businessTenantCode,
+      application.service_code,
+    );
     const expectedAmountPaise = this.getFixedAmountPaise(service);
     if (dto.amount_paise !== expectedAmountPaise) {
       throw new BadRequestException('Payment amount does not match the application fee');
@@ -171,7 +174,10 @@ export class PaymentsService {
     if (!applicationTenantCode) {
       throw new BadRequestException('Application is missing tenant_code');
     }
-    const service = this.services.getTenantService(applicationTenantCode, application.service_code);
+    const service = await this.services.getTenantService(
+      applicationTenantCode,
+      application.service_code,
+    );
 
     const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
     const ctx: SettlementLedgerContext = {

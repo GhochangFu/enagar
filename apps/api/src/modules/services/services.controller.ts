@@ -34,7 +34,7 @@ export class ServicesController {
   }
 
   @Get('tenants/:tenantCode')
-  listTenantServices(@Param('tenantCode') tenantCode: string): EffectiveServiceSummary[] {
+  listTenantServices(@Param('tenantCode') tenantCode: string): Promise<EffectiveServiceSummary[]> {
     return this.services.listTenantServices(tenantCode);
   }
 
@@ -42,7 +42,7 @@ export class ServicesController {
   getTenantService(
     @Param('tenantCode') tenantCode: string,
     @Param('serviceCode') serviceCode: string,
-  ): EffectiveServiceSummary {
+  ): Promise<EffectiveServiceSummary> {
     return this.services.getTenantService(tenantCode, serviceCode);
   }
 }

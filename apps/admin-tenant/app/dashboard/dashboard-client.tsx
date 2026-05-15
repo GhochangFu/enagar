@@ -247,8 +247,8 @@ export default function DashboardClient(): JSX.Element {
           <h2 className="text-xl font-semibold text-slate-900">Service catalogue</h2>
           <p className="text-xs text-slate-500">
             Rows come from Postgres (<span className="font-mono">services</span>); citizen-facing{' '}
-            <span className="font-mono">GET /services/tenants/:code</span> remains seed-backed until
-            a later alignment sprint.
+            <span className="font-mono">GET /services/tenants/:code</span> now resolves published
+            database forms.
           </p>
         </div>
 

@@ -18,13 +18,14 @@
 | `citizen-pwa-sprint25.spec.ts`     | Citizen Services → Apply → My Applications UI contract                                                                               | 2.5        |
 | `phase2-hardening.spec.ts`         | Phase 2 protected-route, PWA size, and roadmap hardening contract                                                                    | 2.6        |
 | `phase2-closure.spec.ts`           | Final Phase 2 exit-criteria proof for SQL-only service addition and upload order                                                     | 2          |
+| `master-sprint-66.spec.ts`         | Phase 6.6 proof that citizen PWA/mobile consume DB-published tenant catalogue/forms instead of bundled form fixtures                 | 6.6        |
 | _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                                                                       | 1          |
 | _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call                                                      | 7          |
 | _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation                                                           | 6          |
 
 Phase 1 security status:
 
-- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, DigiLocker-blocked status, service catalogue, form schema, application APIs, workflow contracts, document upload contracts, holding lookup contracts, the citizen PWA end-to-end UI contract, Phase 2 protected-route/PWA hardening, and final Phase 2 SQL-only service/upload-order closure contracts.
+- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, DigiLocker-blocked status, service catalogue, form schema, application APIs, workflow contracts, document upload contracts, holding lookup contracts, the citizen PWA end-to-end UI contract, Phase 2 protected-route/PWA hardening, final Phase 2 SQL-only service/upload-order closure contracts, and Phase 6 citizen catalogue alignment.
 - `pnpm security:zap:auth` completed with `FAIL-NEW: 0`, `WARN-NEW: 0`, and 119 passing checks for the auth OpenAPI surface.
 - Real DigiLocker/Aadhaar linking is intentionally deferred until external access and permission are granted.
 

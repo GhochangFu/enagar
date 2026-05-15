@@ -19,7 +19,7 @@ import {
 } from '../components/application-detail-panel';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
-import { defaultFormValuesForService, schemaByServiceCode } from '../lib/service-schemas';
+import { defaultFormValuesForService } from '../lib/service-schemas';
 import {
   authHeaders,
   CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
@@ -337,9 +337,7 @@ export default function HomePage(): JSX.Element {
   /** Fee catalogue for dossier sidebar: workspace list vs hub-only fetch keyed by application's ULB. */
   const feeServicesForDetailPanel =
     step === 'workspace' && selectedTenant ? services : detailFeeServices;
-  const selectedSchema = selectedService
-    ? schemaByServiceCode.get(selectedService.code)
-    : undefined;
+  const selectedSchema = selectedService?.form_schema;
   const renderPlan = selectedSchema
     ? createRenderPlan(selectedSchema, { locale: language, platform: 'web' })
     : null;

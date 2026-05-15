@@ -1,3 +1,5 @@
+import type { EnagarFormSchema } from '@enagar/forms';
+
 export type LocaleMap = Record<'en' | 'bn' | 'hi', string>;
 
 export type FeeType = 'free' | 'fixed' | 'slab' | 'computed' | 'external';
@@ -54,10 +56,13 @@ export interface TenantServiceOverrideSeed {
 }
 
 export interface EffectiveServiceSummary {
+  service_id?: string;
+  form_version_id?: string;
   tenant_code: string;
   code: string;
   category_code: string;
   revenue_head_code: string | null;
+  accounting_code?: string | null;
   name: LocaleMap;
   description: LocaleMap;
   workflow_pattern: GlobalServiceSeed['workflow_pattern'];
@@ -69,6 +74,10 @@ export interface EffectiveServiceSummary {
   pushes_to_digilocker: boolean;
   source: 'global' | 'tenant_override' | 'tenant_only';
   popular: boolean;
+  form_version?: number;
+  form_schema?: EnagarFormSchema;
+  ui_schema?: Record<string, unknown>;
+  form_published_at?: string | null;
 }
 
 export const serviceCategories: ServiceCategorySeed[] = [

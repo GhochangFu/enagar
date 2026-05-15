@@ -15,6 +15,7 @@ import request from 'supertest';
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { DocumentsModule } from '../documents/documents.module';
+import { ServicesService } from '../services/services.service';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
 import { PaymentsModule } from './payments.module';
@@ -84,6 +85,8 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prismaSmokeMock())
+      .overrideProvider(ServicesService)
+      .useValue(new ServicesService())
       .compile();
 
     app = moduleRef.createNestApplication();

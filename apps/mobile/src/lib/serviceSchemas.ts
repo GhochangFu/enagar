@@ -1,28 +1,8 @@
-import type { EnagarFormSchema, FormSubmission } from '@enagar/forms';
-import {
-  birthCertificateSchema,
-  communityHallSchema,
-  propertyTaxSchema,
-  rtiSchema,
-  tradeLicenceSchema,
-} from '@enagar/forms/fixtures';
+import type { FormSubmission } from '@enagar/forms';
 
 import type { ServiceSummary } from '../types/dossier';
 
-/** Same fixture set as `apps/citizen-pwa` + API `ApplicationsService`. */
-export const serviceFormSchemas = [
-  birthCertificateSchema,
-  tradeLicenceSchema,
-  propertyTaxSchema,
-  communityHallSchema,
-  rtiSchema,
-] as const;
-
-export const schemaByServiceCode = new Map<string, EnagarFormSchema>(
-  serviceFormSchemas.map((schema) => [schema.service_code, schema]),
-);
-
-/** Dev-friendly defaults matching PWA smoke values (document simulation). */
+/** Dev-friendly defaults only; runtime schemas now come from published API catalogue rows. */
 export function defaultFormValuesForService(serviceCode: string): FormSubmission {
   if (serviceCode === 'birth-cert') {
     return {
