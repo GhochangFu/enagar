@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js';
 import {
   MOBILE_GRIEVANCE_DRAFT_SCHEMA,
+  assertValidFormSchema,
+  createBlankFormSchemaDraft,
   createFormDraftEnvelope,
   createRenderPlan,
   exportToJsonSchema,
@@ -16,6 +18,15 @@ import {
 test('validates Sprint 2.2 priority schemas', () => {
   assert.equal(validateFormSchema(birthCertificateSchema).ok, true);
   assert.equal(validateFormSchema(tradeLicenceSchema).ok, true);
+});
+
+test('creates a valid admin form-builder starter draft', () => {
+  const draft = createBlankFormSchemaDraft('pet-licence', { en: 'Pet Licence' }, 3);
+
+  assert.equal(draft.service_code, 'pet-licence');
+  assert.equal(draft.version, 3);
+  assert.equal(validateFormSchema(draft).ok, true);
+  assert.equal(assertValidFormSchema(draft), draft);
 });
 
 test('rejects invalid schema structure before seeding', () => {

@@ -3,10 +3,13 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 
 import {
+  assertValidWorkflowDefinition,
   calculateSlaDueAt,
   certificateIssuanceWorkflow,
+  createLinearWorkflowDraft,
   evaluateTransition,
   getInitialStage,
+  validateWorkflowDefinition,
 } from '../dist/index.js';
 
 test('evaluates a valid role-owned transition', () => {
@@ -19,6 +22,36 @@ test('evaluates a valid role-owned transition', () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.ok ? result.to.code : undefined, 'document-verification');
+});
+
+test('creates a valid tenant-admin linear workflow draft', () => {
+  const draft = createLinearWorkflowDraft('pet-licence', 2);
+
+  assert.equal(draft.code, 'pet-licence-workflow-v2');
+  assert.equal(validateWorkflowDefinition(draft).ok, true);
+  assert.equal(assertValidWorkflowDefinition(draft), draft);
+});
+
+test('rejects invalid workflow definitions before publishing', () => {
+  const invalid = {
+    ...certificateIssuanceWorkflow,
+    stages: certificateIssuanceWorkflow.stages.map((stage) => ({
+      ...stage,
+      initial: false,
+    })),
+    transitions: [
+      ...certificateIssuanceWorkflow.transitions,
+      { from: 'missing', to: 'issued', verb: '', actor_role: '' },
+    ],
+  };
+
+  const result = validateWorkflowDefinition(invalid);
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.issues.map((entry) => `${entry.path}:${entry.message}`).join('\n'),
+    /exactly one initial stage|unknown stage|verb is required/,
+  );
 });
 
 test('rejects wrong-role and terminal-stage transitions', () => {

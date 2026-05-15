@@ -14,7 +14,10 @@
     "clean": "rimraf .next .turbo"
   },
   "dependencies": {
+    "@enagar/forms": "workspace:^",
     "@enagar/types": "workspace:*",
+    "@enagar/ui": "workspace:^",
+    "@enagar/workflow": "workspace:^",
     "next": "14.2.13",
     "react": "18.3.1",
     "react-dom": "18.3.1"

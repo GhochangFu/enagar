@@ -15,7 +15,6 @@ export async function GET(): Promise<Response> {
     client_id: keycloakClientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'openid profile email tenant-claims',
     code_challenge: challenge,
     code_challenge_method: 'S256',
   });

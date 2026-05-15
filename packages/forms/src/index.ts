@@ -217,6 +217,46 @@ export function validateFormSchema(schema: EnagarFormSchema): FormValidationResu
   return result(issues);
 }
 
+export function createBlankFormSchemaDraft(
+  serviceCode: string,
+  title: Partial<LocaleMap> = {},
+  version = 1,
+): EnagarFormSchema {
+  const resolvedTitle = completeLocaleMap(title, 'New service form');
+
+  return {
+    schema_version: FORM_SCHEMA_VERSION,
+    service_code: serviceCode,
+    version,
+    title: resolvedTitle,
+    description: completeLocaleMap({}, 'Draft citizen form'),
+    fields: [
+      {
+        id: 'applicant-section',
+        type: 'section',
+        label: completeLocaleMap({}, 'Applicant details'),
+      },
+      {
+        id: 'applicant_name',
+        type: 'text',
+        label: completeLocaleMap({}, 'Applicant name'),
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      },
+    ],
+  };
+}
+
+export function assertValidFormSchema(schema: EnagarFormSchema): EnagarFormSchema {
+  const validation = validateFormSchema(schema);
+  if (!validation.ok) {
+    throw new Error(validation.issues.map((entry) => `${entry.path}: ${entry.message}`).join('; '));
+  }
+
+  return schema;
+}
+
 export function createRenderPlan(
   schema: EnagarFormSchema,
   options: CreateRenderPlanOptions = {},
@@ -585,6 +625,14 @@ function validateLocaleMap(
 
 function pickLocale(value: LocaleMap, locale: LocaleCode): string {
   return value[locale] || value.en;
+}
+
+function completeLocaleMap(partial: Partial<LocaleMap>, fallback: string): LocaleMap {
+  return {
+    en: partial.en?.trim() || fallback,
+    bn: partial.bn?.trim() || partial.en?.trim() || fallback,
+    hi: partial.hi?.trim() || partial.en?.trim() || fallback,
+  };
 }
 
 function isEmpty(value: FormSubmissionValue | undefined): boolean {

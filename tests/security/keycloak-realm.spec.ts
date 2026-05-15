@@ -27,8 +27,6 @@ describe('Sprint 1.2 Keycloak realm contract', () => {
   const realm = JSON.parse(readFileSync(realmPath, 'utf8')) as {
     realm: string;
     enabled: boolean;
-    userProfileEnabled?: boolean;
-    userProfile?: { unmanagedAttributePolicy?: string };
     roles: { realm: Array<{ name: string; attributes?: Record<string, string[]> }> };
     clients: Array<{
       clientId: string;
@@ -49,9 +47,10 @@ describe('Sprint 1.2 Keycloak realm contract', () => {
     expect(realm.enabled).toBe(true);
   });
 
-  it('uses declarative user profile so admins can persist tenant_* operator attributes', () => {
-    expect(realm.userProfileEnabled).toBe(true);
-    expect(realm.userProfile?.unmanagedAttributePolicy).toBe('ADMIN_EDIT');
+  it('keeps the realm export compatible with local Keycloak 25 import', () => {
+    expect(Object.keys(realm)).not.toEqual(
+      expect.arrayContaining(['userProfileEnabled', 'userProfile']),
+    );
   });
 
   it('contains the Sprint 1.2 realm roles', () => {

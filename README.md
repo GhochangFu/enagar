@@ -196,7 +196,7 @@ enagarseba/
 ├── apps/
 │   ├── api/                    # NestJS backend (port 3001)
 │   ├── citizen-pwa/            # Next.js 14 PWA (port 3000)
-│   ├── admin-tenant/           # ULB admin portal (port 3002) — Sprint 6.1 shell + catalogue
+│   ├── admin-tenant/           # ULB admin portal (port 3002) — catalogue + form/workflow designer
 │   ├── admin-state/            # State super-admin portal (port 3003) — stub, Phase 6
 │   ├── mobile/                 # Citizen RN/Expo app                  — stub, Phase 5/8
 │   └── staff-mobile/           # Field-staff RN/Expo app              — stub, Phase 4

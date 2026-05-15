@@ -139,6 +139,53 @@ async function listRealmRoles(token) {
   return res.json();
 }
 
+/**
+ * Keycloak 25's declarative user profile drops unmanaged custom attributes.
+ * Declare the tenant attributes before user upsert so JWT mappers can emit them.
+ *
+ * @param {string} token
+ */
+async function ensureTenantUserProfileAttributes(token) {
+  const res = await adminReq(token, 'GET', '/users/profile');
+  if (!res.ok) {
+    throw new Error(`Read user profile failed: ${res.status} ${await res.text()}`);
+  }
+
+  const profile = await res.json();
+  const attributes = Array.isArray(profile.attributes) ? profile.attributes : [];
+  const byName = new Map(attributes.map((attr) => [attr.name, attr]));
+  const required = ['tenant_id', 'tenant_code', 'ward_id'];
+  let changed = false;
+
+  for (const name of required) {
+    if (byName.has(name)) {
+      continue;
+    }
+    attributes.push({
+      name,
+      displayName: name,
+      permissions: {
+        view: ['admin', 'user'],
+        edit: ['admin'],
+      },
+      multivalued: false,
+    });
+    changed = true;
+  }
+
+  if (!changed) {
+    return;
+  }
+
+  const update = await adminReq(token, 'PUT', '/users/profile', {
+    ...profile,
+    attributes,
+  });
+  if (!update.ok && update.status !== 204) {
+    throw new Error(`Update user profile failed: ${update.status} ${await update.text()}`);
+  }
+}
+
 /** @returns {Promise<string | null>} */
 async function findUserIdByUsername(token, username) {
   const enc = encodeURIComponent(username);
@@ -266,6 +313,7 @@ async function main() {
   console.info(`Realm: ${REALM}`);
   console.info(`Dummy password for all scripted users: ${PASSWORD}`);
   const token = await adminToken();
+  await ensureTenantUserProfileAttributes(token);
 
   /** @type {Array<{ id: string; name: string }>} */
   const roleCatalog = await listRealmRoles(token);

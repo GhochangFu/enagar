@@ -1,3 +1,5 @@
+import { createBlankFormSchemaDraft } from '@enagar/forms';
+import { createLinearWorkflowDraft } from '@enagar/workflow';
 import { NotFoundException } from '@nestjs/common';
 
 import { AdminTenantService } from './admin-tenant.service';
@@ -21,6 +23,16 @@ describe('AdminTenantService', () => {
       findFirst?: jest.Mock;
       update?: jest.Mock;
     };
+    serviceFormVersion?: {
+      aggregate?: jest.Mock;
+      create?: jest.Mock;
+      findFirst?: jest.Mock;
+      update?: jest.Mock;
+    };
+    workflow?: {
+      aggregate?: jest.Mock;
+      findFirst?: jest.Mock;
+    };
     application?: { count?: jest.Mock };
     grievance?: { count?: jest.Mock };
     citizen?: { count?: jest.Mock };
@@ -40,6 +52,16 @@ describe('AdminTenantService', () => {
         findMany: overrides.tenantService?.findMany ?? jest.fn(),
         findFirst: overrides.tenantService?.findFirst ?? jest.fn(),
         update: overrides.tenantService?.update ?? jest.fn(),
+      },
+      serviceFormVersion: {
+        aggregate: overrides.serviceFormVersion?.aggregate ?? jest.fn(),
+        create: overrides.serviceFormVersion?.create ?? jest.fn(),
+        findFirst: overrides.serviceFormVersion?.findFirst ?? jest.fn(),
+        update: overrides.serviceFormVersion?.update ?? jest.fn(),
+      },
+      workflow: {
+        aggregate: overrides.workflow?.aggregate ?? jest.fn(),
+        findFirst: overrides.workflow?.findFirst ?? jest.fn(),
       },
     } as unknown as import('../../common/database/prisma.service').PrismaService;
   }
@@ -122,5 +144,74 @@ describe('AdminTenantService', () => {
     await expect(
       service.patchService(staffPrincipal, 'missing', { is_active: true }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('getServiceDesigner returns starter form and workflow when no drafts exist', async () => {
+    const prisma = mockPrisma({
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'svc-1',
+          code: 'pet-licence',
+          name: { en: 'Pet Licence', bn: 'Pet Licence', hi: 'Pet Licence' },
+          description: {},
+          isActive: true,
+          effectiveSlaDays: 7,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+      },
+      serviceFormVersion: { findFirst: jest.fn().mockResolvedValue(null) },
+      workflow: { findFirst: jest.fn().mockResolvedValue(null) },
+    });
+    const service = new AdminTenantService(prisma);
+    const designer = await service.getServiceDesigner(staffPrincipal, 'svc-1');
+
+    expect(designer.starter_form_schema.service_code).toBe('pet-licence');
+    expect(designer.starter_workflow.code).toBe('pet-licence-workflow-v1');
+  });
+
+  it('saveFormDraft validates service_code before persistence', async () => {
+    const prisma = mockPrisma({
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'svc-1',
+          code: 'birth-cert',
+          name: { en: 'Birth Certificate' },
+          description: {},
+          isActive: true,
+          effectiveSlaDays: 7,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+      },
+    });
+    const service = new AdminTenantService(prisma);
+
+    await expect(
+      service.saveFormDraft(staffPrincipal, 'svc-1', {
+        form_schema: createBlankFormSchemaDraft('trade-licence'),
+      }),
+    ).rejects.toThrow('service_code must match');
+  });
+
+  it('saveWorkflowDraft validates service-code-prefixed workflow code', async () => {
+    const prisma = mockPrisma({
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'svc-1',
+          code: 'birth-cert',
+          name: { en: 'Birth Certificate' },
+          description: {},
+          isActive: true,
+          effectiveSlaDays: 7,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+      },
+    });
+    const service = new AdminTenantService(prisma);
+
+    await expect(
+      service.saveWorkflowDraft(staffPrincipal, 'svc-1', {
+        workflow: createLinearWorkflowDraft('trade-licence'),
+      }),
+    ).rejects.toThrow('prefixed with the service code');
   });
 });

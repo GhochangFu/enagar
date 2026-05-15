@@ -249,6 +249,7 @@ export default function DashboardClient(): JSX.Element {
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">SLA days</th>
                 <th className="px-4 py-3 font-medium">Updated</th>
+                <th className="px-4 py-3 font-medium">Designer</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -300,6 +301,14 @@ export default function DashboardClient(): JSX.Element {
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                     {new Date(row.updated_at).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <a
+                      href={`/dashboard/services/${row.id}`}
+                      className="rounded bg-[rgb(var(--brand-rgb))] px-3 py-1.5 text-xs font-medium text-white hover:opacity-95"
+                    >
+                      Configure
+                    </a>
                   </td>
                 </tr>
               ))}

@@ -1,10 +1,6 @@
 {
   "realm": "enagar",
   "enabled": true,
-  "userProfileEnabled": true,
-  "userProfile": {
-    "unmanagedAttributePolicy": "ADMIN_EDIT"
-  },
   "displayName": "eNagarSeba",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,

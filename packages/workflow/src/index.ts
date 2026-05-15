@@ -37,6 +37,16 @@ export interface WorkflowDefinition {
   transitions: WorkflowTransition[];
 }
 
+export interface WorkflowValidationIssue {
+  path: string;
+  message: string;
+}
+
+export interface WorkflowValidationResult {
+  ok: boolean;
+  issues: WorkflowValidationIssue[];
+}
+
 export interface EvaluateTransitionInput {
   workflow: WorkflowDefinition;
   current_stage: string;
@@ -172,6 +182,98 @@ export const bookingWorkflow: WorkflowDefinition = {
   ],
 };
 
+export function createLinearWorkflowDraft(serviceCode: string, version = 1): WorkflowDefinition {
+  return {
+    code: `${serviceCode}-workflow-v${version}`,
+    version,
+    stages: [
+      stage('submitted', 'Submitted', 'জমা হয়েছে', 'जमा हुआ', 'tenant_clerk', 24, true),
+      stage('approved', 'Approved', 'অনুমোদিত', 'स्वीकृत', 'tenant_admin', 24),
+      stage('closed', 'Closed', 'বন্ধ', 'बंद', 'citizen', undefined, false, true),
+    ],
+    transitions: [
+      transition('submitted', 'approved', 'approve', 'tenant_admin', [{ type: 'audit' }]),
+      transition('approved', 'closed', 'close', 'tenant_clerk', [{ type: 'notify' }]),
+    ],
+  };
+}
+
+export function validateWorkflowDefinition(workflow: WorkflowDefinition): WorkflowValidationResult {
+  const issues: WorkflowValidationIssue[] = [];
+
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(workflow.code)) {
+    issues.push(issue('code', 'workflow code must be lowercase and URL-safe'));
+  }
+  if (!Number.isInteger(workflow.version) || workflow.version < 1) {
+    issues.push(issue('version', 'version must be a positive integer'));
+  }
+  if (!Array.isArray(workflow.stages) || workflow.stages.length < 2) {
+    issues.push(issue('stages', 'at least two stages are required'));
+    return result(issues);
+  }
+
+  const stageCodes = new Set<string>();
+  let initialCount = 0;
+  let terminalCount = 0;
+  for (const [index, item] of workflow.stages.entries()) {
+    const path = `stages.${index}`;
+    if (!/^[a-z][a-z0-9-]*$/.test(item.code)) {
+      issues.push(issue(`${path}.code`, 'stage code must be lowercase and kebab-case'));
+    }
+    if (stageCodes.has(item.code)) {
+      issues.push(issue(`${path}.code`, `duplicate stage code: ${item.code}`));
+    }
+    stageCodes.add(item.code);
+    if (item.initial) {
+      initialCount += 1;
+    }
+    if (item.terminal) {
+      terminalCount += 1;
+    }
+    validateWorkflowLabel(item.label, `${path}.label`, issues);
+    if (!item.owner_role) {
+      issues.push(issue(`${path}.owner_role`, 'owner role is required'));
+    }
+    if (item.sla_hours !== undefined && (!Number.isInteger(item.sla_hours) || item.sla_hours < 0)) {
+      issues.push(issue(`${path}.sla_hours`, 'sla_hours must be a non-negative integer'));
+    }
+  }
+
+  if (initialCount !== 1) {
+    issues.push(issue('stages', 'exactly one initial stage is required'));
+  }
+  if (terminalCount < 1) {
+    issues.push(issue('stages', 'at least one terminal stage is required'));
+  }
+
+  for (const [index, item] of workflow.transitions.entries()) {
+    const path = `transitions.${index}`;
+    if (!stageCodes.has(item.from)) {
+      issues.push(issue(`${path}.from`, `unknown stage: ${item.from}`));
+    }
+    if (!stageCodes.has(item.to)) {
+      issues.push(issue(`${path}.to`, `unknown stage: ${item.to}`));
+    }
+    if (!item.verb) {
+      issues.push(issue(`${path}.verb`, 'verb is required'));
+    }
+    if (!item.actor_role) {
+      issues.push(issue(`${path}.actor_role`, 'actor role is required'));
+    }
+  }
+
+  return result(issues);
+}
+
+export function assertValidWorkflowDefinition(workflow: WorkflowDefinition): WorkflowDefinition {
+  const validation = validateWorkflowDefinition(workflow);
+  if (!validation.ok) {
+    throw new Error(validation.issues.map((entry) => `${entry.path}: ${entry.message}`).join('; '));
+  }
+
+  return workflow;
+}
+
 export function evaluateTransition(input: EvaluateTransitionInput): TransitionEvaluation {
   const from = input.workflow.stages.find((stageItem) => stageItem.code === input.current_stage);
   if (!from) {
@@ -273,4 +375,24 @@ function transition(
     requires_comment: requiresComment,
     effects,
   };
+}
+
+function validateWorkflowLabel(
+  value: WorkflowLabel | undefined,
+  path: string,
+  issues: WorkflowValidationIssue[],
+): void {
+  for (const locale of ['en', 'bn', 'hi'] as const) {
+    if (!value?.[locale]) {
+      issues.push(issue(`${path}.${locale}`, `${locale} translation is required`));
+    }
+  }
+}
+
+function issue(path: string, message: string): WorkflowValidationIssue {
+  return { path, message };
+}
+
+function result(issues: WorkflowValidationIssue[]): WorkflowValidationResult {
+  return { ok: issues.length === 0, issues };
 }

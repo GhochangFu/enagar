@@ -5,6 +5,7 @@ const nextConfig = {
   experimental: {
     typedRoutes: true,
   },
+  transpilePackages: ['@enagar/forms', '@enagar/ui', '@enagar/workflow'],
 };
 
 export default nextConfig;
