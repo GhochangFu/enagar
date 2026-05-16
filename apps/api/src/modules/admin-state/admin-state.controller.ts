@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
@@ -24,6 +24,15 @@ export class AdminStateController {
   @ApiOperation({ summary: 'List tenants with state-wide counts' })
   listTenants(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminState.listTenants(principal);
+  }
+
+  @Get('tenants/:code')
+  @ApiOperation({ summary: 'Tenant detail, health counts, warnings, and recent audit events' })
+  getTenantDetail(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.adminState.getTenantDetail(principal, code);
   }
 
   @Patch('tenants')
@@ -52,7 +61,45 @@ export class AdminStateController {
 
   @Get('audit-logs')
   @ApiOperation({ summary: 'List recent state-admin audit events' })
-  listAuditLogs(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
-    return this.adminState.listAuditLogs(principal);
+  listAuditLogs(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('actor') actor?: string,
+    @Query('action') action?: string,
+    @Query('tenant_code') tenant_code?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminState.listAuditLogs(principal, {
+      actor,
+      action,
+      tenant_code,
+      from,
+      to,
+      cursor,
+      limit,
+    });
+  }
+
+  @Get('audit-logs.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="state-audit-logs.csv"')
+  @ApiOperation({ summary: 'Export filtered state-admin audit events as CSV' })
+  exportAuditLogs(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('actor') actor?: string,
+    @Query('action') action?: string,
+    @Query('tenant_code') tenant_code?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminState.exportAuditLogsCsv(principal, {
+      actor,
+      action,
+      tenant_code,
+      from,
+      to,
+    });
   }
 }

@@ -1,10 +1,10 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { publicEnv } from '../../../../lib/env/public-env';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   const { keycloakIssuer, keycloakClientId, stateAppOrigin } = publicEnv();
   const postLogout = `${stateAppOrigin}/login`;
   const logoutUrl = new URL(`${keycloakIssuer.replace(/\/$/, '')}/protocol/openid-connect/logout`);

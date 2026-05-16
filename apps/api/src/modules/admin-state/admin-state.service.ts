@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { SignJWT } from 'jose';
 
 import { PrismaService } from '../../common/database/prisma.service';
@@ -31,6 +31,43 @@ export type StateTenantRow = {
   services_total: number;
   citizens_total: number;
   applications_total: number;
+};
+
+export type StateAuditLogRow = {
+  id: string;
+  action: string;
+  actorSubject: string;
+  actorRole: string;
+  targetCode: string | null;
+  metadata: Prisma.JsonValue;
+  createdAt: string;
+};
+
+export type StateAuditLogPage = {
+  rows: StateAuditLogRow[];
+  next_cursor: string | null;
+};
+
+export type StateTenantDetail = StateTenantRow & {
+  config: Prisma.JsonValue;
+  logo_url: string | null;
+  active_services_total: number;
+  grievances_open: number;
+  payments_total: number;
+  banners_active: number;
+  staff_assignments_total: number;
+  recent_audit_logs: StateAuditLogRow[];
+  warnings: string[];
+};
+
+export type StateAuditLogQuery = {
+  actor?: string;
+  action?: string;
+  tenant_code?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+  limit?: string;
 };
 
 export type StateAnalytics = {
@@ -234,12 +271,114 @@ export class AdminStateService {
     };
   }
 
-  async listAuditLogs(principal: AuthenticatedPrincipal) {
+  async listAuditLogs(
+    principal: AuthenticatedPrincipal,
+    query: StateAuditLogQuery = {},
+  ): Promise<StateAuditLogPage> {
     assertStateAdmin(principal);
-    return this.prisma.stateAuditLog.findMany({
+    const limit = clampLimit(query.limit);
+    const rows = await this.prisma.stateAuditLog.findMany({
+      where: auditWhere(query),
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      take: limit + 1,
     });
+    const pageRows = rows.slice(0, limit);
+    return {
+      rows: pageRows.map(toAuditLogRow),
+      next_cursor: rows.length > limit ? (pageRows.at(-1)?.id ?? null) : null,
+    };
+  }
+
+  async exportAuditLogsCsv(
+    principal: AuthenticatedPrincipal,
+    query: StateAuditLogQuery = {},
+  ): Promise<string> {
+    assertStateAdmin(principal);
+    const rows = await this.prisma.stateAuditLog.findMany({
+      where: auditWhere(query),
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+    return toCsv(
+      ['created_at', 'actor_subject', 'actor_role', 'action', 'target_code', 'metadata'],
+      rows.map((row) => [
+        row.createdAt.toISOString(),
+        row.actorSubject,
+        row.actorRole,
+        row.action,
+        row.targetCode ?? '',
+        JSON.stringify(row.metadata),
+      ]),
+    );
+  }
+
+  async getTenantDetail(
+    principal: AuthenticatedPrincipal,
+    code: string,
+  ): Promise<StateTenantDetail> {
+    assertStateAdmin(principal);
+    assertTenantCode(code);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { code },
+      include: {
+        tenantConfig: true,
+        _count: {
+          select: {
+            services: true,
+            citizens: true,
+            applications: true,
+            banners: true,
+            userRoles: true,
+          },
+        },
+      },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const [activeServices, openGrievances, payments, recentAuditLogs] = await Promise.all([
+      this.prisma.tenantService.count({ where: { tenantId: tenant.id, isActive: true } }),
+      this.prisma.grievance.count({
+        where: { tenantId: tenant.id, NOT: { status: { in: ['resolved', 'closed'] } } },
+      }),
+      this.prisma.payment.count({ where: { tenantId: tenant.id } }),
+      this.prisma.stateAuditLog.findMany({
+        where: { targetTenantId: tenant.id },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
+    ]);
+
+    const base: StateTenantRow = {
+      id: tenant.id,
+      code: tenant.code,
+      name: tenant.name,
+      district: tenant.district,
+      ward_count: tenant.wardCount,
+      theme_color: tenant.themeColor,
+      languages_enabled: tenant.languagesEnabled,
+      is_active: tenant.isActive,
+      services_total: tenant._count.services,
+      citizens_total: tenant._count.citizens,
+      applications_total: tenant._count.applications,
+    };
+    return {
+      ...base,
+      config: tenant.config,
+      logo_url: tenant.logoUrl,
+      active_services_total: activeServices,
+      grievances_open: openGrievances,
+      payments_total: payments,
+      banners_active: tenant._count.banners,
+      staff_assignments_total: tenant._count.userRoles,
+      recent_audit_logs: recentAuditLogs.map(toAuditLogRow),
+      warnings: tenantWarnings(base, {
+        hasConfig: Boolean(tenant.tenantConfig),
+        activeServices,
+      }),
+    };
   }
 
   private async inheritDefaultServices(tenantId: string): Promise<void> {
@@ -293,4 +432,101 @@ export class AdminStateService {
       },
     });
   }
+}
+
+function toAuditLogRow(row: {
+  id: string;
+  action: string;
+  actorSubject: string;
+  actorRole: string;
+  targetCode: string | null;
+  metadata: Prisma.JsonValue;
+  createdAt: Date;
+}): StateAuditLogRow {
+  return {
+    id: row.id,
+    action: row.action,
+    actorSubject: row.actorSubject,
+    actorRole: row.actorRole,
+    targetCode: row.targetCode,
+    metadata: row.metadata,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function parseOptionalDate(value: string | undefined, field: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`${field} must be an ISO date string`);
+  }
+  return parsed;
+}
+
+function auditWhere(query: StateAuditLogQuery): Prisma.StateAuditLogWhereInput {
+  const from = parseOptionalDate(query.from, 'from');
+  const to = parseOptionalDate(query.to, 'to');
+  return {
+    ...(query.actor ? { actorSubject: { contains: query.actor, mode: 'insensitive' } } : {}),
+    ...(query.action ? { action: { contains: query.action, mode: 'insensitive' } } : {}),
+    ...(query.tenant_code
+      ? { targetCode: { equals: query.tenant_code.toUpperCase(), mode: 'insensitive' } }
+      : {}),
+    ...(from || to
+      ? {
+          createdAt: {
+            ...(from ? { gte: from } : {}),
+            ...(to ? { lte: to } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+function clampLimit(value: string | undefined): number {
+  const parsed = Number(value ?? 50);
+  if (!Number.isFinite(parsed)) {
+    return 50;
+  }
+  return Math.min(Math.max(Math.trunc(parsed), 1), 100);
+}
+
+function csvSafe(value: unknown): string {
+  const raw = value === null || value === undefined ? '' : String(value);
+  const escapedFormula = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${escapedFormula.replace(/"/g, '""')}"`;
+}
+
+function toCsv(headers: string[], rows: unknown[][]): string {
+  return [headers.map(csvSafe).join(','), ...rows.map((row) => row.map(csvSafe).join(','))].join(
+    '\r\n',
+  );
+}
+
+function tenantWarnings(
+  tenant: StateTenantRow,
+  facts: { hasConfig: boolean; activeServices: number },
+): string[] {
+  const warnings: string[] = [];
+  if (!tenant.is_active) {
+    warnings.push('Tenant is inactive');
+  }
+  if (!facts.hasConfig) {
+    warnings.push('Tenant config row is missing');
+  }
+  if (tenant.languages_enabled.length === 0) {
+    warnings.push('No enabled languages configured');
+  }
+  if (tenant.services_total === 0) {
+    warnings.push('No services inherited or configured');
+  }
+  if (facts.activeServices === 0) {
+    warnings.push('No active services available to citizens');
+  }
+  if (!tenant.theme_color) {
+    warnings.push('Theme color is missing');
+  }
+  return warnings;
 }

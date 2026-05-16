@@ -154,7 +154,7 @@ pnpm --filter @enagar/admin-tenant dev
 - Exit checklists: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**, **`docs/runbooks/master-sprint-64-exit.md`**, **`docs/runbooks/master-sprint-67-exit.md`**, **`docs/runbooks/master-sprint-68-exit.md`**
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
-After login, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel. Use **Masters** on the dashboard for revenue heads, address master rows, and tax/tariff rows. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, and staff/role assignments, plus Sprint 6.8 maintenance banners and notification-template preview.
+After login, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel. The **Dashboard** now includes Sprint 6.9 trend tables, SLA-breached queues, workload cards, and tenant CSV exports. Use **Masters** for revenue heads, address master rows, tax/tariff rows, and Sprint 6.9 address CSV dry-run/import. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, and staff/role assignments, plus Sprint 6.8 maintenance banners and notification-template preview.
 
 ---
 
@@ -168,7 +168,8 @@ pnpm --filter @enagar/admin-state dev
 
 - State Admin: **`http://localhost:3003`**
 - Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
-- Exit checklists: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**
+- Exit checklists: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**
+- Sprint 6.9 smoke: filter audit logs, export audit CSV, and click a tenant row for the detail drill-down panel.
 
 Sign in with a **`state_admin`** dummy user. The dashboard supports municipality onboarding, tenant directory review, audited impersonation token creation, cross-tenant analytics, and recent audit log review.
 

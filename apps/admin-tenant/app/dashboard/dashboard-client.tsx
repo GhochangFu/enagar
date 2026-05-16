@@ -20,6 +20,36 @@ type DashboardSnapshot = {
   payments_settled_last_30_days: number;
 };
 
+type DashboardDeep = {
+  application_trends_30d: Array<{ date: string; submitted: number }>;
+  payment_trends_30d: Array<{ date: string; settled: number; amount_paise: number }>;
+  breached_grievances: Array<{
+    id: string;
+    reference: string;
+    category: string;
+    status: string;
+    sla_due_at: string | null;
+    sla_breached_at: string | null;
+    updated_at: string;
+  }>;
+  breached_applications: Array<{
+    id: string;
+    docket_no: string;
+    service_code: string;
+    status: string;
+    pending_role: string | null;
+    submitted_at: string;
+    updated_at: string;
+    expected_sla_at: string | null;
+  }>;
+  top_services: Array<{
+    service_code: string;
+    name: unknown;
+    open_applications: number;
+    recent_submissions_30d: number;
+  }>;
+};
+
 type ServiceRow = {
   id: string;
   code: string;
@@ -77,6 +107,7 @@ export default function DashboardClient(): JSX.Element {
   const [apiBase, setApiBase] = useState(fallbackApi);
   const [status, setStatus] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
+  const [dashboardDeep, setDashboardDeep] = useState<DashboardDeep | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [slaDrafts, setSlaDrafts] = useState<Record<string, string>>({});
 
@@ -109,21 +140,25 @@ export default function DashboardClient(): JSX.Element {
     }
     setStatus(null);
     try {
-      const [dashRes, svcRes] = await Promise.all([
+      const [dashRes, deepRes, svcRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/dashboard`, { headers: authHeaders() }),
+        fetch(`${apiBase}/admin/tenant/dashboard/deep`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/services`, { headers: authHeaders() }),
       ]);
-      if (!dashRes.ok || !svcRes.ok) {
+      if (!dashRes.ok || !deepRes.ok || !svcRes.ok) {
         const body = await dashRes.text().catch(() => '');
+        const deepBody = await deepRes.text().catch(() => '');
         const body2 = await svcRes.text().catch(() => '');
         setStatus(
-          `API error (${dashRes.status} / ${svcRes.status}) ${body.slice(0, 120)} ${body2.slice(0, 120)}`,
+          `API error (${dashRes.status} / ${deepRes.status} / ${svcRes.status}) ${body.slice(0, 120)} ${deepBody.slice(0, 120)} ${body2.slice(0, 120)}`,
         );
         return;
       }
       const dashJson = (await dashRes.json()) as DashboardSnapshot;
+      const deepJson = (await deepRes.json()) as DashboardDeep;
       const svcJson = (await svcRes.json()) as ServiceRow[];
       setDashboard(dashJson);
+      setDashboardDeep(deepJson);
       setServices(svcJson);
       const drafts: Record<string, string> = {};
       for (const row of svcJson) {
@@ -160,6 +195,30 @@ export default function DashboardClient(): JSX.Element {
     const updated = (await res.json()) as ServiceRow;
     setServices((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     setStatus(null);
+  }
+
+  async function downloadExport(kind: string): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/exports/${kind}.csv`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      setStatus(`Export failed (${res.status}): ${text.slice(0, 180)}`);
+      return;
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `${kind}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+    setStatus(`${kind} CSV exported.`);
   }
 
   function logout(): void {
@@ -241,6 +300,93 @@ export default function DashboardClient(): JSX.Element {
       ) : (
         <p className="text-slate-600">Loading KPIs…</p>
       )}
+
+      {dashboardDeep ? (
+        <section className="mb-12 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Sprint 6.9 · Dashboard depth
+                </p>
+                <h2 className="text-lg font-semibold text-slate-900">30-day trends</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {['applications', 'payments', 'grievances', 'sla-summary'].map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => void downloadExport(kind)}
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Export {kind}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <TrendList
+                title="Applications submitted"
+                rows={dashboardDeep.application_trends_30d.slice(-7).map((row) => ({
+                  label: row.date,
+                  value: row.submitted,
+                }))}
+              />
+              <TrendList
+                title="Payments settled"
+                rows={dashboardDeep.payment_trends_30d.slice(-7).map((row) => ({
+                  label: row.date,
+                  value: `${row.settled} / ₹${(row.amount_paise / 100).toFixed(2)}`,
+                }))}
+              />
+            </div>
+          </article>
+
+          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">Top active workload</h2>
+            <ul className="mt-4 space-y-3">
+              {dashboardDeep.top_services.length ? (
+                dashboardDeep.top_services.map((row) => (
+                  <li key={row.service_code} className="rounded border border-slate-200 p-3">
+                    <p className="font-medium text-slate-900">{pickLabel(row.name)}</p>
+                    <p className="font-mono text-xs text-slate-500">{row.service_code}</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Open: {row.open_applications} · Recent 30d: {row.recent_submissions_30d}
+                    </p>
+                  </li>
+                ))
+              ) : (
+                <li className="text-sm text-slate-500">No recent service activity.</li>
+              )}
+            </ul>
+          </article>
+
+          <QueueCard
+            title="Breached applications"
+            empty="No application SLA breaches detected."
+            rows={dashboardDeep.breached_applications.map((row) => ({
+              key: row.id,
+              title: row.docket_no,
+              subtitle: `${row.service_code} · ${row.status}`,
+              meta: row.expected_sla_at
+                ? `Expected by ${new Date(row.expected_sla_at).toLocaleString()}`
+                : 'No SLA date',
+            }))}
+          />
+          <QueueCard
+            title="Breached grievances"
+            empty="No open breached grievances."
+            rows={dashboardDeep.breached_grievances.map((row) => ({
+              key: row.id,
+              title: row.reference,
+              subtitle: `${row.category} · ${row.status}`,
+              meta: row.sla_breached_at
+                ? `Breached ${new Date(row.sla_breached_at).toLocaleString()}`
+                : 'No breach timestamp',
+            }))}
+          />
+        </section>
+      ) : null}
 
       <section>
         <div className="mb-4 flex items-baseline justify-between gap-4">
@@ -342,6 +488,57 @@ function KpiCard({ title, value }: { title: string; value: number }): JSX.Elemen
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
       <p className="mt-2 text-3xl font-semibold tabular-nums text-slate-900">{value}</p>
+    </article>
+  );
+}
+
+function TrendList({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: string | number }>;
+}): JSX.Element {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <ul className="mt-3 space-y-2 text-sm">
+        {rows.map((row) => (
+          <li key={row.label} className="flex justify-between gap-4">
+            <span className="font-mono text-xs text-slate-500">{row.label}</span>
+            <span className="font-semibold text-slate-900">{row.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function QueueCard({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: Array<{ key: string; title: string; subtitle: string; meta: string }>;
+  empty: string;
+}): JSX.Element {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <ul className="mt-4 space-y-3">
+        {rows.length ? (
+          rows.map((row) => (
+            <li key={row.key} className="rounded border border-red-100 bg-red-50 p-3">
+              <p className="font-mono text-xs font-semibold text-red-950">{row.title}</p>
+              <p className="mt-1 text-sm text-red-900">{row.subtitle}</p>
+              <p className="mt-1 text-xs text-red-800">{row.meta}</p>
+            </li>
+          ))
+        ) : (
+          <li className="text-sm text-slate-500">{empty}</li>
+        )}
+      </ul>
     </article>
   );
 }

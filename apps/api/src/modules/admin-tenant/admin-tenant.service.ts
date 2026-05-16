@@ -61,6 +61,44 @@ export type TenantAdminDashboardSnapshot = {
   payments_settled_last_30_days: number;
 };
 
+export type TenantAdminDashboardDeep = {
+  application_trends_30d: Array<{ date: string; submitted: number }>;
+  payment_trends_30d: Array<{ date: string; settled: number; amount_paise: number }>;
+  breached_grievances: Array<{
+    id: string;
+    reference: string;
+    category: string;
+    status: string;
+    sla_due_at: string | null;
+    sla_breached_at: string | null;
+    updated_at: string;
+  }>;
+  breached_applications: Array<{
+    id: string;
+    docket_no: string;
+    service_code: string;
+    status: string;
+    pending_role: string | null;
+    submitted_at: string;
+    updated_at: string;
+    expected_sla_at: string | null;
+  }>;
+  top_services: Array<{
+    service_code: string;
+    name: Prisma.JsonValue;
+    open_applications: number;
+    recent_submissions_30d: number;
+  }>;
+};
+
+export type TenantAdminAddressImportResult = {
+  dry_run: boolean;
+  inserted: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+};
+
 export type TenantAdminServiceRow = {
   id: string;
   code: string;
@@ -300,6 +338,123 @@ export class AdminTenantService {
     };
   }
 
+  async getDashboardDeep(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardDeep> {
+    assertTenantPortalStaff(principal);
+    const tenantId = principal.tenantId;
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const terminalGrievance = ['resolved', 'closed'];
+
+    const [applications, payments, breachedGrievances, services] = await Promise.all([
+      this.prisma.application.findMany({
+        where: { tenantId, submittedAt: { gte: thirtyDaysAgo } },
+        select: {
+          id: true,
+          docketNo: true,
+          serviceCode: true,
+          status: true,
+          pendingRole: true,
+          submittedAt: true,
+          updatedAt: true,
+          service: { select: { code: true, name: true, effectiveSlaDays: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      this.prisma.payment.findMany({
+        where: { tenantId, status: 'settled', settledAt: { gte: thirtyDaysAgo } },
+        select: { amountPaise: true, settledAt: true },
+        orderBy: { settledAt: 'asc' },
+      }),
+      this.prisma.grievance.findMany({
+        where: {
+          tenantId,
+          slaBreachedAt: { not: null },
+          NOT: { status: { in: terminalGrievance } },
+        },
+        select: {
+          id: true,
+          grievanceNo: true,
+          category: true,
+          status: true,
+          slaDueAt: true,
+          slaBreachedAt: true,
+          updatedAt: true,
+        },
+        orderBy: [{ slaBreachedAt: 'asc' }, { updatedAt: 'desc' }],
+        take: 10,
+      }),
+      this.prisma.tenantService.findMany({
+        where: { tenantId },
+        select: { code: true, name: true },
+        orderBy: { code: 'asc' },
+      }),
+    ]);
+
+    const openStatuses = new Set(['submitted', 'in_review', 'pending_payment', 'pending']);
+    const breachedApplications = applications
+      .filter((row) => {
+        const days = row.service.effectiveSlaDays;
+        if (!days || !openStatuses.has(row.status)) {
+          return false;
+        }
+        return row.submittedAt.getTime() + days * 24 * 60 * 60 * 1000 < now.getTime();
+      })
+      .slice(0, 10)
+      .map((row) => ({
+        id: row.id,
+        docket_no: row.docketNo,
+        service_code: row.serviceCode,
+        status: row.status,
+        pending_role: row.pendingRole,
+        submitted_at: row.submittedAt.toISOString(),
+        updated_at: row.updatedAt.toISOString(),
+        expected_sla_at: row.service.effectiveSlaDays
+          ? new Date(
+              row.submittedAt.getTime() + row.service.effectiveSlaDays * 24 * 60 * 60 * 1000,
+            ).toISOString()
+          : null,
+      }));
+
+    const serviceNames = new Map(services.map((service) => [service.code, service.name]));
+    const serviceStats = new Map<string, { open: number; recent: number }>();
+    for (const row of applications) {
+      const stat = serviceStats.get(row.serviceCode) ?? { open: 0, recent: 0 };
+      stat.recent += 1;
+      if (openStatuses.has(row.status)) {
+        stat.open += 1;
+      }
+      serviceStats.set(row.serviceCode, stat);
+    }
+
+    return {
+      application_trends_30d: bucketDates(
+        applications.map((row) => row.submittedAt),
+        thirtyDaysAgo,
+        now,
+      ).map((bucket) => ({ date: bucket.date, submitted: bucket.count })),
+      payment_trends_30d: bucketPayments(payments, thirtyDaysAgo, now),
+      breached_grievances: breachedGrievances.map((row) => ({
+        id: row.id,
+        reference: row.grievanceNo,
+        category: row.category,
+        status: row.status,
+        sla_due_at: row.slaDueAt?.toISOString() ?? null,
+        sla_breached_at: row.slaBreachedAt?.toISOString() ?? null,
+        updated_at: row.updatedAt.toISOString(),
+      })),
+      breached_applications: breachedApplications,
+      top_services: [...serviceStats.entries()]
+        .sort((left, right) => right[1].open - left[1].open || right[1].recent - left[1].recent)
+        .slice(0, 8)
+        .map(([serviceCode, stat]) => ({
+          service_code: serviceCode,
+          name: serviceNames.get(serviceCode) ?? { en: serviceCode },
+          open_applications: stat.open,
+          recent_submissions_30d: stat.recent,
+        })),
+    };
+  }
+
   async listServices(principal: AuthenticatedPrincipal): Promise<TenantAdminServiceRow[]> {
     assertTenantPortalStaff(principal);
     const rows = await this.prisma.tenantService.findMany({
@@ -325,6 +480,221 @@ export class AdminTenantService {
       effective_sla_days: row.effectiveSlaDays,
       updated_at: row.updatedAt.toISOString(),
     }));
+  }
+
+  async exportApplicationsCsv(
+    principal: AuthenticatedPrincipal,
+    filters: { from?: string; to?: string },
+  ): Promise<string> {
+    assertTenantPortalStaff(principal);
+    const where = withDateRange<Prisma.ApplicationWhereInput>(
+      { tenantId: principal.tenantId },
+      'submittedAt',
+      filters,
+    );
+    const rows = await this.prisma.application.findMany({
+      where,
+      select: {
+        docketNo: true,
+        serviceCode: true,
+        status: true,
+        paymentStatus: true,
+        pendingRole: true,
+        submittedAt: true,
+        updatedAt: true,
+      },
+      orderBy: { submittedAt: 'desc' },
+      take: 5000,
+    });
+    return toCsv(
+      [
+        'docket_no',
+        'service_code',
+        'status',
+        'payment_status',
+        'pending_role',
+        'submitted_at',
+        'updated_at',
+      ],
+      rows.map((row) => [
+        row.docketNo,
+        row.serviceCode,
+        row.status,
+        row.paymentStatus,
+        row.pendingRole ?? '',
+        row.submittedAt.toISOString(),
+        row.updatedAt.toISOString(),
+      ]),
+    );
+  }
+
+  async exportPaymentsCsv(
+    principal: AuthenticatedPrincipal,
+    filters: { from?: string; to?: string },
+  ): Promise<string> {
+    assertTenantPortalStaff(principal);
+    const where = withDateRange<Prisma.PaymentWhereInput>(
+      { tenantId: principal.tenantId },
+      'createdAt',
+      filters,
+    );
+    const rows = await this.prisma.payment.findMany({
+      where,
+      select: {
+        gatewayOrderId: true,
+        gatewayPaymentId: true,
+        amountPaise: true,
+        currency: true,
+        method: true,
+        status: true,
+        gateway: true,
+        createdAt: true,
+        settledAt: true,
+        application: { select: { docketNo: true, serviceCode: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+    return toCsv(
+      [
+        'docket_no',
+        'service_code',
+        'gateway_order_id',
+        'gateway_payment_id',
+        'amount_paise',
+        'currency',
+        'method',
+        'status',
+        'gateway',
+        'created_at',
+        'settled_at',
+      ],
+      rows.map((row) => [
+        row.application.docketNo,
+        row.application.serviceCode,
+        row.gatewayOrderId,
+        row.gatewayPaymentId ?? '',
+        row.amountPaise,
+        row.currency,
+        row.method,
+        row.status,
+        row.gateway,
+        row.createdAt.toISOString(),
+        row.settledAt?.toISOString() ?? '',
+      ]),
+    );
+  }
+
+  async exportGrievancesCsv(
+    principal: AuthenticatedPrincipal,
+    filters: { from?: string; to?: string },
+  ): Promise<string> {
+    assertTenantPortalStaff(principal);
+    const where = withDateRange<Prisma.GrievanceWhereInput>(
+      { tenantId: principal.tenantId },
+      'createdAt',
+      filters,
+    );
+    const rows = await this.prisma.grievance.findMany({
+      where,
+      select: {
+        grievanceNo: true,
+        category: true,
+        grievancePriority: true,
+        status: true,
+        routedRoleCode: true,
+        slaDueAt: true,
+        slaBreachedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+    return toCsv(
+      [
+        'grievance_no',
+        'category',
+        'priority',
+        'status',
+        'routed_role',
+        'sla_due_at',
+        'sla_breached_at',
+        'created_at',
+        'updated_at',
+      ],
+      rows.map((row) => [
+        row.grievanceNo,
+        row.category,
+        row.grievancePriority,
+        row.status,
+        row.routedRoleCode ?? '',
+        row.slaDueAt?.toISOString() ?? '',
+        row.slaBreachedAt?.toISOString() ?? '',
+        row.createdAt.toISOString(),
+        row.updatedAt.toISOString(),
+      ]),
+    );
+  }
+
+  async exportSlaSummaryCsv(principal: AuthenticatedPrincipal): Promise<string> {
+    assertTenantPortalStaff(principal);
+    const [applications, grievances] = await Promise.all([
+      this.prisma.application.findMany({
+        where: { tenantId: principal.tenantId, NOT: { status: 'closed' } },
+        select: {
+          docketNo: true,
+          serviceCode: true,
+          status: true,
+          submittedAt: true,
+          service: { select: { effectiveSlaDays: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+        take: 5000,
+      }),
+      this.prisma.grievance.findMany({
+        where: { tenantId: principal.tenantId, NOT: { status: { in: ['resolved', 'closed'] } } },
+        select: {
+          grievanceNo: true,
+          category: true,
+          status: true,
+          slaDueAt: true,
+          slaBreachedAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5000,
+      }),
+    ]);
+    const now = Date.now();
+    return toCsv(
+      ['kind', 'reference', 'category_or_service', 'status', 'sla_due_at', 'breached'],
+      [
+        ...applications.map((row) => {
+          const dueAt = row.service.effectiveSlaDays
+            ? new Date(
+                row.submittedAt.getTime() + row.service.effectiveSlaDays * 24 * 60 * 60 * 1000,
+              )
+            : null;
+          return [
+            'application',
+            row.docketNo,
+            row.serviceCode,
+            row.status,
+            dueAt?.toISOString() ?? '',
+            dueAt ? String(dueAt.getTime() < now) : 'false',
+          ];
+        }),
+        ...grievances.map((row) => [
+          'grievance',
+          row.grievanceNo,
+          row.category,
+          row.status,
+          row.slaDueAt?.toISOString() ?? '',
+          String(Boolean(row.slaBreachedAt)),
+        ]),
+      ],
+    );
   }
 
   async patchService(
@@ -572,6 +942,63 @@ export class AdminTenantService {
     });
 
     return toAddressMasterRow(locality);
+  }
+
+  async importAddressMasterCsv(
+    principal: AuthenticatedPrincipal,
+    csv: string,
+    dryRun = false,
+  ): Promise<TenantAdminAddressImportResult> {
+    assertTenantPortalStaff(principal);
+    const rows = parseCsv(csv);
+    const errors: TenantAdminAddressImportResult['errors'] = [];
+    let inserted = 0;
+    let updated = 0;
+
+    const requiredHeaders = ['ward_number', 'locality_name'];
+    for (const header of requiredHeaders) {
+      if (!rows.headers.includes(header)) {
+        errors.push({ row: 1, field: header, message: 'Missing required CSV header' });
+      }
+    }
+    if (errors.length > 0) {
+      return { dry_run: dryRun, inserted, updated, failed: rows.records.length, errors };
+    }
+
+    for (const record of rows.records) {
+      const dto: UpsertAddressMasterDto = {
+        borough_code: record.data.borough_code,
+        borough_name: record.data.borough_name,
+        ward_number: record.data.ward_number ?? '',
+        ward_name: record.data.ward_name,
+        mouza: record.data.mouza,
+        locality_name: record.data.locality_name ?? '',
+        pincode: record.data.pincode,
+      };
+      const rowErrors = validateAddressImportRow(dto, record.row);
+      if (rowErrors.length > 0) {
+        errors.push(...rowErrors);
+        continue;
+      }
+      const exists = await this.prisma.locality.findFirst({
+        where: {
+          tenantId: principal.tenantId,
+          name: dto.locality_name.trim(),
+          pincode: dto.pincode?.trim() || '',
+        },
+        select: { id: true },
+      });
+      if (exists) {
+        updated += 1;
+      } else {
+        inserted += 1;
+      }
+      if (!dryRun) {
+        await this.upsertAddressMaster(principal, dto);
+      }
+    }
+
+    return { dry_run: dryRun, inserted, updated, failed: errors.length, errors };
   }
 
   async listTariffs(principal: AuthenticatedPrincipal): Promise<TenantAdminTariffRow[]> {
@@ -1601,6 +2028,162 @@ function previewFeeRule(value: Prisma.JsonValue): number | null {
   } catch {
     return null;
   }
+}
+
+function dayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function bucketDates(
+  dates: Date[],
+  start: Date,
+  end: Date,
+): Array<{ date: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const date of dates) {
+    counts.set(dayKey(date), (counts.get(dayKey(date)) ?? 0) + 1);
+  }
+  const buckets: Array<{ date: string; count: number }> = [];
+  for (
+    let cursor = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+    );
+    cursor <= end;
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+  ) {
+    const key = dayKey(cursor);
+    buckets.push({ date: key, count: counts.get(key) ?? 0 });
+  }
+  return buckets;
+}
+
+function bucketPayments(
+  payments: Array<{ settledAt: Date | null; amountPaise: number }>,
+  start: Date,
+  end: Date,
+): Array<{ date: string; settled: number; amount_paise: number }> {
+  const counts = new Map<string, { settled: number; amount: number }>();
+  for (const payment of payments) {
+    if (!payment.settledAt) {
+      continue;
+    }
+    const key = dayKey(payment.settledAt);
+    const current = counts.get(key) ?? { settled: 0, amount: 0 };
+    current.settled += 1;
+    current.amount += payment.amountPaise;
+    counts.set(key, current);
+  }
+  return bucketDates([], start, end).map((bucket) => {
+    const current = counts.get(bucket.date) ?? { settled: 0, amount: 0 };
+    return { date: bucket.date, settled: current.settled, amount_paise: current.amount };
+  });
+}
+
+function parseOptionalDate(value: string | undefined, field: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`${field} must be an ISO date string`);
+  }
+  return parsed;
+}
+
+function withDateRange<TWhere extends Record<string, unknown>>(
+  where: TWhere,
+  field: string,
+  filters: { from?: string; to?: string },
+): TWhere {
+  const from = parseOptionalDate(filters.from, 'from');
+  const to = parseOptionalDate(filters.to, 'to');
+  if (!from && !to) {
+    return where;
+  }
+  return {
+    ...where,
+    [field]: {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    },
+  };
+}
+
+function csvSafe(value: unknown): string {
+  const raw = value === null || value === undefined ? '' : String(value);
+  const escapedFormula = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${escapedFormula.replace(/"/g, '""')}"`;
+}
+
+function toCsv(headers: string[], rows: unknown[][]): string {
+  return [headers.map(csvSafe).join(','), ...rows.map((row) => row.map(csvSafe).join(','))].join(
+    '\r\n',
+  );
+}
+
+function parseCsv(input: string): {
+  headers: string[];
+  records: Array<{ row: number; data: Record<string, string> }>;
+} {
+  const lines = input
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  if (lines.length === 0) {
+    return { headers: [], records: [] };
+  }
+  const headers = splitCsvLine(lines[0] ?? '').map((header) => header.trim());
+  return {
+    headers,
+    records: lines.slice(1).map((line, index) => {
+      const values = splitCsvLine(line);
+      const data: Record<string, string> = {};
+      headers.forEach((header, headerIndex) => {
+        data[header] = values[headerIndex]?.trim() ?? '';
+      });
+      return { row: index + 2, data };
+    }),
+  };
+}
+
+function splitCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      values.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values;
+}
+
+function validateAddressImportRow(
+  dto: UpsertAddressMasterDto,
+  row: number,
+): TenantAdminAddressImportResult['errors'] {
+  const errors: TenantAdminAddressImportResult['errors'] = [];
+  if (!dto.ward_number.trim()) {
+    errors.push({ row, field: 'ward_number', message: 'ward_number is required' });
+  }
+  if (!dto.locality_name.trim()) {
+    errors.push({ row, field: 'locality_name', message: 'locality_name is required' });
+  }
+  if (dto.pincode && !/^\d{6}$/.test(dto.pincode.trim())) {
+    errors.push({ row, field: 'pincode', message: 'pincode must be 6 digits' });
+  }
+  return errors;
 }
 
 function toWorkflowRow(row: WorkflowWithChildren): TenantAdminWorkflowRow {

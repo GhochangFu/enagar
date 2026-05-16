@@ -7,7 +7,8 @@ Sprint 6.5 turns this package into the State Super-Admin portal on **http://loca
 - Tenant onboarding wizard JSON editor backed by `PATCH /api/admin/state/tenants`
 - Tenant directory + cross-tenant KPI dashboard from `GET /api/admin/state/*`
 - Audited 15-minute tenant impersonation token creation
-- Recent state-admin audit log visibility
+- State-admin audit log search, cursor pagination, and CSV export
+- Sprint 6.9 tenant directory drill-down with health counts, warnings, config highlights, and tenant audit events
 
 ## Local Run
 
@@ -27,9 +28,11 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 ## Engineering Exit Record
 
 - `docs/runbooks/master-sprint-65-exit.md`
+- `docs/runbooks/master-sprint-69-exit.md`
 
 ## Explicit Non-Goals
 
 - No live Keycloak user provisioning from the onboarding wizard.
 - No production support-session handoff UI; this sprint generates and audits the short-lived token.
 - No global service library curator UI; inherited defaults use the existing catalogue seeds.
+- No audit SIEM integration or tenant onboarding redesign in Sprint 6.9.

@@ -21,13 +21,14 @@
 | `master-sprint-66.spec.ts`         | Phase 6.6 proof that citizen PWA/mobile consume DB-published tenant catalogue/forms instead of bundled form fixtures                 | 6.6        |
 | `master-sprint-67.spec.ts`         | Phase 6.7 proof that Tenant Admin designer polish keeps palette/canvas edits on the same draft/publish contracts                     | 6.7        |
 | `master-sprint-68.spec.ts`         | Phase 6.8 proof for tenant banners, guided service config, notification previews, and no provider sends                              | 6.8        |
+| `master-sprint-69.spec.ts`         | Phase 6.9 proof for tenant dashboard depth, CSV exports/import, state audit search/export, and tenant drill-down                     | 6.9        |
 | _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                                                                       | 1          |
 | _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call                                                      | 7          |
 | _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation                                                           | 6          |
 
 Phase 1 security status:
 
-- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, DigiLocker-blocked status, service catalogue, form schema, application APIs, workflow contracts, document upload contracts, holding lookup contracts, the citizen PWA end-to-end UI contract, Phase 2 protected-route/PWA hardening, final Phase 2 SQL-only service/upload-order closure contracts, Phase 6 citizen catalogue alignment, Tenant Admin designer polish, and Phase 6 P1 operator polish.
+- `pnpm test:security` covers RLS migration contracts, Keycloak realm shape, JWT tenant binding, PWA/mobile onboarding routes, CORS, i18n, tenant theming, DigiLocker-blocked status, service catalogue, form schema, application APIs, workflow contracts, document upload contracts, holding lookup contracts, the citizen PWA end-to-end UI contract, Phase 2 protected-route/PWA hardening, final Phase 2 SQL-only service/upload-order closure contracts, Phase 6 citizen catalogue alignment, Tenant Admin designer polish, Phase 6 P1 operator polish, and Phase 6 P2 reporting/state visibility.
 - `pnpm security:zap:auth` completed with `FAIL-NEW: 0`, `WARN-NEW: 0`, and 119 passing checks for the auth OpenAPI surface.
 - Real DigiLocker/Aadhaar linking is intentionally deferred until external access and permission are granted.
 

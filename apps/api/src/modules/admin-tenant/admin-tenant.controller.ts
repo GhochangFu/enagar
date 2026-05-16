@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
@@ -7,6 +7,7 @@ import { AdminTenantService } from './admin-tenant.service';
 import { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
 import {
   PatchTenantServiceConfigDto,
+  ImportAddressMasterCsvDto,
   UpsertAddressMasterDto,
   UpsertRevenueHeadDto,
   UpsertTariffDto,
@@ -33,6 +34,56 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'Tenant-scoped KPI snapshot for the admin portal dashboard' })
   getDashboard(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.getDashboard(principal);
+  }
+
+  @Get('dashboard/deep')
+  @ApiOperation({ summary: 'Tenant dashboard trends and SLA drill-down queues' })
+  getDashboardDeep(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getDashboardDeep(principal);
+  }
+
+  @Get('exports/applications.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="applications.csv"')
+  @ApiOperation({ summary: 'Export tenant applications as CSV' })
+  exportApplications(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminTenant.exportApplicationsCsv(principal, { from, to });
+  }
+
+  @Get('exports/payments.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="payments.csv"')
+  @ApiOperation({ summary: 'Export tenant payments as CSV' })
+  exportPayments(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminTenant.exportPaymentsCsv(principal, { from, to });
+  }
+
+  @Get('exports/grievances.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="grievances.csv"')
+  @ApiOperation({ summary: 'Export tenant grievances as CSV' })
+  exportGrievances(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminTenant.exportGrievancesCsv(principal, { from, to });
+  }
+
+  @Get('exports/sla-summary.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="sla-summary.csv"')
+  @ApiOperation({ summary: 'Export tenant SLA summary as CSV' })
+  exportSlaSummary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.exportSlaSummaryCsv(principal);
   }
 
   @Get('services')
@@ -120,6 +171,15 @@ export class AdminTenantController {
     @Body() dto: UpsertAddressMasterDto,
   ) {
     return this.adminTenant.upsertAddressMaster(principal, dto);
+  }
+
+  @Post('address-master/import-csv')
+  @ApiOperation({ summary: 'Dry-run or import tenant address master CSV rows' })
+  importAddressMasterCsv(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: ImportAddressMasterCsvDto,
+  ) {
+    return this.adminTenant.importAddressMasterCsv(principal, dto.csv, dto.dry_run ?? false);
   }
 
   @Get('tariffs')

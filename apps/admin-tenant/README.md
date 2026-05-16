@@ -20,7 +20,7 @@ Copy **`apps/admin-tenant/.env.example`** → **`.env.local`** and adjust if you
 
 1. **Login** → `/api/admin-auth/start` generates PKCE, redirects to Keycloak.
 2. **Callback** → `/auth/callback` exchanges `authorization_code`, stores tokens in **`sessionStorage`** under `enagar.admin.oauth`, redirects to **`/dashboard`**.
-3. Dashboard calls **`GET /api/admin/tenant/dashboard`** and **`GET/PATCH /api/admin/tenant/services/...`** with `Authorization: Bearer …`.
+3. Dashboard calls **`GET /api/admin/tenant/dashboard`**, **`GET /api/admin/tenant/dashboard/deep`**, CSV export endpoints, and **`GET/PATCH /api/admin/tenant/services/...`** with `Authorization: Bearer …`.
 4. Service **Configure** opens **`/dashboard/services/[serviceId]`** for form schema, workflow, fee, document, and revenue draft/publish/configuration.
 5. **Operations** opens **`/dashboard/operations`** for Sprint 6.4 templates, KB, branding, feature flags, staff, role-stage maps, and Sprint 6.8 maintenance banners / notification previews.
 
@@ -39,6 +39,13 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - **Maintenance banners** persist in tenant-scoped `tenant_banners` rows and surface in citizen municipal workspaces through `GET /api/tenants/:code/banners`.
 - **Notification templates** now have channel/locale form controls and live `{{variable}}` preview; actual SMS/email/WhatsApp/push provider sends remain deferred.
 
+## Sprint 6.9 reporting and bulk ops
+
+- Tenant Dashboard shows 30-day trends, SLA-breached drill-down queues, and top active workload.
+- Tenant Admin exports applications, payments, grievances, and SLA summaries as bearer-token CSV downloads.
+- Tenant Masters supports address-master CSV dry-run/import over the existing single-row address contract.
+- Exit: **`docs/runbooks/master-sprint-69-exit.md`**.
+
 ## Relation to citizen catalogue API
 
 Public **`GET /api/services/tenants/:tenantCode`** now resolves active Postgres `TenantService` rows and latest published `service_form_versions` (Sprint **6.6**). Publishing a form from this designer changes citizen PWA/mobile runtime after refresh without rebuilding clients.
@@ -51,3 +58,4 @@ Master Sprint **6.3**: **`docs/runbooks/master-sprint-63-exit.md`**.
 Master Sprint **6.4**: **`docs/runbooks/master-sprint-64-exit.md`**.
 Master Sprint **6.7**: **`docs/runbooks/master-sprint-67-exit.md`**.
 Master Sprint **6.8**: **`docs/runbooks/master-sprint-68-exit.md`**.
+Master Sprint **6.9**: **`docs/runbooks/master-sprint-69-exit.md`**.

@@ -38,6 +38,14 @@ type TariffRow = {
   is_active: boolean;
 };
 
+type AddressImportResult = {
+  dry_run: boolean;
+  inserted: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+};
+
 function readStoredAuth(): AdminOAuthBundle | null {
   if (typeof window === 'undefined') {
     return null;
@@ -75,6 +83,10 @@ export default function MastersClient(): JSX.Element {
   const [revenueHeads, setRevenueHeads] = useState<RevenueHeadRow[]>([]);
   const [addressRows, setAddressRows] = useState<AddressRow[]>([]);
   const [tariffs, setTariffs] = useState<TariffRow[]>([]);
+  const [addressCsv, setAddressCsv] = useState(
+    'borough_code,borough_name,ward_number,ward_name,mouza,locality_name,pincode\nborough-vii,Borough VII,64,Ward 64,Kasba,Ballygunge Place,700019',
+  );
+  const [addressImportResult, setAddressImportResult] = useState<AddressImportResult | null>(null);
   const [revenueText, setRevenueText] = useState(
     JSON.stringify(
       {
@@ -200,6 +212,32 @@ export default function MastersClient(): JSX.Element {
     await loadMasters();
   }
 
+  async function importAddressCsv(dryRun: boolean): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/address-master/import-csv`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ csv: addressCsv, dry_run: dryRun }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      setStatus(
+        `Address CSV ${dryRun ? 'dry-run' : 'import'} failed (${res.status}). ${text.slice(0, 180)}`,
+      );
+      return;
+    }
+    const result = (await res.json()) as AddressImportResult;
+    setAddressImportResult(result);
+    setStatus(
+      `Address CSV ${dryRun ? 'dry-run' : 'import'} complete: ${result.inserted} insert, ${result.updated} update, ${result.failed} failed.`,
+    );
+    if (!dryRun) {
+      await loadMasters();
+    }
+  }
+
   if (!token) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-10">
@@ -248,6 +286,60 @@ export default function MastersClient(): JSX.Element {
           onChange={setTariffText}
           onSave={() => void upsert('tariffs', tariffText, 'Tariff')}
         />
+      </section>
+
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Sprint 6.9 · Bulk address import
+            </p>
+            <h2 className="text-lg font-semibold text-slate-900">Address master CSV</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Paste CSV rows, dry-run validation, then import valid borough/ward/locality records.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void importAddressCsv(true)}
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
+            >
+              Dry-run
+            </button>
+            <button
+              type="button"
+              onClick={() => void importAddressCsv(false)}
+              className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white"
+            >
+              Import CSV
+            </button>
+          </div>
+        </div>
+        <textarea
+          className="mt-4 h-40 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+          value={addressCsv}
+          onChange={(event) => setAddressCsv(event.target.value)}
+          spellCheck={false}
+        />
+        {addressImportResult ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <p className="font-semibold text-slate-900">
+              {addressImportResult.dry_run ? 'Dry-run' : 'Import'} result: insert{' '}
+              {addressImportResult.inserted}, update {addressImportResult.updated}, failed{' '}
+              {addressImportResult.failed}
+            </p>
+            {addressImportResult.errors.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-red-700">
+                {addressImportResult.errors.map((error) => (
+                  <li key={`${error.row}-${error.field}-${error.message}`}>
+                    Row {error.row} / {error.field}: {error.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-8 grid gap-6 xl:grid-cols-3">

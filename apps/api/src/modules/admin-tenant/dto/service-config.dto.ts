@@ -57,6 +57,15 @@ export class UpsertAddressMasterDto {
   pincode?: string;
 }
 
+export class ImportAddressMasterCsvDto {
+  @IsString()
+  csv!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  dry_run?: boolean;
+}
+
 export class UpsertTariffDto {
   @IsString()
   code!: string;
