@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
@@ -15,6 +25,11 @@ import {
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
 import {
   PatchTenantSettingsDto,
+  RequeueKbArticleDto,
+  UpsertBookableAssetDto,
+  UpsertBookableAvailabilityDto,
+  UpsertBookingReservationDto,
+  UpsertBrandingAssetDto,
   UpsertKbArticleDto,
   UpsertNotificationTemplateDto,
   UpsertRoleStageMapDto,
@@ -84,6 +99,24 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'Export tenant SLA summary as CSV' })
   exportSlaSummary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.exportSlaSummaryCsv(principal);
+  }
+
+  @Get('exports/:kind.pdf')
+  @Header('content-type', 'application/pdf')
+  @ApiOperation({ summary: 'Export tenant report summary as a PDF' })
+  exportReportPdf(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('kind') kind: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminTenant.exportReportPdf(principal, kind, { from, to }).then(
+      (buffer) =>
+        new StreamableFile(buffer, {
+          type: 'application/pdf',
+          disposition: `attachment; filename="${kind}.pdf"`,
+        }),
+    );
   }
 
   @Get('services')
@@ -323,6 +356,63 @@ export class AdminTenantController {
     @Body() dto: UpsertKbArticleDto,
   ) {
     return this.adminTenant.upsertKbArticle(principal, dto);
+  }
+
+  @Post('kb-articles/requeue-index')
+  @ApiOperation({ summary: 'Requeue a published KB article for RAG indexing' })
+  requeueKbArticle(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: RequeueKbArticleDto,
+  ) {
+    return this.adminTenant.requeueKbArticle(principal, dto);
+  }
+
+  @Get('branding-assets')
+  @ApiOperation({ summary: 'List tenant-scoped logo/hero branding assets' })
+  listBrandingAssets(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listBrandingAssets(principal);
+  }
+
+  @Patch('branding-assets')
+  @ApiOperation({ summary: 'Register or update a tenant branding asset' })
+  upsertBrandingAsset(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertBrandingAssetDto,
+  ) {
+    return this.adminTenant.upsertBrandingAsset(principal, dto);
+  }
+
+  @Get('bookings')
+  @ApiOperation({ summary: 'List bookable assets, availability windows, and reservations' })
+  listBookings(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listBookableAssets(principal);
+  }
+
+  @Patch('bookings/assets')
+  @ApiOperation({ summary: 'Create or update a bookable asset' })
+  upsertBookableAsset(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertBookableAssetDto,
+  ) {
+    return this.adminTenant.upsertBookableAsset(principal, dto);
+  }
+
+  @Post('bookings/availability')
+  @ApiOperation({ summary: 'Add availability or blackout window for a bookable asset' })
+  addBookableAvailability(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertBookableAvailabilityDto,
+  ) {
+    return this.adminTenant.addBookableAvailability(principal, dto);
+  }
+
+  @Post('bookings/reservations')
+  @ApiOperation({ summary: 'Create a conflict-checked reservation hold or booking' })
+  addBookingReservation(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertBookingReservationDto,
+  ) {
+    return this.adminTenant.addBookingReservation(principal, dto);
   }
 
   @Get('roles')

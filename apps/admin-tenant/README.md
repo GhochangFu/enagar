@@ -53,6 +53,14 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - Workflow designer adds guided escalation/SLA side-effect authoring over the existing draft/publish contract.
 - Exit: **`docs/runbooks/master-sprint-610-exit.md`**.
 
+## Sprint 6.11 P4 content, reports, and bookings
+
+- Tenant Dashboard/Reports adds PDF downloads over existing CSV/report query contracts.
+- Operations adds richer KB authoring, preview, safe media references, and KB index trigger/reconcile controls.
+- Operations branding adds tenant-scoped logo/hero asset registration and contrast checks.
+- Tenant Admin adds a bounded bookable assets/calendar MVP for services using the `booking` workflow pattern.
+- Exit: **`docs/runbooks/master-sprint-611-exit.md`**.
+
 ## Relation to citizen catalogue API
 
 Public **`GET /api/services/tenants/:tenantCode`** now resolves active Postgres `TenantService` rows and latest published `service_form_versions` (Sprint **6.6**). Publishing a form from this designer changes citizen PWA/mobile runtime after refresh without rebuilding clients.
@@ -67,3 +75,4 @@ Master Sprint **6.7**: **`docs/runbooks/master-sprint-67-exit.md`**.
 Master Sprint **6.8**: **`docs/runbooks/master-sprint-68-exit.md`**.
 Master Sprint **6.9**: **`docs/runbooks/master-sprint-69-exit.md`**.
 Master Sprint **6.10**: **`docs/runbooks/master-sprint-610-exit.md`**.
+Master Sprint **6.11**: **`docs/runbooks/master-sprint-611-exit.md`**.

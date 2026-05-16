@@ -56,7 +56,14 @@ describe('AdminTenantService', () => {
     };
     kbArticle?: {
       findMany?: jest.Mock;
+      findUnique?: jest.Mock;
+      findUniqueOrThrow?: jest.Mock;
       upsert?: jest.Mock;
+    };
+    kbIndexJob?: {
+      findFirst?: jest.Mock;
+      create?: jest.Mock;
+      update?: jest.Mock;
     };
     role?: {
       findMany?: jest.Mock;
@@ -140,7 +147,14 @@ describe('AdminTenantService', () => {
       },
       kbArticle: {
         findMany: overrides.kbArticle?.findMany ?? jest.fn(),
+        findUnique: overrides.kbArticle?.findUnique ?? jest.fn(),
+        findUniqueOrThrow: overrides.kbArticle?.findUniqueOrThrow ?? jest.fn(),
         upsert: overrides.kbArticle?.upsert ?? jest.fn(),
+      },
+      kbIndexJob: {
+        findFirst: overrides.kbIndexJob?.findFirst ?? jest.fn(),
+        create: overrides.kbIndexJob?.create ?? jest.fn(),
+        update: overrides.kbIndexJob?.update ?? jest.fn(),
       },
       role: {
         findMany: overrides.role?.findMany ?? jest.fn(),
@@ -610,7 +624,24 @@ describe('AdminTenantService', () => {
       publishedAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     });
-    const prisma = mockPrisma({ kbArticle: { upsert } });
+    const findUniqueOrThrow = jest.fn().mockResolvedValue({
+      id: 'kb-1',
+      slug: 'birth-certificate-help',
+      title: { en: 'Birth certificate help' },
+      body: { en: 'Markdown body' },
+      tags: ['birth'],
+      status: 'published',
+      publishedAt: new Date('2026-01-01T00:00:00.000Z'),
+      indexJobs: [{ status: 'queued', updatedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const prisma = mockPrisma({
+      kbArticle: { upsert, findUniqueOrThrow },
+      kbIndexJob: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'job-1' }),
+      },
+    });
     const service = new AdminTenantService(prisma);
     const row = await service.upsertKbArticle(staffPrincipal, {
       slug: 'birth-certificate-help',
@@ -621,6 +652,7 @@ describe('AdminTenantService', () => {
     });
 
     expect(row.status).toBe('published');
+    expect(row.index_status).toBe('queued');
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tenantId_slug: { tenantId, slug: 'birth-certificate-help' } },

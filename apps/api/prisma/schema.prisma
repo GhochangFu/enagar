@@ -30,6 +30,10 @@ model Tenant {
   notificationTemplates NotificationTemplate[]
   pushDevices      CitizenPushDevice[]
   kbArticles       KbArticle[]
+  kbIndexJobs      KbIndexJob[]
+  brandingAssets   TenantBrandingAsset[]
+  bookableAssets   BookableAsset[]
+  bookingReservations BookingReservation[]
   stateAuditLogs   StateAuditLog[]
   impersonationTokens ImpersonationToken[]
   applicationComments ApplicationComment[]
@@ -316,12 +320,52 @@ model KbArticle {
   publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  indexJobs   KbIndexJob[]
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
   @@index([tags], type: Gin)
   @@map("kb_articles")
+}
+
+model KbIndexJob {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  articleId   String    @map("article_id") @db.Uuid
+  status      String    @default("queued") @db.VarChar(20)
+  trigger     String    @default("publish") @db.VarChar(30)
+  requestedBy String?   @map("requested_by") @db.VarChar(255)
+  error       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  article     KbArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@map("kb_index_jobs")
+}
+
+model TenantBrandingAsset {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  code         String   @db.VarChar(80)
+  kind         String   @db.VarChar(20)
+  storageKey   String   @map("storage_key") @db.VarChar(255)
+  publicUrl    String   @map("public_url")
+  mimeType     String   @map("mime_type") @db.VarChar(80)
+  sizeBytes    Int      @map("size_bytes")
+  width        Int?
+  height       Int?
+  metadata     Json     @default(dbgenerated("'{}'::jsonb"))
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, kind, createdAt])
+  @@map("tenant_branding_assets")
 }
 
 model StateAuditLog {
@@ -587,6 +631,7 @@ model Application {
   formVersionRef  ServiceFormVersion?   @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
   payments        Payment[]
   receipts        Receipt[]
+  bookingReservations BookingReservation[]
   service         TenantService         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   timeline        ApplicationTimeline[]
@@ -829,6 +874,64 @@ model Challan {
   @@unique([tenantId, challanNo])
   @@index([tenantId, status])
   @@map("challans")
+}
+
+model BookableAsset {
+  id           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                     @map("tenant_id") @db.Uuid
+  code         String                     @db.VarChar(80)
+  name         Json
+  location     Json                       @default(dbgenerated("'{}'::jsonb"))
+  capacity     Int?
+  isActive     Boolean                    @default(true) @map("is_active")
+  metadata     Json                       @default(dbgenerated("'{}'::jsonb"))
+  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  availability BookableAssetAvailability[]
+  reservations BookingReservation[]
+  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("bookable_assets")
+}
+
+model BookableAssetAvailability {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  assetId   String        @map("asset_id") @db.Uuid
+  kind      String        @default("available") @db.VarChar(20)
+  startsAt  DateTime      @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime      @map("ends_at") @db.Timestamptz(6)
+  note      String?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  asset     BookableAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assetId, startsAt, endsAt])
+  @@map("bookable_asset_availability")
+}
+
+model BookingReservation {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  assetId       String         @map("asset_id") @db.Uuid
+  applicationId String?        @map("application_id") @db.Uuid
+  docketNo      String?        @map("docket_no") @db.VarChar(80)
+  holderName    String         @map("holder_name") @db.VarChar(255)
+  holderMobile  String?        @map("holder_mobile") @db.VarChar(15)
+  startsAt      DateTime       @map("starts_at") @db.Timestamptz(6)
+  endsAt        DateTime       @map("ends_at") @db.Timestamptz(6)
+  status        String         @default("hold") @db.VarChar(20)
+  note          String?
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  asset         BookableAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assetId, startsAt, endsAt])
+  @@index([tenantId, status])
+  @@map("booking_reservations")
 }
 
 model SlaPolicy {

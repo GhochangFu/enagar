@@ -221,6 +221,30 @@ export default function DashboardClient(): JSX.Element {
     setStatus(`${kind} CSV exported.`);
   }
 
+  async function downloadPdf(kind: string): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/exports/${kind}.pdf`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      setStatus(`PDF export failed (${res.status}): ${text.slice(0, 180)}`);
+      return;
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `${kind}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+    setStatus(`${kind} PDF exported.`);
+  }
+
   function logout(): void {
     sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
     router.replace('/login');
@@ -313,14 +337,22 @@ export default function DashboardClient(): JSX.Element {
               </div>
               <div className="flex flex-wrap gap-2">
                 {['applications', 'payments', 'grievances', 'sla-summary'].map((kind) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => void downloadExport(kind)}
-                    className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Export {kind}
-                  </button>
+                  <div key={kind} className="flex overflow-hidden rounded border border-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => void downloadExport(kind)}
+                      className="bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      CSV {kind}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void downloadPdf(kind)}
+                      className="border-l border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-white"
+                    >
+                      PDF
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

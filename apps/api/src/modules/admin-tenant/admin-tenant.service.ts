@@ -39,6 +39,11 @@ import type {
 } from './dto/service-designer.dto';
 import type {
   PatchTenantSettingsDto,
+  RequeueKbArticleDto,
+  UpsertBookableAssetDto,
+  UpsertBookableAvailabilityDto,
+  UpsertBookingReservationDto,
+  UpsertBrandingAssetDto,
   UpsertKbArticleDto,
   UpsertNotificationTemplateDto,
   UpsertTenantBannerDto,
@@ -238,6 +243,54 @@ export type TenantAdminKbArticleRow = {
   tags: string[];
   status: string;
   published_at: string | null;
+  index_status: string | null;
+  index_updated_at: string | null;
+  updated_at: string;
+};
+
+export type TenantAdminBrandingAssetRow = {
+  id: string;
+  code: string;
+  kind: string;
+  storage_key: string;
+  public_url: string;
+  mime_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  contrast_warnings: string[];
+  updated_at: string;
+};
+
+export type TenantAdminBookableAssetRow = {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  location: Prisma.JsonValue;
+  capacity: number | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export type TenantAdminBookableAvailabilityRow = {
+  id: string;
+  asset_code: string;
+  kind: string;
+  starts_at: string;
+  ends_at: string;
+  note: string | null;
+};
+
+export type TenantAdminBookingReservationRow = {
+  id: string;
+  asset_code: string;
+  docket_no: string | null;
+  holder_name: string;
+  holder_mobile: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  note: string | null;
   updated_at: string;
 };
 
@@ -882,6 +935,100 @@ export class AdminTenantService {
         ]),
       ],
     );
+  }
+
+  async exportReportPdf(
+    principal: AuthenticatedPrincipal,
+    kind: string,
+    filters: { from?: string; to?: string },
+  ): Promise<Buffer> {
+    assertTenantPortalStaff(principal);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: principal.tenantId },
+      select: { code: true, name: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    const title = reportTitle(kind);
+    const rows = await this.reportSummaryRows(principal.tenantId, kind, filters);
+    return renderSimplePdf([
+      `eNagarSeba ${title}`,
+      `Tenant: ${tenant.name} (${tenant.code})`,
+      `Generated: ${new Date().toISOString()}`,
+      `Filters: from=${filters.from || 'all'} to=${filters.to || 'all'}`,
+      '',
+      ...rows.map(([label, value]) => `${label}: ${value}`),
+    ]);
+  }
+
+  private async reportSummaryRows(
+    tenantId: string,
+    kind: string,
+    filters: { from?: string; to?: string },
+  ): Promise<Array<[string, string | number]>> {
+    if (kind === 'applications') {
+      const where = withDateRange<Prisma.ApplicationWhereInput>(
+        { tenantId },
+        'submittedAt',
+        filters,
+      );
+      const [total, open, closed] = await Promise.all([
+        this.prisma.application.count({ where }),
+        this.prisma.application.count({ where: { ...where, NOT: { status: 'closed' } } }),
+        this.prisma.application.count({ where: { ...where, status: 'closed' } }),
+      ]);
+      return [
+        ['Applications total', total],
+        ['Applications open', open],
+        ['Applications closed', closed],
+      ];
+    }
+    if (kind === 'payments' || kind === 'revenue') {
+      const where = withDateRange<Prisma.PaymentWhereInput>(
+        { tenantId, status: 'settled' },
+        'settledAt',
+        filters,
+      );
+      const [settled, sum] = await Promise.all([
+        this.prisma.payment.count({ where }),
+        this.prisma.payment.aggregate({ where, _sum: { amountPaise: true } }),
+      ]);
+      return [
+        ['Settled payments', settled],
+        ['Settled amount (paise)', sum._sum.amountPaise ?? 0],
+      ];
+    }
+    if (kind === 'grievances') {
+      const where = withDateRange<Prisma.GrievanceWhereInput>({ tenantId }, 'createdAt', filters);
+      const [total, open, breached] = await Promise.all([
+        this.prisma.grievance.count({ where }),
+        this.prisma.grievance.count({
+          where: { ...where, NOT: { status: { in: ['resolved', 'closed'] } } },
+        }),
+        this.prisma.grievance.count({ where: { ...where, slaBreachedAt: { not: null } } }),
+      ]);
+      return [
+        ['Grievances total', total],
+        ['Grievances open', open],
+        ['SLA breached grievances', breached],
+      ];
+    }
+    if (kind === 'sla-summary' || kind === 'sla') {
+      const [applicationsOpen, grievancesOpen, grievancesBreached] = await Promise.all([
+        this.prisma.application.count({ where: { tenantId, NOT: { status: 'closed' } } }),
+        this.prisma.grievance.count({
+          where: { tenantId, NOT: { status: { in: ['resolved', 'closed'] } } },
+        }),
+        this.prisma.grievance.count({ where: { tenantId, slaBreachedAt: { not: null } } }),
+      ]);
+      return [
+        ['Open applications', applicationsOpen],
+        ['Open grievances', grievancesOpen],
+        ['SLA breached grievances', grievancesBreached],
+      ];
+    }
+    throw new BadRequestException('Unsupported PDF report kind');
   }
 
   async patchService(
@@ -1681,6 +1828,7 @@ export class AdminTenantService {
     assertTenantPortalStaff(principal);
     const rows = await this.prisma.kbArticle.findMany({
       where: { tenantId: principal.tenantId },
+      include: { indexJobs: { orderBy: { updatedAt: 'desc' }, take: 1 } },
       orderBy: [{ status: 'asc' }, { slug: 'asc' }],
     });
     return rows.map(toKbArticleRow);
@@ -1716,8 +1864,227 @@ export class AdminTenantService {
         status: dto.status,
         publishedAt,
       },
+      include: { indexJobs: { orderBy: { updatedAt: 'desc' }, take: 1 } },
     });
+    if (dto.status === 'published') {
+      await this.queueKbIndexJob(principal, row.id, 'publish');
+      const refreshed = await this.prisma.kbArticle.findUniqueOrThrow({
+        where: { id: row.id },
+        include: { indexJobs: { orderBy: { updatedAt: 'desc' }, take: 1 } },
+      });
+      return toKbArticleRow(refreshed);
+    }
     return toKbArticleRow(row);
+  }
+
+  async requeueKbArticle(
+    principal: AuthenticatedPrincipal,
+    dto: RequeueKbArticleDto,
+  ): Promise<TenantAdminKbArticleRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.slug, 'KB article slug');
+    const article = await this.prisma.kbArticle.findUnique({
+      where: { tenantId_slug: { tenantId: principal.tenantId, slug: dto.slug } },
+      include: { indexJobs: { orderBy: { updatedAt: 'desc' }, take: 1 } },
+    });
+    if (!article) {
+      throw new NotFoundException('KB article not found');
+    }
+    if (article.status !== 'published') {
+      throw new BadRequestException('Only published KB articles can be queued for indexing');
+    }
+    await this.queueKbIndexJob(principal, article.id, 'manual_requeue');
+    const refreshed = await this.prisma.kbArticle.findUniqueOrThrow({
+      where: { id: article.id },
+      include: { indexJobs: { orderBy: { updatedAt: 'desc' }, take: 1 } },
+    });
+    return toKbArticleRow(refreshed);
+  }
+
+  async listBrandingAssets(
+    principal: AuthenticatedPrincipal,
+  ): Promise<TenantAdminBrandingAssetRow[]> {
+    assertTenantPortalStaff(principal);
+    const settings = await this.getSettings(principal);
+    const theme = brandingThemeColor(settings.branding);
+    const rows = await this.prisma.tenantBrandingAsset.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ kind: 'asc' }, { updatedAt: 'desc' }],
+    });
+    return rows.map((row) => toBrandingAssetRow(row, theme));
+  }
+
+  async upsertBrandingAsset(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertBrandingAssetDto,
+  ): Promise<TenantAdminBrandingAssetRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'branding asset code');
+    assertBrandingAssetKind(dto.kind);
+    assertBrandingAssetMime(dto.mime_type);
+    const sizeBytes = parsePositiveInt(dto.size_bytes, 'size_bytes');
+    if (sizeBytes > 5 * 1024 * 1024) {
+      throw new BadRequestException('Branding asset size must be <= 5MB');
+    }
+    if (!isHttpUrl(dto.public_url)) {
+      throw new BadRequestException('public_url must be an http(s) URL');
+    }
+    if (!dto.storage_key.startsWith(`${principal.tenantCode ?? principal.tenantId}/`)) {
+      throw new BadRequestException('storage_key must be tenant-prefixed');
+    }
+    const width = dto.width ? parsePositiveInt(dto.width, 'width') : null;
+    const height = dto.height ? parsePositiveInt(dto.height, 'height') : null;
+    const row = await this.prisma.tenantBrandingAsset.upsert({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: dto.code } },
+      create: {
+        tenantId: principal.tenantId,
+        code: dto.code,
+        kind: dto.kind,
+        storageKey: dto.storage_key,
+        publicUrl: dto.public_url,
+        mimeType: dto.mime_type,
+        sizeBytes,
+        width,
+        height,
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+      update: {
+        kind: dto.kind,
+        storageKey: dto.storage_key,
+        publicUrl: dto.public_url,
+        mimeType: dto.mime_type,
+        sizeBytes,
+        width,
+        height,
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+    const settings = await this.getSettings(principal);
+    return toBrandingAssetRow(row, brandingThemeColor(settings.branding));
+  }
+
+  async listBookableAssets(principal: AuthenticatedPrincipal): Promise<{
+    assets: TenantAdminBookableAssetRow[];
+    availability: TenantAdminBookableAvailabilityRow[];
+    reservations: TenantAdminBookingReservationRow[];
+  }> {
+    assertTenantPortalStaff(principal);
+    const [assets, availability, reservations] = await Promise.all([
+      this.prisma.bookableAsset.findMany({
+        where: { tenantId: principal.tenantId },
+        orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
+      }),
+      this.prisma.bookableAssetAvailability.findMany({
+        where: { tenantId: principal.tenantId },
+        include: { asset: true },
+        orderBy: { startsAt: 'asc' },
+        take: 100,
+      }),
+      this.prisma.bookingReservation.findMany({
+        where: { tenantId: principal.tenantId },
+        include: { asset: true },
+        orderBy: { startsAt: 'asc' },
+        take: 100,
+      }),
+    ]);
+    return {
+      assets: assets.map(toBookableAssetRow),
+      availability: availability.map(toAvailabilityRow),
+      reservations: reservations.map(toReservationRow),
+    };
+  }
+
+  async upsertBookableAsset(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertBookableAssetDto,
+  ): Promise<TenantAdminBookableAssetRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'bookable asset code');
+    assertLocaleLabel(dto.name, 'bookable asset name');
+    const capacity = dto.capacity ? parsePositiveInt(dto.capacity, 'capacity') : null;
+    const row = await this.prisma.bookableAsset.upsert({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: dto.code } },
+      create: {
+        tenantId: principal.tenantId,
+        code: dto.code,
+        name: dto.name as Prisma.InputJsonValue,
+        location: (dto.location ?? {}) as Prisma.InputJsonValue,
+        capacity,
+        isActive: dto.is_active ?? true,
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+      update: {
+        name: dto.name as Prisma.InputJsonValue,
+        location: (dto.location ?? {}) as Prisma.InputJsonValue,
+        capacity,
+        isActive: dto.is_active ?? true,
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+    return toBookableAssetRow(row);
+  }
+
+  async addBookableAvailability(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertBookableAvailabilityDto,
+  ): Promise<TenantAdminBookableAvailabilityRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.asset_code, 'asset code');
+    assertAvailabilityKind(dto.kind);
+    const { startsAt, endsAt } = parseTimeWindow(dto.starts_at, dto.ends_at);
+    const asset = await this.getBookableAsset(principal.tenantId, dto.asset_code);
+    const row = await this.prisma.bookableAssetAvailability.create({
+      data: {
+        tenantId: principal.tenantId,
+        assetId: asset.id,
+        kind: dto.kind,
+        startsAt,
+        endsAt,
+        note: dto.note?.trim() || null,
+      },
+      include: { asset: true },
+    });
+    return toAvailabilityRow(row);
+  }
+
+  async addBookingReservation(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertBookingReservationDto,
+  ): Promise<TenantAdminBookingReservationRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.asset_code, 'asset code');
+    const { startsAt, endsAt } = parseTimeWindow(dto.starts_at, dto.ends_at);
+    if (!dto.holder_name.trim()) {
+      throw new BadRequestException('holder_name is required');
+    }
+    const status = dto.status ?? 'hold';
+    assertBookingStatus(status);
+    const asset = await this.getBookableAsset(principal.tenantId, dto.asset_code);
+    if (!asset.isActive) {
+      throw new BadRequestException('Bookable asset is inactive');
+    }
+    await this.assertBookableWindow(principal.tenantId, asset.id, startsAt, endsAt);
+    const application = dto.docket_no
+      ? await this.prisma.application.findFirst({
+          where: { tenantId: principal.tenantId, docketNo: dto.docket_no },
+        })
+      : null;
+    const row = await this.prisma.bookingReservation.create({
+      data: {
+        tenantId: principal.tenantId,
+        assetId: asset.id,
+        applicationId: application?.id ?? null,
+        docketNo: dto.docket_no?.trim() || null,
+        holderName: dto.holder_name,
+        holderMobile: dto.holder_mobile?.trim() || null,
+        startsAt,
+        endsAt,
+        status,
+        note: dto.note?.trim() || null,
+      },
+      include: { asset: true },
+    });
+    return toReservationRow(row);
   }
 
   async listRoles(principal: AuthenticatedPrincipal): Promise<TenantAdminRoleRow[]> {
@@ -1876,6 +2243,77 @@ export class AdminTenantService {
     return toRoleStageMapRow(row);
   }
 
+  private async queueKbIndexJob(
+    principal: AuthenticatedPrincipal,
+    articleId: string,
+    trigger: 'publish' | 'manual_requeue' | 'nightly_reconcile',
+  ): Promise<void> {
+    const existing = await this.prisma.kbIndexJob.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        articleId,
+        status: { in: ['queued', 'processing'] },
+      },
+    });
+    if (existing) {
+      await this.prisma.kbIndexJob.update({
+        where: { id: existing.id },
+        data: { trigger, requestedBy: principal.subject },
+      });
+      return;
+    }
+    await this.prisma.kbIndexJob.create({
+      data: {
+        tenantId: principal.tenantId,
+        articleId,
+        trigger,
+        requestedBy: principal.subject,
+      },
+    });
+  }
+
+  private async getBookableAsset(tenantId: string, code: string) {
+    const asset = await this.prisma.bookableAsset.findUnique({
+      where: { tenantId_code: { tenantId, code } },
+    });
+    if (!asset) {
+      throw new NotFoundException('Bookable asset not found');
+    }
+    return asset;
+  }
+
+  private async assertBookableWindow(
+    tenantId: string,
+    assetId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ): Promise<void> {
+    const blackout = await this.prisma.bookableAssetAvailability.findFirst({
+      where: {
+        tenantId,
+        assetId,
+        kind: 'blackout',
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    });
+    if (blackout) {
+      throw new BadRequestException('Requested window overlaps a blackout');
+    }
+    const overlap = await this.prisma.bookingReservation.findFirst({
+      where: {
+        tenantId,
+        assetId,
+        status: { in: ['hold', 'confirmed'] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    });
+    if (overlap) {
+      throw new BadRequestException('Requested window overlaps an existing booking');
+    }
+  }
+
   private async getOwnedService(
     principal: AuthenticatedPrincipal,
     serviceId: string,
@@ -2021,8 +2459,10 @@ function toKbArticleRow(row: {
   tags: string[];
   status: string;
   publishedAt: Date | null;
+  indexJobs?: Array<{ status: string; updatedAt: Date }>;
   updatedAt: Date;
 }): TenantAdminKbArticleRow {
+  const latestIndex = row.indexJobs?.[0] ?? null;
   return {
     id: row.id,
     slug: row.slug,
@@ -2031,6 +2471,102 @@ function toKbArticleRow(row: {
     tags: row.tags,
     status: row.status,
     published_at: row.publishedAt?.toISOString() ?? null,
+    index_status: latestIndex?.status ?? null,
+    index_updated_at: latestIndex?.updatedAt.toISOString() ?? null,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toBrandingAssetRow(
+  row: {
+    id: string;
+    code: string;
+    kind: string;
+    storageKey: string;
+    publicUrl: string;
+    mimeType: string;
+    sizeBytes: number;
+    width: number | null;
+    height: number | null;
+    updatedAt: Date;
+  },
+  themeColor: string | null,
+): TenantAdminBrandingAssetRow {
+  return {
+    id: row.id,
+    code: row.code,
+    kind: row.kind,
+    storage_key: row.storageKey,
+    public_url: row.publicUrl,
+    mime_type: row.mimeType,
+    size_bytes: row.sizeBytes,
+    width: row.width,
+    height: row.height,
+    contrast_warnings: themeColor ? contrastWarnings(themeColor) : ['theme_color is not set'],
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toBookableAssetRow(row: {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  location: Prisma.JsonValue;
+  capacity: number | null;
+  isActive: boolean;
+  updatedAt: Date;
+}): TenantAdminBookableAssetRow {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    location: row.location,
+    capacity: row.capacity,
+    is_active: row.isActive,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toAvailabilityRow(row: {
+  id: string;
+  kind: string;
+  startsAt: Date;
+  endsAt: Date;
+  note: string | null;
+  asset: { code: string };
+}): TenantAdminBookableAvailabilityRow {
+  return {
+    id: row.id,
+    asset_code: row.asset.code,
+    kind: row.kind,
+    starts_at: row.startsAt.toISOString(),
+    ends_at: row.endsAt.toISOString(),
+    note: row.note,
+  };
+}
+
+function toReservationRow(row: {
+  id: string;
+  docketNo: string | null;
+  holderName: string;
+  holderMobile: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  status: string;
+  note: string | null;
+  updatedAt: Date;
+  asset: { code: string };
+}): TenantAdminBookingReservationRow {
+  return {
+    id: row.id,
+    asset_code: row.asset.code,
+    docket_no: row.docketNo,
+    holder_name: row.holderName,
+    holder_mobile: row.holderMobile,
+    starts_at: row.startsAt.toISOString(),
+    ends_at: row.endsAt.toISOString(),
+    status: row.status,
+    note: row.note,
     updated_at: row.updatedAt.toISOString(),
   };
 }
@@ -2465,6 +3001,129 @@ function extractTemplateVariables(subject: string | undefined, body: string): st
     }
   }
   return [...variables];
+}
+
+function reportTitle(kind: string): string {
+  const titles: Record<string, string> = {
+    applications: 'Applications Report',
+    payments: 'Revenue And Payments Report',
+    revenue: 'Revenue And Payments Report',
+    grievances: 'Grievances Report',
+    'sla-summary': 'SLA Summary Report',
+    sla: 'SLA Summary Report',
+  };
+  const title = titles[kind];
+  if (!title) {
+    throw new BadRequestException('Unsupported PDF report kind');
+  }
+  return title;
+}
+
+function renderSimplePdf(lines: string[]): Buffer {
+  const text = lines.map((line) => line.replace(/[()\\]/g, '\\$&')).join('\\n');
+  const stream = `BT /F1 11 Tf 50 780 Td (${text}) Tj ET`;
+  const objects = [
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
+    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+    `5 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj`,
+  ];
+  const header = '%PDF-1.4\n';
+  let body = header;
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(body, 'utf8'));
+    body += `${object}\n`;
+  }
+  const xrefOffset = Buffer.byteLength(body, 'utf8');
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) {
+    body += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(body, 'utf8');
+}
+
+function brandingThemeColor(value: Prisma.JsonValue): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const color = (value as Record<string, unknown>).theme_color;
+  return typeof color === 'string' ? color : null;
+}
+
+function contrastWarnings(themeColor: string): string[] {
+  const match = /^#?([0-9a-f]{6})$/i.exec(themeColor);
+  if (!match) {
+    return ['theme_color is not a #RRGGBB color'];
+  }
+  const hex = match[1] ?? '000000';
+  const r = Number.parseInt(hex.slice(0, 2), 16) / 255;
+  const g = Number.parseInt(hex.slice(2, 4), 16) / 255;
+  const b = Number.parseInt(hex.slice(4, 6), 16) / 255;
+  const linear = [r, g, b].map((channel) =>
+    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
+  const luminance =
+    0.2126 * (linear[0] ?? 0) + 0.7152 * (linear[1] ?? 0) + 0.0722 * (linear[2] ?? 0);
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+  const contrastWithBlack = (luminance + 0.05) / 0.05;
+  const warnings: string[] = [];
+  if (Math.max(contrastWithWhite, contrastWithBlack) < 4.5) {
+    warnings.push('Theme color has weak contrast with both white and black text');
+  }
+  return warnings;
+}
+
+function assertBrandingAssetKind(value: unknown): asserts value is string {
+  if (!['logo', 'hero'].includes(String(value))) {
+    throw new BadRequestException('Unsupported branding asset kind');
+  }
+}
+
+function assertBrandingAssetMime(value: unknown): asserts value is string {
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(String(value))) {
+    throw new BadRequestException('Unsupported branding asset MIME type');
+  }
+}
+
+function assertAvailabilityKind(value: unknown): asserts value is string {
+  if (!['available', 'blackout'].includes(String(value))) {
+    throw new BadRequestException('Unsupported availability kind');
+  }
+}
+
+function assertBookingStatus(value: unknown): asserts value is string {
+  if (!['hold', 'confirmed', 'cancelled'].includes(String(value))) {
+    throw new BadRequestException('Unsupported booking status');
+  }
+}
+
+function parsePositiveInt(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new BadRequestException(`${field} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function parseTimeWindow(startsAtRaw: string, endsAtRaw: string): { startsAt: Date; endsAt: Date } {
+  const startsAt = assertOptionalIsoDate(startsAtRaw, 'starts_at');
+  const endsAt = assertOptionalIsoDate(endsAtRaw, 'ends_at');
+  if (!startsAt || !endsAt || startsAt >= endsAt) {
+    throw new BadRequestException('starts_at must be before ends_at');
+  }
+  return { startsAt, endsAt };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function assertUuid(value: unknown, field: string): asserts value is string {

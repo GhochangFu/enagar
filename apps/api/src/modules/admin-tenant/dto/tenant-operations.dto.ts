@@ -103,6 +103,115 @@ export class UpsertKbArticleDto {
   status!: string;
 }
 
+export class RequeueKbArticleDto {
+  @IsString()
+  slug!: string;
+}
+
+export class UpsertBrandingAssetDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  kind!: string;
+
+  @IsString()
+  storage_key!: string;
+
+  @IsString()
+  public_url!: string;
+
+  @IsString()
+  mime_type!: string;
+
+  @IsString()
+  size_bytes!: string;
+
+  @IsOptional()
+  @IsString()
+  width?: string;
+
+  @IsOptional()
+  @IsString()
+  height?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+}
+
+export class UpsertBookableAssetDto {
+  @IsString()
+  code!: string;
+
+  @IsObject()
+  name!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  location?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  capacity?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+}
+
+export class UpsertBookableAvailabilityDto {
+  @IsString()
+  asset_code!: string;
+
+  @IsString()
+  kind!: string;
+
+  @IsString()
+  starts_at!: string;
+
+  @IsString()
+  ends_at!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class UpsertBookingReservationDto {
+  @IsString()
+  asset_code!: string;
+
+  @IsString()
+  holder_name!: string;
+
+  @IsOptional()
+  @IsString()
+  holder_mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  docket_no?: string;
+
+  @IsString()
+  starts_at!: string;
+
+  @IsString()
+  ends_at!: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 export class UpsertStaffDto {
   @IsString()
   keycloak_user_id!: string;
