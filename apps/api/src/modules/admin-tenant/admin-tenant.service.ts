@@ -38,8 +38,10 @@ import type {
   SaveServiceWorkflowDraftDto,
 } from './dto/service-designer.dto';
 import type {
+  CreateStaffInviteDto,
   PatchTenantSettingsDto,
   RequeueKbArticleDto,
+  UpdateStaffInviteDto,
   UpsertBookableAssetDto,
   UpsertBookableAvailabilityDto,
   UpsertBookingReservationDto,
@@ -310,6 +312,22 @@ export type TenantAdminStaffRow = {
   mobile: string | null;
   status: string;
   roles: Array<{ code: string; name: string; ward_number: string | null }>;
+  updated_at: string;
+};
+
+export type TenantAdminStaffInviteRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  email: string | null;
+  mobile: string | null;
+  role_codes: string[];
+  ward_number: string | null;
+  status: string;
+  provisioning_mode: string;
+  keycloak_user_id: string | null;
+  failure_reason: string | null;
+  metadata: Prisma.JsonValue;
   updated_at: string;
 };
 
@@ -2108,6 +2126,143 @@ export class AdminTenantService {
     return rows.map(toStaffRow);
   }
 
+  async listStaffInvites(principal: AuthenticatedPrincipal): Promise<TenantAdminStaffInviteRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.staffInvite.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+    });
+    return rows.map(toStaffInviteRow);
+  }
+
+  async createStaffInvite(
+    principal: AuthenticatedPrincipal,
+    dto: CreateStaffInviteDto,
+  ): Promise<TenantAdminStaffInviteRow> {
+    assertTenantPortalStaff(principal);
+    assertRoleCodes(dto.role_codes);
+    assertUsername(dto.username);
+    assertDisplayName(dto.display_name);
+    assertOptionalContact(dto.email, 'email');
+    assertOptionalContact(dto.mobile, 'mobile');
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [
+          { username: dto.username },
+          ...(dto.email ? [{ email: dto.email }] : []),
+          ...(dto.mobile ? [{ mobile: dto.mobile }] : []),
+        ],
+      },
+    });
+    if (existingUser) {
+      throw new BadRequestException('A staff user with the same username/email/mobile exists');
+    }
+
+    const roles = await this.prisma.role.findMany({ where: { code: { in: dto.role_codes } } });
+    if (roles.length !== dto.role_codes.length) {
+      throw new BadRequestException('One or more role_codes do not exist');
+    }
+
+    const ward = dto.ward_number
+      ? await this.prisma.ward.findFirst({
+          where: { tenantId: principal.tenantId, number: dto.ward_number },
+        })
+      : null;
+    if (dto.ward_number && !ward) {
+      throw new BadRequestException('ward_number does not exist for this tenant');
+    }
+
+    const hasLocalKeycloak =
+      Boolean(process.env.KEYCLOAK_ADMIN_BASE_URL) &&
+      Boolean(process.env.KEYCLOAK_ADMIN_CLIENT_ID) &&
+      Boolean(process.env.KEYCLOAK_ADMIN_CLIENT_SECRET);
+    const roleCodes = dto.role_codes as string[];
+    const metadata = {
+      dry_run: !hasLocalKeycloak,
+      invite_hint: `Provision ${dto.username} in local Keycloak, then map roles in eNagar.`,
+      mfa_required: roleCodes.some((roleCode) => roleCode.includes('admin')),
+    };
+    const invite = await this.prisma.staffInvite.upsert({
+      where: { tenantId_username: { tenantId: principal.tenantId, username: dto.username } },
+      create: {
+        tenantId: principal.tenantId,
+        username: dto.username,
+        displayName: dto.display_name,
+        email: dto.email || null,
+        mobile: dto.mobile || null,
+        roleCodes,
+        wardNumber: dto.ward_number || null,
+        status: hasLocalKeycloak ? 'pending_keycloak' : 'draft',
+        provisioningMode: hasLocalKeycloak ? 'local_keycloak' : 'dry_run',
+        invitedBySubject: principal.subject,
+        metadata: metadata as Prisma.InputJsonValue,
+      },
+      update: {
+        displayName: dto.display_name,
+        email: dto.email || null,
+        mobile: dto.mobile || null,
+        roleCodes,
+        wardNumber: dto.ward_number || null,
+        status: hasLocalKeycloak ? 'pending_keycloak' : 'draft',
+        provisioningMode: hasLocalKeycloak ? 'local_keycloak' : 'dry_run',
+        invitedBySubject: principal.subject,
+        failureReason: null,
+        metadata: metadata as Prisma.InputJsonValue,
+      },
+    });
+    await this.auditTenantMutation(principal, 'staff_invite.create', {
+      invite_id: invite.id,
+      username: invite.username,
+      role_codes: roleCodes,
+      provisioning_mode: invite.provisioningMode,
+    });
+    return toStaffInviteRow(invite);
+  }
+
+  async updateStaffInvite(
+    principal: AuthenticatedPrincipal,
+    dto: UpdateStaffInviteDto,
+  ): Promise<TenantAdminStaffInviteRow> {
+    assertTenantPortalStaff(principal);
+    assertUuid(dto.invite_id, 'invite_id');
+    const action = assertStaffInviteAction(dto.action);
+    const invite = await this.prisma.staffInvite.findFirst({
+      where: { id: dto.invite_id, tenantId: principal.tenantId },
+    });
+    if (!invite) {
+      throw new NotFoundException('Staff invite not found');
+    }
+    const statusByAction = {
+      retry: 'pending_keycloak',
+      disable: 'disabled',
+      mark_provisioned: 'provisioned',
+    } as const;
+    const saved = await this.prisma.staffInvite.update({
+      where: { id: invite.id },
+      data: {
+        status: statusByAction[action],
+        failureReason: null,
+        metadata: {
+          ...(invite.metadata &&
+          typeof invite.metadata === 'object' &&
+          !Array.isArray(invite.metadata)
+            ? (invite.metadata as Record<string, unknown>)
+            : {}),
+          last_action: action,
+          action_by: principal.subject,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    await this.auditTenantMutation(principal, `staff_invite.${action}`, {
+      invite_id: saved.id,
+      username: saved.username,
+      status: saved.status,
+    });
+    return toStaffInviteRow(saved);
+  }
+
   async upsertStaff(
     principal: AuthenticatedPrincipal,
     dto: UpsertStaffDto,
@@ -2181,6 +2336,12 @@ export class AdminTenantService {
       });
     });
 
+    await this.auditTenantMutation(principal, 'staff.role_map', {
+      user_id: saved.id,
+      username: saved.username,
+      role_codes: dto.role_codes,
+      ward_number: dto.ward_number ?? null,
+    });
     return toStaffRow(saved);
   }
 
@@ -2268,6 +2429,23 @@ export class AdminTenantService {
         articleId,
         trigger,
         requestedBy: principal.subject,
+      },
+    });
+  }
+
+  private async auditTenantMutation(
+    principal: AuthenticatedPrincipal,
+    action: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    await this.prisma.stateAuditLog.create({
+      data: {
+        actorSubject: principal.subject,
+        actorRole: principal.roles[0] ?? 'tenant_staff',
+        action,
+        targetTenantId: principal.tenantId,
+        targetCode: principal.tenantCode ?? null,
+        metadata: metadata as Prisma.InputJsonValue,
       },
     });
   }
@@ -2598,6 +2776,38 @@ function toStaffRow(row: {
       name: assignment.role.name,
       ward_number: assignment.ward?.number ?? null,
     })),
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toStaffInviteRow(row: {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string | null;
+  mobile: string | null;
+  roleCodes: string[];
+  wardNumber: string | null;
+  status: string;
+  provisioningMode: string;
+  keycloakUserId: string | null;
+  failureReason: string | null;
+  metadata: Prisma.JsonValue;
+  updatedAt: Date;
+}): TenantAdminStaffInviteRow {
+  return {
+    id: row.id,
+    username: row.username,
+    display_name: row.displayName,
+    email: row.email,
+    mobile: row.mobile,
+    role_codes: row.roleCodes,
+    ward_number: row.wardNumber,
+    status: row.status,
+    provisioning_mode: row.provisioningMode,
+    keycloak_user_id: row.keycloakUserId,
+    failure_reason: row.failureReason,
+    metadata: row.metadata,
     updated_at: row.updatedAt.toISOString(),
   };
 }
@@ -3139,6 +3349,33 @@ function assertStaffStatus(value: unknown): asserts value is string {
   if (!['active', 'disabled', 'invited'].includes(String(value))) {
     throw new BadRequestException('Unsupported staff status');
   }
+}
+
+function assertUsername(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9._-]{2,99}$/i.test(value)) {
+    throw new BadRequestException(
+      'username must be 3-100 chars and use letters, numbers, dot, dash, underscore',
+    );
+  }
+}
+
+function assertDisplayName(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || value.trim().length < 2 || value.length > 255) {
+    throw new BadRequestException('display_name must be 2-255 characters');
+  }
+}
+
+function assertOptionalContact(value: unknown, field: string): void {
+  if (value !== undefined && typeof value !== 'string') {
+    throw new BadRequestException(`${field} must be a string`);
+  }
+}
+
+function assertStaffInviteAction(value: unknown): 'retry' | 'disable' | 'mark_provisioned' {
+  if (value === 'retry' || value === 'disable' || value === 'mark_provisioned') {
+    return value;
+  }
+  throw new BadRequestException('action must be retry, disable, or mark_provisioned');
 }
 
 function assertRoleCodes(value: unknown): asserts value is string[] {

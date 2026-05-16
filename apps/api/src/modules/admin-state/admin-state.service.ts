@@ -15,7 +15,13 @@ import {
   assertTenantCode,
 } from './admin-state.contracts';
 
-import type { CreateImpersonationTokenDto, UpsertTenantDto } from './dto/state-admin.dto';
+import type {
+  CreateImpersonationTokenDto,
+  GlobalServiceLifecycleDto,
+  UpsertGlobalServiceTemplateDto,
+  UpsertStateIntegrationDto,
+  UpsertTenantDto,
+} from './dto/state-admin.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Prisma } from '../../generated/prisma';
 
@@ -106,6 +112,48 @@ export type ImpersonationResult = {
   token_id: string;
   expires_at: string;
   tenant_code: string;
+};
+
+export type StateGlobalServiceTemplateRow = {
+  id: string;
+  code: string;
+  category_code: string;
+  name: Prisma.JsonValue;
+  description: Prisma.JsonValue;
+  workflow_pattern: string;
+  default_sla_days: number | null;
+  fee_config: Prisma.JsonValue;
+  required_documents: Prisma.JsonValue;
+  lifecycle_status: string;
+  library_version: number;
+  tenant_adoptions: number;
+  curator_notes: string | null;
+  updated_at: string;
+};
+
+export type StateGlobalServicePreview = {
+  code: string;
+  lifecycle_status: string;
+  affected_tenants: number;
+  tenant_overrides_preserved: number;
+  warnings: string[];
+};
+
+export type StateIntegrationRow = {
+  provider_key: string;
+  environment: string;
+  status: string;
+  owner: string | null;
+  notes: string | null;
+  readiness: Prisma.JsonValue;
+  last_checked_at: string | null;
+  updated_at: string;
+};
+
+export type AuditCoverageMatrix = {
+  covered_actions: string[];
+  required_actions: string[];
+  missing_actions: string[];
 };
 
 @Injectable()
@@ -250,6 +298,7 @@ export class AdminStateService {
     assertHexColor(dto.theme_color);
     assertLanguages(dto.languages_enabled);
     assertOnboardingStatus(dto.status ?? 'active');
+    assertWizardOnboarding(dto);
 
     const isActive = (dto.status ?? 'active') === 'active';
     const tenant = await this.prisma.tenant.upsert({
@@ -469,6 +518,232 @@ export class AdminStateService {
     };
   }
 
+  async listGlobalServiceTemplates(
+    principal: AuthenticatedPrincipal,
+  ): Promise<StateGlobalServiceTemplateRow[]> {
+    assertStateAdmin(principal);
+    const rows = await this.prisma.globalService.findMany({
+      include: { category: true, _count: { select: { tenantServices: true } } },
+      orderBy: [{ lifecycleStatus: 'asc' }, { code: 'asc' }],
+    });
+    return rows.map(toGlobalServiceTemplateRow);
+  }
+
+  async previewGlobalServiceTemplate(
+    principal: AuthenticatedPrincipal,
+    code: string,
+  ): Promise<StateGlobalServicePreview> {
+    assertStateAdmin(principal);
+    assertTemplateCode(code);
+    const row = await this.prisma.globalService.findUnique({
+      where: { code },
+      include: { tenantServices: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Global service template not found');
+    }
+    const overridden = row.tenantServices.filter((service) => {
+      return service.overrideConfig && JSON.stringify(service.overrideConfig) !== '{}';
+    }).length;
+    return {
+      code: row.code,
+      lifecycle_status: row.lifecycleStatus,
+      affected_tenants: row.tenantServices.length,
+      tenant_overrides_preserved: overridden,
+      warnings:
+        row.lifecycleStatus === 'deprecated'
+          ? ['Template is deprecated; publish creates a new review point for tenants.']
+          : ['Publishing does not mutate tenant overrides automatically.'],
+    };
+  }
+
+  async upsertGlobalServiceTemplate(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertGlobalServiceTemplateDto,
+  ): Promise<StateGlobalServiceTemplateRow> {
+    assertStateAdmin(principal);
+    assertTemplateCode(dto.code);
+    assertTemplateCode(dto.category_code);
+    assertLifecycleStatus(dto.lifecycle_status ?? 'draft');
+    assertPositiveDays(dto.default_sla_days);
+    const category = await this.prisma.serviceCategory.upsert({
+      where: { code: dto.category_code },
+      create: {
+        code: dto.category_code,
+        name: dto.name as Prisma.InputJsonValue,
+        description: (dto.description ?? {}) as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+    const row = await this.prisma.globalService.upsert({
+      where: { code: dto.code },
+      create: {
+        code: dto.code,
+        categoryId: category.id,
+        name: dto.name as Prisma.InputJsonValue,
+        description: (dto.description ?? {}) as Prisma.InputJsonValue,
+        workflowPattern: dto.workflow_pattern ?? 'single_window',
+        defaultSlaDays: dto.default_sla_days ?? null,
+        feeConfig: (dto.fee_config ?? {}) as Prisma.InputJsonValue,
+        requiredDocuments: (dto.required_documents ?? []) as Prisma.InputJsonValue,
+        formSchema: (dto.form_schema ?? {}) as Prisma.InputJsonValue,
+        workflowConfig: (dto.workflow_config ?? {}) as Prisma.InputJsonValue,
+        lifecycleStatus: dto.lifecycle_status ?? 'draft',
+        isActive: (dto.lifecycle_status ?? 'draft') !== 'deprecated',
+        curatorNotes: dto.curator_notes ?? null,
+      },
+      update: {
+        categoryId: category.id,
+        name: dto.name as Prisma.InputJsonValue,
+        description: (dto.description ?? {}) as Prisma.InputJsonValue,
+        workflowPattern: dto.workflow_pattern ?? 'single_window',
+        defaultSlaDays: dto.default_sla_days ?? null,
+        feeConfig: (dto.fee_config ?? {}) as Prisma.InputJsonValue,
+        requiredDocuments: (dto.required_documents ?? []) as Prisma.InputJsonValue,
+        formSchema: (dto.form_schema ?? {}) as Prisma.InputJsonValue,
+        workflowConfig: (dto.workflow_config ?? {}) as Prisma.InputJsonValue,
+        lifecycleStatus: dto.lifecycle_status ?? 'draft',
+        isActive: (dto.lifecycle_status ?? 'draft') !== 'deprecated',
+        curatorNotes: dto.curator_notes ?? null,
+        libraryVersion: { increment: 1 },
+      },
+      include: { category: true, _count: { select: { tenantServices: true } } },
+    });
+    await this.audit(principal, 'global_library.upsert', null, dto.code, {
+      lifecycle_status: row.lifecycleStatus,
+      library_version: row.libraryVersion,
+    });
+    return toGlobalServiceTemplateRow(row);
+  }
+
+  async updateGlobalServiceLifecycle(
+    principal: AuthenticatedPrincipal,
+    dto: GlobalServiceLifecycleDto,
+  ): Promise<StateGlobalServiceTemplateRow> {
+    assertStateAdmin(principal);
+    assertTemplateCode(dto.code);
+    const lifecycle =
+      dto.action === 'publish' ? 'published' : dto.action === 'deprecate' ? 'deprecated' : null;
+    if (!lifecycle) {
+      throw new BadRequestException('action must be publish or deprecate');
+    }
+    const row = await this.prisma.globalService.update({
+      where: { code: dto.code },
+      data: {
+        lifecycleStatus: lifecycle,
+        isActive: lifecycle === 'published',
+        libraryVersion: { increment: 1 },
+      },
+      include: { category: true, _count: { select: { tenantServices: true } } },
+    });
+    await this.audit(principal, `global_library.${dto.action}`, null, dto.code, {
+      library_version: row.libraryVersion,
+    });
+    return toGlobalServiceTemplateRow(row);
+  }
+
+  async listIntegrations(principal: AuthenticatedPrincipal): Promise<StateIntegrationRow[]> {
+    assertStateAdmin(principal);
+    await this.ensureDefaultIntegrations();
+    const rows = await this.prisma.stateIntegration.findMany({ orderBy: { providerKey: 'asc' } });
+    return rows.map(toIntegrationRow);
+  }
+
+  async upsertIntegration(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertStateIntegrationDto,
+  ): Promise<StateIntegrationRow> {
+    assertStateAdmin(principal);
+    assertProviderKey(dto.provider_key);
+    assertIntegrationEnvironment(dto.environment);
+    assertIntegrationStatus(dto.status);
+    rejectSecretLikeValues(dto);
+    const row = await this.prisma.stateIntegration.upsert({
+      where: { providerKey: dto.provider_key },
+      create: {
+        providerKey: dto.provider_key,
+        environment: dto.environment,
+        status: dto.status,
+        owner: dto.owner ?? null,
+        notes: dto.notes ?? null,
+        readiness: { required_docs: dto.required_docs ?? [] } as Prisma.InputJsonValue,
+        updatedBySubject: principal.subject,
+      },
+      update: {
+        environment: dto.environment,
+        status: dto.status,
+        owner: dto.owner ?? null,
+        notes: dto.notes ?? null,
+        readiness: { required_docs: dto.required_docs ?? [] } as Prisma.InputJsonValue,
+        updatedBySubject: principal.subject,
+      },
+    });
+    await this.audit(principal, 'integration_cockpit.update', null, dto.provider_key, {
+      environment: row.environment,
+      status: row.status,
+    });
+    return toIntegrationRow(row);
+  }
+
+  async checkIntegration(
+    principal: AuthenticatedPrincipal,
+    providerKey: string,
+  ): Promise<StateIntegrationRow> {
+    assertStateAdmin(principal);
+    assertProviderKey(providerKey);
+    const row = await this.prisma.stateIntegration.upsert({
+      where: { providerKey },
+      create: {
+        providerKey,
+        status: 'manual_check_required',
+        readiness: integrationReadiness(providerKey) as Prisma.InputJsonValue,
+        lastCheckedAt: new Date(),
+        updatedBySubject: principal.subject,
+      },
+      update: {
+        readiness: integrationReadiness(providerKey) as Prisma.InputJsonValue,
+        lastCheckedAt: new Date(),
+        updatedBySubject: principal.subject,
+      },
+    });
+    await this.audit(principal, 'integration_cockpit.check', null, providerKey, {
+      status: row.status,
+    });
+    return toIntegrationRow(row);
+  }
+
+  async exportIntegrationsCsv(principal: AuthenticatedPrincipal): Promise<string> {
+    assertStateAdmin(principal);
+    const rows = await this.listIntegrations(principal);
+    return toCsv(
+      ['provider_key', 'environment', 'status', 'owner', 'last_checked_at', 'notes'],
+      rows.map((row) => [
+        row.provider_key,
+        row.environment,
+        row.status,
+        row.owner ?? '',
+        row.last_checked_at ?? '',
+        row.notes ?? '',
+      ]),
+    );
+  }
+
+  async getAuditCoverage(principal: AuthenticatedPrincipal): Promise<AuditCoverageMatrix> {
+    assertStateAdmin(principal);
+    const required = requiredAuditActions();
+    const rows = await this.prisma.stateAuditLog.findMany({
+      where: { action: { in: required } },
+      select: { action: true },
+      distinct: ['action'],
+    });
+    const covered = rows.map((row) => row.action);
+    return {
+      covered_actions: covered,
+      required_actions: required,
+      missing_actions: required.filter((action) => !covered.includes(action)),
+    };
+  }
+
   private async analyticsTotals(window: {
     from: Date;
     to: Date;
@@ -533,6 +808,29 @@ export class AdminStateService {
     }
   }
 
+  private async ensureDefaultIntegrations(): Promise<void> {
+    for (const providerKey of [
+      'digilocker',
+      'psp',
+      'sms-dlt',
+      'email',
+      'whatsapp',
+      'object-storage',
+      'rag-indexer',
+    ]) {
+      await this.prisma.stateIntegration.upsert({
+        where: { providerKey },
+        create: {
+          providerKey,
+          environment: 'sandbox',
+          status: 'not_configured',
+          readiness: integrationReadiness(providerKey) as Prisma.InputJsonValue,
+        },
+        update: {},
+      });
+    }
+  }
+
   private async audit(
     principal: AuthenticatedPrincipal,
     action: string,
@@ -570,6 +868,62 @@ function toAuditLogRow(row: {
     targetCode: row.targetCode,
     metadata: row.metadata,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toGlobalServiceTemplateRow(row: {
+  id: string;
+  code: string;
+  name: Prisma.JsonValue;
+  description: Prisma.JsonValue;
+  workflowPattern: string;
+  defaultSlaDays: number | null;
+  feeConfig: Prisma.JsonValue;
+  requiredDocuments: Prisma.JsonValue;
+  lifecycleStatus: string;
+  libraryVersion: number;
+  curatorNotes: string | null;
+  updatedAt: Date;
+  category: { code: string };
+  _count: { tenantServices: number };
+}): StateGlobalServiceTemplateRow {
+  return {
+    id: row.id,
+    code: row.code,
+    category_code: row.category.code,
+    name: row.name,
+    description: row.description,
+    workflow_pattern: row.workflowPattern,
+    default_sla_days: row.defaultSlaDays,
+    fee_config: row.feeConfig,
+    required_documents: row.requiredDocuments,
+    lifecycle_status: row.lifecycleStatus,
+    library_version: row.libraryVersion,
+    tenant_adoptions: row._count.tenantServices,
+    curator_notes: row.curatorNotes,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function toIntegrationRow(row: {
+  providerKey: string;
+  environment: string;
+  status: string;
+  owner: string | null;
+  notes: string | null;
+  readiness: Prisma.JsonValue;
+  lastCheckedAt: Date | null;
+  updatedAt: Date;
+}): StateIntegrationRow {
+  return {
+    provider_key: row.providerKey,
+    environment: row.environment,
+    status: row.status,
+    owner: row.owner,
+    notes: row.notes,
+    readiness: row.readiness,
+    last_checked_at: row.lastCheckedAt?.toISOString() ?? null,
+    updated_at: row.updatedAt.toISOString(),
   };
 }
 
@@ -691,4 +1045,109 @@ function tenantWarnings(
     warnings.push('Theme color is missing');
   }
   return warnings;
+}
+
+function assertWizardOnboarding(dto: UpsertTenantDto): void {
+  if ((dto.status ?? 'active') !== 'active') {
+    return;
+  }
+  const errors: string[] = [];
+  if (!dto.name?.trim()) errors.push('name');
+  if (!dto.district?.trim()) errors.push('district');
+  if (!dto.ward_count || dto.ward_count < 1) errors.push('ward_count');
+  const config = dto.config ?? {};
+  if (config.onboarding_source !== 'state_wizard') {
+    errors.push('config.onboarding_source=state_wizard');
+  }
+  if (config.wizard_completed !== true) {
+    errors.push('config.wizard_completed=true');
+  }
+  if (errors.length) {
+    throw new BadRequestException(
+      `wizard onboarding required before active tenant: ${errors.join(', ')}`,
+    );
+  }
+}
+
+function assertTemplateCode(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]{1,79}$/i.test(value)) {
+    throw new BadRequestException(
+      'code must be 2-80 chars and use letters, numbers, dash, underscore',
+    );
+  }
+}
+
+function assertLifecycleStatus(value: unknown): asserts value is string {
+  if (!['draft', 'published', 'deprecated'].includes(String(value))) {
+    throw new BadRequestException('lifecycle_status must be draft, published, or deprecated');
+  }
+}
+
+function assertPositiveDays(value: unknown): void {
+  if (
+    value !== undefined &&
+    (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 365)
+  ) {
+    throw new BadRequestException('default_sla_days must be an integer between 1 and 365');
+  }
+}
+
+function assertProviderKey(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(value)) {
+    throw new BadRequestException('provider_key must use lowercase provider-key format');
+  }
+}
+
+function assertIntegrationEnvironment(value: unknown): asserts value is string {
+  if (!['sandbox', 'pilot', 'production'].includes(String(value))) {
+    throw new BadRequestException('environment must be sandbox, pilot, or production');
+  }
+}
+
+function assertIntegrationStatus(value: unknown): asserts value is string {
+  if (!['not_configured', 'manual_check_required', 'ready', 'blocked'].includes(String(value))) {
+    throw new BadRequestException(
+      'status must be not_configured, manual_check_required, ready, or blocked',
+    );
+  }
+}
+
+function rejectSecretLikeValues(dto: UpsertStateIntegrationDto): void {
+  const serialized = JSON.stringify(dto).toLowerCase();
+  for (const marker of ['secret', 'password', 'private_key', 'client_secret', 'token=']) {
+    if (serialized.includes(marker)) {
+      throw new BadRequestException(
+        'integration cockpit accepts metadata only; remove secret-like values',
+      );
+    }
+  }
+}
+
+function integrationReadiness(providerKey: string): Record<string, unknown> {
+  const localChecks: Record<string, string> = {
+    psp: 'local payment stub reachable through application payment flows',
+    'object-storage': 'storage metadata contract present; external bucket check is manual',
+    'rag-indexer': 'KB index queue metadata present; worker readiness is manual',
+  };
+  return {
+    mode: localChecks[providerKey] ? 'local_stub' : 'manual_check_required',
+    summary: localChecks[providerKey] ?? 'No safe local health endpoint configured in Sprint 6.12',
+    checked_without_secrets: true,
+  };
+}
+
+function requiredAuditActions(): string[] {
+  return [
+    'tenant.upsert',
+    'impersonation.create',
+    'global_library.upsert',
+    'global_library.publish',
+    'global_library.deprecate',
+    'integration_cockpit.update',
+    'integration_cockpit.check',
+    'staff_invite.create',
+    'staff_invite.retry',
+    'staff_invite.disable',
+    'staff.role_map',
+  ];
 }

@@ -10,6 +10,7 @@ Sprint 6.5 turns this package into the State Super-Admin portal on **http://loca
 - State-admin audit log search, cursor pagination, and CSV export
 - Sprint 6.9 tenant directory drill-down with health counts, warnings, config highlights, and tenant audit events
 - Sprint 6.10 analytics v2 with date ranges/deltas/anomaly hints and public transparency pack support
+- Sprint 6.12 P5 surfaces: global service library curator, integration cockpit metadata/readiness, and onboarding/audit hardening
 
 ## Local Run
 
@@ -31,11 +32,13 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 - `docs/runbooks/master-sprint-65-exit.md`
 - `docs/runbooks/master-sprint-69-exit.md`
 - `docs/runbooks/master-sprint-610-exit.md`
+- `docs/runbooks/master-sprint-612-exit.md`
 
 ## Explicit Non-Goals
 
 - No live Keycloak user provisioning from the onboarding wizard.
 - No production support-session handoff UI; this sprint generates and audits the short-lived token.
-- No global service library curator UI; inherited defaults use the existing catalogue seeds.
+- No automatic tenant migration when a global service template is published or deprecated.
 - No audit SIEM integration or tenant onboarding redesign in Sprint 6.9.
 - No retained metrics warehouse, SIEM integration, or PII-bearing transparency feed in Sprint 6.10.
+- No live provider secrets, procurement workflow, or production integration launch in Sprint 6.12.

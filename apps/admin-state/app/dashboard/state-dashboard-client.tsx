@@ -79,6 +79,33 @@ type TenantDetail = TenantRow & {
   warnings: string[];
 };
 
+type GlobalServiceTemplateRow = {
+  code: string;
+  category_code: string;
+  name: unknown;
+  lifecycle_status: string;
+  library_version: number;
+  tenant_adoptions: number;
+  default_sla_days: number | null;
+  curator_notes: string | null;
+};
+
+type IntegrationRow = {
+  provider_key: string;
+  environment: string;
+  status: string;
+  owner: string | null;
+  notes: string | null;
+  readiness: unknown;
+  last_checked_at: string | null;
+};
+
+type AuditCoverage = {
+  covered_actions: string[];
+  required_actions: string[];
+  missing_actions: string[];
+};
+
 const tenantTemplate = {
   code: 'NBM',
   name: 'New Barrackpore Municipality',
@@ -92,7 +119,31 @@ const tenantTemplate = {
   config: {
     default_language: 'bn',
     support_email: 'support@example.gov.in',
+    onboarding_source: 'state_wizard',
+    wizard_completed: true,
   },
+};
+
+const libraryTemplate = {
+  code: 'community-hall-booking-state',
+  category_code: 'municipal-services',
+  name: { en: 'Community Hall Booking' },
+  description: { en: 'State-curated template for community hall booking.' },
+  workflow_pattern: 'single_window',
+  default_sla_days: 7,
+  fee_config: { type: 'fixed', amount_paise: 50000 },
+  required_documents: [{ code: 'identity-proof', label: { en: 'Identity proof' } }],
+  lifecycle_status: 'draft',
+  curator_notes: 'Sprint 6.12 smoke template.',
+};
+
+const integrationTemplate = {
+  provider_key: 'digilocker',
+  environment: 'sandbox',
+  status: 'manual_check_required',
+  owner: 'DevOps',
+  notes: 'Metadata only. Secrets remain outside eNagar.',
+  required_docs: ['MoU', 'UAT credentials approval'],
 };
 
 async function readApiError(response: Response): Promise<string> {
@@ -153,6 +204,13 @@ export function StateDashboardClient(): JSX.Element {
   });
   const [selectedTenant, setSelectedTenant] = useState<TenantDetail | null>(null);
   const [tenantJson, setTenantJson] = useState(JSON.stringify(tenantTemplate, null, 2));
+  const [library, setLibrary] = useState<GlobalServiceTemplateRow[]>([]);
+  const [libraryJson, setLibraryJson] = useState(JSON.stringify(libraryTemplate, null, 2));
+  const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
+  const [integrationJson, setIntegrationJson] = useState(
+    JSON.stringify(integrationTemplate, null, 2),
+  );
+  const [auditCoverage, setAuditCoverage] = useState<AuditCoverage | null>(null);
   const [impersonationTenant, setImpersonationTenant] = useState('KMC');
   const [impersonationReason, setImpersonationReason] = useState(
     'Support verification for tenant admin',
@@ -190,17 +248,31 @@ export function StateDashboardClient(): JSX.Element {
     if (!auth) return;
     setStatus('Loading state-wide analytics...');
     try {
-      const [analyticsRes, analyticsV2Res, tenantsRes, auditRes] = await Promise.all([
+      const [
+        analyticsRes,
+        analyticsV2Res,
+        tenantsRes,
+        auditRes,
+        libraryRes,
+        integrationsRes,
+        auditCoverageRes,
+      ] = await Promise.all([
         api<Analytics>('/admin/state/analytics'),
         api<AnalyticsV2>(`/admin/state/analytics/v2${queryString(analyticsRange)}`),
         api<TenantRow[]>('/admin/state/tenants'),
         api<AuditPage>(`/admin/state/audit-logs${queryString({ ...auditFilters, limit: '25' })}`),
+        api<GlobalServiceTemplateRow[]>('/admin/state/global-service-library'),
+        api<IntegrationRow[]>('/admin/state/integrations'),
+        api<AuditCoverage>('/admin/state/audit-coverage'),
       ]);
       setAnalytics(analyticsRes);
       setAnalyticsV2(analyticsV2Res);
       setTenants(tenantsRes);
       setAuditLogs(auditRes.rows);
       setAuditCursor(auditRes.next_cursor);
+      setLibrary(libraryRes);
+      setIntegrations(integrationsRes);
+      setAuditCoverage(auditCoverageRes);
       setStatus(`Loaded ${tenantsRes.length} tenants.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Failed to load state-admin data');
@@ -239,6 +311,62 @@ export function StateDashboardClient(): JSX.Element {
       await refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Impersonation failed');
+    }
+  }
+
+  async function saveLibraryTemplate(): Promise<void> {
+    try {
+      const payload = JSON.parse(libraryJson) as Record<string, unknown>;
+      setStatus('Saving global service library template...');
+      await api<GlobalServiceTemplateRow>('/admin/state/global-service-library', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Global library save failed');
+    }
+  }
+
+  async function updateLibraryLifecycle(
+    code: string,
+    action: 'publish' | 'deprecate',
+  ): Promise<void> {
+    try {
+      setStatus(`${action} ${code}...`);
+      await api<GlobalServiceTemplateRow>('/admin/state/global-service-library/lifecycle', {
+        method: 'POST',
+        body: JSON.stringify({ code, action }),
+      });
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Global library lifecycle failed');
+    }
+  }
+
+  async function saveIntegration(): Promise<void> {
+    try {
+      const payload = JSON.parse(integrationJson) as Record<string, unknown>;
+      setStatus('Saving integration metadata...');
+      await api<IntegrationRow>('/admin/state/integrations', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Integration metadata failed');
+    }
+  }
+
+  async function checkIntegration(providerKey: string): Promise<void> {
+    try {
+      setStatus(`Checking ${providerKey} readiness...`);
+      await api<IntegrationRow>(`/admin/state/integrations/${providerKey}/check`, {
+        method: 'POST',
+      });
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Integration check failed');
     }
   }
 
@@ -473,6 +601,97 @@ export function StateDashboardClient(): JSX.Element {
         </article>
       </section>
 
+      <section className="grid gap-6 lg:grid-cols-2">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold">Global service library curator</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Draft state-wide templates, then publish or deprecate without mutating tenant overrides.
+          </p>
+          <textarea
+            className="mt-4 h-80 w-full rounded-lg border border-slate-300 p-3 font-mono text-xs"
+            value={libraryJson}
+            onChange={(event) => setLibraryJson(event.target.value)}
+          />
+          <button
+            className="mt-4 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800"
+            type="button"
+            onClick={() => void saveLibraryTemplate()}
+          >
+            Save template
+          </button>
+          <ul className="mt-4 space-y-3 text-sm">
+            {library.slice(0, 8).map((row) => (
+              <li key={row.code} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="font-mono text-xs">
+                  {row.code} · {row.lifecycle_status} · v{row.library_version}
+                </p>
+                <p className="font-medium">{JSON.stringify(row.name)}</p>
+                <p className="text-xs text-slate-500">
+                  {row.category_code} · tenants {row.tenant_adoptions} · SLA{' '}
+                  {row.default_sla_days ?? 'n/a'} days
+                </p>
+                <div className="mt-2 flex gap-2">
+                  {(['publish', 'deprecate'] as const).map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium"
+                      onClick={() => void updateLibraryLifecycle(row.code, action)}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold">Integration cockpit</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Tracks readiness metadata only. Secret-like values are rejected by the API.
+          </p>
+          <textarea
+            className="mt-4 h-56 w-full rounded-lg border border-slate-300 p-3 font-mono text-xs"
+            value={integrationJson}
+            onChange={(event) => setIntegrationJson(event.target.value)}
+          />
+          <button
+            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            type="button"
+            onClick={() => void saveIntegration()}
+          >
+            Save integration metadata
+          </button>
+          <ul className="mt-4 space-y-3 text-sm">
+            {integrations.map((row) => (
+              <li
+                key={row.provider_key}
+                className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+              >
+                <p className="font-mono text-xs">
+                  {row.provider_key} · {row.environment} · {row.status}
+                </p>
+                <p className="text-xs text-slate-500">
+                  owner {row.owner ?? 'unassigned'} · checked {row.last_checked_at ?? 'never'}
+                </p>
+                <pre className="mt-2 max-h-20 overflow-auto rounded bg-white p-2 text-[11px] text-slate-600">
+                  {JSON.stringify(row.readiness, null, 2)}
+                </pre>
+                <button
+                  type="button"
+                  className="mt-2 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium"
+                  onClick={() => void checkIntegration(row.provider_key)}
+                >
+                  Run readiness check
+                </button>
+              </li>
+            ))}
+          </ul>
+        </article>
+      </section>
+
       {selectedTenant ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -633,6 +852,22 @@ export function StateDashboardClient(): JSX.Element {
             >
               Load more
             </button>
+          ) : null}
+          {auditCoverage ? (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3 text-xs">
+              <p className="font-semibold">Sprint 6.12 audit coverage</p>
+              <p className="mt-1 text-slate-500">
+                Covered {auditCoverage.covered_actions.length}/
+                {auditCoverage.required_actions.length}
+              </p>
+              {auditCoverage.missing_actions.length ? (
+                <p className="mt-1 text-amber-700">
+                  Missing until exercised: {auditCoverage.missing_actions.join(', ')}
+                </p>
+              ) : (
+                <p className="mt-1 text-emerald-700">All required 6.12 actions observed.</p>
+              )}
+            </div>
           ) : null}
         </article>
       </section>

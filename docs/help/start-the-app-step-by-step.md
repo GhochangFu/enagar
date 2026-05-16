@@ -151,10 +151,10 @@ pnpm --filter @enagar/admin-tenant dev
 
 - Tenant Admin: **`http://localhost:3002`**
 - Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
-- Exit checklists/plans: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**, **`docs/runbooks/master-sprint-64-exit.md`**, **`docs/runbooks/master-sprint-67-exit.md`**, **`docs/runbooks/master-sprint-68-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-611-exit.md`**
+- Exit checklists/plans: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**, **`docs/runbooks/master-sprint-64-exit.md`**, **`docs/runbooks/master-sprint-67-exit.md`**, **`docs/runbooks/master-sprint-68-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-611-exit.md`**, **`docs/runbooks/master-sprint-612-exit.md`**
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
-After login, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel and Sprint 6.10 escalation authoring. The **Dashboard** includes Sprint 6.9 trend tables, SLA-breached queues, workload cards, tenant CSV exports, and Sprint 6.11 PDF downloads. Use **Masters** for revenue heads, address master rows, tax/tariff rows, Sprint 6.9 address CSV dry-run/import, and Sprint 6.10 guided revenue/tariff plus catalogue governance. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, and staff/role assignments, plus Sprint 6.8 maintenance banners, notification-template preview, and Sprint 6.11 KB/RAG, branding asset, and bookings controls.
+After login, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel and Sprint 6.10 escalation authoring. The **Dashboard** includes Sprint 6.9 trend tables, SLA-breached queues, workload cards, tenant CSV exports, and Sprint 6.11 PDF downloads. Use **Masters** for revenue heads, address master rows, tax/tariff rows, Sprint 6.9 address CSV dry-run/import, and Sprint 6.10 guided revenue/tariff plus catalogue governance. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, staff/role assignments, Sprint 6.8 maintenance banners, notification-template preview, Sprint 6.11 KB/RAG, branding asset, bookings controls, and Sprint 6.12 guided staff invite/provisioning UX.
 
 ---
 
@@ -168,9 +168,10 @@ pnpm --filter @enagar/admin-state dev
 
 - State Admin: **`http://localhost:3003`**
 - Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
-- Exit checklists: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**
+- Exit checklists/plans: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-612-exit.md`**
 - Sprint 6.9 smoke: filter audit logs, export audit CSV, and click a tenant row for the detail drill-down panel.
 - Sprint 6.10 smoke covers analytics v2 date ranges/deltas and public transparency aggregate outputs.
+- Sprint 6.12 covers global service library curation, integration cockpit metadata/readiness, and onboarding/audit hardening.
 
 Sign in with a **`state_admin`** dummy user. The dashboard supports municipality onboarding, tenant directory review, audited impersonation token creation, cross-tenant analytics, and recent audit log review.
 

@@ -8,61 +8,62 @@ datasource db {
 }
 
 model Tenant {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String         @unique @db.VarChar(20)
-  name             String         @db.VarChar(255)
-  district         String?        @db.VarChar(100)
-  wardCount        Int?           @map("ward_count")
-  themeColor       String?        @map("theme_color") @db.VarChar(7)
-  logoUrl          String?        @map("logo_url")
-  languagesEnabled String[]       @default(["en", "bn", "hi"]) @map("languages_enabled")
-  config           Json           @default(dbgenerated("'{}'::jsonb"))
-  isActive         Boolean        @default(true) @map("is_active")
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenantConfig     TenantConfig?
-  banners          TenantBanner[]
-  boroughs         Borough[]
-  citizens         Citizen[]
-  localities       Locality[]
-  tariffs          TenantTariff[]
-  notifications    Notification[]
-  notificationTemplates NotificationTemplate[]
-  pushDevices      CitizenPushDevice[]
-  kbArticles       KbArticle[]
-  kbIndexJobs      KbIndexJob[]
-  brandingAssets   TenantBrandingAsset[]
-  bookableAssets   BookableAsset[]
-  bookingReservations BookingReservation[]
-  stateAuditLogs   StateAuditLog[]
-  impersonationTokens ImpersonationToken[]
-  applicationComments ApplicationComment[]
-  applicationDocuments ApplicationDocument[]
-  applicationTimeline ApplicationTimeline[]
-  applications     Application[]
-  paymentIdempotencyKeys PaymentIdempotencyKey[]
-  payments         Payment[]
-  receipts         Receipt[]
-  glPostings       GlPosting[]
-  deposits         Deposit[]
-  refundDispatches RefundDispatch[]
-  challans         Challan[]
-  grievances       Grievance[]
-  grievanceRoutingRules GrievanceRoutingRule[]
-  grievanceSlaPolicies SlaPolicy[]
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                     String                   @unique @db.VarChar(20)
+  name                     String                   @db.VarChar(255)
+  district                 String?                  @db.VarChar(100)
+  wardCount                Int?                     @map("ward_count")
+  themeColor               String?                  @map("theme_color") @db.VarChar(7)
+  logoUrl                  String?                  @map("logo_url")
+  languagesEnabled         String[]                 @default(["en", "bn", "hi"]) @map("languages_enabled")
+  config                   Json                     @default(dbgenerated("'{}'::jsonb"))
+  isActive                 Boolean                  @default(true) @map("is_active")
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenantConfig             TenantConfig?
+  banners                  TenantBanner[]
+  boroughs                 Borough[]
+  citizens                 Citizen[]
+  localities               Locality[]
+  tariffs                  TenantTariff[]
+  notifications            Notification[]
+  notificationTemplates    NotificationTemplate[]
+  pushDevices              CitizenPushDevice[]
+  kbArticles               KbArticle[]
+  kbIndexJobs              KbIndexJob[]
+  brandingAssets           TenantBrandingAsset[]
+  bookableAssets           BookableAsset[]
+  bookingReservations      BookingReservation[]
+  stateAuditLogs           StateAuditLog[]
+  impersonationTokens      ImpersonationToken[]
+  staffInvites             StaffInvite[]
+  applicationComments      ApplicationComment[]
+  applicationDocuments     ApplicationDocument[]
+  applicationTimeline      ApplicationTimeline[]
+  applications             Application[]
+  paymentIdempotencyKeys   PaymentIdempotencyKey[]
+  payments                 Payment[]
+  receipts                 Receipt[]
+  glPostings               GlPosting[]
+  deposits                 Deposit[]
+  refundDispatches         RefundDispatch[]
+  challans                 Challan[]
+  grievances               Grievance[]
+  grievanceRoutingRules    GrievanceRoutingRule[]
+  grievanceSlaPolicies     SlaPolicy[]
   grievanceTimelineEntries GrievanceTimelineEntry[]
-  grievanceAttachments GrievanceAttachment[]
-  holdingLookupAudit HoldingLookupAudit[]
-  holdingRecords   HoldingRecord[]
-  roleStageMaps    RoleStageMap[]
-  serviceFormVersions ServiceFormVersion[]
-  services         TenantService[]
-  userRoles        UserRole[]
-  users            User[]
-  wards            Ward[]
-  workflowStages   WorkflowStage[]
-  workflowTransitions WorkflowTransition[]
-  workflows        Workflow[]
+  grievanceAttachments     GrievanceAttachment[]
+  holdingLookupAudit       HoldingLookupAudit[]
+  holdingRecords           HoldingRecord[]
+  roleStageMaps            RoleStageMap[]
+  serviceFormVersions      ServiceFormVersion[]
+  services                 TenantService[]
+  userRoles                UserRole[]
+  users                    User[]
+  wards                    Ward[]
+  workflowStages           WorkflowStage[]
+  workflowTransitions      WorkflowTransition[]
+  workflows                Workflow[]
 
   @@map("tenants")
 }
@@ -104,29 +105,29 @@ model TenantBanner {
 }
 
 model Citizen {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String         @map("tenant_id") @db.Uuid
-  keycloakSubject String?      @map("keycloak_subject") @db.VarChar(255)
-  mobile        String         @db.VarChar(15)
-  aadhaarHash   String?        @map("aadhaar_hash") @db.Char(64)
-  name          String?        @db.VarChar(255)
-  address       Json?          @default(dbgenerated("'{}'::jsonb"))
-  wardId        String?        @map("ward_id") @db.Uuid
-  holdingNumber String?        @map("holding_number") @db.VarChar(50)
-  languagePref  String         @default("en") @map("language_pref") @db.VarChar(5)
-  selectedTenantCode String?   @map("selected_tenant_code") @db.VarChar(20)
-  pinnedTenantCodes Json       @default(dbgenerated("'[]'::jsonb")) @map("pinned_tenant_codes")
-  pinnedServices    Json       @default(dbgenerated("'[]'::jsonb")) @map("pinned_services")
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ward          Ward?          @relation(fields: [wardId], references: [id], onDelete: SetNull)
-  notifications Notification[]
-  pushDevices   CitizenPushDevice[]
-  applications   Application[]
-  deposits       Deposit[]
-  challans       Challan[]
-  grievances     Grievance[]
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String              @map("tenant_id") @db.Uuid
+  keycloakSubject    String?             @map("keycloak_subject") @db.VarChar(255)
+  mobile             String              @db.VarChar(15)
+  aadhaarHash        String?             @map("aadhaar_hash") @db.Char(64)
+  name               String?             @db.VarChar(255)
+  address            Json?               @default(dbgenerated("'{}'::jsonb"))
+  wardId             String?             @map("ward_id") @db.Uuid
+  holdingNumber      String?             @map("holding_number") @db.VarChar(50)
+  languagePref       String              @default("en") @map("language_pref") @db.VarChar(5)
+  selectedTenantCode String?             @map("selected_tenant_code") @db.VarChar(20)
+  pinnedTenantCodes  Json                @default(dbgenerated("'[]'::jsonb")) @map("pinned_tenant_codes")
+  pinnedServices     Json                @default(dbgenerated("'[]'::jsonb")) @map("pinned_services")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ward               Ward?               @relation(fields: [wardId], references: [id], onDelete: SetNull)
+  notifications      Notification[]
+  pushDevices        CitizenPushDevice[]
+  applications       Application[]
+  deposits           Deposit[]
+  challans           Challan[]
+  grievances         Grievance[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -136,20 +137,20 @@ model Citizen {
 }
 
 model User {
-  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String     @map("tenant_id") @db.Uuid
-  keycloakUserId String     @unique @map("keycloak_user_id") @db.Uuid
-  username       String     @db.VarChar(100)
-  email          String?    @db.VarChar(255)
-  mobile         String?    @db.VarChar(15)
-  displayName    String     @map("display_name") @db.VarChar(255)
-  status         String     @default("active") @db.VarChar(20)
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userRoles      UserRole[]
-  challansIssued Challan[]
-  grievancesAssigned Grievance[]          @relation("GrievanceAssignee")
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String                 @map("tenant_id") @db.Uuid
+  keycloakUserId          String                 @unique @map("keycloak_user_id") @db.Uuid
+  username                String                 @db.VarChar(100)
+  email                   String?                @db.VarChar(255)
+  mobile                  String?                @db.VarChar(15)
+  displayName             String                 @map("display_name") @db.VarChar(255)
+  status                  String                 @default("active") @db.VarChar(20)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant                  Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles               UserRole[]
+  challansIssued          Challan[]
+  grievancesAssigned      Grievance[]            @relation("GrievanceAssignee")
   grievanceRoutingAssigns GrievanceRoutingRule[] @relation("RoutingAssignUser")
 
   @@unique([tenantId, username])
@@ -186,6 +187,30 @@ model UserRole {
   @@map("user_roles")
 }
 
+model StaffInvite {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  username         String   @db.VarChar(100)
+  displayName      String   @map("display_name") @db.VarChar(255)
+  email            String?  @db.VarChar(255)
+  mobile           String?  @db.VarChar(15)
+  roleCodes        String[] @default([]) @map("role_codes")
+  wardNumber       String?  @map("ward_number") @db.VarChar(20)
+  status           String   @default("draft") @db.VarChar(30)
+  provisioningMode String   @default("dry_run") @map("provisioning_mode") @db.VarChar(30)
+  keycloakUserId   String?  @map("keycloak_user_id") @db.Uuid
+  invitedBySubject String   @map("invited_by_subject") @db.VarChar(255)
+  failureReason    String?  @map("failure_reason")
+  metadata         Json     @default(dbgenerated("'{}'::jsonb"))
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, username])
+  @@index([tenantId, status])
+  @@map("staff_invites")
+}
+
 model Borough {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
@@ -200,20 +225,20 @@ model Borough {
 }
 
 model Ward {
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String     @map("tenant_id") @db.Uuid
-  boroughId     String?    @map("borough_id") @db.Uuid
-  number        String     @db.VarChar(20)
-  name          String?    @db.VarChar(100)
-  councillor    String?    @db.VarChar(255)
-  boundary      Json?      @default(dbgenerated("'{}'::jsonb"))
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  borough       Borough?   @relation(fields: [boroughId], references: [id], onDelete: SetNull)
-  citizens      Citizen[]
-  localities    Locality[]
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                 @map("tenant_id") @db.Uuid
+  boroughId             String?                @map("borough_id") @db.Uuid
+  number                String                 @db.VarChar(20)
+  name                  String?                @db.VarChar(100)
+  councillor            String?                @db.VarChar(255)
+  boundary              Json?                  @default(dbgenerated("'{}'::jsonb"))
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  borough               Borough?               @relation(fields: [boroughId], references: [id], onDelete: SetNull)
+  citizens              Citizen[]
+  localities            Locality[]
   grievanceRoutingRules GrievanceRoutingRule[]
-  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userRoles     UserRole[]
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles             UserRole[]
 
   @@unique([tenantId, number])
   @@index([tenantId, boroughId])
@@ -238,16 +263,16 @@ model Locality {
 }
 
 model TenantTariff {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
-  code        String   @db.VarChar(80)
-  category    String   @db.VarChar(40)
-  name        Json
-  rateConfig  Json     @default(dbgenerated("'{}'::jsonb")) @map("rate_config")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  code       String   @db.VarChar(80)
+  category   String   @db.VarChar(40)
+  name       Json
+  rateConfig Json     @default(dbgenerated("'{}'::jsonb")) @map("rate_config")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code])
   @@index([tenantId, category, isActive])
@@ -310,18 +335,18 @@ model CitizenPushDevice {
 }
 
 model KbArticle {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String    @map("tenant_id") @db.Uuid
-  slug        String    @db.VarChar(120)
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  slug        String       @db.VarChar(120)
   title       Json
   body        Json
-  tags        String[]  @default([])
-  status      String    @default("draft") @db.VarChar(20)
-  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tags        String[]     @default([])
+  status      String       @default("draft") @db.VarChar(20)
+  publishedAt DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
   indexJobs   KbIndexJob[]
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -348,20 +373,20 @@ model KbIndexJob {
 }
 
 model TenantBrandingAsset {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  code         String   @db.VarChar(80)
-  kind         String   @db.VarChar(20)
-  storageKey   String   @map("storage_key") @db.VarChar(255)
-  publicUrl    String   @map("public_url")
-  mimeType     String   @map("mime_type") @db.VarChar(80)
-  sizeBytes    Int      @map("size_bytes")
-  width        Int?
-  height       Int?
-  metadata     Json     @default(dbgenerated("'{}'::jsonb"))
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  code       String   @db.VarChar(80)
+  kind       String   @db.VarChar(20)
+  storageKey String   @map("storage_key") @db.VarChar(255)
+  publicUrl  String   @map("public_url")
+  mimeType   String   @map("mime_type") @db.VarChar(80)
+  sizeBytes  Int      @map("size_bytes")
+  width      Int?
+  height     Int?
+  metadata   Json     @default(dbgenerated("'{}'::jsonb"))
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code])
   @@index([tenantId, kind, createdAt])
@@ -431,59 +456,79 @@ model ServiceCategory {
 }
 
 model GlobalService {
-  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code                String            @unique @db.VarChar(80)
-  categoryId          String            @map("category_id") @db.Uuid
-  revenueHeadId       String?           @map("revenue_head_id") @db.Uuid
-  name                Json
-  description         Json              @default(dbgenerated("'{}'::jsonb"))
-  workflowPattern     String            @map("workflow_pattern") @db.VarChar(50)
-  defaultSlaDays      Int?              @map("default_sla_days")
-  feeType             String            @default("fixed") @map("fee_type") @db.VarChar(30)
-  feeConfig           Json              @default(dbgenerated("'{}'::jsonb")) @map("fee_config")
-  requiredDocuments   Json              @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
-  formSchema          Json              @default(dbgenerated("'{}'::jsonb")) @map("form_schema")
-  workflowConfig      Json              @default(dbgenerated("'{}'::jsonb")) @map("workflow_config")
-  pushesToDigilocker  Boolean           @default(false) @map("pushes_to_digilocker")
-  isActive            Boolean           @default(true) @map("is_active")
-  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  category            ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  documents           ServiceDocument[]
-  revenueHead         RevenueHead?      @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
-  tenantServices      TenantService[]
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String            @unique @db.VarChar(80)
+  categoryId         String            @map("category_id") @db.Uuid
+  revenueHeadId      String?           @map("revenue_head_id") @db.Uuid
+  name               Json
+  description        Json              @default(dbgenerated("'{}'::jsonb"))
+  workflowPattern    String            @map("workflow_pattern") @db.VarChar(50)
+  defaultSlaDays     Int?              @map("default_sla_days")
+  feeType            String            @default("fixed") @map("fee_type") @db.VarChar(30)
+  feeConfig          Json              @default(dbgenerated("'{}'::jsonb")) @map("fee_config")
+  requiredDocuments  Json              @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
+  formSchema         Json              @default(dbgenerated("'{}'::jsonb")) @map("form_schema")
+  workflowConfig     Json              @default(dbgenerated("'{}'::jsonb")) @map("workflow_config")
+  pushesToDigilocker Boolean           @default(false) @map("pushes_to_digilocker")
+  lifecycleStatus    String            @default("published") @map("lifecycle_status") @db.VarChar(30)
+  curatorNotes       String?           @map("curator_notes")
+  libraryVersion     Int               @default(1) @map("library_version")
+  isActive           Boolean           @default(true) @map("is_active")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category           ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  documents          ServiceDocument[]
+  revenueHead        RevenueHead?      @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
+  tenantServices     TenantService[]
 
   @@index([categoryId, isActive])
   @@index([revenueHeadId])
   @@map("global_services")
 }
 
+model StateIntegration {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerKey      String    @unique @map("provider_key") @db.VarChar(80)
+  environment      String    @default("sandbox") @db.VarChar(30)
+  status           String    @default("not_configured") @db.VarChar(30)
+  owner            String?   @db.VarChar(120)
+  notes            String?
+  readiness        Json      @default(dbgenerated("'{}'::jsonb"))
+  lastCheckedAt    DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  updatedBySubject String?   @map("updated_by_subject") @db.VarChar(255)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, environment])
+  @@map("state_integrations")
+}
+
 model TenantService {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String               @map("tenant_id") @db.Uuid
-  globalServiceId    String?              @map("global_service_id") @db.Uuid
-  code               String               @db.VarChar(80)
-  categoryId         String               @map("category_id") @db.Uuid
-  revenueHeadId      String?              @map("revenue_head_id") @db.Uuid
-  name               Json
-  description        Json                 @default(dbgenerated("'{}'::jsonb"))
-  isActive           Boolean              @default(true) @map("is_active")
-  overrideConfig     Json                 @default(dbgenerated("'{}'::jsonb")) @map("override_config")
-  effectiveFeeConfig Json                 @default(dbgenerated("'{}'::jsonb")) @map("effective_fee_config")
-  effectiveSlaDays   Int?                 @map("effective_sla_days")
-  requiredDocuments  Json                 @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
-  formSchemaAdditions Json                @default(dbgenerated("'{}'::jsonb")) @map("form_schema_additions")
-  workflowOverrides  Json                 @default(dbgenerated("'{}'::jsonb")) @map("workflow_overrides")
-  version            Int                  @default(1)
-  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  category           ServiceCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  formVersions       ServiceFormVersion[]
-  globalService      GlobalService?       @relation(fields: [globalServiceId], references: [id], onDelete: SetNull)
-  applications       Application[]
-  revenueHead        RevenueHead?         @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
-  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  workflows          Workflow[]
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  globalServiceId     String?              @map("global_service_id") @db.Uuid
+  code                String               @db.VarChar(80)
+  categoryId          String               @map("category_id") @db.Uuid
+  revenueHeadId       String?              @map("revenue_head_id") @db.Uuid
+  name                Json
+  description         Json                 @default(dbgenerated("'{}'::jsonb"))
+  isActive            Boolean              @default(true) @map("is_active")
+  overrideConfig      Json                 @default(dbgenerated("'{}'::jsonb")) @map("override_config")
+  effectiveFeeConfig  Json                 @default(dbgenerated("'{}'::jsonb")) @map("effective_fee_config")
+  effectiveSlaDays    Int?                 @map("effective_sla_days")
+  requiredDocuments   Json                 @default(dbgenerated("'[]'::jsonb")) @map("required_documents")
+  formSchemaAdditions Json                 @default(dbgenerated("'{}'::jsonb")) @map("form_schema_additions")
+  workflowOverrides   Json                 @default(dbgenerated("'{}'::jsonb")) @map("workflow_overrides")
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category            ServiceCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  formVersions        ServiceFormVersion[]
+  globalService       GlobalService?       @relation(fields: [globalServiceId], references: [id], onDelete: SetNull)
+  applications        Application[]
+  revenueHead         RevenueHead?         @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflows           Workflow[]
 
   @@unique([tenantId, code])
   @@index([tenantId, categoryId, isActive])
@@ -507,18 +552,18 @@ model ServiceDocument {
 }
 
 model ServiceFormVersion {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String        @map("tenant_id") @db.Uuid
-  serviceId     String        @map("service_id") @db.Uuid
-  version       Int
-  formSchema    Json          @map("form_schema")
-  uiSchema      Json          @default(dbgenerated("'{}'::jsonb")) @map("ui_schema")
-  status        String        @default("draft") @db.VarChar(20)
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  publishedAt   DateTime?     @map("published_at") @db.Timestamptz(6)
-  service       TenantService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  applications  Application[]
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  serviceId    String        @map("service_id") @db.Uuid
+  version      Int
+  formSchema   Json          @map("form_schema")
+  uiSchema     Json          @default(dbgenerated("'{}'::jsonb")) @map("ui_schema")
+  status       String        @default("draft") @db.VarChar(20)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt  DateTime?     @map("published_at") @db.Timestamptz(6)
+  service      TenantService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  applications Application[]
 
   @@unique([tenantId, serviceId, version])
   @@index([tenantId, serviceId, status])
@@ -526,20 +571,20 @@ model ServiceFormVersion {
 }
 
 model Workflow {
-  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String               @map("tenant_id") @db.Uuid
-  serviceId   String               @map("service_id") @db.Uuid
-  code        String               @db.VarChar(80)
-  version     Int                  @default(1)
-  name        Json
-  status      String               @default("draft") @db.VarChar(20)
-  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  publishedAt DateTime?            @map("published_at") @db.Timestamptz(6)
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String               @map("tenant_id") @db.Uuid
+  serviceId    String               @map("service_id") @db.Uuid
+  code         String               @db.VarChar(80)
+  version      Int                  @default(1)
+  name         Json
+  status       String               @default("draft") @db.VarChar(20)
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt  DateTime?            @map("published_at") @db.Timestamptz(6)
   applications Application[]
-  service     TenantService        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  stages      WorkflowStage[]
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  transitions WorkflowTransition[]
+  service      TenantService        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  stages       WorkflowStage[]
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transitions  WorkflowTransition[]
 
   @@unique([tenantId, serviceId, version])
   @@index([tenantId, status])
@@ -547,22 +592,22 @@ model Workflow {
 }
 
 model WorkflowStage {
-  id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String               @map("tenant_id") @db.Uuid
-  workflowId    String               @map("workflow_id") @db.Uuid
-  code          String               @db.VarChar(80)
-  label         Json
-  ownerRole     String               @map("owner_role") @db.VarChar(80)
-  slaHours      Int?                 @map("sla_hours")
-  isInitial     Boolean              @default(false) @map("is_initial")
-  isTerminal    Boolean              @default(false) @map("is_terminal")
-  sortOrder     Int                  @default(0) @map("sort_order")
-  applications  Application[]
-  roleStageMaps RoleStageMap[]
-  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  workflow      Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String               @map("tenant_id") @db.Uuid
+  workflowId      String               @map("workflow_id") @db.Uuid
+  code            String               @db.VarChar(80)
+  label           Json
+  ownerRole       String               @map("owner_role") @db.VarChar(80)
+  slaHours        Int?                 @map("sla_hours")
+  isInitial       Boolean              @default(false) @map("is_initial")
+  isTerminal      Boolean              @default(false) @map("is_terminal")
+  sortOrder       Int                  @default(0) @map("sort_order")
+  applications    Application[]
+  roleStageMaps   RoleStageMap[]
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflow        Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   fromTransitions WorkflowTransition[] @relation("WorkflowTransitionFrom")
-  toTransitions WorkflowTransition[] @relation("WorkflowTransitionTo")
+  toTransitions   WorkflowTransition[] @relation("WorkflowTransitionTo")
 
   @@unique([tenantId, workflowId, code])
   @@index([tenantId, workflowId, sortOrder])
@@ -590,14 +635,14 @@ model WorkflowTransition {
 }
 
 model RoleStageMap {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String        @map("tenant_id") @db.Uuid
-  stageId    String        @map("stage_id") @db.Uuid
-  roleCode   String        @map("role_code") @db.VarChar(80)
-  canView    Boolean       @default(true) @map("can_view")
-  canAct     Boolean       @default(false) @map("can_act")
-  stage      WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String        @map("tenant_id") @db.Uuid
+  stageId  String        @map("stage_id") @db.Uuid
+  roleCode String        @map("role_code") @db.VarChar(80)
+  canView  Boolean       @default(true) @map("can_view")
+  canAct   Boolean       @default(false) @map("can_act")
+  stage    WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, stageId, roleCode])
   @@index([tenantId, roleCode])
@@ -605,38 +650,38 @@ model RoleStageMap {
 }
 
 model Application {
-  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String                @map("tenant_id") @db.Uuid
-  citizenId       String                @map("citizen_id") @db.Uuid
-  serviceId       String                @map("service_id") @db.Uuid
-  formVersionId   String?               @map("form_version_id") @db.Uuid
-  workflowId      String?               @map("workflow_id") @db.Uuid
-  currentStageId  String?               @map("current_stage_id") @db.Uuid
-  docketNo        String                @unique @map("docket_no") @db.VarChar(80)
-  serviceCode     String                @map("service_code") @db.VarChar(80)
-  formVersion     Int                   @map("form_version")
-  workflowVersion Int                   @default(1) @map("workflow_version")
-  status          String                @default("submitted") @db.VarChar(40)
-  statusLabel     Json                  @default(dbgenerated("'{}'::jsonb")) @map("status_label")
-  pendingRole     String?               @map("pending_role") @db.VarChar(80)
-  formData        Json                  @map("form_data")
-  runtimeSnapshot Json                  @default(dbgenerated("'{}'::jsonb")) @map("runtime_snapshot")
-  paymentStatus   String                @default("not_required") @map("payment_status") @db.VarChar(30)
-  submittedAt     DateTime              @default(now()) @map("submitted_at") @db.Timestamptz(6)
-  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
-  citizen         Citizen               @relation(fields: [citizenId], references: [id], onDelete: Cascade)
-  comments        ApplicationComment[]
-  currentStage    WorkflowStage?        @relation(fields: [currentStageId], references: [id], onDelete: SetNull)
-  documents       ApplicationDocument[]
-  formVersionRef  ServiceFormVersion?   @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
-  payments        Payment[]
-  receipts        Receipt[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                @map("tenant_id") @db.Uuid
+  citizenId           String                @map("citizen_id") @db.Uuid
+  serviceId           String                @map("service_id") @db.Uuid
+  formVersionId       String?               @map("form_version_id") @db.Uuid
+  workflowId          String?               @map("workflow_id") @db.Uuid
+  currentStageId      String?               @map("current_stage_id") @db.Uuid
+  docketNo            String                @unique @map("docket_no") @db.VarChar(80)
+  serviceCode         String                @map("service_code") @db.VarChar(80)
+  formVersion         Int                   @map("form_version")
+  workflowVersion     Int                   @default(1) @map("workflow_version")
+  status              String                @default("submitted") @db.VarChar(40)
+  statusLabel         Json                  @default(dbgenerated("'{}'::jsonb")) @map("status_label")
+  pendingRole         String?               @map("pending_role") @db.VarChar(80)
+  formData            Json                  @map("form_data")
+  runtimeSnapshot     Json                  @default(dbgenerated("'{}'::jsonb")) @map("runtime_snapshot")
+  paymentStatus       String                @default("not_required") @map("payment_status") @db.VarChar(30)
+  submittedAt         DateTime              @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen             Citizen               @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  comments            ApplicationComment[]
+  currentStage        WorkflowStage?        @relation(fields: [currentStageId], references: [id], onDelete: SetNull)
+  documents           ApplicationDocument[]
+  formVersionRef      ServiceFormVersion?   @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
+  payments            Payment[]
+  receipts            Receipt[]
   bookingReservations BookingReservation[]
-  service         TenantService         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  timeline        ApplicationTimeline[]
-  workflow        Workflow?             @relation(fields: [workflowId], references: [id], onDelete: SetNull)
-  deposits        Deposit[]
+  service             TenantService         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  timeline            ApplicationTimeline[]
+  workflow            Workflow?             @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  deposits            Deposit[]
 
   @@index([tenantId, citizenId, submittedAt])
   @@index([tenantId, serviceId, status])
@@ -723,8 +768,8 @@ model Payment {
   tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   receipt            Receipt?
   glPosting          GlPosting?
-  depositCaptures    Deposit[]            @relation("DepositCapturePayment")
-  challansSettled    Challan[]            @relation("ChallanPaidPayment")
+  depositCaptures    Deposit[]               @relation("DepositCapturePayment")
+  challansSettled    Challan[]               @relation("ChallanPaidPayment")
 
   @@unique([tenantId, gateway, gatewayOrderId])
   @@index([tenantId, citizenSubject, createdAt])
@@ -750,26 +795,26 @@ model PaymentIdempotencyKey {
 }
 
 model Receipt {
-  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String      @map("tenant_id") @db.Uuid
-  paymentId          String      @unique @map("payment_id") @db.Uuid
-  receiptNumber      String      @map("receipt_number") @db.VarChar(48)
-  verificationToken  String      @unique @map("verification_token") @db.Uuid
-  revenueHeadCode    String      @map("revenue_head_code") @db.VarChar(50)
-  accountingCode     String      @map("accounting_code") @db.VarChar(50)
-  applicationId      String      @map("application_id") @db.Uuid
-  serviceCode        String      @map("service_code") @db.VarChar(80)
-  amountPaise        Int         @map("amount_paise")
-  currency           String      @default("INR") @db.Char(3)
-  gateway            String      @db.VarChar(80)
-  gatewayOrderId     String      @map("gateway_order_id") @db.VarChar(160)
-  gatewayPaymentRef  String?     @map("gateway_payment_ref") @db.VarChar(160)
-  qrPayloadVersion   Int         @default(1) @map("qr_payload_version")
-  issuedAt           DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
-  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  payment            Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  tenant             Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  glPosting          GlPosting?
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String      @map("tenant_id") @db.Uuid
+  paymentId         String      @unique @map("payment_id") @db.Uuid
+  receiptNumber     String      @map("receipt_number") @db.VarChar(48)
+  verificationToken String      @unique @map("verification_token") @db.Uuid
+  revenueHeadCode   String      @map("revenue_head_code") @db.VarChar(50)
+  accountingCode    String      @map("accounting_code") @db.VarChar(50)
+  applicationId     String      @map("application_id") @db.Uuid
+  serviceCode       String      @map("service_code") @db.VarChar(80)
+  amountPaise       Int         @map("amount_paise")
+  currency          String      @default("INR") @db.Char(3)
+  gateway           String      @db.VarChar(80)
+  gatewayOrderId    String      @map("gateway_order_id") @db.VarChar(160)
+  gatewayPaymentRef String?     @map("gateway_payment_ref") @db.VarChar(160)
+  qrPayloadVersion  Int         @default(1) @map("qr_payload_version")
+  issuedAt          DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
+  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  payment           Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  glPosting         GlPosting?
 
   @@unique([tenantId, receiptNumber])
   @@index([tenantId, issuedAt])
@@ -778,21 +823,21 @@ model Receipt {
 }
 
 model GlPosting {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String    @map("tenant_id") @db.Uuid
-  paymentId            String    @unique @map("payment_id") @db.Uuid
-  receiptId            String    @unique @map("receipt_id") @db.Uuid
-  revenueHeadCode      String    @map("revenue_head_code") @db.VarChar(50)
-  debitAccountCode     String    @map("debit_account_code") @db.VarChar(50)
-  creditAccountCode    String    @map("credit_account_code") @db.VarChar(50)
-  amountPaise          Int       @map("amount_paise")
-  currency             String    @default("INR") @db.Char(3)
-  settlementReference  String    @map("settlement_reference") @db.VarChar(160)
-  gateway              String    @db.VarChar(80)
-  postedAt             DateTime  @default(now()) @map("posted_at") @db.Timestamptz(6)
-  payment              Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  receipt              Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
-  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  paymentId           String   @unique @map("payment_id") @db.Uuid
+  receiptId           String   @unique @map("receipt_id") @db.Uuid
+  revenueHeadCode     String   @map("revenue_head_code") @db.VarChar(50)
+  debitAccountCode    String   @map("debit_account_code") @db.VarChar(50)
+  creditAccountCode   String   @map("credit_account_code") @db.VarChar(50)
+  amountPaise         Int      @map("amount_paise")
+  currency            String   @default("INR") @db.Char(3)
+  settlementReference String   @map("settlement_reference") @db.VarChar(160)
+  gateway             String   @db.VarChar(80)
+  postedAt            DateTime @default(now()) @map("posted_at") @db.Timestamptz(6)
+  payment             Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  receipt             Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, postedAt])
   @@index([tenantId, settlementReference])
@@ -800,24 +845,24 @@ model GlPosting {
 }
 
 model Deposit {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String    @map("tenant_id") @db.Uuid
-  citizenId         String    @map("citizen_id") @db.Uuid
-  applicationId     String?   @map("application_id") @db.Uuid
-  depositType       String    @map("deposit_type") @db.VarChar(30)
-  referenceCode     String?   @map("reference_code") @db.VarChar(120)
-  amountPaise       Int       @map("amount_paise")
-  capturePaymentId  String?   @unique @map("capture_payment_id") @db.Uuid
-  expectedReleaseAt DateTime? @map("expected_release_at") @db.Timestamptz(6)
-  status            String    @default("held") @db.VarChar(40)
-  forfeitureReason  String?   @map("forfeiture_reason")
-  metadata          Json      @default(dbgenerated("'{}'::jsonb"))
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  application       Application?        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  capturePayment    Payment?            @relation("DepositCapturePayment", fields: [capturePaymentId], references: [id], onDelete: SetNull)
-  citizen           Citizen             @relation(fields: [citizenId], references: [id], onDelete: Restrict)
-  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  citizenId         String           @map("citizen_id") @db.Uuid
+  applicationId     String?          @map("application_id") @db.Uuid
+  depositType       String           @map("deposit_type") @db.VarChar(30)
+  referenceCode     String?          @map("reference_code") @db.VarChar(120)
+  amountPaise       Int              @map("amount_paise")
+  capturePaymentId  String?          @unique @map("capture_payment_id") @db.Uuid
+  expectedReleaseAt DateTime?        @map("expected_release_at") @db.Timestamptz(6)
+  status            String           @default("held") @db.VarChar(40)
+  forfeitureReason  String?          @map("forfeiture_reason")
+  metadata          Json             @default(dbgenerated("'{}'::jsonb"))
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  application       Application?     @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  capturePayment    Payment?         @relation("DepositCapturePayment", fields: [capturePaymentId], references: [id], onDelete: SetNull)
+  citizen           Citizen          @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refundDispatches  RefundDispatch[]
 
   @@index([tenantId, citizenId, status])
@@ -826,50 +871,50 @@ model Deposit {
 }
 
 model RefundDispatch {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String    @map("tenant_id") @db.Uuid
-  depositId           String    @map("deposit_id") @db.Uuid
-  amountPaise         Int       @map("amount_paise")
-  status              String    @default("pending_review") @db.VarChar(40)
-  requestedBySubject  String    @map("requested_by_subject") @db.VarChar(255)
-  reviewedBySubject   String?   @map("reviewed_by_subject") @db.VarChar(255)
-  reviewNote          String?   @map("review_note")
-  pspCompletionNote   String?   @map("psp_completion_note")
-  rejectedReason      String?   @map("rejected_reason")
-  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deposit             Deposit   @relation(fields: [depositId], references: [id], onDelete: Cascade)
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  depositId          String    @map("deposit_id") @db.Uuid
+  amountPaise        Int       @map("amount_paise")
+  status             String    @default("pending_review") @db.VarChar(40)
+  requestedBySubject String    @map("requested_by_subject") @db.VarChar(255)
+  reviewedBySubject  String?   @map("reviewed_by_subject") @db.VarChar(255)
+  reviewNote         String?   @map("review_note")
+  pspCompletionNote  String?   @map("psp_completion_note")
+  rejectedReason     String?   @map("rejected_reason")
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deposit            Deposit   @relation(fields: [depositId], references: [id], onDelete: Cascade)
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, depositId, status])
   @@map("refund_dispatches")
 }
 
 model Challan {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  challanNo        String    @map("challan_no") @db.VarChar(64)
-  issuedToName     String?   @map("issued_to_name") @db.VarChar(255)
-  issuedToMobile   String?   @map("issued_to_mobile") @db.VarChar(15)
-  citizenId        String?   @map("citizen_id") @db.Uuid
-  violationCode    String    @map("violation_code") @db.VarChar(80)
-  location         Json      @default(dbgenerated("'{}'::jsonb"))
-  issuedByUserId   String?   @map("issued_by_user_id") @db.Uuid
-  issuedAt         DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
-  amountPaise      Int       @map("amount_paise")
-  photoEvidence    Json?     @map("photo_evidence")
-  status           String    @default("issued") @db.VarChar(30)
-  paidAt           DateTime? @map("paid_at") @db.Timestamptz(6)
-  paidPaymentId    String?   @unique @map("paid_payment_id") @db.Uuid
-  waivedReason     String?   @map("waived_reason")
-  metadata         Json      @default(dbgenerated("'{}'::jsonb"))
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  citizen          Citizen?  @relation(fields: [citizenId], references: [id], onDelete: SetNull)
-  issuedByUser     User?     @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
-  paidPayment      Payment?  @relation("ChallanPaidPayment", fields: [paidPaymentId], references: [id], onDelete: SetNull)
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  challanNo      String    @map("challan_no") @db.VarChar(64)
+  issuedToName   String?   @map("issued_to_name") @db.VarChar(255)
+  issuedToMobile String?   @map("issued_to_mobile") @db.VarChar(15)
+  citizenId      String?   @map("citizen_id") @db.Uuid
+  violationCode  String    @map("violation_code") @db.VarChar(80)
+  location       Json      @default(dbgenerated("'{}'::jsonb"))
+  issuedByUserId String?   @map("issued_by_user_id") @db.Uuid
+  issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  amountPaise    Int       @map("amount_paise")
+  photoEvidence  Json?     @map("photo_evidence")
+  status         String    @default("issued") @db.VarChar(30)
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz(6)
+  paidPaymentId  String?   @unique @map("paid_payment_id") @db.Uuid
+  waivedReason   String?   @map("waived_reason")
+  metadata       Json      @default(dbgenerated("'{}'::jsonb"))
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen        Citizen?  @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  issuedByUser   User?     @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  paidPayment    Payment?  @relation("ChallanPaidPayment", fields: [paidPaymentId], references: [id], onDelete: SetNull)
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, challanNo])
   @@index([tenantId, status])
@@ -877,19 +922,19 @@ model Challan {
 }
 
 model BookableAsset {
-  id           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String                     @map("tenant_id") @db.Uuid
-  code         String                     @db.VarChar(80)
+  id           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                      @map("tenant_id") @db.Uuid
+  code         String                      @db.VarChar(80)
   name         Json
-  location     Json                       @default(dbgenerated("'{}'::jsonb"))
+  location     Json                        @default(dbgenerated("'{}'::jsonb"))
   capacity     Int?
-  isActive     Boolean                    @default(true) @map("is_active")
-  metadata     Json                       @default(dbgenerated("'{}'::jsonb"))
-  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isActive     Boolean                     @default(true) @map("is_active")
+  metadata     Json                        @default(dbgenerated("'{}'::jsonb"))
+  createdAt    DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
   availability BookableAssetAvailability[]
   reservations BookingReservation[]
-  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
@@ -912,22 +957,22 @@ model BookableAssetAvailability {
 }
 
 model BookingReservation {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String         @map("tenant_id") @db.Uuid
-  assetId       String         @map("asset_id") @db.Uuid
-  applicationId String?        @map("application_id") @db.Uuid
-  docketNo      String?        @map("docket_no") @db.VarChar(80)
-  holderName    String         @map("holder_name") @db.VarChar(255)
-  holderMobile  String?        @map("holder_mobile") @db.VarChar(15)
-  startsAt      DateTime       @map("starts_at") @db.Timestamptz(6)
-  endsAt        DateTime       @map("ends_at") @db.Timestamptz(6)
-  status        String         @default("hold") @db.VarChar(20)
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  assetId       String        @map("asset_id") @db.Uuid
+  applicationId String?       @map("application_id") @db.Uuid
+  docketNo      String?       @map("docket_no") @db.VarChar(80)
+  holderName    String        @map("holder_name") @db.VarChar(255)
+  holderMobile  String?       @map("holder_mobile") @db.VarChar(15)
+  startsAt      DateTime      @map("starts_at") @db.Timestamptz(6)
+  endsAt        DateTime      @map("ends_at") @db.Timestamptz(6)
+  status        String        @default("hold") @db.VarChar(20)
   note          String?
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  asset         BookableAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  asset         BookableAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, assetId, startsAt, endsAt])
   @@index([tenantId, status])
@@ -935,15 +980,15 @@ model BookingReservation {
 }
 
 model SlaPolicy {
-  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId                 String   @map("tenant_id") @db.Uuid
-  sortOrder                Int      @default(0) @map("sort_order")
-  categoryMatch            String?  @map("category_match") @db.VarChar(50)
-  grievancePriorityMatch   String?  @map("grievance_priority_match") @db.VarChar(20)
-  hoursToResolve           Int      @map("hours_to_resolve")
-  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  sortOrder              Int      @default(0) @map("sort_order")
+  categoryMatch          String?  @map("category_match") @db.VarChar(50)
+  grievancePriorityMatch String?  @map("grievance_priority_match") @db.VarChar(20)
+  hoursToResolve         Int      @map("hours_to_resolve")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, sortOrder])
   @@map("sla_policies")
@@ -969,30 +1014,30 @@ model GrievanceRoutingRule {
 }
 
 model Grievance {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String    @map("tenant_id") @db.Uuid
-  citizenId          String    @map("citizen_id") @db.Uuid
-  grievanceNo        String    @map("grievance_no") @db.VarChar(64)
-  category           String    @db.VarChar(50)
-  description        String
-  location           Json      @default(dbgenerated("'{}'::jsonb"))
-  photoKeys          Json      @default(dbgenerated("'[]'::jsonb")) @map("photo_keys")
-  grievancePriority  String    @default("medium") @map("grievance_priority") @db.VarChar(20)
-  status             String    @default("submitted") @db.VarChar(30)
-  routedRoleCode     String?   @map("routed_role_code") @db.VarChar(50)
-  assignedToUserId   String?   @map("assigned_to_user_id") @db.Uuid
-  slaDueAt           DateTime? @map("sla_due_at") @db.Timestamptz(6)
-  slaBreachedAt      DateTime? @map("sla_breached_at") @db.Timestamptz(6)
-  rating             Int?
-  feedback           String?   @db.Text
-  resolvedAt         DateTime? @map("resolved_at") @db.Timestamptz(6)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  citizen            Citizen   @relation(fields: [citizenId], references: [id], onDelete: Restrict)
-  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignedToUser     User?     @relation("GrievanceAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
-  timeline           GrievanceTimelineEntry[]
-  attachments        GrievanceAttachment[]
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  citizenId         String                   @map("citizen_id") @db.Uuid
+  grievanceNo       String                   @map("grievance_no") @db.VarChar(64)
+  category          String                   @db.VarChar(50)
+  description       String
+  location          Json                     @default(dbgenerated("'{}'::jsonb"))
+  photoKeys         Json                     @default(dbgenerated("'[]'::jsonb")) @map("photo_keys")
+  grievancePriority String                   @default("medium") @map("grievance_priority") @db.VarChar(20)
+  status            String                   @default("submitted") @db.VarChar(30)
+  routedRoleCode    String?                  @map("routed_role_code") @db.VarChar(50)
+  assignedToUserId  String?                  @map("assigned_to_user_id") @db.Uuid
+  slaDueAt          DateTime?                @map("sla_due_at") @db.Timestamptz(6)
+  slaBreachedAt     DateTime?                @map("sla_breached_at") @db.Timestamptz(6)
+  rating            Int?
+  feedback          String?                  @db.Text
+  resolvedAt        DateTime?                @map("resolved_at") @db.Timestamptz(6)
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citizen           Citizen                  @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedToUser    User?                    @relation("GrievanceAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  timeline          GrievanceTimelineEntry[]
+  attachments       GrievanceAttachment[]
 
   @@unique([tenantId, grievanceNo])
   @@index([tenantId, citizenId, createdAt])

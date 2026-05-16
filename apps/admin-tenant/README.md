@@ -61,6 +61,13 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - Tenant Admin adds a bounded bookable assets/calendar MVP for services using the `booking` workflow pattern.
 - Exit: **`docs/runbooks/master-sprint-611-exit.md`**.
 
+## Sprint 6.12 P5 identity and hardening
+
+- Operations adds guided staff invite/provisioning records over the current upsert-by-subject-ID fallback.
+- Staff lifecycle actions have tenant-scoped audit coverage and safe local/dry-run Keycloak provisioning boundaries.
+- Tenant Admin staff/invite mutation coverage is included in the Sprint 6.12 audit matrix.
+- Exit: **`docs/runbooks/master-sprint-612-exit.md`**.
+
 ## Relation to citizen catalogue API
 
 Public **`GET /api/services/tenants/:tenantCode`** now resolves active Postgres `TenantService` rows and latest published `service_form_versions` (Sprint **6.6**). Publishing a form from this designer changes citizen PWA/mobile runtime after refresh without rebuilding clients.
@@ -76,3 +83,4 @@ Master Sprint **6.8**: **`docs/runbooks/master-sprint-68-exit.md`**.
 Master Sprint **6.9**: **`docs/runbooks/master-sprint-69-exit.md`**.
 Master Sprint **6.10**: **`docs/runbooks/master-sprint-610-exit.md`**.
 Master Sprint **6.11**: **`docs/runbooks/master-sprint-611-exit.md`**.
+Master Sprint **6.12**: **`docs/runbooks/master-sprint-612-exit.md`**.

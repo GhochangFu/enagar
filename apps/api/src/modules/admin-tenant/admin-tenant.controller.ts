@@ -24,8 +24,10 @@ import {
 } from './dto/service-config.dto';
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
 import {
+  CreateStaffInviteDto,
   PatchTenantSettingsDto,
   RequeueKbArticleDto,
+  UpdateStaffInviteDto,
   UpsertBookableAssetDto,
   UpsertBookableAvailabilityDto,
   UpsertBookingReservationDto,
@@ -425,6 +427,30 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'List tenant staff and role assignments' })
   listStaff(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.listStaff(principal);
+  }
+
+  @Get('staff-invites')
+  @ApiOperation({ summary: 'List guided tenant staff invite/provisioning records' })
+  listStaffInvites(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listStaffInvites(principal);
+  }
+
+  @Post('staff-invites')
+  @ApiOperation({ summary: 'Create a guided tenant staff invite with dry-run Keycloak fallback' })
+  createStaffInvite(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: CreateStaffInviteDto,
+  ) {
+    return this.adminTenant.createStaffInvite(principal, dto);
+  }
+
+  @Patch('staff-invites')
+  @ApiOperation({ summary: 'Retry, disable, or mark a tenant staff invite as provisioned' })
+  updateStaffInvite(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpdateStaffInviteDto,
+  ) {
+    return this.adminTenant.updateStaffInvite(principal, dto);
   }
 
   @Patch('staff')

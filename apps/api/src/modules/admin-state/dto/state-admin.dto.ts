@@ -43,3 +43,80 @@ export class CreateImpersonationTokenDto {
   @IsString()
   reason!: string;
 }
+
+export class UpsertGlobalServiceTemplateDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  category_code!: string;
+
+  @IsObject()
+  name!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  description?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  workflow_pattern?: string;
+
+  @IsOptional()
+  default_sla_days?: number;
+
+  @IsOptional()
+  @IsObject()
+  fee_config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  required_documents?: unknown[];
+
+  @IsOptional()
+  @IsObject()
+  form_schema?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  workflow_config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  lifecycle_status?: string;
+
+  @IsOptional()
+  @IsString()
+  curator_notes?: string;
+}
+
+export class GlobalServiceLifecycleDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  action!: string;
+}
+
+export class UpsertStateIntegrationDto {
+  @IsString()
+  provider_key!: string;
+
+  @IsString()
+  environment!: string;
+
+  @IsString()
+  status!: string;
+
+  @IsOptional()
+  @IsString()
+  owner?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  required_docs?: unknown[];
+}

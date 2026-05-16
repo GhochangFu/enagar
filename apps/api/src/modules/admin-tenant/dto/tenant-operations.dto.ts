@@ -242,6 +242,37 @@ export class UpsertStaffDto {
   ward_number?: string;
 }
 
+export class CreateStaffInviteDto {
+  @IsString()
+  username!: string;
+
+  @IsString()
+  display_name!: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  mobile?: string;
+
+  @IsArray()
+  role_codes!: unknown[];
+
+  @IsOptional()
+  @IsString()
+  ward_number?: string;
+}
+
+export class UpdateStaffInviteDto {
+  @IsString()
+  invite_id!: string;
+
+  @IsString()
+  action!: string;
+}
+
 export class UpsertRoleStageMapDto {
   @IsString()
   workflow_code!: string;

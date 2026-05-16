@@ -129,6 +129,21 @@ type StaffRow = {
   roles: Array<{ code: string; ward_number: string | null }>;
 };
 
+type StaffInviteRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  email: string | null;
+  mobile: string | null;
+  role_codes: string[];
+  ward_number: string | null;
+  status: string;
+  provisioning_mode: string;
+  keycloak_user_id: string | null;
+  failure_reason: string | null;
+  metadata: unknown;
+};
+
 type RoleStageMapRow = {
   id: string;
   workflow_code: string;
@@ -208,6 +223,7 @@ export default function OperationsClient(): JSX.Element {
   });
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [staffInvites, setStaffInvites] = useState<StaffInviteRow[]>([]);
   const [roleStageMaps, setRoleStageMaps] = useState<RoleStageMapRow[]>([]);
 
   const [settingsText, setSettingsText] = useState(
@@ -334,6 +350,16 @@ export default function OperationsClient(): JSX.Element {
   );
   const [staffText, setStaffText] = useState(
     pretty({
+      username: 'kmc-tenant-clerk-demo',
+      display_name: 'KMC Tenant Clerk Invite',
+      email: 'kmc-clerk-demo@example.gov.in',
+      mobile: '',
+      role_codes: ['tenant_clerk'],
+      ward_number: '',
+    }),
+  );
+  const [legacyStaffText, setLegacyStaffText] = useState(
+    pretty({
       keycloak_user_id: '10000000-0000-4000-8000-000000000201',
       username: 'kmc-tenant-clerk-demo',
       display_name: 'KMC Tenant Clerk Demo',
@@ -399,6 +425,7 @@ export default function OperationsClient(): JSX.Element {
         bookingsRes,
         rolesRes,
         staffRes,
+        staffInvitesRes,
         mapsRes,
       ] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/settings`, { headers: authHeaders() }),
@@ -409,6 +436,7 @@ export default function OperationsClient(): JSX.Element {
         fetch(`${apiBase}/admin/tenant/bookings`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/roles`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/staff`, { headers: authHeaders() }),
+        fetch(`${apiBase}/admin/tenant/staff-invites`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/role-stage-maps`, { headers: authHeaders() }),
       ]);
       if (
@@ -421,6 +449,7 @@ export default function OperationsClient(): JSX.Element {
           bookingsRes,
           rolesRes,
           staffRes,
+          staffInvitesRes,
           mapsRes,
         ].some((res) => res.status === 401)
       ) {
@@ -437,10 +466,11 @@ export default function OperationsClient(): JSX.Element {
         !bookingsRes.ok ||
         !rolesRes.ok ||
         !staffRes.ok ||
+        !staffInvitesRes.ok ||
         !mapsRes.ok
       ) {
         setStatus(
-          `Operations load failed (${settingsRes.status}/${bannersRes.status}/${templatesRes.status}/${kbRes.status}/${brandingAssetsRes.status}/${bookingsRes.status}/${rolesRes.status}/${staffRes.status}/${mapsRes.status}).`,
+          `Operations load failed (${settingsRes.status}/${bannersRes.status}/${templatesRes.status}/${kbRes.status}/${brandingAssetsRes.status}/${bookingsRes.status}/${rolesRes.status}/${staffRes.status}/${staffInvitesRes.status}/${mapsRes.status}).`,
         );
         return;
       }
@@ -463,6 +493,7 @@ export default function OperationsClient(): JSX.Element {
       setBookings((await bookingsRes.json()) as BookingsPayload);
       setRoles((await rolesRes.json()) as RoleRow[]);
       setStaff((await staffRes.json()) as StaffRow[]);
+      setStaffInvites((await staffInvitesRes.json()) as StaffInviteRow[]);
       setRoleStageMaps((await mapsRes.json()) as RoleStageMapRow[]);
       setStatus(null);
     } catch {
@@ -636,6 +667,15 @@ export default function OperationsClient(): JSX.Element {
     }
     setStatus(`${label} saved.`);
     await loadOperations();
+  }
+
+  async function updateStaffInvite(inviteId: string, action: string): Promise<void> {
+    await saveJsonEndpoint(
+      'staff-invites',
+      pretty({ invite_id: inviteId, action }),
+      'PATCH',
+      `Staff invite ${action}`,
+    );
   }
 
   if (!token) {
@@ -837,10 +877,16 @@ export default function OperationsClient(): JSX.Element {
           }
         />
         <OperationsEditor
-          title="Staff role assignment"
+          title="Guided staff invite / provisioning"
           value={staffText}
           onChange={setStaffText}
-          onSave={() => void upsert('staff', staffText, 'Staff')}
+          onSave={() => void saveJsonEndpoint('staff-invites', staffText, 'POST', 'Staff invite')}
+        />
+        <OperationsEditor
+          title="Legacy staff role assignment fallback"
+          value={legacyStaffText}
+          onChange={setLegacyStaffText}
+          onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
         />
         <OperationsEditor
           title="Workflow role-stage mapping"
@@ -949,6 +995,33 @@ export default function OperationsClient(): JSX.Element {
           ))}
         </ListCard>
         <ListCard title="Staff">
+          {staffInvites.map((invite) => (
+            <li key={invite.id} className="rounded border border-indigo-100 bg-indigo-50 p-3">
+              <p className="font-mono text-xs">
+                Invite · {invite.username} · {invite.provisioning_mode}
+              </p>
+              <p className="font-medium text-slate-900">{invite.display_name}</p>
+              <p className="text-xs text-slate-500">
+                {invite.status} · {invite.role_codes.join(', ')}
+                {invite.ward_number ? ` · ward ${invite.ward_number}` : ''}
+              </p>
+              {invite.failure_reason ? (
+                <p className="mt-1 text-xs text-red-700">{invite.failure_reason}</p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(['retry', 'mark_provisioned', 'disable'] as const).map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    className="rounded border border-indigo-200 bg-white px-2 py-1 text-[11px] font-medium text-indigo-800"
+                    onClick={() => void updateStaffInvite(invite.id, action)}
+                  >
+                    {action.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
           {staff.map((member) => (
             <li key={member.id} className="rounded border border-slate-200 p-3">
               <p className="font-mono text-xs">{member.username}</p>

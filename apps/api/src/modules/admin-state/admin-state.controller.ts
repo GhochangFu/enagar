@@ -4,7 +4,13 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
 import { AdminStateService } from './admin-state.service';
-import { CreateImpersonationTokenDto, UpsertTenantDto } from './dto/state-admin.dto';
+import {
+  CreateImpersonationTokenDto,
+  GlobalServiceLifecycleDto,
+  UpsertGlobalServiceTemplateDto,
+  UpsertStateIntegrationDto,
+  UpsertTenantDto,
+} from './dto/state-admin.dto';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -111,5 +117,76 @@ export class AdminStateController {
       from,
       to,
     });
+  }
+
+  @Get('global-service-library')
+  @ApiOperation({ summary: 'List global service templates for state curation' })
+  listGlobalServiceLibrary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminState.listGlobalServiceTemplates(principal);
+  }
+
+  @Get('global-service-library/:code/preview')
+  @ApiOperation({ summary: 'Preview tenant impact before publishing a global service template' })
+  previewGlobalServiceLibrary(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.adminState.previewGlobalServiceTemplate(principal, code);
+  }
+
+  @Patch('global-service-library')
+  @ApiOperation({ summary: 'Draft or update a global service template' })
+  upsertGlobalServiceLibrary(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertGlobalServiceTemplateDto,
+  ) {
+    return this.adminState.upsertGlobalServiceTemplate(principal, dto);
+  }
+
+  @Post('global-service-library/lifecycle')
+  @ApiOperation({ summary: 'Publish or deprecate a global service template' })
+  updateGlobalServiceLifecycle(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: GlobalServiceLifecycleDto,
+  ) {
+    return this.adminState.updateGlobalServiceLifecycle(principal, dto);
+  }
+
+  @Get('integrations')
+  @ApiOperation({ summary: 'List external integration readiness metadata' })
+  listIntegrations(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminState.listIntegrations(principal);
+  }
+
+  @Patch('integrations')
+  @ApiOperation({ summary: 'Update metadata-only integration readiness status' })
+  upsertIntegration(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertStateIntegrationDto,
+  ) {
+    return this.adminState.upsertIntegration(principal, dto);
+  }
+
+  @Post('integrations/:providerKey/check')
+  @ApiOperation({ summary: 'Run safe local/stub readiness check for an integration provider' })
+  checkIntegration(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('providerKey') providerKey: string,
+  ) {
+    return this.adminState.checkIntegration(principal, providerKey);
+  }
+
+  @Get('integrations.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header('content-disposition', 'attachment; filename="state-integrations.csv"')
+  @ApiOperation({ summary: 'Export integration readiness metadata for DevOps review' })
+  exportIntegrations(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminState.exportIntegrationsCsv(principal);
+  }
+
+  @Get('audit-coverage')
+  @ApiOperation({ summary: 'Sprint 6.12 audit coverage matrix' })
+  getAuditCoverage(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminState.getAuditCoverage(principal);
   }
 }

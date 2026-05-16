@@ -71,6 +71,7 @@ describe('AdminTenantService', () => {
     };
     user?: {
       findMany?: jest.Mock;
+      findFirst?: jest.Mock;
       findUnique?: jest.Mock;
       findUniqueOrThrow?: jest.Mock;
       create?: jest.Mock;
@@ -80,6 +81,13 @@ describe('AdminTenantService', () => {
       deleteMany?: jest.Mock;
       create?: jest.Mock;
     };
+    staffInvite?: {
+      findMany?: jest.Mock;
+      findFirst?: jest.Mock;
+      upsert?: jest.Mock;
+      update?: jest.Mock;
+    };
+    stateAuditLog?: { create?: jest.Mock };
     roleStageMap?: {
       findMany?: jest.Mock;
       upsert?: jest.Mock;
@@ -120,7 +128,7 @@ describe('AdminTenantService', () => {
         upsert: overrides.revenueHead?.upsert ?? jest.fn(),
       },
       borough: { upsert: overrides.borough?.upsert ?? jest.fn() },
-      ward: { upsert: overrides.ward?.upsert ?? jest.fn() },
+      ward: { upsert: overrides.ward?.upsert ?? jest.fn(), findFirst: jest.fn() },
       locality: {
         findMany: overrides.locality?.findMany ?? jest.fn(),
         upsert: overrides.locality?.upsert ?? jest.fn(),
@@ -162,6 +170,7 @@ describe('AdminTenantService', () => {
       },
       user: {
         findMany: overrides.user?.findMany ?? jest.fn(),
+        findFirst: overrides.user?.findFirst ?? jest.fn(),
         findUnique: overrides.user?.findUnique ?? jest.fn(),
         findUniqueOrThrow: overrides.user?.findUniqueOrThrow ?? jest.fn(),
         create: overrides.user?.create ?? jest.fn(),
@@ -171,6 +180,13 @@ describe('AdminTenantService', () => {
         deleteMany: overrides.userRole?.deleteMany ?? jest.fn(),
         create: overrides.userRole?.create ?? jest.fn(),
       },
+      staffInvite: {
+        findMany: overrides.staffInvite?.findMany ?? jest.fn(),
+        findFirst: overrides.staffInvite?.findFirst ?? jest.fn(),
+        upsert: overrides.staffInvite?.upsert ?? jest.fn(),
+        update: overrides.staffInvite?.update ?? jest.fn(),
+      },
+      stateAuditLog: { create: overrides.stateAuditLog?.create ?? jest.fn() },
       roleStageMap: {
         findMany: overrides.roleStageMap?.findMany ?? jest.fn(),
         upsert: overrides.roleStageMap?.upsert ?? jest.fn(),
