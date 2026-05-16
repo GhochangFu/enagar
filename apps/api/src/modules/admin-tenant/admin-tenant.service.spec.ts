@@ -46,6 +46,10 @@ describe('AdminTenantService', () => {
       create?: jest.Mock;
       upsert?: jest.Mock;
     };
+    tenantBanner?: {
+      findMany?: jest.Mock;
+      upsert?: jest.Mock;
+    };
     notificationTemplate?: {
       findMany?: jest.Mock;
       upsert?: jest.Mock;
@@ -125,6 +129,10 @@ describe('AdminTenantService', () => {
       tenantConfig: {
         create: overrides.tenantConfig?.create ?? jest.fn(),
         upsert: overrides.tenantConfig?.upsert ?? jest.fn(),
+      },
+      tenantBanner: {
+        findMany: overrides.tenantBanner?.findMany ?? jest.fn(),
+        upsert: overrides.tenantBanner?.upsert ?? jest.fn(),
       },
       notificationTemplate: {
         findMany: overrides.notificationTemplate?.findMany ?? jest.fn(),
@@ -534,6 +542,41 @@ describe('AdminTenantService', () => {
     expect(prisma.tenant.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: tenantId },
+      }),
+    );
+  });
+
+  it('upserts tenant maintenance banners with scoped code and active window', async () => {
+    const upsert = jest.fn().mockResolvedValue({
+      id: 'banner-1',
+      code: 'maintenance-notice',
+      severity: 'warning',
+      title: { en: 'Scheduled maintenance' },
+      body: { en: 'Services may be unavailable tonight.' },
+      linkUrl: null,
+      startsAt: new Date('2026-05-16T18:00:00.000Z'),
+      endsAt: new Date('2026-05-16T20:00:00.000Z'),
+      isActive: true,
+      updatedAt: new Date('2026-05-16T09:00:00.000Z'),
+    });
+    const prisma = mockPrisma({ tenantBanner: { upsert } });
+    const service = new AdminTenantService(prisma);
+
+    const row = await service.upsertBanner(staffPrincipal, {
+      code: 'maintenance-notice',
+      severity: 'warning',
+      title: { en: 'Scheduled maintenance' },
+      body: { en: 'Services may be unavailable tonight.' },
+      starts_at: '2026-05-16T18:00:00.000Z',
+      ends_at: '2026-05-16T20:00:00.000Z',
+      is_active: true,
+    });
+
+    expect(row.code).toBe('maintenance-notice');
+    expect(row.severity).toBe('warning');
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_code: { tenantId, code: 'maintenance-notice' } },
       }),
     );
   });

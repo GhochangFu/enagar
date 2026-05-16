@@ -32,6 +32,7 @@ export type TariffCategory = 'property' | 'water' | 'conservancy' | 'sewerage';
 export type NotificationChannel = 'push' | 'sms' | 'email' | 'whatsapp';
 export type SupportedLocale = 'en' | 'bn' | 'hi';
 export type KbArticleStatus = 'draft' | 'published' | 'archived';
+export type TenantBannerSeverity = 'info' | 'warning' | 'critical';
 
 export function assertValidFeeRule(value: unknown): asserts value is FeeRule {
   if (!isRecord(value)) {
@@ -155,6 +156,26 @@ export function assertSupportedLocale(value: unknown): asserts value is Supporte
   if (!['en', 'bn', 'hi'].includes(String(value))) {
     throw new BadRequestException('Unsupported locale');
   }
+}
+
+export function assertTenantBannerSeverity(value: unknown): asserts value is TenantBannerSeverity {
+  if (!['info', 'warning', 'critical'].includes(String(value))) {
+    throw new BadRequestException('Unsupported banner severity');
+  }
+}
+
+export function assertOptionalIsoDate(value: unknown, field: string): Date | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new BadRequestException(`${field} must be an ISO date string`);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`${field} must be an ISO date string`);
+  }
+  return parsed;
 }
 
 export function assertValidNotificationVariables(

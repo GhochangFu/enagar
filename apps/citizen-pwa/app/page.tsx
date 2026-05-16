@@ -19,7 +19,9 @@ import {
 } from '../components/application-detail-panel';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
+import { TenantBanners } from '../components/tenant-banners';
 import { defaultFormValuesForService } from '../lib/service-schemas';
+import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
 import {
   authHeaders,
   CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
@@ -162,6 +164,7 @@ export default function HomePage(): JSX.Element {
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [payments, setPayments] = useState<PaymentApiResponse[]>([]);
   const [grievanceCount, setGrievanceCount] = useState(0);
+  const [tenantBanners, setTenantBanners] = useState<TenantBanner[]>([]);
   const [hubApplications, setHubApplications] = useState<ApplicationSummary[]>([]);
   const [hubPayments, setHubPayments] = useState<PaymentApiResponse[]>([]);
   /** Per-tenant active services keyed by pinned + shortcut ULBs only (lazy; Sprint 4.16). */
@@ -747,10 +750,19 @@ export default function HomePage(): JSX.Element {
 
     await Promise.all([
       loadServices(selectedTenant.code),
+      loadTenantBanners(selectedTenant.code),
       loadApplications(),
       loadPayments(),
       loadGrievanceCount(),
     ]);
+  }
+
+  async function loadTenantBanners(tenantCode: string): Promise<void> {
+    try {
+      setTenantBanners(await fetchTenantBanners(apiBaseUrl, tenantCode));
+    } catch {
+      setTenantBanners([]);
+    }
   }
 
   async function loadGrievanceCount(): Promise<void> {
@@ -2187,6 +2199,8 @@ export default function HomePage(): JSX.Element {
               ))}
             </div>
           </div>
+
+          <TenantBanners banners={tenantBanners} locale={language} />
 
           <CitizenWorkspaceTabStrip
             activeTab={activeTab}

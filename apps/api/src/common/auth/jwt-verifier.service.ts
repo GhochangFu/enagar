@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose';
 
 import {
   JwtTenantClaimError,
@@ -67,7 +67,7 @@ export class JwtVerifierService {
       });
       return payload;
     } catch (remoteError) {
-      if (!this.devAuthEnabled) {
+      if (!this.devAuthEnabled || !this.shouldAttemptDevSecretFallback(token)) {
         throw remoteError;
       }
 
@@ -76,6 +76,15 @@ export class JwtVerifierService {
         audience: this.jwtAudienceOption(),
       });
       return payload;
+    }
+  }
+
+  private shouldAttemptDevSecretFallback(token: string): boolean {
+    try {
+      const { alg } = decodeProtectedHeader(token);
+      return typeof alg === 'string' && alg.startsWith('HS');
+    } catch {
+      return false;
     }
   }
 

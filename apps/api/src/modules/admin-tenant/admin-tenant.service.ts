@@ -10,6 +10,8 @@ import {
   assertValidDocumentChecklist,
   assertValidFeeRule,
   assertSupportedLocale,
+  assertTenantBannerSeverity,
+  assertOptionalIsoDate,
   assertValidBranding,
   assertValidFeatureFlags,
   assertValidKbArticleStatus,
@@ -39,6 +41,7 @@ import type {
   PatchTenantSettingsDto,
   UpsertKbArticleDto,
   UpsertNotificationTemplateDto,
+  UpsertTenantBannerDto,
   UpsertRoleStageMapDto,
   UpsertStaffDto,
 } from './dto/tenant-operations.dto';
@@ -159,6 +162,19 @@ export type TenantAdminNotificationTemplateRow = {
   subject: string | null;
   body: string;
   variables: Prisma.JsonValue;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export type TenantAdminBannerRow = {
+  id: string;
+  code: string;
+  severity: string;
+  title: Prisma.JsonValue;
+  body: Prisma.JsonValue;
+  link_url: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
   is_active: boolean;
   updated_at: string;
 };
@@ -937,6 +953,59 @@ export class AdminTenantService {
     return toSettingsRow(updatedTenant, config, principal.tenantCode);
   }
 
+  async listBanners(principal: AuthenticatedPrincipal): Promise<TenantAdminBannerRow[]> {
+    assertTenantPortalStaff(principal);
+    const rows = await this.prisma.tenantBanner.findMany({
+      where: { tenantId: principal.tenantId },
+      orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }, { code: 'asc' }],
+    });
+    return rows.map(toTenantBannerRow);
+  }
+
+  async upsertBanner(
+    principal: AuthenticatedPrincipal,
+    dto: UpsertTenantBannerDto,
+  ): Promise<TenantAdminBannerRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'banner code');
+    assertTenantBannerSeverity(dto.severity);
+    assertLocaleLabel(dto.title, 'banner title');
+    assertLocaleLabel(dto.body, 'banner body');
+    const startsAt = assertOptionalIsoDate(dto.starts_at, 'starts_at');
+    const endsAt = assertOptionalIsoDate(dto.ends_at, 'ends_at');
+    if (startsAt && endsAt && startsAt >= endsAt) {
+      throw new BadRequestException('starts_at must be before ends_at');
+    }
+    if (dto.link_url && !/^https?:\/\//i.test(dto.link_url)) {
+      throw new BadRequestException('link_url must be an http(s) URL or empty');
+    }
+
+    const row = await this.prisma.tenantBanner.upsert({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: dto.code } },
+      create: {
+        tenantId: principal.tenantId,
+        code: dto.code,
+        severity: dto.severity,
+        title: dto.title as Prisma.InputJsonValue,
+        body: dto.body as Prisma.InputJsonValue,
+        linkUrl: dto.link_url?.trim() || null,
+        startsAt,
+        endsAt,
+        isActive: dto.is_active ?? true,
+      },
+      update: {
+        severity: dto.severity,
+        title: dto.title as Prisma.InputJsonValue,
+        body: dto.body as Prisma.InputJsonValue,
+        linkUrl: dto.link_url?.trim() || null,
+        startsAt,
+        endsAt,
+        isActive: dto.is_active ?? true,
+      },
+    });
+    return toTenantBannerRow(row);
+  }
+
   async listNotificationTemplates(
     principal: AuthenticatedPrincipal,
   ): Promise<TenantAdminNotificationTemplateRow[]> {
@@ -1275,6 +1344,32 @@ function toSettingsRow(
     default_language: config.defaultLanguage,
     contact_phone: config.contactPhone,
     contact_email: config.contactEmail,
+  };
+}
+
+function toTenantBannerRow(row: {
+  id: string;
+  code: string;
+  severity: string;
+  title: Prisma.JsonValue;
+  body: Prisma.JsonValue;
+  linkUrl: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  isActive: boolean;
+  updatedAt: Date;
+}): TenantAdminBannerRow {
+  return {
+    id: row.id,
+    code: row.code,
+    severity: row.severity,
+    title: row.title,
+    body: row.body,
+    link_url: row.linkUrl,
+    starts_at: row.startsAt?.toISOString() ?? null,
+    ends_at: row.endsAt?.toISOString() ?? null,
+    is_active: row.isActive,
+    updated_at: row.updatedAt.toISOString(),
   };
 }
 

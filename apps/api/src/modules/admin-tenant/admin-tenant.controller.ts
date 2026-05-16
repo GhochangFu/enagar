@@ -18,6 +18,7 @@ import {
   UpsertNotificationTemplateDto,
   UpsertRoleStageMapDto,
   UpsertStaffDto,
+  UpsertTenantBannerDto,
 } from './dto/tenant-operations.dto';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -155,6 +156,30 @@ export class AdminTenantController {
     @Body() dto: PatchTenantSettingsDto,
   ) {
     return this.adminTenant.patchSettings(principal, dto);
+  }
+
+  @Get('banners')
+  @ApiOperation({ summary: 'List tenant-scoped maintenance and outage banners' })
+  listBanners(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listBanners(principal);
+  }
+
+  @Patch('banners')
+  @ApiOperation({ summary: 'Create or update a tenant-scoped maintenance banner' })
+  upsertBanner(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertTenantBannerDto,
+  ) {
+    return this.adminTenant.upsertBanner(principal, dto);
+  }
+
+  @Post('banners')
+  @ApiOperation({ summary: 'Create or update a tenant-scoped maintenance banner' })
+  postBanner(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertTenantBannerDto,
+  ) {
+    return this.adminTenant.upsertBanner(principal, dto);
   }
 
   @Get('notification-templates')

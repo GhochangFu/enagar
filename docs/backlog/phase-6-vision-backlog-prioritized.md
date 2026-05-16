@@ -32,10 +32,10 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 
 | Order | Priority | Phase 6 vision item (summarized)                                                                                   | Portal                  | Repo today\*                          | Suggested sprint theme                 | Notes                                                                          |
 | :---: | :------: | ------------------------------------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
-|   1   |    P1    | **Maintenance banners / outage notices**                                                                           | Tenant                  | Not in UI                             | _Admin polish_ — tenant-scoped banners | Tiny CRUD + citizen/header read; clears incident comms gap.                    |
-|   2   |    P1    | **Document checklist UX** (guided checklist editor vs raw JSON only)                                               | Tenant                  | Thin JSON                             | _Config UX_                            | Matches rejection risk on applications; aligns with Sprint 6.3 data.           |
-|   3   |    P1    | **Fee-rule guided editor + validation UX**                                                                         | Tenant                  | Thin JSON                             | _Config UX_                            | Same rationale; reduces ₹ mistakes before payments harden.                     |
-|   4   |    P1    | **Notification template UX** — live variable preview / channel matrix (SMS first; extend to email/WhatsApp)        | Tenant                  | JSON templates exist                  | _Comms UX_                             | Sending remains worker/integration; authoring must be trustworthy.             |
+|   1   |    P1    | **Maintenance banners / outage notices**                                                                           | Tenant                  | Closed engineering — Sprint 6.8       | _Admin polish_ — tenant-scoped banners | `tenant_banners` + Tenant Admin CRUD + citizen workspace display.              |
+|   2   |    P1    | **Document checklist UX** (guided checklist editor vs raw JSON only)                                               | Tenant                  | Closed engineering — Sprint 6.8       | _Config UX_                            | Guided rows persist to existing `required_documents` service config.           |
+|   3   |    P1    | **Fee-rule guided editor + validation UX**                                                                         | Tenant                  | Closed engineering — Sprint 6.8       | _Config UX_                            | Guided controls preserve safe `FeeRule` JSON and backend preview.              |
+|   4   |    P1    | **Notification template UX** — live variable preview / channel matrix (SMS first; extend to email/WhatsApp)        | Tenant                  | Closed engineering — Sprint 6.8       | _Comms UX_                             | Channel form + placeholder preview; provider sending still deferred.           |
 |   5   |    P2    | **Dashboard depth** — trends, SLA drill-down lists, breached queue links (beyond headline KPI counts)              | Tenant                  | KPI snapshot                          | _Observability_                        | Uses existing aggregates; avoids heatmap/geo until geo data wired.             |
 |   6   |    P2    | **Operational CSV exports** — applications, payments, grievances, SLA summaries per tenant                         | Tenant                  | No export UI                          | _Reporting v1_                         | Faster than PDF; answers “give me spreadsheet” asks.                           |
 |   7   |    P2    | **Address master bulk CSV import**                                                                                 | Tenant                  | Single-row JSON flow                  | _Masters UX_                           | Matches ULB onboarding reality; chunked upload + validation.                   |
@@ -63,7 +63,7 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 ## Cross-reference
 
 - **`ROADMAP.md`** — full Phase‑6 ambition and sprint slice (**6.1–6.7**).
-- **`docs/runbooks/master-sprint-61-exit.md`** … **`master-sprint-67-exit.md`** — what landed in-queue.
+- **`docs/runbooks/master-sprint-61-exit.md`** … **`master-sprint-68-exit.md`** — what landed in-queue.
 - **`docs/help/start-the-app-step-by-step.md`** — how to smoke local portals.
 
 ---
@@ -75,4 +75,4 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 3. Add `tests/security` or domain contract specs when touching cross-cutting behaviour (patterns in `tests/security/`).
 4. When a slice **closes**, append a **`docs/runbooks/master-sprint-*.md`** (or backlog row update) linking **Order** IDs.
 
-_Last updated: 2026-05-16 (execution order seeded from engineering judgement; reorder as sponsor dictates)._
+_Last updated: 2026-05-16 (P1 rows closed engineering in Master Sprint 6.8; reorder remaining rows as sponsor dictates)._

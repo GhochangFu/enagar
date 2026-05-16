@@ -34,6 +34,31 @@ type NotificationTemplateRow = {
   is_active: boolean;
 };
 
+type BannerRow = {
+  id: string;
+  code: string;
+  severity: 'info' | 'warning' | 'critical' | string;
+  title: unknown;
+  body: unknown;
+  link_url: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+type TemplateDraft = {
+  code: string;
+  channel: string;
+  locale: string;
+  trigger: string;
+  subject: string;
+  body: string;
+  variables: string[];
+  sampleValues: Record<string, string>;
+  is_active: boolean;
+};
+
 type KbArticleRow = {
   id: string;
   slug: string;
@@ -96,6 +121,26 @@ function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function asLocaleMap(en: string): Record<'en' | 'bn' | 'hi', string> {
+  return { en, bn: en, hi: en };
+}
+
+function extractTemplateVariables(subject: string, body: string): string[] {
+  return [
+    ...new Set(
+      [...`${subject}\n${body}`.matchAll(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g)]
+        .map((match) => match[1])
+        .filter((value): value is string => typeof value === 'string'),
+    ),
+  ];
+}
+
+function renderTemplatePreview(template: string, samples: Record<string, string>): string {
+  return template.replace(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g, (_, key: string) => {
+    return samples[key] || `[${key}]`;
+  });
+}
+
 export default function OperationsClient(): JSX.Element {
   const router = useRouter();
   const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
@@ -104,6 +149,7 @@ export default function OperationsClient(): JSX.Element {
   const [apiBase, setApiBase] = useState(fallbackApi);
   const [status, setStatus] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsRow | null>(null);
+  const [banners, setBanners] = useState<BannerRow[]>([]);
   const [templates, setTemplates] = useState<NotificationTemplateRow[]>([]);
   const [kbArticles, setKbArticles] = useState<KbArticleRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
@@ -128,6 +174,30 @@ export default function OperationsClient(): JSX.Element {
       contact_email: '',
     }),
   );
+  const [bannerDraft, setBannerDraft] = useState({
+    code: 'maintenance-notice',
+    severity: 'warning',
+    title: 'Scheduled maintenance',
+    body: 'Some services may be briefly unavailable tonight.',
+    link_url: '',
+    starts_at: '',
+    ends_at: '',
+    is_active: true,
+  });
+  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>({
+    code: 'application-submitted',
+    channel: 'sms',
+    locale: 'en',
+    trigger: 'application-submitted',
+    subject: '',
+    body: 'Your {{service_name}} application {{docket_no}} has been submitted.',
+    variables: ['service_name', 'docket_no'],
+    sampleValues: {
+      service_name: 'Birth Certificate',
+      docket_no: 'WBM/KMC/birth-cert/2026/00001',
+    },
+    is_active: true,
+  });
   const [templateText, setTemplateText] = useState(
     pretty({
       code: 'application-submitted',
@@ -201,21 +271,42 @@ export default function OperationsClient(): JSX.Element {
     [token],
   );
 
+  function redirectIfUnauthorized(res: Response): boolean {
+    if (res.status !== 401) {
+      return false;
+    }
+    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+    router.replace('/login?error=session_expired');
+    return true;
+  }
+
   const loadOperations = useCallback(async () => {
     if (!token) {
       return;
     }
     try {
-      const [settingsRes, templatesRes, kbRes, rolesRes, staffRes, mapsRes] = await Promise.all([
-        fetch(`${apiBase}/admin/tenant/settings`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/notification-templates`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/kb-articles`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/roles`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/staff`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/role-stage-maps`, { headers: authHeaders() }),
-      ]);
+      const [settingsRes, bannersRes, templatesRes, kbRes, rolesRes, staffRes, mapsRes] =
+        await Promise.all([
+          fetch(`${apiBase}/admin/tenant/settings`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/banners`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/notification-templates`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/kb-articles`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/roles`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/staff`, { headers: authHeaders() }),
+          fetch(`${apiBase}/admin/tenant/role-stage-maps`, { headers: authHeaders() }),
+        ]);
+      if (
+        [settingsRes, bannersRes, templatesRes, kbRes, rolesRes, staffRes, mapsRes].some(
+          (res) => res.status === 401,
+        )
+      ) {
+        sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+        router.replace('/login?error=session_expired');
+        return;
+      }
       if (
         !settingsRes.ok ||
+        !bannersRes.ok ||
         !templatesRes.ok ||
         !kbRes.ok ||
         !rolesRes.ok ||
@@ -223,7 +314,7 @@ export default function OperationsClient(): JSX.Element {
         !mapsRes.ok
       ) {
         setStatus(
-          `Operations load failed (${settingsRes.status}/${templatesRes.status}/${kbRes.status}/${rolesRes.status}/${staffRes.status}/${mapsRes.status}).`,
+          `Operations load failed (${settingsRes.status}/${bannersRes.status}/${templatesRes.status}/${kbRes.status}/${rolesRes.status}/${staffRes.status}/${mapsRes.status}).`,
         );
         return;
       }
@@ -239,6 +330,7 @@ export default function OperationsClient(): JSX.Element {
           contact_email: settingsJson.contact_email ?? '',
         }),
       );
+      setBanners((await bannersRes.json()) as BannerRow[]);
       setTemplates((await templatesRes.json()) as NotificationTemplateRow[]);
       setKbArticles((await kbRes.json()) as KbArticleRow[]);
       setRoles((await rolesRes.json()) as RoleRow[]);
@@ -248,7 +340,7 @@ export default function OperationsClient(): JSX.Element {
     } catch {
       setStatus('Network error loading tenant operations.');
     }
-  }, [apiBase, authHeaders, token]);
+  }, [apiBase, authHeaders, router, token]);
 
   useEffect(() => {
     void loadOperations();
@@ -271,11 +363,79 @@ export default function OperationsClient(): JSX.Element {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
       const text = await res.text().catch(() => '');
       setStatus(`${label} save failed (${res.status}). ${text.slice(0, 220)}`);
       return;
     }
     setStatus(`${label} saved.`);
+    await loadOperations();
+  }
+
+  async function saveBanner(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const payload = {
+      code: bannerDraft.code,
+      severity: bannerDraft.severity,
+      title: asLocaleMap(bannerDraft.title),
+      body: asLocaleMap(bannerDraft.body),
+      link_url: bannerDraft.link_url,
+      starts_at: bannerDraft.starts_at,
+      ends_at: bannerDraft.ends_at,
+      is_active: bannerDraft.is_active,
+    };
+    const res = await fetch(`${apiBase}/admin/tenant/banners`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
+      const text = await res.text().catch(() => '');
+      setStatus(`Banner save failed (${res.status}). ${text.slice(0, 220)}`);
+      return;
+    }
+    setStatus('Maintenance banner saved.');
+    await loadOperations();
+  }
+
+  async function saveTemplateDraft(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const variables = extractTemplateVariables(templateDraft.subject, templateDraft.body);
+    const payload = {
+      code: templateDraft.code,
+      channel: templateDraft.channel,
+      locale: templateDraft.locale,
+      trigger: templateDraft.trigger,
+      subject: templateDraft.subject || null,
+      body: templateDraft.body,
+      variables,
+      is_active: templateDraft.is_active,
+    };
+    const res = await fetch(`${apiBase}/admin/tenant/notification-templates`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
+      const text = await res.text().catch(() => '');
+      setStatus(`Notification template save failed (${res.status}). ${text.slice(0, 220)}`);
+      return;
+    }
+    setTemplateDraft((prev) => ({ ...prev, variables }));
+    setTemplateText(pretty(payload));
+    setStatus('Notification template saved.');
     await loadOperations();
   }
 
@@ -333,6 +493,14 @@ export default function OperationsClient(): JSX.Element {
         </p>
       ) : null}
 
+      <section className="mb-6">
+        <BannerEditor
+          draft={bannerDraft}
+          onChange={setBannerDraft}
+          onSave={() => void saveBanner()}
+        />
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-2">
         <OperationsEditor
           title="Branding, languages, and feature flags"
@@ -340,13 +508,15 @@ export default function OperationsClient(): JSX.Element {
           onChange={setSettingsText}
           onSave={() => void upsert('settings', settingsText, 'Settings')}
         />
-        <OperationsEditor
-          title="Notification template"
-          value={templateText}
-          onChange={setTemplateText}
-          onSave={() =>
+        <TemplatePreviewEditor
+          draft={templateDraft}
+          jsonValue={templateText}
+          onDraftChange={setTemplateDraft}
+          onJsonChange={setTemplateText}
+          onJsonSave={() =>
             void upsert('notification-templates', templateText, 'Notification template')
           }
+          onSave={() => void saveTemplateDraft()}
         />
         <OperationsEditor
           title="Knowledge-base article"
@@ -369,6 +539,20 @@ export default function OperationsClient(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-6 xl:grid-cols-3">
+        <ListCard title="Maintenance banners">
+          {banners.map((banner) => (
+            <li key={banner.id} className="rounded border border-slate-200 p-3">
+              <p className="font-mono text-xs">
+                {banner.code} · {banner.severity} · {banner.is_active ? 'active' : 'inactive'}
+              </p>
+              <p className="font-medium text-slate-900">{pickLabel(banner.title)}</p>
+              <p className="mt-1 text-xs text-slate-500">{pickLabel(banner.body)}</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {banner.starts_at ?? 'now'} → {banner.ends_at ?? 'open-ended'}
+              </p>
+            </li>
+          ))}
+        </ListCard>
         <ListCard title="Notification templates">
           {templates.map((template) => (
             <li key={template.id} className="rounded border border-slate-200 p-3">
@@ -425,6 +609,315 @@ export default function OperationsClient(): JSX.Element {
         </ListCard>
       </section>
     </main>
+  );
+}
+
+function BannerEditor({
+  draft,
+  onChange,
+  onSave,
+}: {
+  draft: {
+    code: string;
+    severity: string;
+    title: string;
+    body: string;
+    link_url: string;
+    starts_at: string;
+    ends_at: string;
+    is_active: boolean;
+  };
+  onChange: (draft: {
+    code: string;
+    severity: string;
+    title: string;
+    body: string;
+    link_url: string;
+    starts_at: string;
+    ends_at: string;
+    is_active: boolean;
+  }) => void;
+  onSave: () => void;
+}): JSX.Element {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Maintenance banner</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Tenant-scoped notice shown to citizens during outages, maintenance, or urgent
+            advisories.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          Save banner
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Code
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.code}
+            onChange={(event) => onChange({ ...draft, code: event.target.value })}
+          />
+        </label>
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Severity
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.severity}
+            onChange={(event) => onChange({ ...draft, severity: event.target.value })}
+          >
+            <option value="info">Info</option>
+            <option value="warning">Warning</option>
+            <option value="critical">Critical</option>
+          </select>
+        </label>
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Starts at
+          <input
+            type="datetime-local"
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.starts_at}
+            onChange={(event) => onChange({ ...draft, starts_at: event.target.value })}
+          />
+        </label>
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Ends at
+          <input
+            type="datetime-local"
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.ends_at}
+            onChange={(event) => onChange({ ...draft, ends_at: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Title
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.title}
+            onChange={(event) => onChange({ ...draft, title: event.target.value })}
+          />
+        </label>
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Link URL
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.link_url}
+            onChange={(event) => onChange({ ...draft, link_url: event.target.value })}
+          />
+        </label>
+      </div>
+      <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        Body
+        <textarea
+          className="mt-1 h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+          value={draft.body}
+          onChange={(event) => onChange({ ...draft, body: event.target.value })}
+        />
+      </label>
+      <label className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input
+          type="checkbox"
+          checked={draft.is_active}
+          onChange={(event) => onChange({ ...draft, is_active: event.target.checked })}
+        />
+        Active
+      </label>
+    </article>
+  );
+}
+
+function TemplatePreviewEditor({
+  draft,
+  jsonValue,
+  onDraftChange,
+  onJsonChange,
+  onJsonSave,
+  onSave,
+}: {
+  draft: TemplateDraft;
+  jsonValue: string;
+  onDraftChange: (draft: TemplateDraft) => void;
+  onJsonChange: (value: string) => void;
+  onJsonSave: () => void;
+  onSave: () => void;
+}): JSX.Element {
+  const variables = extractTemplateVariables(draft.subject, draft.body);
+  const sampleValues = { ...draft.sampleValues };
+  for (const variable of variables) {
+    sampleValues[variable] ??= variable;
+  }
+
+  function updateSample(variable: string, value: string): void {
+    onDraftChange({
+      ...draft,
+      sampleValues: { ...draft.sampleValues, [variable]: value },
+    });
+  }
+
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Sprint 6.8D · Channel matrix + variable preview
+          </p>
+          <h2 className="text-lg font-semibold text-slate-900">Notification template</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Author trusted copy without sending provider messages; outbound worker integration
+            remains deferred.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          Save template
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <TemplateTextInput
+          label="Code"
+          value={draft.code}
+          onChange={(code) => onDraftChange({ ...draft, code })}
+        />
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Channel
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.channel}
+            onChange={(event) => onDraftChange({ ...draft, channel: event.target.value })}
+          >
+            <option value="sms">SMS</option>
+            <option value="push">Push</option>
+            <option value="email">Email</option>
+            <option value="whatsapp">WhatsApp</option>
+          </select>
+        </label>
+        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Locale
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            value={draft.locale}
+            onChange={(event) => onDraftChange({ ...draft, locale: event.target.value })}
+          >
+            <option value="en">English</option>
+            <option value="bn">Bengali</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </label>
+        <TemplateTextInput
+          label="Trigger"
+          value={draft.trigger}
+          onChange={(trigger) => onDraftChange({ ...draft, trigger })}
+        />
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="space-y-3">
+          <TemplateTextInput
+            label="Subject"
+            value={draft.subject}
+            onChange={(subject) => onDraftChange({ ...draft, subject })}
+          />
+          <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+            Body
+            <textarea
+              className="mt-1 h-36 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+              value={draft.body}
+              onChange={(event) => onDraftChange({ ...draft, body: event.target.value })}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={draft.is_active}
+              onChange={(event) => onDraftChange({ ...draft, is_active: event.target.checked })}
+            />
+            Active
+          </label>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Live preview
+          </p>
+          <div className="mt-3 rounded-lg bg-white p-3 text-sm text-slate-800">
+            {draft.subject ? (
+              <p className="font-semibold">{renderTemplatePreview(draft.subject, sampleValues)}</p>
+            ) : null}
+            <p className="mt-1 whitespace-pre-wrap">
+              {renderTemplatePreview(draft.body, sampleValues)}
+            </p>
+          </div>
+          <div className="mt-4 space-y-2">
+            {variables.map((variable) => (
+              <TemplateTextInput
+                key={variable}
+                label={`Sample ${variable}`}
+                value={sampleValues[variable] ?? ''}
+                onChange={(value) => updateSample(variable, value)}
+              />
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {variables.map((variable) => (
+              <span key={variable} className="rounded-full bg-slate-200 px-2 py-1 text-xs">
+                {variable}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+          JSON fallback
+        </summary>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={onJsonSave}
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
+          >
+            Save JSON
+          </button>
+        </div>
+        <textarea
+          className="mt-3 h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+          value={jsonValue}
+          onChange={(event) => onJsonChange(event.target.value)}
+          spellCheck={false}
+        />
+      </details>
+    </article>
+  );
+}
+
+function TemplateTextInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}): JSX.Element {
+  return (
+    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+      {label}
+      <input
+        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   );
 }
 

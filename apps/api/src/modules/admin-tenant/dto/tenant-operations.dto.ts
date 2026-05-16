@@ -1,5 +1,35 @@
 import { IsArray, IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
 
+export class UpsertTenantBannerDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  severity!: string;
+
+  @IsObject()
+  title!: Record<string, unknown>;
+
+  @IsObject()
+  body!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  link_url?: string;
+
+  @IsOptional()
+  @IsString()
+  starts_at?: string;
+
+  @IsOptional()
+  @IsString()
+  ends_at?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+}
+
 export class PatchTenantSettingsDto {
   @IsOptional()
   @IsObject()

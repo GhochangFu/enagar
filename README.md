@@ -47,6 +47,7 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/runbooks/hub-h6-exit-checklist.md`](./docs/runbooks/hub-h6-exit-checklist.md)                         | Hub programme **H6.1** product/engineering exit checklist                                                                                                        |
 | [`docs/runbooks/master-sprint-66-exit.md`](./docs/runbooks/master-sprint-66-exit.md)                         | Phase 6 catalogue alignment: citizen PWA/mobile consume DB-published tenant services and forms                                                                   |
 | [`docs/runbooks/master-sprint-67-exit.md`](./docs/runbooks/master-sprint-67-exit.md)                         | Phase 6 designer polish: Tenant Admin drag/drop form palette and React Flow workflow canvas                                                                      |
+| [`docs/runbooks/master-sprint-68-exit.md`](./docs/runbooks/master-sprint-68-exit.md)                         | Phase 6 P1 operator polish: banners, guided fee/document config, and notification-template preview                                                               |
 | [`docs/backlog/phase-6-vision-backlog-prioritized.md`](./docs/backlog/phase-6-vision-backlog-prioritized.md) | Phase 6 **roadmap vs shipped** backlog, **prioritized execution order** for optional 6.8+ / hardening slices                                                     |
 
 ## Architecture at a glance
@@ -263,7 +264,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **`ROADMAP.md`** Phase 7. **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.7** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Queued next:** **Sprint 7.1** (RAG indexer + Qdrant + embedding benchmark). **Sprint 3.1B** deferred.
+**Next:** **`ROADMAP.md`** Phase 7 or remaining Phase 6 backlog P2+. **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.8** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Queued next by default:** **Sprint 7.1** (RAG indexer + Qdrant + embedding benchmark), unless sponsor pulls more Phase 6 backlog from [`phase-6-vision-backlog-prioritized.md`](./docs/backlog/phase-6-vision-backlog-prioritized.md). **Sprint 3.1B** deferred.
 
 ---
 

@@ -28,6 +28,8 @@ import {
   type AdminOAuthBundle,
 } from '../../../../lib/oauth/session-storage-keys';
 
+import { ServiceConfigPanel } from './service-config-panel';
+
 type ServiceDesignerResponse = {
   service: {
     id: string;
@@ -364,6 +366,15 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     [token],
   );
 
+  function redirectIfUnauthorized(res: Response): boolean {
+    if (res.status !== 401) {
+      return false;
+    }
+    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+    router.replace('/login?error=session_expired');
+    return true;
+  }
+
   const loadDesigner = useCallback(async () => {
     if (!token) {
       return;
@@ -379,6 +390,11 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
         headers: authHeaders(),
       }),
     ]);
+    if (designerRes.status === 401 || configRes.status === 401 || revenueRes.status === 401) {
+      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+      router.replace('/login?error=session_expired');
+      return;
+    }
     if (!designerRes.ok || !configRes.ok || !revenueRes.ok) {
       setStatus(
         `Designer load failed (${designerRes.status}/${configRes.status}/${revenueRes.status}).`,
@@ -412,7 +428,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     setSelectedFieldId(null);
     setSelectedStageCode(null);
     setStatus(null);
-  }, [apiBase, authHeaders, serviceId, token]);
+  }, [apiBase, authHeaders, router, serviceId, token]);
 
   useEffect(() => {
     void loadDesigner();
@@ -637,6 +653,9 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       body: JSON.stringify({ form_schema: parsedForm.schema, ui_schema: {} }),
     });
     if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return false;
+      }
       const body = await res.text().catch(() => '');
       setStatus(`Form save failed (${res.status}). ${body.slice(0, 180)}`);
       return false;
@@ -664,6 +683,9 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       method: 'PATCH',
       headers: authHeaders(),
     });
+    if (redirectIfUnauthorized(res)) {
+      return;
+    }
     setStatus(res.ok ? 'Form draft published.' : `Form publish failed (${res.status}).`);
     if (res.ok) {
       await loadDesigner();
@@ -681,6 +703,9 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       body: JSON.stringify({ workflow: parsedWorkflow.workflow }),
     });
     if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return false;
+      }
       const body = await res.text().catch(() => '');
       setStatus(`Workflow save failed (${res.status}). ${body.slice(0, 180)}`);
       return false;
@@ -711,6 +736,9 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
         headers: authHeaders(),
       },
     );
+    if (redirectIfUnauthorized(res)) {
+      return;
+    }
     setStatus(res.ok ? 'Workflow draft published.' : `Workflow publish failed (${res.status}).`);
     if (res.ok) {
       await loadDesigner();
@@ -732,6 +760,9 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       }),
     });
     if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
       const body = await res.text().catch(() => '');
       setStatus(`Service config save failed (${res.status}). ${body.slice(0, 180)}`);
       return;
@@ -820,83 +851,20 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             onSave={() => void saveWorkflow()}
             onPublish={() => void publishWorkflow()}
           />
-          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Fee, documents, and revenue mapping
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Preview fee:{' '}
-                  {serviceConfig.fee_preview_paise === null
-                    ? 'external/invalid'
-                    : `₹${(serviceConfig.fee_preview_paise / 100).toFixed(2)}`}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void saveServiceConfig()}
-                className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
-              >
-                Save config
-              </button>
-            </div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
-              Revenue head
-              <select
-                className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
-                value={revenueHeadCode}
-                onChange={(event) => setRevenueHeadCode(event.target.value)}
-              >
-                <option value="">No revenue head</option>
-                {revenueHeads.map((head) => (
-                  <option key={head.code} value={head.code}>
-                    {head.code} · {head.accounting_code}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Fee rule JSON
-                </p>
-                <textarea
-                  className="h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
-                  spellCheck={false}
-                  value={feeText}
-                  onChange={(event) => setFeeText(event.target.value)}
-                />
-                <p
-                  className={
-                    parsedFee.valid ? 'mt-2 text-xs text-emerald-700' : 'mt-2 text-xs text-red-700'
-                  }
-                >
-                  {parsedFee.valid ? 'Valid JSON.' : 'Invalid JSON.'}
-                </p>
-              </div>
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Document checklist JSON
-                </p>
-                <textarea
-                  className="h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
-                  spellCheck={false}
-                  value={documentsText}
-                  onChange={(event) => setDocumentsText(event.target.value)}
-                />
-                <p
-                  className={
-                    parsedDocuments.valid
-                      ? 'mt-2 text-xs text-emerald-700'
-                      : 'mt-2 text-xs text-red-700'
-                  }
-                >
-                  {parsedDocuments.valid ? 'Valid JSON.' : 'Invalid JSON.'}
-                </p>
-              </div>
-            </div>
-          </article>
+          {/* Fee, documents, and revenue mapping stays on the Sprint 6.3 config contract. */}
+          <ServiceConfigPanel
+            serviceConfig={serviceConfig}
+            revenueHeads={revenueHeads}
+            feeText={feeText}
+            documentsText={documentsText}
+            revenueHeadCode={revenueHeadCode}
+            parsedFee={parsedFee}
+            parsedDocuments={parsedDocuments}
+            onFeeTextChange={setFeeText}
+            onDocumentsTextChange={setDocumentsText}
+            onRevenueHeadCodeChange={setRevenueHeadCode}
+            onSave={() => void saveServiceConfig()}
+          />
         </div>
 
         <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
