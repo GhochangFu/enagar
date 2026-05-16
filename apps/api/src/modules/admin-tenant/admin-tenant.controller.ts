@@ -92,6 +92,41 @@ export class AdminTenantController {
     return this.adminTenant.listServices(principal);
   }
 
+  @Get('catalogue/inherited')
+  @ApiOperation({ summary: 'List global/inherited service catalogue governance rows' })
+  listCatalogueGovernance(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.listCatalogueGovernance(principal);
+  }
+
+  @Post('catalogue/:globalCode/adopt')
+  @ApiOperation({ summary: 'Adopt or reactivate a global service for this tenant' })
+  adoptCatalogueService(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('globalCode') globalCode: string,
+  ) {
+    return this.adminTenant.adoptCatalogueService(principal, globalCode);
+  }
+
+  @Post('catalogue/:serviceCode/fork')
+  @ApiOperation({ summary: 'Fork a global or tenant service into a tenant-owned local copy' })
+  forkCatalogueService(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceCode') serviceCode: string,
+  ) {
+    return this.adminTenant.forkCatalogueService(principal, serviceCode);
+  }
+
+  @Post('catalogue/:serviceCode/deactivate')
+  @ApiOperation({
+    summary: 'Deactivate this tenant view of a service without changing global template',
+  })
+  deactivateCatalogueService(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceCode') serviceCode: string,
+  ) {
+    return this.adminTenant.deactivateCatalogueService(principal, serviceCode);
+  }
+
   @Patch('services/:serviceId')
   @ApiOperation({
     summary: 'Patch catalogue fields for one tenant service (active flag, labels, SLA days)',

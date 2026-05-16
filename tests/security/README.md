@@ -22,6 +22,7 @@
 | `master-sprint-67.spec.ts`         | Phase 6.7 proof that Tenant Admin designer polish keeps palette/canvas edits on the same draft/publish contracts                     | 6.7        |
 | `master-sprint-68.spec.ts`         | Phase 6.8 proof for tenant banners, guided service config, notification previews, and no provider sends                              | 6.8        |
 | `master-sprint-69.spec.ts`         | Phase 6.9 proof for tenant dashboard depth, CSV exports/import, state audit search/export, and tenant drill-down                     | 6.9        |
+| `master-sprint-610.spec.ts`        | Phase 6.10 proof for catalogue governance, workflow escalation validation, analytics v2, and public-safe transparency outputs        | 6.10       |
 | _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                                                                       | 1          |
 | _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call                                                      | 7          |
 | _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation                                                           | 6          |

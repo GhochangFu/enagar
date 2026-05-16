@@ -20,6 +20,16 @@ export class AdminStateController {
     return this.adminState.getAnalytics(principal);
   }
 
+  @Get('analytics/v2')
+  @ApiOperation({ summary: 'State-wide analytics with date ranges, deltas, and anomaly hints' })
+  getAnalyticsV2(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminState.getAnalyticsV2(principal, { from, to });
+  }
+
   @Get('tenants')
   @ApiOperation({ summary: 'List tenants with state-wide counts' })
   listTenants(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

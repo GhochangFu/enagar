@@ -1416,7 +1416,20 @@ function TransitionEditor({
                 onChange={(event) =>
                   onUpdateWorkflow((draft) =>
                     updateTransition(draft, index, {
-                      effects: [{ type: event.target.value as WorkflowEffectType }],
+                      effects: [
+                        {
+                          type: event.target.value as WorkflowEffectType,
+                          ...(event.target.value === 'escalate'
+                            ? {
+                                payload: {
+                                  timeout_hours: 24,
+                                  target_role: 'tenant_admin',
+                                  trigger_stage: transition.from,
+                                },
+                              }
+                            : {}),
+                        },
+                      ],
                     }),
                   )
                 }
@@ -1428,6 +1441,106 @@ function TransitionEditor({
                 ))}
               </select>
             </label>
+            {transition.effects?.[0]?.type === 'escalate' ? (
+              <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                  Escalation policy
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <label className="block text-xs font-medium text-amber-950">
+                    Timeout hours
+                    <input
+                      type="number"
+                      min={1}
+                      className="mt-1 w-full rounded border border-amber-200 px-2 py-1 text-xs"
+                      value={String(escalationPayload(transition).timeout_hours ?? 24)}
+                      onChange={(event) =>
+                        onUpdateWorkflow((draft) =>
+                          updateTransition(draft, index, {
+                            effects: [
+                              {
+                                type: 'escalate',
+                                payload: {
+                                  ...escalationPayload(transition),
+                                  timeout_hours: Number.parseInt(event.target.value, 10) || 1,
+                                },
+                              },
+                            ],
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-amber-950">
+                    Target role
+                    <select
+                      className="mt-1 w-full rounded border border-amber-200 px-2 py-1 text-xs"
+                      value={String(escalationPayload(transition).target_role ?? 'tenant_admin')}
+                      onChange={(event) =>
+                        onUpdateWorkflow((draft) =>
+                          updateTransition(draft, index, {
+                            effects: [
+                              {
+                                type: 'escalate',
+                                payload: {
+                                  ...escalationPayload(transition),
+                                  target_role: event.target.value,
+                                },
+                              },
+                            ],
+                          }),
+                        )
+                      }
+                    >
+                      {DEFAULT_STAGE_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <TransitionSelect
+                    label="Trigger stage"
+                    value={String(escalationPayload(transition).trigger_stage ?? transition.from)}
+                    stages={workflow.stages}
+                    onChange={(value) =>
+                      onUpdateWorkflow((draft) =>
+                        updateTransition(draft, index, {
+                          effects: [
+                            {
+                              type: 'escalate',
+                              payload: { ...escalationPayload(transition), trigger_stage: value },
+                            },
+                          ],
+                        }),
+                      )
+                    }
+                  />
+                  <label className="block text-xs font-medium text-amber-950">
+                    Template code
+                    <input
+                      className="mt-1 w-full rounded border border-amber-200 px-2 py-1 text-xs"
+                      value={String(escalationPayload(transition).notification_template_code ?? '')}
+                      onChange={(event) =>
+                        onUpdateWorkflow((draft) =>
+                          updateTransition(draft, index, {
+                            effects: [
+                              {
+                                type: 'escalate',
+                                payload: {
+                                  ...escalationPayload(transition),
+                                  notification_template_code: event.target.value || undefined,
+                                },
+                              },
+                            ],
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={() =>
@@ -1487,6 +1600,11 @@ function updateTransition(
       itemIndex === index ? { ...transition, ...patch } : transition,
     ),
   };
+}
+
+function escalationPayload(transition: WorkflowTransition): Record<string, unknown> {
+  const payload = transition.effects?.[0]?.payload;
+  return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
 }
 
 function EditorPanel({

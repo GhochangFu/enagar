@@ -109,6 +109,19 @@ export type TenantAdminServiceRow = {
   updated_at: string;
 };
 
+export type TenantAdminCatalogueRow = {
+  code: string;
+  source: 'global' | 'tenant_override' | 'tenant_only' | 'forked';
+  global_code: string | null;
+  tenant_service_id: string | null;
+  category_code: string;
+  name: Prisma.JsonValue;
+  description: Prisma.JsonValue;
+  is_active: boolean;
+  has_local_override: boolean;
+  updated_at: string | null;
+};
+
 export type TenantAdminServiceConfig = TenantAdminServiceRow & {
   fee_rule: Prisma.JsonValue;
   fee_preview_paise: number | null;
@@ -480,6 +493,180 @@ export class AdminTenantService {
       effective_sla_days: row.effectiveSlaDays,
       updated_at: row.updatedAt.toISOString(),
     }));
+  }
+
+  async listCatalogueGovernance(
+    principal: AuthenticatedPrincipal,
+  ): Promise<TenantAdminCatalogueRow[]> {
+    assertTenantPortalStaff(principal);
+    const [globals, tenantServices] = await Promise.all([
+      this.prisma.globalService.findMany({
+        include: { category: true },
+        orderBy: [{ category: { code: 'asc' } }, { code: 'asc' }],
+      }),
+      this.prisma.tenantService.findMany({
+        where: { tenantId: principal.tenantId },
+        include: { category: true, globalService: true },
+        orderBy: [{ code: 'asc' }],
+      }),
+    ]);
+    const tenantByGlobalId = new Map(
+      tenantServices
+        .filter((service) => service.globalServiceId)
+        .map((service) => [service.globalServiceId as string, service]),
+    );
+    const rows: TenantAdminCatalogueRow[] = globals.map((global) => {
+      const local = tenantByGlobalId.get(global.id);
+      return {
+        code: local?.code ?? global.code,
+        source: local ? 'tenant_override' : 'global',
+        global_code: global.code,
+        tenant_service_id: local?.id ?? null,
+        category_code: local?.category.code ?? global.category.code,
+        name: (local?.name ?? global.name) as Prisma.JsonValue,
+        description: (local?.description ?? global.description) as Prisma.JsonValue,
+        is_active: local?.isActive ?? global.isActive,
+        has_local_override: Boolean(local),
+        updated_at: local?.updatedAt.toISOString() ?? global.updatedAt.toISOString(),
+      };
+    });
+    const globalIds = new Set(globals.map((global) => global.id));
+    for (const local of tenantServices) {
+      if (local.globalServiceId && globalIds.has(local.globalServiceId)) {
+        continue;
+      }
+      rows.push({
+        code: local.code,
+        source: local.globalServiceId ? 'forked' : 'tenant_only',
+        global_code: local.globalService?.code ?? null,
+        tenant_service_id: local.id,
+        category_code: local.category.code,
+        name: local.name as Prisma.JsonValue,
+        description: local.description as Prisma.JsonValue,
+        is_active: local.isActive,
+        has_local_override: true,
+        updated_at: local.updatedAt.toISOString(),
+      });
+    }
+    return rows.sort(
+      (left, right) =>
+        left.category_code.localeCompare(right.category_code) ||
+        left.code.localeCompare(right.code),
+    );
+  }
+
+  async adoptCatalogueService(
+    principal: AuthenticatedPrincipal,
+    globalCode: string,
+  ): Promise<TenantAdminCatalogueRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(globalCode, 'global service code');
+    const global = await this.prisma.globalService.findUnique({
+      where: { code: globalCode },
+      include: { category: true, revenueHead: true },
+    });
+    if (!global || !global.isActive) {
+      throw new NotFoundException('Active global service not found');
+    }
+    const existing = await this.prisma.tenantService.findUnique({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: global.code } },
+    });
+    if (existing && existing.globalServiceId !== global.id) {
+      throw new BadRequestException('A tenant-owned service already uses this code');
+    }
+    const service = await this.prisma.tenantService.upsert({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: global.code } },
+      create: {
+        tenantId: principal.tenantId,
+        globalServiceId: global.id,
+        code: global.code,
+        categoryId: global.categoryId,
+        revenueHeadId: global.revenueHeadId,
+        name: global.name as Prisma.InputJsonValue,
+        description: global.description as Prisma.InputJsonValue,
+        isActive: true,
+        effectiveFeeConfig: global.feeConfig as Prisma.InputJsonValue,
+        effectiveSlaDays: global.defaultSlaDays,
+        requiredDocuments: global.requiredDocuments as Prisma.InputJsonValue,
+      },
+      update: { isActive: true },
+      include: { category: true, globalService: true },
+    });
+    return toCatalogueRow(service, global.code, 'tenant_override');
+  }
+
+  async forkCatalogueService(
+    principal: AuthenticatedPrincipal,
+    serviceCode: string,
+  ): Promise<TenantAdminCatalogueRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(serviceCode, 'service code');
+    const global = await this.prisma.globalService.findUnique({
+      where: { code: serviceCode },
+      include: { category: true },
+    });
+    const existing = await this.prisma.tenantService.findUnique({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: serviceCode } },
+      include: { category: true, globalService: true },
+    });
+    const source = existing ?? global;
+    if (!source) {
+      throw new NotFoundException('Service not found');
+    }
+    const forkCode = nextForkCode(serviceCode);
+    const conflict = await this.prisma.tenantService.findUnique({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: forkCode } },
+    });
+    if (conflict) {
+      throw new BadRequestException(`Fork already exists as ${forkCode}`);
+    }
+    const service = await this.prisma.tenantService.create({
+      data: {
+        tenantId: principal.tenantId,
+        globalServiceId: null,
+        code: forkCode,
+        categoryId: source.categoryId,
+        revenueHeadId: source.revenueHeadId,
+        name: source.name as Prisma.InputJsonValue,
+        description: source.description as Prisma.InputJsonValue,
+        isActive: true,
+        effectiveFeeConfig:
+          'effectiveFeeConfig' in source
+            ? (source.effectiveFeeConfig as Prisma.InputJsonValue)
+            : (source.feeConfig as Prisma.InputJsonValue),
+        effectiveSlaDays:
+          'effectiveSlaDays' in source ? source.effectiveSlaDays : source.defaultSlaDays,
+        requiredDocuments: source.requiredDocuments as Prisma.InputJsonValue,
+      },
+      include: { category: true, globalService: true },
+    });
+    return toCatalogueRow(service, serviceCode, 'forked');
+  }
+
+  async deactivateCatalogueService(
+    principal: AuthenticatedPrincipal,
+    serviceCode: string,
+  ): Promise<TenantAdminCatalogueRow> {
+    assertTenantPortalStaff(principal);
+    assertCode(serviceCode, 'service code');
+    const service = await this.prisma.tenantService.findUnique({
+      where: { tenantId_code: { tenantId: principal.tenantId, code: serviceCode } },
+      include: { category: true, globalService: true },
+    });
+    if (!service) {
+      const adopted = await this.adoptCatalogueService(principal, serviceCode);
+      return this.deactivateCatalogueService(principal, adopted.code);
+    }
+    const updated = await this.prisma.tenantService.update({
+      where: { id: service.id },
+      data: { isActive: false },
+      include: { category: true, globalService: true },
+    });
+    return toCatalogueRow(
+      updated,
+      updated.globalService?.code ?? null,
+      updated.globalService ? 'tenant_override' : 'tenant_only',
+    );
   }
 
   async exportApplicationsCsv(
@@ -1972,6 +2159,38 @@ function toRevenueHeadRow(row: {
     accounting_code: row.accountingCode,
     is_active: row.isActive,
   };
+}
+
+function toCatalogueRow(
+  row: {
+    id: string;
+    code: string;
+    name: Prisma.JsonValue;
+    description: Prisma.JsonValue;
+    isActive: boolean;
+    updatedAt: Date;
+    category: { code: string };
+    globalService: { code: string } | null;
+  },
+  globalCode: string | null,
+  source: TenantAdminCatalogueRow['source'],
+): TenantAdminCatalogueRow {
+  return {
+    code: row.code,
+    source,
+    global_code: globalCode,
+    tenant_service_id: row.id,
+    category_code: row.category.code,
+    name: row.name,
+    description: row.description,
+    is_active: row.isActive,
+    has_local_override: true,
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function nextForkCode(code: string): string {
+  return `${code}-local`;
 }
 
 function toAddressMasterRow(row: {

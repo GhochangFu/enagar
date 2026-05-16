@@ -20,6 +20,7 @@ import { HoldingsModule } from './modules/holdings/holdings.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ServicesModule } from './modules/services/services.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
+import { TransparencyModule } from './modules/transparency/transparency.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     PaymentsModule,
     ServicesModule,
     TenantsModule,
+    TransparencyModule,
   ],
   providers: [
     JwtVerifierService,

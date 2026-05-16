@@ -2,7 +2,7 @@
 
 **Audience:** sponsor, PMs, engineers planning post–Sprint **6.7** work  
 **Authority:** deltas vs **`ROADMAP.md` § Phase 6 — Admin Portals (State + Tenant)** (~lines 1311–1380).  
-**Baseline shipped:** Master Sprints **6.1–6.9** (Tenant + State portals, catalogue alignment, designer polish, P1 operator polish, P2 reporting/bulk ops/state visibility).
+**Baseline shipped:** Master Sprints **6.1–6.10** (Tenant + State portals, catalogue alignment, designer polish, P1 operator polish, P2 reporting/bulk ops/state visibility, P3 governance/transparency).
 
 This backlog is **not** a commitment to dates; use it when opening new sprints (**6.8+**, Phase **6.x hardening**, or Phase **7-adjacent** slices).
 
@@ -41,11 +41,11 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 |   7   |    P2    | **Address master bulk CSV import**                                                                                 | Tenant                  | Closed engineering — Sprint 6.9       | _Masters UX_                           | Dry-run/import UI with header checks, row errors, and valid-row partial import. |
 |   8   |    P2    | **State audit log** — search, filters, pagination, export                                                          | State                   | Closed engineering — Sprint 6.9       | _Governance UX_                        | Filtered audit API/UI, cursor pagination, and CSV export.                       |
 |   9   |    P2    | **Tenant directory drill-down** — tenant detail pane (health, configs, warnings)                                   | State                   | Closed engineering — Sprint 6.9       | _State ops UX_                         | Tenant detail API/pane with health counts, warnings, config, and audit events.  |
-|  10   |    P3    | **Tariff / revenue-head UX parity** — forms over JSON where safe                                                   | Tenant                  | Mixed JSON/UI                         | _Masters polish_                       | Mirrors checklist/fee rationale.                                                |
-|  11   |    P3    | **Global / inherited service catalogue** — adopt, fork, deactivate patterns                                        | Tenant + API            | Row edit only                         | _Catalogue governance_                 | Needs product rules (source of truth, conflicts). Larger than “UI-only”.        |
-|  12   |    P3    | **Workflow escalation UX** — policy blocks beyond linear transitions (timeouts, escalate-to-role)                  | Tenant                  | Canvas v1 exists                      | _Workflow depth_                       | Validates against `@enagar/workflow` + worker execution semantics.              |
-|  13   |    P3    | **State analytics v2** — time ranges, deltas, anomaly hints                                                        | State                   | KPI cards                             | _Executive metrics_                    | Depends on retained metrics warehouse or heavier SQL.                           |
-|  14   |    P3    | **Transparency pack** — cross-tenant leaderboards / published CSV summaries for citizen portal                     | State + Citizen surface | Minimal                               | _Open data slice_                      | Separate from Sprint 7 RAG; may be CSV-only MVP.                                |
+|  10   |    P3    | **Tariff / revenue-head UX parity** — forms over JSON where safe                                                   | Tenant                  | Closed engineering — Sprint 6.10      | _Masters polish_                       | Guided revenue/tariff forms over existing master APIs, JSON fallback retained.  |
+|  11   |    P3    | **Global / inherited service catalogue** — adopt, fork, deactivate patterns                                        | Tenant + API            | Closed engineering — Sprint 6.10      | _Catalogue governance_                 | Conflict-safe tenant adopt/fork/deactivate without global curator scope.        |
+|  12   |    P3    | **Workflow escalation UX** — policy blocks beyond linear transitions (timeouts, escalate-to-role)                  | Tenant                  | Closed engineering — Sprint 6.10      | _Workflow depth_                       | Guided `escalate`/`sla_timer` effect payloads; no background worker execution.  |
+|  13   |    P3    | **State analytics v2** — time ranges, deltas, anomaly hints                                                        | State                   | Closed engineering — Sprint 6.10      | _Executive metrics_                    | Bounded aggregate analytics over existing data; no retained metrics warehouse.  |
+|  14   |    P3    | **Transparency pack** — cross-tenant leaderboards / published CSV summaries for citizen portal                     | State + Citizen surface | Closed engineering — Sprint 6.10      | _Open data slice_                      | Public-safe aggregate APIs/CSV; no PII/operator/audit metadata exposure.        |
 |  15   |    P4    | **Reports PDF** — Playwright or server-rendered PDF for SLA/revenue                                                | Tenant                  | Absent                                | _Reporting v2_                         | Ship after CSV proves query contracts.                                          |
 |  16   |    P4    | **Knowledge Base CMS richness** — WYSIWYG, `.docx` import (Mammoth), media                                         | Tenant                  | JSON locales                          | _Content ops_                          | Tie-break with Phase **7** RAG indexer milestones.                              |
 |  17   |    P4    | **KB publish → RAG indexer trigger** (on-demand / nightly reconcile)                                               | Tenant + svc            | Deferred by design toward Phase **7** | _RAG infra_                            | Depends on indexer service + tenancy policies.                                  |
@@ -63,8 +63,9 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 ## Cross-reference
 
 - **`ROADMAP.md`** — full Phase‑6 ambition and sprint slice (**6.1–6.7**).
-- **`docs/runbooks/master-sprint-61-exit.md`** … **`master-sprint-68-exit.md`** — what landed in-queue.
+- **`docs/runbooks/master-sprint-61-exit.md`** … **`master-sprint-69-exit.md`** — what landed in-queue.
 - **`docs/runbooks/master-sprint-69-plan.md`** / **`master-sprint-69-exit.md`** — P2 sprint plan and engineering exit record.
+- **`docs/runbooks/master-sprint-610-plan.md`** / **`master-sprint-610-exit.md`** — P3 sprint plan and engineering exit record.
 - **`docs/help/start-the-app-step-by-step.md`** — how to smoke local portals.
 
 ---
@@ -76,4 +77,4 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 3. Add `tests/security` or domain contract specs when touching cross-cutting behaviour (patterns in `tests/security/`).
 4. When a slice **closes**, append a **`docs/runbooks/master-sprint-*.md`** (or backlog row update) linking **Order** IDs.
 
-_Last updated: 2026-05-16 (P1 rows closed engineering in Master Sprint 6.8; P2 rows closed engineering in Master Sprint 6.9)._
+_Last updated: 2026-05-16 (P1 rows closed engineering in Master Sprint 6.8; P2 rows closed engineering in Master Sprint 6.9; P3 rows closed engineering in Master Sprint 6.10)._

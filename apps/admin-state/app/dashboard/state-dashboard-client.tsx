@@ -18,6 +18,27 @@ type Analytics = Record<
   number
 >;
 
+type AnalyticsV2 = {
+  window: { from: string; to: string };
+  totals: {
+    applications: number;
+    grievances: number;
+    payments_settled: number;
+    payment_amount_paise: number;
+    sla_breached_grievances: number;
+  };
+  deltas: Record<keyof AnalyticsV2['totals'], number>;
+  tenant_slices: Array<{
+    tenant_code: string;
+    tenant_name: string;
+    applications: number;
+    grievances: number;
+    payments_settled: number;
+    sla_breached_grievances: number;
+  }>;
+  anomaly_hints: string[];
+};
+
 type TenantRow = {
   code: string;
   name: string;
@@ -118,6 +139,8 @@ function queryString(params: Record<string, string | null | undefined>): string 
 export function StateDashboardClient(): JSX.Element {
   const [auth, setAuth] = useState<StateOAuthBundle | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsV2, setAnalyticsV2] = useState<AnalyticsV2 | null>(null);
+  const [analyticsRange, setAnalyticsRange] = useState({ from: '', to: '' });
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditRow[]>([]);
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
@@ -167,12 +190,14 @@ export function StateDashboardClient(): JSX.Element {
     if (!auth) return;
     setStatus('Loading state-wide analytics...');
     try {
-      const [analyticsRes, tenantsRes, auditRes] = await Promise.all([
+      const [analyticsRes, analyticsV2Res, tenantsRes, auditRes] = await Promise.all([
         api<Analytics>('/admin/state/analytics'),
+        api<AnalyticsV2>(`/admin/state/analytics/v2${queryString(analyticsRange)}`),
         api<TenantRow[]>('/admin/state/tenants'),
         api<AuditPage>(`/admin/state/audit-logs${queryString({ ...auditFilters, limit: '25' })}`),
       ]);
       setAnalytics(analyticsRes);
+      setAnalyticsV2(analyticsV2Res);
       setTenants(tenantsRes);
       setAuditLogs(auditRes.rows);
       setAuditCursor(auditRes.next_cursor);
@@ -180,7 +205,7 @@ export function StateDashboardClient(): JSX.Element {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Failed to load state-admin data');
     }
-  }, [api, auth, auditFilters]);
+  }, [api, auth, auditFilters, analyticsRange]);
 
   useEffect(() => {
     void refresh();
@@ -313,6 +338,84 @@ export function StateDashboardClient(): JSX.Element {
             ))
           : null}
       </section>
+
+      {analyticsV2 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Sprint 6.10 · Analytics v2
+              </p>
+              <h2 className="text-lg font-semibold">Date ranges, deltas, and anomaly hints</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {new Date(analyticsV2.window.from).toLocaleDateString()} to{' '}
+                {new Date(analyticsV2.window.to).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-xs"
+                placeholder="from ISO"
+                value={analyticsRange.from}
+                onChange={(event) =>
+                  setAnalyticsRange((range) => ({ ...range, from: event.target.value }))
+                }
+              />
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-xs"
+                placeholder="to ISO"
+                value={analyticsRange.to}
+                onChange={(event) =>
+                  setAnalyticsRange((range) => ({ ...range, to: event.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            {Object.entries(analyticsV2.totals).map(([key, value]) => (
+              <div key={key} className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs uppercase text-slate-500">{key.replace(/_/g, ' ')}</p>
+                <p className="mt-1 text-xl font-semibold">{value}</p>
+                <p className="text-xs text-slate-500">
+                  Δ {analyticsV2.deltas[key as keyof AnalyticsV2['totals']]}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold">Top tenant slices</p>
+              <ul className="mt-2 space-y-2 text-xs">
+                {analyticsV2.tenant_slices.map((row) => (
+                  <li key={row.tenant_code} className="rounded border border-slate-200 p-2">
+                    <span className="font-semibold">{row.tenant_code}</span> {row.tenant_name}
+                    <span className="block text-slate-500">
+                      Applications {row.applications} · Grievances {row.grievances} · Payments{' '}
+                      {row.payments_settled} · SLA breached {row.sla_breached_grievances}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Anomaly hints</p>
+              <ul className="mt-2 space-y-2 text-xs text-amber-900">
+                {analyticsV2.anomaly_hints.length ? (
+                  analyticsV2.anomaly_hints.map((hint) => (
+                    <li key={hint} className="rounded border border-amber-200 bg-amber-50 p-2">
+                      {hint}
+                    </li>
+                  ))
+                ) : (
+                  <li className="rounded border border-slate-200 p-2 text-slate-500">
+                    No simple threshold hints for this window.
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

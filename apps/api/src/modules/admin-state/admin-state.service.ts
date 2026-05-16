@@ -80,6 +80,27 @@ export type StateAnalytics = {
   payments_settled_last_30_days: number;
 };
 
+export type StateAnalyticsV2 = {
+  window: { from: string; to: string };
+  totals: {
+    applications: number;
+    grievances: number;
+    payments_settled: number;
+    payment_amount_paise: number;
+    sla_breached_grievances: number;
+  };
+  deltas: Record<keyof StateAnalyticsV2['totals'], number>;
+  tenant_slices: Array<{
+    tenant_code: string;
+    tenant_name: string;
+    applications: number;
+    grievances: number;
+    payments_settled: number;
+    sla_breached_grievances: number;
+  }>;
+  anomaly_hints: string[];
+};
+
 export type ImpersonationResult = {
   token: string;
   token_id: string;
@@ -121,6 +142,73 @@ export class AdminStateService {
       applications_open,
       grievances_open,
       payments_settled_last_30_days,
+    };
+  }
+
+  async getAnalyticsV2(
+    principal: AuthenticatedPrincipal,
+    query: { from?: string; to?: string } = {},
+  ): Promise<StateAnalyticsV2> {
+    assertStateAdmin(principal);
+    const window = analyticsWindow(query);
+    const previous = previousWindow(window);
+    const [tenants, current, prior] = await Promise.all([
+      this.prisma.tenant.findMany({ select: { id: true, code: true, name: true } }),
+      this.analyticsTotals(window),
+      this.analyticsTotals(previous),
+    ]);
+    const slices = await Promise.all(
+      tenants.map(async (tenant) => {
+        const [applications, grievances, payments, breached] = await Promise.all([
+          this.prisma.application.count({
+            where: { tenantId: tenant.id, submittedAt: { gte: window.from, lte: window.to } },
+          }),
+          this.prisma.grievance.count({
+            where: { tenantId: tenant.id, createdAt: { gte: window.from, lte: window.to } },
+          }),
+          this.prisma.payment.count({
+            where: {
+              tenantId: tenant.id,
+              status: 'settled',
+              settledAt: { gte: window.from, lte: window.to },
+            },
+          }),
+          this.prisma.grievance.count({
+            where: {
+              tenantId: tenant.id,
+              slaBreachedAt: { gte: window.from, lte: window.to },
+            },
+          }),
+        ]);
+        return {
+          tenant_code: tenant.code,
+          tenant_name: tenant.name,
+          applications,
+          grievances,
+          payments_settled: payments,
+          sla_breached_grievances: breached,
+        };
+      }),
+    );
+    const tenantSlices = slices
+      .sort(
+        (left, right) =>
+          right.applications + right.grievances - (left.applications + left.grievances) ||
+          left.tenant_code.localeCompare(right.tenant_code),
+      )
+      .slice(0, 10);
+    return {
+      window: { from: window.from.toISOString(), to: window.to.toISOString() },
+      totals: current,
+      deltas: {
+        applications: current.applications - prior.applications,
+        grievances: current.grievances - prior.grievances,
+        payments_settled: current.payments_settled - prior.payments_settled,
+        payment_amount_paise: current.payment_amount_paise - prior.payment_amount_paise,
+        sla_breached_grievances: current.sla_breached_grievances - prior.sla_breached_grievances,
+      },
+      tenant_slices: tenantSlices,
+      anomaly_hints: analyticsHints(current, prior, tenantSlices),
     };
   }
 
@@ -381,6 +469,37 @@ export class AdminStateService {
     };
   }
 
+  private async analyticsTotals(window: {
+    from: Date;
+    to: Date;
+  }): Promise<StateAnalyticsV2['totals']> {
+    const [applications, grievances, payments, paymentSum, breached] = await Promise.all([
+      this.prisma.application.count({
+        where: { submittedAt: { gte: window.from, lte: window.to } },
+      }),
+      this.prisma.grievance.count({
+        where: { createdAt: { gte: window.from, lte: window.to } },
+      }),
+      this.prisma.payment.count({
+        where: { status: 'settled', settledAt: { gte: window.from, lte: window.to } },
+      }),
+      this.prisma.payment.aggregate({
+        where: { status: 'settled', settledAt: { gte: window.from, lte: window.to } },
+        _sum: { amountPaise: true },
+      }),
+      this.prisma.grievance.count({
+        where: { slaBreachedAt: { gte: window.from, lte: window.to } },
+      }),
+    ]);
+    return {
+      applications,
+      grievances,
+      payments_settled: payments,
+      payment_amount_paise: paymentSum._sum.amountPaise ?? 0,
+      sla_breached_grievances: breached,
+    };
+  }
+
   private async inheritDefaultServices(tenantId: string): Promise<void> {
     const [categories, revenueHeads, globals] = await Promise.all([
       this.prisma.serviceCategory.findMany(),
@@ -483,6 +602,49 @@ function auditWhere(query: StateAuditLogQuery): Prisma.StateAuditLogWhereInput {
         }
       : {}),
   };
+}
+
+function analyticsWindow(query: { from?: string; to?: string }): { from: Date; to: Date } {
+  const to = parseOptionalDate(query.to, 'to') ?? new Date();
+  const from =
+    parseOptionalDate(query.from, 'from') ?? new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (from >= to) {
+    throw new BadRequestException('from must be before to');
+  }
+  if (to.getTime() - from.getTime() > 180 * 24 * 60 * 60 * 1000) {
+    throw new BadRequestException('analytics v2 range cannot exceed 180 days');
+  }
+  return { from, to };
+}
+
+function previousWindow(window: { from: Date; to: Date }): { from: Date; to: Date } {
+  const duration = window.to.getTime() - window.from.getTime();
+  return {
+    from: new Date(window.from.getTime() - duration),
+    to: new Date(window.from.getTime()),
+  };
+}
+
+function analyticsHints(
+  current: StateAnalyticsV2['totals'],
+  prior: StateAnalyticsV2['totals'],
+  tenantSlices: StateAnalyticsV2['tenant_slices'],
+): string[] {
+  const hints: string[] = [];
+  if (prior.applications > 0 && current.applications > prior.applications * 1.5) {
+    hints.push('Applications are more than 50% above the previous equivalent window');
+  }
+  if (
+    prior.sla_breached_grievances > 0 &&
+    current.sla_breached_grievances > prior.sla_breached_grievances * 1.25
+  ) {
+    hints.push('SLA-breached grievances are trending above the previous window');
+  }
+  const highLoadTenant = tenantSlices[0];
+  if (highLoadTenant && highLoadTenant.applications + highLoadTenant.grievances > 50) {
+    hints.push(`${highLoadTenant.tenant_code} is the highest workload tenant in this window`);
+  }
+  return hints;
 }
 
 function clampLimit(value: string | undefined): number {

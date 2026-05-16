@@ -46,6 +46,13 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - Tenant Masters supports address-master CSV dry-run/import over the existing single-row address contract.
 - Exit: **`docs/runbooks/master-sprint-69-exit.md`**.
 
+## Sprint 6.10 governance and workflow depth
+
+- Tenant Masters adds guided revenue-head and tariff controls while preserving JSON fallback.
+- Tenant catalogue governance covers inherited/global service adopt, fork, and deactivate flows.
+- Workflow designer adds guided escalation/SLA side-effect authoring over the existing draft/publish contract.
+- Exit: **`docs/runbooks/master-sprint-610-exit.md`**.
+
 ## Relation to citizen catalogue API
 
 Public **`GET /api/services/tenants/:tenantCode`** now resolves active Postgres `TenantService` rows and latest published `service_form_versions` (Sprint **6.6**). Publishing a form from this designer changes citizen PWA/mobile runtime after refresh without rebuilding clients.
@@ -59,3 +66,4 @@ Master Sprint **6.4**: **`docs/runbooks/master-sprint-64-exit.md`**.
 Master Sprint **6.7**: **`docs/runbooks/master-sprint-67-exit.md`**.
 Master Sprint **6.8**: **`docs/runbooks/master-sprint-68-exit.md`**.
 Master Sprint **6.9**: **`docs/runbooks/master-sprint-69-exit.md`**.
+Master Sprint **6.10**: **`docs/runbooks/master-sprint-610-exit.md`**.

@@ -50,6 +50,8 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/runbooks/master-sprint-68-exit.md`](./docs/runbooks/master-sprint-68-exit.md)                         | Phase 6 P1 operator polish: banners, guided fee/document config, and notification-template preview                                                               |
 | [`docs/runbooks/master-sprint-69-plan.md`](./docs/runbooks/master-sprint-69-plan.md)                         | Phase 6 P2 sprint plan: dashboard depth, CSV exports, address bulk import, audit search, and tenant drill-down                                                   |
 | [`docs/runbooks/master-sprint-69-exit.md`](./docs/runbooks/master-sprint-69-exit.md)                         | Phase 6 P2 engineering exit: Tenant Admin reporting/bulk ops and State Admin visibility                                                                          |
+| [`docs/runbooks/master-sprint-610-plan.md`](./docs/runbooks/master-sprint-610-plan.md)                       | Phase 6 P3 sprint plan: masters UX parity, catalogue governance, workflow escalation, analytics v2, and transparency pack                                        |
+| [`docs/runbooks/master-sprint-610-exit.md`](./docs/runbooks/master-sprint-610-exit.md)                       | Phase 6 P3 engineering exit: catalogue governance, workflow depth, state analytics v2, and public transparency                                                   |
 | [`docs/backlog/phase-6-vision-backlog-prioritized.md`](./docs/backlog/phase-6-vision-backlog-prioritized.md) | Phase 6 **roadmap vs shipped** backlog, **prioritized execution order** for optional 6.8+ / hardening slices                                                     |
 
 ## Architecture at a glance
@@ -266,7 +268,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **`ROADMAP.md`** Phase 6 P2 backlog is closed as **Master Sprint 6.9** (Tenant Admin dashboard depth, CSV exports, address import; State Admin audit search/export and tenant drill-down). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.9** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Sprint 7.1** remains the default Phase 7 next step after the pulled P2 slice. **Sprint 3.1B** deferred.
+**Next:** **`ROADMAP.md`** Phase 6 P3 backlog is closed as **Master Sprint 6.10** (masters UX parity, catalogue governance, workflow escalation UX, state analytics v2, transparency pack). **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.10** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Sprint 7.1** is again the default Phase 7 next step. **Sprint 3.1B** deferred.
 
 ---
 

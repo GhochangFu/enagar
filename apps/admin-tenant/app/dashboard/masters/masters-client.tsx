@@ -38,6 +38,19 @@ type TariffRow = {
   is_active: boolean;
 };
 
+type CatalogueRow = {
+  code: string;
+  source: 'global' | 'tenant_override' | 'tenant_only' | 'forked';
+  global_code: string | null;
+  tenant_service_id: string | null;
+  category_code: string;
+  name: unknown;
+  description: unknown;
+  is_active: boolean;
+  has_local_override: boolean;
+  updated_at: string | null;
+};
+
 type AddressImportResult = {
   dry_run: boolean;
   inserted: number;
@@ -83,6 +96,23 @@ export default function MastersClient(): JSX.Element {
   const [revenueHeads, setRevenueHeads] = useState<RevenueHeadRow[]>([]);
   const [addressRows, setAddressRows] = useState<AddressRow[]>([]);
   const [tariffs, setTariffs] = useState<TariffRow[]>([]);
+  const [catalogueRows, setCatalogueRows] = useState<CatalogueRow[]>([]);
+  const [revenueDraft, setRevenueDraft] = useState({
+    code: 'cert-fee',
+    name_en: 'Certificate Fees',
+    name_bn: 'Certificate Fees',
+    name_hi: 'Certificate Fees',
+    accounting_code: 'RH-CERT',
+    is_active: true,
+  });
+  const [tariffDraft, setTariffDraft] = useState({
+    code: 'water-domestic-v1',
+    category: 'water',
+    name_en: 'Domestic Water Tariff',
+    type: 'slab',
+    amount_rupees: '60',
+    input_key: 'monthly_kl',
+  });
   const [addressCsv, setAddressCsv] = useState(
     'borough_code,borough_name,ward_number,ward_name,mouza,locality_name,pincode\nborough-vii,Borough VII,64,Ward 64,Kasba,Ballygunge Place,700019',
   );
@@ -166,20 +196,22 @@ export default function MastersClient(): JSX.Element {
     if (!token) {
       return;
     }
-    const [revenueRes, addressRes, tariffRes] = await Promise.all([
+    const [revenueRes, addressRes, tariffRes, catalogueRes] = await Promise.all([
       fetch(`${apiBase}/admin/tenant/revenue-heads`, { headers: authHeaders() }),
       fetch(`${apiBase}/admin/tenant/address-master`, { headers: authHeaders() }),
       fetch(`${apiBase}/admin/tenant/tariffs`, { headers: authHeaders() }),
+      fetch(`${apiBase}/admin/tenant/catalogue/inherited`, { headers: authHeaders() }),
     ]);
-    if (!revenueRes.ok || !addressRes.ok || !tariffRes.ok) {
+    if (!revenueRes.ok || !addressRes.ok || !tariffRes.ok || !catalogueRes.ok) {
       setStatus(
-        `Master load failed (${revenueRes.status}/${addressRes.status}/${tariffRes.status}).`,
+        `Master load failed (${revenueRes.status}/${addressRes.status}/${tariffRes.status}/${catalogueRes.status}).`,
       );
       return;
     }
     setRevenueHeads((await revenueRes.json()) as RevenueHeadRow[]);
     setAddressRows((await addressRes.json()) as AddressRow[]);
     setTariffs((await tariffRes.json()) as TariffRow[]);
+    setCatalogueRows((await catalogueRes.json()) as CatalogueRow[]);
     setStatus(null);
   }, [apiBase, authHeaders, token]);
 
@@ -238,6 +270,62 @@ export default function MastersClient(): JSX.Element {
     }
   }
 
+  async function saveGuidedRevenue(): Promise<void> {
+    const payload = {
+      code: revenueDraft.code,
+      name: { en: revenueDraft.name_en, bn: revenueDraft.name_bn, hi: revenueDraft.name_hi },
+      accounting_code: revenueDraft.accounting_code,
+      is_active: revenueDraft.is_active,
+    };
+    await upsert('revenue-heads', JSON.stringify(payload), 'Revenue head');
+  }
+
+  async function saveGuidedTariff(): Promise<void> {
+    const amountPaise = Math.round(Number(tariffDraft.amount_rupees || '0') * 100);
+    const rateConfig =
+      tariffDraft.type === 'fixed'
+        ? { type: 'fixed', amount_paise: amountPaise }
+        : tariffDraft.type === 'slab'
+          ? {
+              type: 'slab',
+              input_key: tariffDraft.input_key,
+              slabs: [
+                { upto: 10, amount_paise: 0 },
+                { upto: null, amount_paise: amountPaise },
+              ],
+            }
+          : { type: 'external', reference: tariffDraft.input_key || tariffDraft.code };
+    const payload = {
+      code: tariffDraft.code,
+      category: tariffDraft.category,
+      name: { en: tariffDraft.name_en, bn: tariffDraft.name_en, hi: tariffDraft.name_en },
+      rate_config: rateConfig,
+      is_active: true,
+    };
+    setTariffText(JSON.stringify(payload, null, 2));
+    await upsert('tariffs', JSON.stringify(payload), 'Tariff');
+  }
+
+  async function catalogueAction(
+    code: string,
+    action: 'adopt' | 'fork' | 'deactivate',
+  ): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/catalogue/${code}/${action}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      setStatus(`Catalogue ${action} failed (${res.status}). ${text.slice(0, 180)}`);
+      return;
+    }
+    setStatus(`Catalogue ${action} complete for ${code}.`);
+    await loadMasters();
+  }
+
   if (!token) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-10">
@@ -266,6 +354,118 @@ export default function MastersClient(): JSX.Element {
           </p>
         ) : null}
       </div>
+
+      <section className="mb-8 grid gap-6 xl:grid-cols-2">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Sprint 6.10 · Guided masters
+              </p>
+              <h2 className="text-lg font-semibold text-slate-900">Revenue head form</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => void saveGuidedRevenue()}
+              className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white"
+            >
+              Save revenue
+            </button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {(
+              [
+                ['code', 'Code'],
+                ['accounting_code', 'Accounting code'],
+                ['name_en', 'Name EN'],
+                ['name_bn', 'Name BN'],
+                ['name_hi', 'Name HI'],
+              ] as Array<[keyof Omit<typeof revenueDraft, 'is_active'>, string]>
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="text-xs font-medium uppercase tracking-wide text-slate-500"
+              >
+                {label}
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+                  value={String(revenueDraft[key as keyof typeof revenueDraft])}
+                  onChange={(event) =>
+                    setRevenueDraft((draft) => ({ ...draft, [key]: event.target.value }))
+                  }
+                />
+              </label>
+            ))}
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={revenueDraft.is_active}
+                onChange={(event) =>
+                  setRevenueDraft((draft) => ({ ...draft, is_active: event.target.checked }))
+                }
+              />
+              Active
+            </label>
+          </div>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Sprint 6.10 · Guided tariffs
+              </p>
+              <h2 className="text-lg font-semibold text-slate-900">Tariff form</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => void saveGuidedTariff()}
+              className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white"
+            >
+              Save tariff
+            </button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Type
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+                value={tariffDraft.type}
+                onChange={(event) =>
+                  setTariffDraft((draft) => ({ ...draft, type: event.target.value }))
+                }
+              >
+                <option value="fixed">Fixed</option>
+                <option value="slab">Slab</option>
+                <option value="external">External</option>
+              </select>
+            </label>
+            {(
+              [
+                ['code', 'Code'],
+                ['category', 'Category'],
+                ['name_en', 'Name EN'],
+                ['amount_rupees', 'Amount rupees'],
+                ['input_key', 'Input key / external ref'],
+              ] as Array<[keyof typeof tariffDraft, string]>
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="text-xs font-medium uppercase tracking-wide text-slate-500"
+              >
+                {label}
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+                  value={String(tariffDraft[key as keyof typeof tariffDraft])}
+                  onChange={(event) =>
+                    setTariffDraft((draft) => ({ ...draft, [key]: event.target.value }))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        </article>
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
         <MasterEditor
@@ -382,6 +582,66 @@ export default function MastersClient(): JSX.Element {
             </li>
           ))}
         </ListCard>
+      </section>
+
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Sprint 6.10 · Catalogue governance
+          </p>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Inherited, forked, and tenant-only services
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Adopt global templates, fork local copies, or deactivate this tenant&apos;s view without
+            changing global catalogue rows.
+          </p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {catalogueRows.map((row) => (
+            <article
+              key={`${row.source}:${row.code}`}
+              className="rounded-lg border border-slate-200 p-3"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-slate-900">{pickLabel(row.name)}</p>
+                  <p className="font-mono text-xs text-slate-500">
+                    {row.code} · {row.category_code} · {row.source}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Global: {row.global_code ?? 'none'} · {row.is_active ? 'active' : 'inactive'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {row.global_code ? (
+                    <button
+                      type="button"
+                      className="rounded border border-slate-300 px-2 py-1 text-xs"
+                      onClick={() => void catalogueAction(row.global_code ?? row.code, 'adopt')}
+                    >
+                      Adopt
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="rounded border border-slate-300 px-2 py-1 text-xs"
+                    onClick={() => void catalogueAction(row.global_code ?? row.code, 'fork')}
+                  >
+                    Fork
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
+                    onClick={() => void catalogueAction(row.code, 'deactivate')}
+                  >
+                    Deactivate
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );

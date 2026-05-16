@@ -1468,6 +1468,38 @@ export default function HomePage(): JSX.Element {
             </div>
           )}
 
+          <section className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-950">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                  Public transparency
+                </p>
+                <p className="mt-1">
+                  Sprint 6.10 publishes aggregate, non-PII platform summaries for tenants, services,
+                  and SLA posture.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  className="rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-emerald-900"
+                  href={`${apiBaseUrl}/public/transparency/summary`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Summary
+                </a>
+                <a
+                  className="rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-emerald-900"
+                  href={`${apiBaseUrl}/public/transparency/sla.csv`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  SLA CSV
+                </a>
+              </div>
+            </div>
+          </section>
+
           <CitizenWorkspaceTabStrip
             activeTab={hubTab}
             onSelect={(tab) => {

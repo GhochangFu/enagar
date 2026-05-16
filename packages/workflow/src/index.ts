@@ -1,6 +1,14 @@
 export type WorkflowRole = 'citizen' | 'tenant_clerk' | 'tenant_admin' | 'state_admin' | string;
 export type WorkflowEffectType = 'notify' | 'sla_timer' | 'audit' | 'certificate' | 'escalate';
 
+const WORKFLOW_EFFECT_TYPES = new Set<WorkflowEffectType>([
+  'notify',
+  'sla_timer',
+  'audit',
+  'certificate',
+  'escalate',
+]);
+
 export interface WorkflowLabel {
   en: string;
   bn: string;
@@ -260,9 +268,64 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): Workfl
     if (!item.actor_role) {
       issues.push(issue(`${path}.actor_role`, 'actor role is required'));
     }
+    for (const [effectIndex, effect] of (item.effects ?? []).entries()) {
+      validateWorkflowEffect(effect, `${path}.effects.${effectIndex}`, stageCodes, issues);
+    }
   }
 
   return result(issues);
+}
+
+function validateWorkflowEffect(
+  effect: WorkflowEffect,
+  path: string,
+  stageCodes: Set<string>,
+  issues: WorkflowValidationIssue[],
+): void {
+  if (!WORKFLOW_EFFECT_TYPES.has(effect.type)) {
+    issues.push(issue(`${path}.type`, `unsupported workflow effect: ${effect.type}`));
+    return;
+  }
+  if (!effect.payload || typeof effect.payload !== 'object' || Array.isArray(effect.payload)) {
+    if (effect.type === 'escalate') {
+      issues.push(issue(`${path}.payload`, 'escalate effect requires a payload'));
+    }
+    return;
+  }
+  if (effect.type === 'escalate') {
+    const payload = effect.payload;
+    const timeoutHours = payload.timeout_hours;
+    const targetRole = payload.target_role;
+    const triggerStage = payload.trigger_stage;
+    const templateCode = payload.notification_template_code;
+    if (!Number.isInteger(timeoutHours) || Number(timeoutHours) <= 0) {
+      issues.push(
+        issue(`${path}.payload.timeout_hours`, 'timeout_hours must be a positive integer'),
+      );
+    }
+    if (typeof targetRole !== 'string' || targetRole.trim().length === 0) {
+      issues.push(issue(`${path}.payload.target_role`, 'target_role is required'));
+    }
+    if (
+      triggerStage !== undefined &&
+      (typeof triggerStage !== 'string' || !stageCodes.has(triggerStage))
+    ) {
+      issues.push(
+        issue(`${path}.payload.trigger_stage`, 'trigger_stage must reference a workflow stage'),
+      );
+    }
+    if (
+      templateCode !== undefined &&
+      (typeof templateCode !== 'string' || !/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(templateCode))
+    ) {
+      issues.push(
+        issue(
+          `${path}.payload.notification_template_code`,
+          'notification_template_code must be URL-safe',
+        ),
+      );
+    }
+  }
 }
 
 export function assertValidWorkflowDefinition(workflow: WorkflowDefinition): WorkflowDefinition {

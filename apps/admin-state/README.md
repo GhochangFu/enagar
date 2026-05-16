@@ -9,6 +9,7 @@ Sprint 6.5 turns this package into the State Super-Admin portal on **http://loca
 - Audited 15-minute tenant impersonation token creation
 - State-admin audit log search, cursor pagination, and CSV export
 - Sprint 6.9 tenant directory drill-down with health counts, warnings, config highlights, and tenant audit events
+- Sprint 6.10 analytics v2 with date ranges/deltas/anomaly hints and public transparency pack support
 
 ## Local Run
 
@@ -29,6 +30,7 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 
 - `docs/runbooks/master-sprint-65-exit.md`
 - `docs/runbooks/master-sprint-69-exit.md`
+- `docs/runbooks/master-sprint-610-exit.md`
 
 ## Explicit Non-Goals
 
@@ -36,3 +38,4 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 - No production support-session handoff UI; this sprint generates and audits the short-lived token.
 - No global service library curator UI; inherited defaults use the existing catalogue seeds.
 - No audit SIEM integration or tenant onboarding redesign in Sprint 6.9.
+- No retained metrics warehouse, SIEM integration, or PII-bearing transparency feed in Sprint 6.10.
