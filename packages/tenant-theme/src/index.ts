@@ -1,8 +1,19 @@
+import { createTenantPalette, type RgbTriple, type TenantPalette } from './palette.js';
+
 import type { Tenant } from '@enagar/types';
 
-export type ThemeTokens = {
-  brandRgb: string; // 'r g b'
-  brandFgRgb: string;
+export type { RgbTriple, TenantPalette };
+export {
+  contrastRatio,
+  createTenantPalette,
+  hexToRgb,
+  mixWithWhite,
+  parseRgbTriple,
+  readableForegroundRgb,
+  relativeLuminance,
+} from './palette.js';
+
+export type ThemeTokens = TenantPalette & {
   logoUrl: string | null;
   fontFamily: string;
 };
@@ -14,11 +25,12 @@ export type ThemeRoot = {
   };
 };
 
+const PLUS_JAKARTA = '"Plus Jakarta Sans", system-ui, sans-serif';
+
 export const DEFAULT_THEME: ThemeTokens = {
-  brandRgb: '15 76 117',
-  brandFgRgb: '255 255 255',
+  ...createTenantPalette('#0F4C75'),
   logoUrl: null,
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: PLUS_JAKARTA,
 };
 
 export type ThemeableTenant = Pick<Tenant, 'theme_color' | 'logo_url' | 'languages_enabled'> & {
@@ -27,15 +39,23 @@ export type ThemeableTenant = Pick<Tenant, 'theme_color' | 'logo_url' | 'languag
 
 export function createTenantTheme(tenant: ThemeableTenant | null | undefined): ThemeTokens {
   if (!tenant) {
-    return DEFAULT_THEME;
+    return { ...DEFAULT_THEME };
   }
 
+  const palette = createTenantPalette(tenant.theme_color ?? '#0F4C75');
+
   return {
-    brandRgb: hexToRgb(tenant.theme_color ?? '#0F4C75'),
-    brandFgRgb: readableForegroundRgb(tenant.theme_color ?? '#0F4C75'),
+    ...palette,
     logoUrl: tenant.logo_url ?? null,
     fontFamily: resolveFontFamily(tenant.languages_enabled),
   };
+}
+
+function applyPaletteToRoot(palette: TenantPalette, root: ThemeRoot | undefined): void {
+  root?.style.setProperty('--brand-rgb', palette.brandRgb);
+  root?.style.setProperty('--brand-fg-rgb', palette.brandFgRgb);
+  root?.style.setProperty('--brand-muted-rgb', palette.brandMutedRgb);
+  root?.style.setProperty('--brand-surface-rgb', palette.brandSurfaceRgb);
 }
 
 export function applyTenantTheme(
@@ -43,9 +63,7 @@ export function applyTenantTheme(
   root: ThemeRoot | undefined = getDocumentRoot(),
 ): ThemeTokens {
   const tokens = createTenantTheme(tenant);
-
-  root?.style.setProperty('--brand-rgb', tokens.brandRgb);
-  root?.style.setProperty('--brand-fg-rgb', tokens.brandFgRgb);
+  applyPaletteToRoot(tokens, root);
   root?.style.setProperty('--tenant-font-family', tokens.fontFamily);
 
   if (tokens.logoUrl) {
@@ -57,30 +75,23 @@ export function applyTenantTheme(
   return tokens;
 }
 
-export function hexToRgb(hex: string): string {
-  const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex.slice(1) : '0F4C75';
-  const red = Number.parseInt(normalized.slice(0, 2), 16);
-  const green = Number.parseInt(normalized.slice(2, 4), 16);
-  const blue = Number.parseInt(normalized.slice(4, 6), 16);
-
-  return `${red} ${green} ${blue}`;
-}
-
-function readableForegroundRgb(hex: string): string {
-  const [red = 15, green = 76, blue = 117] = hexToRgb(hex).split(' ').map(Number);
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-
-  return luminance > 0.55 ? '15 23 42' : '255 255 255';
+/** Hub / statewide shell — Tricolor Calm platform canvas without a selected ULB. */
+export function applyPlatformTheme(root: ThemeRoot | undefined = getDocumentRoot()): ThemeTokens {
+  const tokens = { ...DEFAULT_THEME, fontFamily: PLUS_JAKARTA };
+  applyPaletteToRoot(tokens, root);
+  root?.style.setProperty('--tenant-font-family', PLUS_JAKARTA);
+  root?.style.removeProperty('--tenant-logo-url');
+  return tokens;
 }
 
 function resolveFontFamily(languages: readonly string[]): string {
   if (languages[0] === 'bn') {
-    return '"Noto Sans Bengali", Inter, system-ui, sans-serif';
+    return '"Noto Sans Bengali", "Plus Jakarta Sans", system-ui, sans-serif';
   }
   if (languages[0] === 'hi') {
-    return '"Noto Sans Devanagari", Inter, system-ui, sans-serif';
+    return '"Noto Sans Devanagari", "Plus Jakarta Sans", system-ui, sans-serif';
   }
-  return DEFAULT_THEME.fontFamily;
+  return PLUS_JAKARTA;
 }
 
 function getDocumentRoot(): ThemeRoot | undefined {

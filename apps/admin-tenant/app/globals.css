@@ -1,11 +1,8 @@
+@import '@enagar/config/styles/tricolor-calm.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  --brand-rgb: 15 76 117;
-  --tenant-font-family: Inter, system-ui, sans-serif;
-}
 
 html,
 body {
@@ -13,18 +10,18 @@ body {
 }
 
 body {
-  background: rgb(248 250 252);
-  color: rgb(15 23 42);
+  background: rgb(var(--canvas-rgb));
+  color: rgb(var(--text-primary-rgb));
   font-family: var(--tenant-font-family);
   -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
   .btn-primary {
-    @apply rounded-lg bg-[rgb(var(--brand-rgb))] px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-95;
+    @apply rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg shadow-sm hover:opacity-95;
   }
 
   .btn-secondary {
-    @apply rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50;
+    @apply rounded-lg border border-warm-border bg-white px-4 py-2 text-sm font-medium text-ink-primary shadow-sm hover:bg-brand-muted/40;
   }
 }

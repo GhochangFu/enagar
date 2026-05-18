@@ -1,6 +1,6 @@
 # Master Sprint 6.14 Plan — UX Foundation & Design System v2
 
-Status: **ready to start** (sponsor confirmed Phase UX — 2026-05-18).
+Status: **closed** — see [`master-sprint-614-exit.md`](./master-sprint-614-exit.md) (engineering 2026-05-18).
 
 **Parent programme:** [`phase-ux-revamp-plan.md`](./phase-ux-revamp-plan.md) · **Gate before Phase 7.**
 

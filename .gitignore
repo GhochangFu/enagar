@@ -16,6 +16,7 @@ out/
 .turbo/
 .cache/
 coverage/
+storybook-static/
 
 # ---- TypeScript ----
 *.tsbuildinfo

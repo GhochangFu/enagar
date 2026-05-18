@@ -14,12 +14,14 @@
     "./tsconfig/node.json": "./tsconfig/node.json",
     "./tsconfig/next.json": "./tsconfig/next.json",
     "./tsconfig/react-native.json": "./tsconfig/react-native.json",
-    "./tailwind/base": "./tailwind/base.js"
+    "./tailwind/base": "./tailwind/base.js",
+    "./styles/tricolor-calm.css": "./styles/tricolor-calm.css"
   },
   "files": [
     "eslint",
     "tsconfig",
-    "tailwind"
+    "tailwind",
+    "styles"
   ],
   "dependencies": {
     "@typescript-eslint/eslint-plugin": "8.43.0",

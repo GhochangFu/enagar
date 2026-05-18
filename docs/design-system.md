@@ -33,8 +33,27 @@ The Tailwind preset (`@enagar/config/tailwind/base`) maps `bg-brand` / `text-bra
 :root {
   --brand-rgb: 15 76 117; /* default: KMC slate-blue (#0F4C75) */
   --brand-fg-rgb: 255 255 255;
+  --brand-muted-rgb: 232 237 241; /* mix(brand, white, 88%) — badges, chips */
+  --brand-surface-rgb: 237 242 246; /* mix(brand, white, 92%) — tenant header wash */
 }
 ```
+
+#### Tricolor Calm platform shell (Sprint 6.14, not tenant-overridable)
+
+Imported from `@enagar/config/styles/tricolor-calm.css`. Used on hub / statewide surfaces and as page canvas under tenant chrome.
+
+| Token           | CSS variable            | Tailwind               | Use                |
+| --------------- | ----------------------- | ---------------------- | ------------------ |
+| Canvas          | `--canvas-rgb`          | `bg-canvas`            | Page background    |
+| Saffron wash    | `--saffron-wash-rgb`    | `bg-saffron-wash`      | Hub gradient start |
+| Green wash      | `--green-wash-rgb`      | `bg-green-wash`        | Hub gradient end   |
+| Platform accent | `--platform-accent-rgb` | `text-platform-accent` | Links on hub       |
+| Warm border     | `--border-warm-rgb`     | `border-warm-border`   | Dividers           |
+| Ink primary     | `--text-primary-rgb`    | `text-ink-primary`     | Headings, body     |
+| Ink secondary   | `--text-secondary-rgb`  | `text-ink-secondary`   | Meta, captions     |
+| Hub gradient    | —                       | `bg-platform-gradient` | Citizen hub hero   |
+
+Runtime: `applyPlatformTheme()` restores platform pastels; `applyTenantTheme(tenant)` sets brand + muted + surface from `createTenantPalette(theme_color)`.
 
 | Tenant | Hex       | Theme rationale                    |
 | ------ | --------- | ---------------------------------- |
@@ -73,7 +92,7 @@ The Tailwind preset (`@enagar/config/tailwind/base`) maps `bg-brand` / `text-bra
 Plus Jakarta Sans     →  default Latin (en, transliterated bn/hi where unsupported)
 Noto Sans Bengali     →  bn (system fallback first, Noto next)
 Noto Sans Devanagari  →  hi
-Inter                 →  monospace not used; numerals tabular via OpenType `tnum` feature
+Inter                 →  deprecated as default (removed in 6.14); legacy docs only
 ```
 
 | Token          | Size  | Line-height | Weight | Use                        |

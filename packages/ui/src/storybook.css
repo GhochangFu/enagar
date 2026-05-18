@@ -4,14 +4,8 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
 body {
-  height: 100%;
-}
-
-body {
+  font-family: var(--tenant-font-family);
   background: rgb(var(--canvas-rgb));
   color: rgb(var(--text-primary-rgb));
-  font-family: var(--tenant-font-family);
-  -webkit-font-smoothing: antialiased;
 }

@@ -7,7 +7,21 @@ const nextConfig = {
     // App Router is GA in 14, but we keep typed routes for safety.
     typedRoutes: true,
   },
-  transpilePackages: ['@enagar/forms', '@enagar/i18n', '@enagar/tenant-theme', '@enagar/types'],
+  transpilePackages: [
+    '@enagar/forms',
+    '@enagar/i18n',
+    '@enagar/tenant-theme',
+    '@enagar/types',
+    '@enagar/ui',
+  ],
+  webpack(config) {
+    // Workspace packages use TypeScript ESM `.js` import specifiers; map to `.ts` sources.
+    config.resolve.extensionAlias = {
+      '.js': ['.ts', '.tsx', '.js'],
+      '.jsx': ['.tsx', '.jsx'],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

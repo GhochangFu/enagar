@@ -9,21 +9,42 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        // Tenant-agnostic fonts; per-language families resolved at runtime.
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         bn: ['"Noto Sans Bengali"', '"Plus Jakarta Sans"', 'sans-serif'],
         hi: ['"Noto Sans Devanagari"', '"Plus Jakarta Sans"', 'sans-serif'],
       },
       colors: {
-        // Brand uses CSS vars so a tenant can re-skin without rebuilds.
+        canvas: 'rgb(var(--canvas-rgb) / <alpha-value>)',
+        saffron: {
+          wash: 'rgb(var(--saffron-wash-rgb) / <alpha-value>)',
+        },
+        green: {
+          wash: 'rgb(var(--green-wash-rgb) / <alpha-value>)',
+        },
+        platform: {
+          accent: 'rgb(var(--platform-accent-rgb) / <alpha-value>)',
+        },
         brand: {
           DEFAULT: 'rgb(var(--brand-rgb) / <alpha-value>)',
           fg: 'rgb(var(--brand-fg-rgb) / <alpha-value>)',
+          muted: 'rgb(var(--brand-muted-rgb) / <alpha-value>)',
+          surface: 'rgb(var(--brand-surface-rgb) / <alpha-value>)',
+        },
+        ink: {
+          primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+        },
+        warm: {
+          border: 'rgb(var(--border-warm-rgb) / <alpha-value>)',
         },
       },
       borderRadius: {
         '2xl': '1rem',
         '3xl': '1.5rem',
+      },
+      backgroundImage: {
+        'platform-gradient':
+          'linear-gradient(135deg, rgb(var(--saffron-wash-rgb)) 0%, rgb(var(--canvas-rgb)) 45%, rgb(var(--green-wash-rgb)) 100%)',
       },
     },
   },

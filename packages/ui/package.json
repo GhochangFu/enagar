@@ -14,21 +14,34 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
+  "dependencies": {
+    "@enagar/tenant-theme": "workspace:*"
+  },
   "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "@storybook/addon-essentials": "^8.4.7",
+    "@storybook/react": "^8.4.7",
+    "@storybook/react-vite": "^8.4.7",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "postcss": "^8.4.47",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "@enagar/config": "workspace:*",
-    "eslint": "^8.57.1",
     "rimraf": "^6.0.1",
-    "typescript": "^5.5.4"
+    "storybook": "^8.4.7",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.11"
   },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "echo '@enagar/ui: component tests via Storybook build'",
     "build": "tsc",
-    "clean": "rimraf dist .turbo"
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
+    "clean": "rimraf dist .turbo storybook-static"
   }
 }

@@ -1,0 +1,21 @@
+/**
+ * Phase UX — Tricolor Calm platform shell tokens (Sprint 6.14).
+ * Import in app globals.css before @tailwind directives.
+ * Tenant accents override --brand-* via @enagar/tenant-theme at runtime.
+ */
+:root {
+  --canvas-rgb: 250 250 248;
+  --saffron-wash-rgb: 255 247 237;
+  --green-wash-rgb: 240 253 244;
+  --platform-accent-rgb: 14 116 144;
+  --border-warm-rgb: 232 228 223;
+  --text-primary-rgb: 28 25 23;
+  --text-secondary-rgb: 87 83 78;
+
+  /* Default ULB brand (KMC) until applyTenantTheme / applyPlatformTheme runs */
+  --brand-rgb: 15 76 117;
+  --brand-fg-rgb: 255 255 255;
+  --brand-muted-rgb: 232 237 241;
+  --brand-surface-rgb: 237 242 246;
+  --tenant-font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
