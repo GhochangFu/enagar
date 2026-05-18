@@ -108,6 +108,16 @@ Inter                 →  deprecated as default (removed in 6.14); legacy docs 
 
 > **Bengali / Hindi sizing.** Devanagari and Bengali scripts have larger optical x-heights. We bump `line-height` by 4 px (`+0.25rem`) when the active locale is `bn` or `hi`. The shared Tailwind preset will expose `font-bn` / `font-hi` utility classes wired to those families.
 
+**Citizen PWA rendering (Sprint 6.16).** `apps/citizen-pwa/app/globals.css` sets body text to `var(--tenant-font-family)` with **Noto Sans Bengali** / **Noto Sans Devanagari** fallbacks; headings use **Plus Jakarta Sans** with slightly tighter tracking. Grievance list/detail surfaces use semantic chips:
+
+| Field    | Values (examples)              | Chip tone                       |
+| -------- | ------------------------------ | ------------------------------- |
+| Status   | submitted, in progress, closed | sky / indigo / emerald          |
+| Status   | reopened, escalated            | orange                          |
+| Priority | low → urgent                   | emerald → amber → orange → rose |
+
+Tenant colour appears as a left stripe on grievance cards; status/priority chips are platform-semantic, not tenant-derived.
+
 ### 2.3 Spacing
 
 8-pt grid. Tailwind defaults work; we use only the multiples-of-4 we actually need:

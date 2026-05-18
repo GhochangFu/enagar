@@ -25,6 +25,84 @@ export type GrievanceCategoryCode = (typeof GRIEVANCE_CATEGORY_CODES)[number];
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
+type GrievanceTone = {
+  dotClassName: string;
+  label: string;
+  pillClassName: string;
+};
+
+const neutralTone: GrievanceTone = {
+  dotClassName: 'bg-slate-400',
+  label: 'neutral',
+  pillClassName: 'border-slate-200 bg-slate-50 text-slate-700',
+};
+
+function grievanceStatusTone(status: string): GrievanceTone {
+  const normalized = status.trim().toLowerCase().replaceAll('_', ' ');
+  if (['closed', 'resolved'].includes(normalized)) {
+    return {
+      dotClassName: 'bg-emerald-600',
+      label: normalized,
+      pillClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+  }
+  if (['submitted', 'open', 'new'].includes(normalized)) {
+    return {
+      dotClassName: 'bg-sky-600',
+      label: normalized,
+      pillClassName: 'border-sky-200 bg-sky-50 text-sky-800',
+    };
+  }
+  if (['in progress', 'assigned', 'acknowledged'].includes(normalized)) {
+    return {
+      dotClassName: 'bg-indigo-600',
+      label: normalized,
+      pillClassName: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+    };
+  }
+  if (['reopened', 'escalated'].includes(normalized)) {
+    return {
+      dotClassName: 'bg-orange-600',
+      label: normalized,
+      pillClassName: 'border-orange-200 bg-orange-50 text-orange-800',
+    };
+  }
+  return { ...neutralTone, label: normalized || status };
+}
+
+function grievancePriorityTone(priority: string): GrievanceTone {
+  const normalized = priority.trim().toLowerCase();
+  if (normalized === 'urgent') {
+    return {
+      dotClassName: 'bg-rose-600',
+      label: normalized,
+      pillClassName: 'border-rose-200 bg-rose-50 text-rose-800',
+    };
+  }
+  if (normalized === 'high') {
+    return {
+      dotClassName: 'bg-orange-600',
+      label: normalized,
+      pillClassName: 'border-orange-200 bg-orange-50 text-orange-800',
+    };
+  }
+  if (normalized === 'medium') {
+    return {
+      dotClassName: 'bg-amber-600',
+      label: normalized,
+      pillClassName: 'border-amber-200 bg-amber-50 text-amber-800',
+    };
+  }
+  if (normalized === 'low') {
+    return {
+      dotClassName: 'bg-emerald-600',
+      label: normalized,
+      pillClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+  }
+  return { ...neutralTone, label: normalized || priority };
+}
+
 /** Optional WGS-84 coordinate from grievance compose form — blank means omit. */
 function parseLatLngField(raw: string): number | undefined {
   const trimmed = raw.trim();
@@ -867,7 +945,10 @@ export function GrievancesWorkspace({
           </label>
 
           <label className="block text-sm font-medium text-slate-700">
-            {t('grievance.priority', language)}
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              {t('grievance.priority', language)}
+              <ToneChip label="Selected" tone={grievancePriorityTone(priority)} />
+            </span>
             <select
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
               onChange={(event) => setPriority(event.target.value as (typeof PRIORITIES)[number])}
@@ -980,60 +1061,73 @@ export function GrievancesWorkspace({
 
     const showRating = g.status === 'resolved';
     const showReopen = grievanceEligibleForCitizenReopen(g);
+    const statusTone = grievanceStatusTone(g.status);
+    const priorityTone = grievancePriorityTone(g.grievance_priority);
 
     return (
       <section className="space-y-4">
         <button className="text-sm font-semibold text-brand" onClick={resetFlow} type="button">
           ← {t('grievance.nav', language)}
         </button>
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-brand">{g.grievance_no}</p>
-          <h3 className="mt-2 text-2xl font-bold">{g.category}</h3>
-          <p className="mt-3 whitespace-pre-wrap text-slate-700">{g.description}</p>
-          {typeof g.location === 'object' &&
-          g.location !== null &&
-          'latitude' in g.location &&
-          'longitude' in g.location ? (
-            <p className="mt-2 text-sm font-medium text-slate-700">
-              Map pin (WGS-84): {(g.location as { latitude: number }).latitude},{' '}
-              {(g.location as { longitude: number }).longitude}
+        <div className="overflow-hidden rounded-[2rem] border border-warm-border bg-white shadow-sm">
+          <div className="border-b border-warm-border bg-gradient-to-br from-orange-50 via-white to-emerald-50 p-6">
+            <p className="font-mono text-xs font-black uppercase tracking-[0.16em] text-brand">
+              {g.grievance_no}
             </p>
-          ) : null}
-          <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-            <DetailStat label={t('grievance.statusLabel', language)} value={g.status} />
-            <DetailStat
-              label={t('grievance.priorityLabel', language)}
-              value={g.grievance_priority}
-            />
-            <DetailStat
-              label={t('grievance.categoryLabel', language)}
-              value={tTryCategoryLabel(g.category, language)}
-            />
-            <DetailStat
-              label={t('grievance.updatedLabel', language)}
-              value={new Date(g.updated_at).toLocaleString()}
-            />
-          </div>
-          {slaChip && (
-            <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950">
-              {slaChip}
-            </p>
-          )}
-          {Array.isArray(g.attachments) && g.attachments.length > 0 ? (
-            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-              <p className="font-semibold text-slate-800">Evidence files (storage keys)</p>
-              <ul className="mt-2 space-y-1 font-mono text-xs text-slate-600">
-                {g.attachments.map((a) => (
-                  <li key={a.id}>
-                    {a.content_type} · {a.storage_key}
-                  </li>
-                ))}
-              </ul>
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-3xl font-black leading-tight text-ink-primary">{g.category}</h3>
+                <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-ink-secondary">
+                  {g.description}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <ToneChip label="Status" tone={statusTone} />
+                <ToneChip label="Priority" tone={priorityTone} />
+              </div>
             </div>
-          ) : null}
+          </div>
+          <div className="p-6">
+            {typeof g.location === 'object' &&
+            g.location !== null &&
+            'latitude' in g.location &&
+            'longitude' in g.location ? (
+              <p className="mt-2 text-sm font-medium text-slate-700">
+                Map pin (WGS-84): {(g.location as { latitude: number }).latitude},{' '}
+                {(g.location as { longitude: number }).longitude}
+              </p>
+            ) : null}
+            <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+              <DetailStat
+                label={t('grievance.categoryLabel', language)}
+                value={tTryCategoryLabel(g.category, language)}
+              />
+              <DetailStat
+                label={t('grievance.updatedLabel', language)}
+                value={new Date(g.updated_at).toLocaleString()}
+              />
+            </div>
+            {slaChip && (
+              <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950">
+                {slaChip}
+              </p>
+            )}
+            {Array.isArray(g.attachments) && g.attachments.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-slate-800">Evidence files (storage keys)</p>
+                <ul className="mt-2 space-y-1 font-mono text-xs text-slate-600">
+                  {g.attachments.map((a) => (
+                    <li key={a.id}>
+                      {a.content_type} · {a.storage_key}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-warm-border bg-white p-6 shadow-sm">
           <h4 className="font-bold">{t('grievance.timeline', language)}</h4>
           <ul className="mt-4 space-y-3">
             {detailPayload.timeline.length === 0 ? (
@@ -1055,7 +1149,7 @@ export function GrievancesWorkspace({
           </ul>
         </div>
 
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-warm-border bg-white p-6 shadow-sm">
           <h4 className="font-bold">{t('grievance.addComment', language)}</h4>
           <form className="mt-3 space-y-2" onSubmit={postComment}>
             <textarea
@@ -1188,33 +1282,56 @@ export function GrievancesWorkspace({
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {list.map((item) => (
-          <article
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-            key={item.id}
-          >
-            <p className="font-mono text-sm text-brand">{item.grievance_no}</p>
-            <h4 className="mt-2 text-lg font-bold">{item.category}</h4>
-            <p className="mt-2 line-clamp-2 text-sm text-slate-600">{item.description}</p>
-            <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
-              <DetailStat label={t('grievance.statusLabel', language)} value={item.status} />
-              <DetailStat
-                label={t('grievance.priorityLabel', language)}
-                value={item.grievance_priority}
-              />
-            </div>
-            <button
-              className="mt-4 w-full rounded-2xl border border-brand px-4 py-2 text-sm font-semibold text-brand"
-              onClick={() => void openDetail(item)}
-              type="button"
+        {list.map((item) => {
+          const tenantColor =
+            hubMunicipalityCatalogue?.find(
+              (tenantRow) => tenantRow.id === item.tenant_id || tenantRow.code === tenantScopeCode,
+            )?.theme_color ?? 'rgb(var(--brand-rgb))';
+          const statusTone = grievanceStatusTone(item.status);
+          const priorityTone = grievancePriorityTone(item.grievance_priority);
+
+          return (
+            <article
+              className="group relative overflow-hidden rounded-[1.75rem] border border-warm-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              key={item.id}
             >
-              {t('grievance.open', language)}
-            </button>
-          </article>
-        ))}
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-1.5"
+                style={{ backgroundColor: tenantColor }}
+              />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-sm font-black text-brand">{item.grievance_no}</p>
+                  <h4 className="mt-2 text-xl font-black leading-tight text-ink-primary">
+                    {item.category}
+                  </h4>
+                </div>
+                <span
+                  className="h-3 w-3 rounded-full shadow-sm ring-4 ring-white"
+                  style={{ backgroundColor: tenantColor }}
+                />
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-secondary">
+                {item.description}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 rounded-2xl bg-slate-50/80 p-3">
+                <ToneChip label={t('grievance.statusLabel', language)} tone={statusTone} />
+                <ToneChip label={t('grievance.priorityLabel', language)} tone={priorityTone} />
+              </div>
+              <button
+                className="mt-4 w-full rounded-2xl border border-brand px-4 py-2 text-sm font-black text-brand transition group-hover:bg-brand group-hover:text-brand-fg"
+                onClick={() => void openDetail(item)}
+                type="button"
+              >
+                {t('grievance.open', language)}
+              </button>
+            </article>
+          );
+        })}
       </div>
       {!loadingList && list.length === 0 ? (
-        <p className="rounded-3xl bg-slate-50 p-6 text-slate-600">
+        <p className="rounded-3xl border border-dashed border-brand-muted bg-brand-surface/70 p-6 text-center text-sm leading-6 text-ink-secondary">
           {t('grievance.empty', language)}
         </p>
       ) : null}
@@ -1228,6 +1345,18 @@ function DetailStat({ label, value }: { label: string; value: string }): JSX.Ele
       <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
       <dd className="font-medium text-slate-900">{value}</dd>
     </div>
+  );
+}
+
+function ToneChip({ label, tone }: { label: string; tone: GrievanceTone }): JSX.Element {
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${tone.pillClassName}`}
+    >
+      <span className={`h-2 w-2 rounded-full ${tone.dotClassName}`} />
+      <span className="text-[10px] opacity-70">{label}</span>
+      {tone.label}
+    </span>
   );
 }
 

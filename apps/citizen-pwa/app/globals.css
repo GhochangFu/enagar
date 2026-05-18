@@ -12,6 +12,23 @@ body {
 body {
   background: rgb(var(--canvas-rgb));
   color: rgb(var(--text-primary-rgb));
-  font-family: var(--tenant-font-family);
+  font-family:
+    var(--tenant-font-family), 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Segoe UI Variable',
+    'Segoe UI', system-ui, sans-serif;
+  font-feature-settings:
+    'cv02' 1,
+    'cv03' 1,
+    'ss01' 1;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.citizen-display {
+  font-family:
+    'Plus Jakarta Sans', var(--tenant-font-family), 'Noto Sans Bengali', 'Noto Sans Devanagari',
+    'Segoe UI Variable Display', system-ui, sans-serif;
+  letter-spacing: -0.03em;
 }

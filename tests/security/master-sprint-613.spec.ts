@@ -64,9 +64,9 @@ describe('Master Sprint 6.13 — Operator Desk in Tenant Admin', () => {
 
   it('documents Phase 7 gate and 6.13 exit closure in runbooks', () => {
     expect(sprintPlan).toContain('Phase 7');
-    expect(sprintPlan).toContain('does not start until this sprint');
+    expect(sprintPlan).toContain('does not start until **Phase UX (6.14–6.19)** closes');
     expect(sprintPlan).toContain('No separate clerk PWA');
     expect(sprintExit).toContain('manual smoke 2026-05-18');
-    expect(sprintExit).toContain('Phase 7 is unblocked');
+    expect(sprintExit).toContain('Phase UX (**6.14–6.19**) gates Phase 7');
   });
 });

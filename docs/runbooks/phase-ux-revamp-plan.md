@@ -158,6 +158,8 @@ Program ID: **Phase UX** implemented as **Master Sprints 6.14 → 6.19** (six sp
 
 ### Sprint 6.16 — Citizen PWA: workspace & transactions
 
+**Status:** **Closed 2026-05-18** — [`master-sprint-616-exit.md`](./master-sprint-616-exit.md).
+
 **Goal:** Tenant-themed service discovery, apply, applications, grievances, payments.
 
 | Area             | Changes                                                                                              |
@@ -165,7 +167,7 @@ Program ID: **Phase UX** implemented as **Master Sprints 6.14 → 6.19** (six sp
 | Workspace chrome | Tenant header bar (logo, code, “Switch ULB”), themed tab bar, banners from 6.8 styled consistently.  |
 | Services / Apply | Service cards with fee/SLA chips; form wizard spacing via `@enagar/forms/web` + new section headers. |
 | Applications     | Split list + detail; timeline component; document list styling.                                      |
-| Grievances       | Align `grievances-workspace.tsx` to new cards and status badges.                                     |
+| Grievances       | Align `grievances-workspace.tsx` to new cards; color-coded status/priority chips (hub + tenant).     |
 | Payments         | Receipt-style cards; empty states with illustrations.                                                |
 
 **Exit criteria:** `applyTenantTheme` visible on workspace; submit birth-cert + grievance UI-only regression; mobile viewport 360px OK.
@@ -292,7 +294,7 @@ When implementation starts, each sprint adds:
 | 5   | Dark mode                                  | **Out of scope** for UX v1                                                        |
 | 6   | Sprint order                               | **Citizen-first** (6.15–6.16 → 6.17–6.18 → 6.19 state + mobile)                   |
 
-**Next implementation run:** start **`master-sprint-614-plan.md`** (UX foundation).
+**Next implementation run:** start **Sprint 6.17** (Tenant Admin shell, dashboard & Desk) — plan TBD as `master-sprint-617-plan.md`.
 
 ---
 
@@ -305,4 +307,4 @@ When implementation starts, each sprint adds:
 
 ---
 
-_Last updated: 2026-05-18 — sponsor confirmed; ready for Sprint 6.14._
+_Last updated: 2026-05-18 — Sprint 6.16 closed; ready for Sprint 6.17._

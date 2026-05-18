@@ -17,6 +17,31 @@ import {
   ApplicationDetailPanel,
   ReceiptPreviewPlaceholder,
 } from '../components/application-detail-panel';
+import {
+  LanguageStep,
+  LoginStep,
+  OtpStep,
+  PinMunicipalitiesStep,
+  SplashStep,
+} from '../components/citizen-auth-flow';
+import {
+  ApplicationSummaryCard,
+  ApplyMunicipalityCard,
+  CitizenHubNavigation,
+  BrowseMunicipalityModal,
+  HubKpiGrid,
+  PinnedMunicipalityCard,
+  type HubNavItem,
+} from '../components/citizen-hub-components';
+import {
+  PaymentAttemptCard,
+  ShortcutFilterBanner,
+  WorkspaceEmptyState,
+  WorkspaceHeader,
+  WorkspaceNavigation,
+  WorkspaceServiceCard,
+  type WorkspaceNavItem,
+} from '../components/citizen-workspace-components';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { TenantBanners } from '../components/tenant-banners';
@@ -1263,196 +1288,78 @@ export default function HomePage(): JSX.Element {
       </header>
 
       {step === 'splash' && (
-        <section className="grid flex-1 items-center gap-10 md:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            <h1 className="text-4xl font-bold leading-tight text-slate-950 md:text-6xl">
-              {t('splash.title', language)}
-            </h1>
-            <p className="max-w-xl text-lg text-slate-600">{t('splash.subtitle', language)}</p>
-            <button
-              className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
-              onClick={() => setStep('language')}
-            >
-              {t('action.continue', language)}
-            </button>
-          </div>
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl">
-            <div className="rounded-[1.5rem] bg-brand/10 p-6 text-brand">
-              <p className="text-sm font-semibold uppercase">Citizen Services Preview</p>
-              <p className="mt-16 text-2xl font-bold">
-                Services, applications, documents, and timelines in one place.
-              </p>
-            </div>
-          </div>
-        </section>
+        <SplashStep language={language} onContinue={() => setStep('language')} status={status} />
       )}
 
       {step === 'language' && (
-        <section className="mx-auto w-full max-w-2xl rounded-3xl bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-bold">{t('language.title', language)}</h2>
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
-            {(['en', 'bn', 'hi'] as const).map((code) => (
-              <button
-                className={`rounded-2xl border p-4 text-left ${language === code ? 'border-brand bg-brand/10 text-brand' : 'border-slate-200'}`}
-                key={code}
-                onClick={() => setLanguage(code)}
-              >
-                <span className="block font-semibold">{code.toUpperCase()}</span>
-                <span className="text-sm text-slate-500">{t('splash.title', code)}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            className="mt-6 rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
-            onClick={() => setStep('login')}
-          >
-            {t('language.continue', language)}
-          </button>
-        </section>
+        <LanguageStep
+          language={language}
+          onContinue={() => setStep('login')}
+          onSelectLanguage={setLanguage}
+          status={status}
+        />
       )}
 
       {step === 'login' && (
-        <form
-          className="mx-auto w-full max-w-md rounded-3xl bg-white p-6 shadow-sm"
+        <LoginStep
+          language={language}
+          mobile={mobile}
+          onMobileChange={setMobile}
           onSubmit={requestOtp}
-        >
-          <h2 className="text-2xl font-bold">{t('login.title', language)}</h2>
-          <label className="mt-6 block text-sm font-medium text-slate-700" htmlFor="mobile">
-            {t('login.mobile', language)}
-          </label>
-          <input
-            className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
-            id="mobile"
-            inputMode="numeric"
-            maxLength={10}
-            onChange={(event) => setMobile(event.target.value)}
-            placeholder="9876543210"
-            value={mobile}
-          />
-          <button
-            className="mt-6 w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
-            type="submit"
-          >
-            {t('login.sendOtp', language)}
-          </button>
-        </form>
+          status={status}
+        />
       )}
 
       {step === 'otp' && (
-        <form
-          className="mx-auto w-full max-w-md rounded-3xl bg-white p-6 shadow-sm"
+        <OtpStep
+          language={language}
+          mobile={mobile}
+          onOtpChange={setOtp}
           onSubmit={verifyOtp}
-        >
-          <h2 className="text-2xl font-bold">{t('otp.title', language)}</h2>
-          <input
-            className="mt-6 w-full rounded-2xl border border-slate-200 px-4 py-3"
-            inputMode="numeric"
-            maxLength={8}
-            onChange={(event) => setOtp(event.target.value)}
-            placeholder="Enter OTP"
-            value={otp}
-          />
-          <button
-            className="mt-6 w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
-            type="submit"
-          >
-            {t('otp.submit', language)}
-          </button>
-        </form>
+          otp={otp}
+          status={status}
+        />
       )}
 
       {step === 'pins' && (
-        <section className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl bg-white p-8 shadow-sm">
-          <header>
-            <p className="text-sm font-semibold uppercase text-brand">First-time hub access</p>
-            <h2 className="text-3xl font-bold">Pin your municipalities</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Pick at least one operational ULB (up to fifteen). Pins are shortcuts only—you can
-              browse or search every municipality later. Manage pins anytime under hub{' '}
-              <strong>Shortcuts</strong>.
-            </p>
-          </header>
-          <label className="block text-sm font-medium text-slate-700">
-            Search by code, name, or district
-            <input
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
-              onChange={(event) => setPinsSearch(event.target.value)}
-              placeholder="Try KMC or Kolkata..."
-              type="search"
-              value={pinsSearch}
-            />
-          </label>
-          <p className="text-sm text-slate-600">
-            Selected{' '}
-            <strong>
-              ({pinsDraftCodes.length} / 15)
-              {pinsDraftCodes.length ? `: ${pinsDraftCodes.join(', ')}` : ''}
-            </strong>
-          </p>
-          <ul className="max-h-[min(60vh,480px)] space-y-2 overflow-y-auto pr-2">
-            {pinsCatalogueFiltered.map((tenant) => {
-              const active = pinsDraftCodes.includes(tenant.code);
-              const disabledPick = !active && pinsDraftCodes.length >= 15;
-              return (
-                <li key={tenant.code}>
-                  <button
-                    className={`flex w-full rounded-2xl border px-4 py-3 text-left transition ${
-                      active
-                        ? 'border-brand bg-brand/10 text-brand'
-                        : 'border-slate-200 hover:border-brand/40'
-                    } ${disabledPick ? 'cursor-not-allowed opacity-60' : ''}`}
-                    disabled={disabledPick}
-                    onClick={() => {
-                      if (active) {
-                        setPinsDraftCodes((codes) => codes.filter((code) => code !== tenant.code));
-                      } else if (pinsDraftCodes.length < 15) {
-                        setPinsDraftCodes((codes) => [...codes, tenant.code]);
-                      }
-                    }}
-                    type="button"
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span>
-                        <span className="block font-semibold">{tenant.code}</span>
-                        <span className="mt-1 block text-xs text-slate-600">{tenant.name}</span>
-                        <span className="mt-0.5 block text-[11px] uppercase text-slate-400">
-                          {tenant.district}
-                        </span>
-                      </span>
-                      <span className="text-xs font-semibold">{active ? '✓ Pinned' : 'Pin'}</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
-            <button
-              className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:opacity-40"
-              disabled={pinsDraftCodes.length === 0 || !token}
-              onClick={() => void persistOnboardingPins()}
-              type="button"
-            >
-              Continue to hub
-            </button>
-          </div>
-        </section>
+        <PinMunicipalitiesStep
+          language={language}
+          onContinue={() => void persistOnboardingPins()}
+          onPinsSearchChange={setPinsSearch}
+          onTogglePin={(code) => {
+            setPinsDraftCodes((codes) =>
+              codes.includes(code)
+                ? codes.filter((selectedCode) => selectedCode !== code)
+                : codes.length < 15
+                  ? [...codes, code]
+                  : codes,
+            );
+          }}
+          pinsDraftCodes={pinsDraftCodes}
+          pinsSearch={pinsSearch}
+          status={status}
+          tenants={pinsCatalogueFiltered}
+          tokenPresent={Boolean(token)}
+        />
       )}
 
       {step === 'hub' && (
-        <section className="space-y-6">
+        <section
+          className="relative isolate -mx-2 space-y-6 overflow-hidden rounded-[2rem] border border-orange-100/80 p-4 shadow-sm md:-mx-4 md:p-6"
+          style={{
+            background:
+              'radial-gradient(circle at 6% 8%, rgba(251, 146, 60, 0.28), transparent 30%), radial-gradient(circle at 94% 0%, rgba(251, 191, 36, 0.18), transparent 24%), radial-gradient(circle at 92% 92%, rgba(34, 197, 94, 0.2), transparent 30%), rgba(255, 255, 255, 0.72)',
+          }}
+        >
+          <div className="pointer-events-none absolute -left-16 top-8 -z-10 h-44 w-44 rounded-full bg-orange-300/15" />
+          <div className="pointer-events-none absolute -right-16 bottom-4 -z-10 h-52 w-52 rounded-full bg-green-300/15" />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold uppercase text-brand">Citizen hub</p>
               <h2 className="text-3xl font-bold">Track services across municipalities</h2>
               <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                <strong>Pinned ULBs</strong> anchor the hub; use{' '}
-                <strong>Browse all municipalities</strong> to open any operational ULB (pins stay
-                independent of{' '}
-                <code className="rounded bg-slate-100 px-1">POST /citizen/select-tenant</code>).
-                Tabbed lists call <strong>scoped reads without</strong>{' '}
-                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> until you
-                open a dossier row.
+                <strong>Pinned ULBs</strong> anchor your day-to-day work. Browse any operational
+                municipality when you need another service, while your saved shortcuts stay ready.
               </p>
             </div>
             <button
@@ -1471,23 +1378,15 @@ export default function HomePage(): JSX.Element {
           )}
 
           {hubDashboard && hubTotalsFromBuckets && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {[
+            <HubKpiGrid
+              items={[
                 ['Language', language.toUpperCase()],
                 ['Services', String(servicesKpiValue)],
                 ['Applications', String(hubTotalsFromBuckets.applications)],
                 ['Payments', String(hubTotalsFromBuckets.payments)],
                 ['Grievances', String(hubTotalsFromBuckets.grievances)],
-              ].map(([label, value]) => (
-                <div
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-                  key={label}
-                >
-                  <span className="text-sm text-slate-500">{label}</span>
-                  <strong className="block text-2xl text-slate-950">{value}</strong>
-                </div>
-              ))}
-            </div>
+              ]}
+            />
           )}
 
           <section className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-950">
@@ -1522,7 +1421,7 @@ export default function HomePage(): JSX.Element {
             </div>
           </section>
 
-          <CitizenWorkspaceTabStrip
+          <CitizenHubNavigation
             activeTab={hubTab}
             onSelect={(tab) => {
               setHubTab(tab);
@@ -1601,47 +1500,17 @@ export default function HomePage(): JSX.Element {
 
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {pinnedHubHomeRows.map(({ bucket, catalogue, shortName }) => (
-                  <button
-                    className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                      !catalogue ? 'cursor-not-allowed opacity-60' : ''
-                    }`}
-                    disabled={!catalogue}
+                  <PinnedMunicipalityCard
+                    bucket={bucket}
+                    catalogue={catalogue ?? null}
                     key={bucket.tenant_id}
-                    onClick={() => {
+                    onEnter={() => {
                       if (catalogue) {
                         void chooseTenant(catalogue);
                       }
                     }}
-                    type="button"
-                  >
-                    <span
-                      className="block h-2 w-full rounded-full"
-                      style={{ backgroundColor: bucket.theme_color }}
-                    />
-                    <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
-                    <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
-                    {catalogue ? (
-                      <span className="mt-4 block text-sm font-medium text-slate-500">
-                        {catalogue.ward_count} wards
-                      </span>
-                    ) : null}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
-                        Apps {bucket.application_count}
-                      </span>
-                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-900">
-                        Pay {bucket.payment_count}
-                      </span>
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-900">
-                        Grv {bucket.grievance_count}
-                      </span>
-                    </div>
-                    {!catalogue && (
-                      <p className="mt-3 text-xs text-red-600">
-                        Tenant missing from picker catalogue.
-                      </p>
-                    )}
-                  </button>
+                    shortName={shortName}
+                  />
                 ))}
               </div>
               {hubDashboard && pinnedHubHomeRows.length === 0 && (
@@ -1658,8 +1527,8 @@ export default function HomePage(): JSX.Element {
               <header>
                 <h3 className="text-xl font-bold text-slate-900">Shortcuts</h3>
                 <p className="mt-2 text-sm text-slate-600">
-                  Pins are persisted with <strong>PATCH /citizen/preferences</strong> and stay
-                  separate from <strong>selected_tenant_code</strong>. Keep at least one ULB pinned.
+                  Keep at least one ULB pinned, then add the services you use most often for direct
+                  access from the hub.
                 </p>
               </header>
 
@@ -1970,26 +1839,13 @@ export default function HomePage(): JSX.Element {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {applyPickerTenants.map((tenant) => (
-                    <button
-                      className="rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    <ApplyMunicipalityCard
                       key={`apply-${tenant.code}`}
-                      onClick={() => {
+                      onEnter={() => {
                         void chooseTenant(tenant, { workspaceTab: 'services' });
                       }}
-                      type="button"
-                    >
-                      <span
-                        className="block h-2 w-full rounded-full"
-                        style={{ backgroundColor: tenant.theme_color }}
-                      />
-                      <span className="mt-4 block text-lg font-bold">{tenant.code}</span>
-                      <span className="mt-1 block text-sm text-slate-600">
-                        {tenant.name.replace(' Municipal', '')}
-                      </span>
-                      <span className="mt-4 block text-sm font-medium text-slate-500">
-                        {tenant.ward_count} wards
-                      </span>
-                    </button>
+                      tenant={tenant}
+                    />
                   ))}
                 </div>
               )}
@@ -2013,29 +1869,20 @@ export default function HomePage(): JSX.Element {
                       )?.theme_color ?? '#94a3b8';
 
                     return (
-                      <button
-                        className="w-full rounded-2xl border border-slate-200 p-4 text-left"
+                      <ApplicationSummaryCard
+                        docketNo={application.docket_no}
                         key={application.id}
-                        onClick={() =>
+                        meta={application.service_name}
+                        onOpen={() =>
                           void openApplication(
                             application.docket_no,
                             application.tenant_code ?? undefined,
                           )
                         }
-                        type="button"
-                      >
-                        <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                          <span
-                            className="inline-block h-2 w-2 rounded-full"
-                            style={{ backgroundColor: stripe }}
-                          />
-                          {application.tenant_code ?? 'Unknown ULB'}
-                        </span>
-                        <span className="block font-semibold">{application.docket_no}</span>
-                        <span className="text-sm text-slate-600">
-                          {application.service_name} · {application.status_label}
-                        </span>
-                      </button>
+                        status={application.status_label}
+                        tenantCode={application.tenant_code ?? 'Unknown ULB'}
+                        themeColor={stripe}
+                      />
                     );
                   })}
                   {hubApplications.length === 0 && (
@@ -2128,15 +1975,19 @@ export default function HomePage(): JSX.Element {
           )}
 
           {hubTab === 'grievances' && (
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <p className="mb-4 text-sm text-slate-600">
-                Cross-ULB list from{' '}
-                <code className="rounded bg-slate-100 px-1">GET /grievances</code> without
-                municipality header. To <strong>file a new grievance</strong>, choose a municipality
-                first — the portal token then sends{' '}
-                <code className="rounded bg-slate-100 px-1">X-Enagar-Tenant-Code</code> on create
-                (same as workspace).
-              </p>
+            <section className="rounded-[2rem] border border-warm-border bg-white/95 p-6 shadow-sm">
+              <div className="mb-5 rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-emerald-50 p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">
+                  Grievance desk
+                </p>
+                <h3 className="mt-2 text-2xl font-black text-ink-primary">
+                  Track civic complaints across municipalities
+                </h3>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-secondary">
+                  Review current grievances, identify urgency by status and priority color, or
+                  choose a municipality before filing a new complaint.
+                </p>
+              </div>
               <GrievancesWorkspace
                 apiBaseUrl={apiBaseUrl}
                 deepLinkGrievanceRef={urlGrievanceRef}
@@ -2152,121 +2003,42 @@ export default function HomePage(): JSX.Element {
           )}
 
           {municipalityBrowseOpen && (
-            <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 p-6">
-              <div
-                aria-modal="true"
-                className="relative mt-10 w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl"
-                role="dialog"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-brand">Browse</p>
-                    <h3 className="text-2xl font-bold text-slate-950">All municipalities</h3>
-                  </div>
-                  <button
-                    className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold"
-                    onClick={() => setMunicipalityBrowseOpen(false)}
-                    type="button"
-                  >
-                    Close
-                  </button>
-                </div>
-                <label className="mt-4 block text-sm font-medium text-slate-700">
-                  Search by code, name, district
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3"
-                    onChange={(event) => setBrowseQuery(event.target.value)}
-                    type="search"
-                    value={browseQuery}
-                  />
-                </label>
-                <ul className="mt-6 max-h-[55vh] space-y-2 overflow-y-auto">
-                  {browseTenantsFiltered.map((tenant) => (
-                    <li key={tenant.code}>
-                      <button
-                        className="w-full rounded-2xl border border-slate-100 px-4 py-3 text-left transition hover:border-brand/40"
-                        onClick={() => {
-                          setMunicipalityBrowseOpen(false);
-                          void chooseTenant(
-                            tenant,
-                            hubTab === 'apply' ? { workspaceTab: 'services' } : undefined,
-                          );
-                        }}
-                        type="button"
-                      >
-                        <span className="flex items-start justify-between gap-2">
-                          <span>
-                            <span className="font-semibold">{tenant.code}</span>
-                            <span className="block text-sm text-slate-600">{tenant.name}</span>
-                            <span className="block text-[11px] uppercase text-slate-400">
-                              {tenant.district}
-                            </span>
-                          </span>
-                          <span className="text-xs font-semibold text-brand">Enter workspace</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <BrowseMunicipalityModal
+              onChoose={(tenant) => {
+                setMunicipalityBrowseOpen(false);
+                void chooseTenant(
+                  tenant,
+                  hubTab === 'apply' ? { workspaceTab: 'services' } : undefined,
+                );
+              }}
+              onClose={() => setMunicipalityBrowseOpen(false)}
+              onQueryChange={setBrowseQuery}
+              query={browseQuery}
+              tenants={browseTenantsFiltered}
+            />
           )}
         </section>
       )}
 
       {step === 'workspace' && selectedTenant && (
         <section className="space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800"
-              onClick={goBackToHub}
-              type="button"
-            >
-              ← Back to hub
-            </button>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              Workspace · {selectedTenant.code}
-            </span>
-          </div>
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase text-brand">
-              {t('home.label', language)}
-            </p>
-            <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h2 className="text-3xl font-bold">{selectedTenant.name}</h2>
-                <p className="mt-1 text-slate-600">
-                  Services, Apply, My Applications, and My Payments against the Sprint 3.4 stub
-                  rail.
-                </p>
-              </div>
-              <button
-                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold"
-                onClick={() => void refreshWorkspace()}
-              >
-                Refresh
-              </button>
-            </div>
-            <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {[
-                ['Wards', String(selectedTenant.ward_count)],
-                ['Language', language.toUpperCase()],
-                ['Services', String(workspaceServicesFiltered.length)],
-                ['Applications', String(applications.length)],
-                ['Payments', String(payments.length)],
-                ['Grievances', String(grievanceCount)],
-              ].map(([label, value]) => (
-                <div className="rounded-2xl bg-slate-50 p-4" key={label}>
-                  <span className="text-sm text-slate-500">{label}</span>
-                  <strong className="block text-2xl">{value}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
+          <WorkspaceHeader
+            language={language}
+            metrics={[
+              ['Wards', String(selectedTenant.ward_count)],
+              ['Services', String(workspaceServicesFiltered.length)],
+              ['Applications', String(applications.length)],
+              ['Payments', String(payments.length)],
+              ['Grievances', String(grievanceCount)],
+            ]}
+            onBackToHub={goBackToHub}
+            onRefresh={() => void refreshWorkspace()}
+            tenant={selectedTenant}
+          />
 
           <TenantBanners banners={tenantBanners} locale={language} />
 
-          <CitizenWorkspaceTabStrip
+          <WorkspaceNavigation
             activeTab={activeTab}
             onSelect={setActiveTab}
             tabs={municipalityWorkspaceTabs(language)}
@@ -2309,63 +2081,38 @@ export default function HomePage(): JSX.Element {
           {activeTab === 'services' && (
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {workspaceServiceCodesFilter?.length ? (
-                <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/20 bg-brand/5 p-4">
-                  <p className="text-sm text-slate-700">
-                    Showing only your pinned service shortcut
-                    {workspaceServiceCodesFilter.length > 1 ? 's' : ''} (
-                    {workspaceServiceCodesFilter.join(', ')}
-                    ).
-                  </p>
-                  <button
-                    className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold"
-                    onClick={() => setWorkspaceServiceCodesFilter(null)}
-                    type="button"
-                  >
-                    Show all services
-                  </button>
-                </div>
+                <ShortcutFilterBanner
+                  codes={workspaceServiceCodesFilter}
+                  onClear={() => setWorkspaceServiceCodesFilter(null)}
+                />
               ) : null}
               {workspaceServicesFiltered.length === 0 ? (
-                <p className="col-span-full rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-600">
-                  No services match this filter. Clear the shortcut filter or pick another ULB.
-                </p>
+                <div className="col-span-full">
+                  <WorkspaceEmptyState
+                    action={
+                      workspaceServiceCodesFilter ? (
+                        <button
+                          className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                          onClick={() => setWorkspaceServiceCodesFilter(null)}
+                          type="button"
+                        >
+                          Show all services
+                        </button>
+                      ) : null
+                    }
+                    title="No services match"
+                  >
+                    Clear the shortcut filter or pick another ULB.
+                  </WorkspaceEmptyState>
+                </div>
               ) : null}
               {workspaceServicesFiltered.map((service) => (
-                <article className="rounded-3xl bg-white p-5 shadow-sm" key={service.code}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase text-brand">
-                        {service.category_code}
-                      </p>
-                      <h3 className="mt-1 text-xl font-bold">
-                        {service.name[language] ?? service.name.en}
-                      </h3>
-                    </div>
-                    {service.popular && (
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-                        Popular
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-3 min-h-12 text-sm text-slate-600">
-                    {service.description[language] ?? service.description.en}
-                  </p>
-                  <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                    <Info label="Fee" value={service.fee_type} />
-                    <Info
-                      label="SLA"
-                      value={service.sla_days ? `${service.sla_days} days` : 'Instant'}
-                    />
-                    <Info label="Docs" value={String(service.required_documents.length)} />
-                    <Info label="DigiLocker" value={service.pushes_to_digilocker ? 'Yes' : 'No'} />
-                  </dl>
-                  <button
-                    className="mt-5 w-full rounded-2xl bg-brand px-4 py-2 font-semibold text-white"
-                    onClick={() => startApplication(service)}
-                  >
-                    Apply
-                  </button>
-                </article>
+                <WorkspaceServiceCard
+                  key={service.code}
+                  language={language}
+                  onApply={startApplication}
+                  service={service}
+                />
               ))}
             </section>
           )}
@@ -2432,22 +2179,20 @@ export default function HomePage(): JSX.Element {
                 <h3 className="text-xl font-bold">My Applications</h3>
                 <div className="mt-4 space-y-3">
                   {applications.map((application) => (
-                    <button
-                      className="w-full rounded-2xl border border-slate-200 p-4 text-left"
+                    <ApplicationSummaryCard
+                      docketNo={application.docket_no}
                       key={application.id}
-                      onClick={() =>
+                      meta={application.service_name}
+                      onOpen={() =>
                         void openApplication(
                           application.docket_no,
                           application.tenant_code ?? undefined,
                         )
                       }
-                      type="button"
-                    >
-                      <span className="block font-semibold">{application.docket_no}</span>
-                      <span className="text-sm text-slate-600">
-                        {application.service_name} - {application.status_label}
-                      </span>
-                    </button>
+                      status={application.status_label}
+                      tenantCode={application.tenant_code ?? selectedTenant.code}
+                      themeColor={selectedTenant.theme_color}
+                    />
                   ))}
                   {applications.length === 0 && (
                     <p className="text-slate-600">No applications yet.</p>
@@ -2491,38 +2236,17 @@ export default function HomePage(): JSX.Element {
                       tenantsById.get(payment.tenant_id)?.code ?? selectedTenant.code;
 
                     return (
-                      <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-xs font-semibold uppercase text-slate-500">
-                              {payment.status.replace('_', ' ')}
-                            </p>
-                            <p className="font-mono text-sm text-slate-700">{payment.id}</p>
-                          </div>
-                          <strong className="text-lg">
-                            {formatInrFromPaise(payment.amount_paise)}
-                          </strong>
-                        </div>
-                        <dl className="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
-                          <span>Application: {payment.application_id.slice(0, 13)}…</span>
-                          <span>Gateway order: {payment.gateway_order_id}</span>
-                        </dl>
-                        {payment.status === 'requires_action' && token && (
-                          <button
-                            className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-                            onClick={() => void simulateStubSettlement(payment)}
-                            type="button"
-                          >
-                            Simulate PSP capture (stub complete)
-                          </button>
-                        )}
-                        {payment.status === 'failed' && (
-                          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                            Payment failed upstream — retry initiation from{' '}
-                            <strong>My Applications</strong> after resolving the banner message
-                            shown in status.
-                          </div>
-                        )}
+                      <PaymentAttemptCard
+                        amount={formatInrFromPaise(payment.amount_paise)}
+                        key={payment.id}
+                        onStubComplete={
+                          payment.status === 'requires_action' && token
+                            ? (row) => void simulateStubSettlement(row)
+                            : undefined
+                        }
+                        payment={payment}
+                        scopeCode={payerScope}
+                      >
                         {payment.status === 'settled' && token ? (
                           <ReceiptPreviewPlaceholder
                             apiBaseUrl={apiBaseUrl}
@@ -2531,13 +2255,13 @@ export default function HomePage(): JSX.Element {
                             token={token}
                           />
                         ) : null}
-                      </article>
+                      </PaymentAttemptCard>
                     );
                   })}
                   {payments.length === 0 && (
-                    <p className="text-slate-600">
-                      No payment attempts logged for this citizen yet.
-                    </p>
+                    <WorkspaceEmptyState title="No payment attempts yet">
+                      Payment attempts will appear here after a service with fees reaches payment.
+                    </WorkspaceEmptyState>
                   )}
                 </div>
               </div>
@@ -2581,64 +2305,27 @@ export default function HomePage(): JSX.Element {
   );
 }
 
-function citizenWorkspaceHubTabs(
-  language: PwaLocaleCode,
-): readonly { id: HubTab; label: string }[] {
+function citizenWorkspaceHubTabs(language: PwaLocaleCode): readonly HubNavItem<HubTab>[] {
   return [
-    { id: 'home', label: 'Home' },
-    { id: 'shortcuts', label: 'Shortcuts' },
-    { id: 'services', label: 'Services' },
-    { id: 'apply', label: 'Apply' },
-    { id: 'applications', label: 'My Applications' },
-    { id: 'payments', label: 'My Payments' },
-    { id: 'grievances', label: t('grievance.nav', language) },
+    { id: 'home', label: 'Home', icon: 'home' },
+    { id: 'shortcuts', label: 'Shortcuts', icon: 'check' },
+    { id: 'services', label: 'Services', icon: 'building' },
+    { id: 'apply', label: 'Apply', icon: 'chevron-right' },
+    { id: 'applications', label: 'Applications', icon: 'inbox' },
+    { id: 'payments', label: 'Payments', icon: 'check' },
+    { id: 'grievances', label: t('grievance.nav', language), icon: 'alert' },
   ];
 }
 
 function municipalityWorkspaceTabs(
   language: PwaLocaleCode,
-): readonly { id: WorkspaceTab; label: string }[] {
+): readonly WorkspaceNavItem<WorkspaceTab>[] {
   return [
-    { id: 'home', label: 'Home' },
-    { id: 'services', label: 'Services' },
-    { id: 'apply', label: 'Apply' },
-    { id: 'applications', label: 'My Applications' },
-    { id: 'payments', label: 'My Payments' },
-    { id: 'grievances', label: t('grievance.nav', language) },
+    { id: 'home', label: 'Home', icon: 'home' },
+    { id: 'services', label: 'Services', icon: 'building' },
+    { id: 'apply', label: 'Apply', icon: 'chevron-right' },
+    { id: 'applications', label: 'Applications', icon: 'inbox' },
+    { id: 'payments', label: 'Payments', icon: 'check' },
+    { id: 'grievances', label: t('grievance.nav', language), icon: 'alert' },
   ];
-}
-
-/** Shared pill-shaped tab chrome for Citizen hub & municipal workspace. */
-function CitizenWorkspaceTabStrip<T extends string>({
-  activeTab,
-  onSelect,
-  tabs,
-}: {
-  activeTab: T;
-  onSelect: (tab: T) => void;
-  tabs: readonly { id: T; label: string }[];
-}): JSX.Element {
-  return (
-    <nav aria-label="Primary navigation" className="flex flex-wrap gap-2">
-      {tabs.map((tabEntry) => (
-        <button
-          className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === tabEntry.id ? 'bg-brand text-white' : 'bg-white text-slate-700'}`}
-          key={tabEntry.id}
-          onClick={() => onSelect(tabEntry.id)}
-          type="button"
-        >
-          {tabEntry.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }): JSX.Element {
-  return (
-    <div className="rounded-xl bg-slate-50 p-3">
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="font-semibold">{value}</dd>
-    </div>
-  );
 }

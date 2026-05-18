@@ -133,9 +133,15 @@ export function ApplicationDetailPanel({
 
   if (!application) {
     return (
-      <div className="rounded-3xl bg-white p-5 shadow-sm">
-        <h3 className="text-xl font-bold">Application Detail</h3>
-        <p className="mt-3 text-slate-600">Select an application to see timeline and documents.</p>
+      <div className="rounded-3xl border border-dashed border-brand-muted bg-brand-surface/70 p-6 text-center shadow-sm">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand shadow-sm">
+          i
+        </div>
+        <h3 className="mt-4 text-xl font-black text-ink-primary">Application Detail</h3>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-ink-secondary">
+          Select a color-coded application card to review its timeline, documents, comments, and
+          payment actions.
+        </p>
       </div>
     );
   }
@@ -149,12 +155,16 @@ export function ApplicationDetailPanel({
     !pendingStub;
 
   return (
-    <div className="space-y-4 rounded-3xl bg-white p-5 shadow-sm">
+    <div className="space-y-4 rounded-3xl border border-warm-border bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase text-brand">{application.docket_no}</p>
-          <h3 className="text-2xl font-bold">{application.service_name}</h3>
-          <p className="text-slate-600">{application.status_label}</p>
+          <p className="text-sm font-black uppercase tracking-wide text-brand">
+            {application.docket_no}
+          </p>
+          <h3 className="mt-1 text-2xl font-black text-ink-primary">{application.service_name}</h3>
+          <span className="mt-2 inline-flex rounded-full bg-brand-muted px-3 py-1 text-xs font-black text-brand">
+            {application.status_label}
+          </span>
         </div>
         <button
           className="rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700"
