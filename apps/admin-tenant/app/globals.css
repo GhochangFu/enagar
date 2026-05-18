@@ -18,3 +18,13 @@ body {
   font-family: var(--tenant-font-family);
   -webkit-font-smoothing: antialiased;
 }
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-[rgb(var(--brand-rgb))] px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-95;
+  }
+
+  .btn-secondary {
+    @apply rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50;
+  }
+}

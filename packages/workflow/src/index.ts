@@ -200,8 +200,8 @@ export function createLinearWorkflowDraft(serviceCode: string, version = 1): Wor
       stage('closed', 'Closed', 'বন্ধ', 'बंद', 'citizen', undefined, false, true),
     ],
     transitions: [
-      transition('submitted', 'approved', 'approve', 'tenant_admin', [{ type: 'audit' }]),
-      transition('approved', 'closed', 'close', 'tenant_clerk', [{ type: 'notify' }]),
+      transition('submitted', 'approved', 'verify', 'tenant_clerk', [{ type: 'audit' }]),
+      transition('approved', 'closed', 'approve', 'tenant_admin', [{ type: 'notify' }]),
     ],
   };
 }

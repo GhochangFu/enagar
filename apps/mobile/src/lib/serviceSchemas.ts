@@ -7,15 +7,8 @@ export function defaultFormValuesForService(serviceCode: string): FormSubmission
   if (serviceCode === 'birth-cert') {
     return {
       applicant_name: 'Citizen Test',
-      mobile: '9876543210',
       child_name: 'Child Test',
-      date_of_birth: '2026-01-01',
-      relationship: 'parent',
-      hospital_discharge: {
-        name: 'birth-proof.pdf',
-        mime_type: 'application/pdf',
-        size_mb: 1,
-      },
+      applicant_dob: '1990-05-15',
     };
   }
   if (serviceCode === 'prop-tax') {

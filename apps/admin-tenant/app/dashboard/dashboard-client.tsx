@@ -146,6 +146,15 @@ export default function DashboardClient(): JSX.Element {
         fetch(`${apiBase}/admin/tenant/services`, { headers: authHeaders() }),
       ]);
       if (!dashRes.ok || !deepRes.ok || !svcRes.ok) {
+        if (dashRes.status === 403 || deepRes.status === 403 || svcRes.status === 403) {
+          const deskRes = await fetch(`${apiBase}/admin/tenant/desk/me`, {
+            headers: authHeaders(),
+          });
+          if (deskRes.ok) {
+            router.replace('/dashboard/desk');
+            return;
+          }
+        }
         const body = await dashRes.text().catch(() => '');
         const deepBody = await deepRes.text().catch(() => '');
         const body2 = await svcRes.text().catch(() => '');
@@ -171,7 +180,7 @@ export default function DashboardClient(): JSX.Element {
     } catch {
       setStatus('Network error loading dashboard.');
     }
-  }, [apiBase, authHeaders, token]);
+  }, [apiBase, authHeaders, router, token]);
 
   useEffect(() => {
     void loadAll();
@@ -277,6 +286,12 @@ export default function DashboardClient(): JSX.Element {
           </p>
         </div>
         <div className="flex gap-3">
+          <a
+            href="/dashboard/desk"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Desk
+          </a>
           <a
             href="/dashboard/masters"
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"

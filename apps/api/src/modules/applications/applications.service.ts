@@ -94,7 +94,9 @@ export class ApplicationsService {
       });
     }
 
-    const workflow = workflowForPattern(service.workflow_pattern);
+    const workflow =
+      (await this.services.getPublishedWorkflowDefinition(tenantCode, dto.service_code)) ??
+      workflowForPattern(service.workflow_pattern);
     const createdAt = new Date();
     const docketNo = await this.store.nextDocketNo(tenantCode, dto.service_code);
     const application: ApplicationResponse = {
@@ -158,7 +160,11 @@ export class ApplicationsService {
     if (!formSchema) {
       throw new BadRequestException('Service form schema is not available yet');
     }
-    const workflow = workflowForPattern(service.workflow_pattern);
+    const workflow =
+      (await this.services.getPublishedWorkflowDefinition(
+        workflowTenantCode,
+        application.service_code,
+      )) ?? workflowForPattern(service.workflow_pattern);
     const initialStage = getInitialStage(workflow);
     if (options.enforceCleanDocuments !== false) {
       const cleanDocumentCodes = new Set(
@@ -181,6 +187,8 @@ export class ApplicationsService {
     const dueAt = calculateSlaDueAt(submittedAt, initialStage.sla_hours);
     const updated: ApplicationResponse = {
       ...application,
+      workflow_code: workflow.code,
+      workflow_version: workflow.version,
       current_stage: initialStage.code,
       status: initialStage.terminal ? 'closed' : 'submitted',
       status_label: initialStage.label.en,

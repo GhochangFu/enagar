@@ -4,30 +4,31 @@
 
 ## Suites
 
-| File                               | Purpose                                                                                                                              | Phase      |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `tenant-isolation.spec.ts`         | Migration contract for tenant tables, Prisma mappings, and RLS policies                                                              | 1.1        |
-| `keycloak-realm.spec.ts`           | Realm export contract for roles, clients, tenant claims, and compose import                                                          | 1.2        |
-| `jwt-contract.spec.ts`             | API JWT verification and request tenant-binding contract                                                                             | 1.2        |
-| `citizen-onboarding.spec.ts`       | PWA route contract (1.3) + native `navigation/types.ts` flow + thin `CitizenShell` navigator wiring (5.2a Splash → OTP → grievances) | 1.3 / 5.2a |
-| `sprint14-security-review.spec.ts` | Security gate for i18n, theming/onboarding, CORS, and blocked DigiLocker status                                                      | 1.4        |
-| `service-catalogue.spec.ts`        | API/seed contract for Sprint 2.1 service catalogue layering                                                                          | 2.1        |
-| `form-schema.spec.ts`              | Shared form-schema/runtime contract and no service-specific UI guard                                                                 | 2.2        |
-| `applications-workflow.spec.ts`    | Protected application APIs, shared form validation, workflow, worker contracts                                                       | 2.3        |
-| `documents-holdings.spec.ts`       | Protected document upload and tenant-scoped holding lookup contracts                                                                 | 2.4        |
-| `citizen-pwa-sprint25.spec.ts`     | Citizen Services → Apply → My Applications UI contract                                                                               | 2.5        |
-| `phase2-hardening.spec.ts`         | Phase 2 protected-route, PWA size, and roadmap hardening contract                                                                    | 2.6        |
-| `phase2-closure.spec.ts`           | Final Phase 2 exit-criteria proof for SQL-only service addition and upload order                                                     | 2          |
-| `master-sprint-66.spec.ts`         | Phase 6.6 proof that citizen PWA/mobile consume DB-published tenant catalogue/forms instead of bundled form fixtures                 | 6.6        |
-| `master-sprint-67.spec.ts`         | Phase 6.7 proof that Tenant Admin designer polish keeps palette/canvas edits on the same draft/publish contracts                     | 6.7        |
-| `master-sprint-68.spec.ts`         | Phase 6.8 proof for tenant banners, guided service config, notification previews, and no provider sends                              | 6.8        |
-| `master-sprint-69.spec.ts`         | Phase 6.9 proof for tenant dashboard depth, CSV exports/import, state audit search/export, and tenant drill-down                     | 6.9        |
-| `master-sprint-610.spec.ts`        | Phase 6.10 proof for catalogue governance, workflow escalation validation, analytics v2, and public-safe transparency outputs        | 6.10       |
-| `master-sprint-611.spec.ts`        | Phase 6.11 proof for tenant PDF reports, KB/RAG trigger safety, branding asset constraints, and booking conflict isolation           | 6.11       |
-| `master-sprint-612.spec.ts`        | Phase 6.12 proof for staff invite safety, global library publishing, integration metadata, audit coverage, and onboarding guardrails | 6.12       |
-| _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                                                                       | 1          |
-| _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call                                                      | 7          |
-| _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation                                                           | 6          |
+| File                               | Purpose                                                                                                                                                                                | Phase      |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `tenant-isolation.spec.ts`         | Migration contract for tenant tables, Prisma mappings, and RLS policies                                                                                                                | 1.1        |
+| `keycloak-realm.spec.ts`           | Realm export contract for roles, clients, tenant claims, and compose import                                                                                                            | 1.2        |
+| `jwt-contract.spec.ts`             | API JWT verification and request tenant-binding contract                                                                                                                               | 1.2        |
+| `citizen-onboarding.spec.ts`       | PWA route contract (1.3) + native `navigation/types.ts` flow + thin `CitizenShell` navigator wiring (5.2a Splash → OTP → grievances)                                                   | 1.3 / 5.2a |
+| `sprint14-security-review.spec.ts` | Security gate for i18n, theming/onboarding, CORS, and blocked DigiLocker status                                                                                                        | 1.4        |
+| `service-catalogue.spec.ts`        | API/seed contract for Sprint 2.1 service catalogue layering                                                                                                                            | 2.1        |
+| `form-schema.spec.ts`              | Shared form-schema/runtime contract and no service-specific UI guard                                                                                                                   | 2.2        |
+| `applications-workflow.spec.ts`    | Protected application APIs, shared form validation, workflow, worker contracts                                                                                                         | 2.3        |
+| `documents-holdings.spec.ts`       | Protected document upload and tenant-scoped holding lookup contracts                                                                                                                   | 2.4        |
+| `citizen-pwa-sprint25.spec.ts`     | Citizen Services → Apply → My Applications UI contract                                                                                                                                 | 2.5        |
+| `phase2-hardening.spec.ts`         | Phase 2 protected-route, PWA size, and roadmap hardening contract                                                                                                                      | 2.6        |
+| `phase2-closure.spec.ts`           | Final Phase 2 exit-criteria proof for SQL-only service addition and upload order                                                                                                       | 2          |
+| `master-sprint-66.spec.ts`         | Phase 6.6 proof that citizen PWA/mobile consume DB-published tenant catalogue/forms instead of bundled form fixtures                                                                   | 6.6        |
+| `master-sprint-67.spec.ts`         | Phase 6.7 proof that Tenant Admin designer polish keeps palette/canvas edits on the same draft/publish contracts                                                                       | 6.7        |
+| `master-sprint-68.spec.ts`         | Phase 6.8 proof for tenant banners, guided service config, notification previews, and no provider sends                                                                                | 6.8        |
+| `master-sprint-69.spec.ts`         | Phase 6.9 proof for tenant dashboard depth, CSV exports/import, state audit search/export, and tenant drill-down                                                                       | 6.9        |
+| `master-sprint-610.spec.ts`        | Phase 6.10 proof for catalogue governance, workflow escalation validation, analytics v2, and public-safe transparency outputs                                                          | 6.10       |
+| `master-sprint-611.spec.ts`        | Phase 6.11 proof for tenant PDF reports, KB/RAG trigger safety, branding asset constraints, and booking conflict isolation                                                             | 6.11       |
+| `master-sprint-612.spec.ts`        | Phase 6.12 proof for staff invite safety, global library publishing, integration metadata, audit coverage, and onboarding guardrails                                                   | 6.12       |
+| `master-sprint-613.spec.ts`        | Phase 6.13 proof for Operator Desk in Tenant Admin: clerk desk access, application transitions, grievance actions, config denial for clerks; exit runbook records manual smoke closure | 6.13       |
+| _planned_ `auth-flow.spec.ts`      | OIDC code-flow integration, token refresh, MFA                                                                                                                                         | 1          |
+| _planned_ `pii-redaction.spec.ts`  | Verifies the chatbot redactor catches all PII patterns before any provider call                                                                                                        | 7          |
+| _planned_ `rls-fuzz.spec.ts`       | Property-based fuzzer that picks random tenant pairs and asserts isolation                                                                                                             | 6          |
 
 Phase 1 security status:
 

@@ -24,7 +24,12 @@ Copy **`apps/admin-tenant/.env.example`** → **`.env.local`** and adjust if you
 4. Service **Configure** opens **`/dashboard/services/[serviceId]`** for form schema, workflow, fee, document, and revenue draft/publish/configuration.
 5. **Operations** opens **`/dashboard/operations`** for Sprint 6.4 templates, KB, branding, feature flags, staff, role-stage maps, and Sprint 6.8 maintenance banners / notification previews.
 
-JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin`** with **`tenant_id` / `tenant_code`** claims (`tenant-claims` scope). **`tenant_admin`** tokens must satisfy MFA evidence expected by **`JwtVerifierService`** (`amr` / `acr`) unless you test with **`municipality_admin`** dummy users — see **`docs/runbooks/keycloak.md`**.
+JWT must include **`tenant_id` / `tenant_code`** claims (`tenant-claims` scope).
+
+- **Configuration / reporting** (dashboard, Masters, Operations write, service designer): **`tenant_admin`**, **`municipality_admin`**, or **`state_admin`** only (see `assertTenantPortalStaff`).
+- **Operator Desk** (**Sprint 6.13**): also **`tenant_clerk`** / **`municipality_clerk`** — clerks land on **`/dashboard/desk`** with role-gated nav; see **`docs/runbooks/master-sprint-613-exit.md`**.
+
+**`tenant_admin`** tokens must satisfy MFA evidence expected by **`JwtVerifierService`** (`amr` / `acr`) unless you test with **`municipality_admin`** or **clerk** dummy users — see **`docs/runbooks/keycloak.md`**.
 
 ## Service designer
 
@@ -67,6 +72,13 @@ JWT must include **`tenant_admin`**, **`municipality_admin`**, or **`state_admin
 - Staff lifecycle actions have tenant-scoped audit coverage and safe local/dry-run Keycloak provisioning boundaries.
 - Tenant Admin staff/invite mutation coverage is included in the Sprint 6.12 audit matrix.
 - Exit: **`docs/runbooks/master-sprint-612-exit.md`**.
+
+## Sprint 6.13 Operator Desk
+
+- **Clerks and municipality admins** both sign in here (**`:3002`**); no separate clerk PWA.
+- New **`/dashboard/desk`**: application inbox (workflow approve/reject/forward) + grievance inbox (status, assign, comment).
+- Desk APIs: **`/admin/tenant/desk/*`**; existing configure APIs stay admin-only.
+- Exit: **`docs/runbooks/master-sprint-613-exit.md`** — closed (engineering + manual smoke **2026-05-18**); Phase 7 unblocked.
 
 ## Relation to citizen catalogue API
 

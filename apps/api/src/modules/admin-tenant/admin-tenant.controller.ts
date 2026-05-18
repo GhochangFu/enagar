@@ -25,6 +25,10 @@ import {
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
 import {
   CreateStaffInviteDto,
+  DeskApplicationTransitionDto,
+  DeskCommentDto,
+  DeskGrievanceAssignDto,
+  DeskGrievanceStatusDto,
   PatchTenantSettingsDto,
   RequeueKbArticleDto,
   UpdateStaffInviteDto,
@@ -57,6 +61,100 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'Tenant dashboard trends and SLA drill-down queues' })
   getDashboardDeep(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.getDashboardDeep(principal);
+  }
+
+  @Get('desk/me')
+  @ApiOperation({ summary: 'Current Tenant Desk operator profile and role scope' })
+  getDeskMe(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getDeskMe(principal);
+  }
+
+  @Get('desk/inbox/summary')
+  @ApiOperation({ summary: 'Tenant Desk pending work counts for applications and grievances' })
+  getDeskSummary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getDeskSummary(principal);
+  }
+
+  @Get('desk/inbox/applications')
+  @ApiOperation({ summary: 'Tenant Desk application inbox by operator role' })
+  listDeskApplications(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('queue') queue?: string,
+  ) {
+    return this.adminTenant.listDeskApplications(principal, queue ?? 'my');
+  }
+
+  @Get('desk/applications/:docketNo')
+  @ApiOperation({ summary: 'Tenant Desk application dossier with allowed transitions' })
+  getDeskApplication(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('docketNo') docketNo: string,
+  ) {
+    return this.adminTenant.getDeskApplication(principal, docketNo);
+  }
+
+  @Post('desk/applications/:applicationId/transitions')
+  @ApiOperation({ summary: 'Execute a published workflow transition for an application' })
+  transitionDeskApplication(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: DeskApplicationTransitionDto,
+  ) {
+    return this.adminTenant.transitionDeskApplication(principal, applicationId, dto);
+  }
+
+  @Get('desk/inbox/grievances')
+  @ApiOperation({ summary: 'Tenant Desk grievance inbox by routed role or assignment' })
+  listDeskGrievances(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('queue') queue?: string,
+  ) {
+    return this.adminTenant.listDeskGrievances(principal, queue ?? 'my');
+  }
+
+  @Get('desk/grievances/:grievanceId')
+  @ApiOperation({ summary: 'Tenant Desk grievance detail with lifecycle actions' })
+  getDeskGrievance(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('grievanceId') grievanceId: string,
+  ) {
+    return this.adminTenant.getDeskGrievance(principal, grievanceId);
+  }
+
+  @Patch('desk/grievances/:grievanceId/status')
+  @ApiOperation({ summary: 'Tenant Desk grievance status transition' })
+  updateDeskGrievanceStatus(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('grievanceId') grievanceId: string,
+    @Body() dto: DeskGrievanceStatusDto,
+  ) {
+    return this.adminTenant.updateDeskGrievanceStatus(principal, grievanceId, dto);
+  }
+
+  @Post('desk/grievances/:grievanceId/assign')
+  @ApiOperation({ summary: 'Tenant Desk admin assignment for a grievance' })
+  assignDeskGrievance(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('grievanceId') grievanceId: string,
+    @Body() dto: DeskGrievanceAssignDto,
+  ) {
+    return this.adminTenant.assignDeskGrievance(principal, grievanceId, dto.user_id);
+  }
+
+  @Post('desk/grievances/:grievanceId/comment')
+  @ApiOperation({ summary: 'Tenant Desk comment on a grievance timeline' })
+  commentDeskGrievance(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('grievanceId') grievanceId: string,
+    @Body() dto: DeskCommentDto,
+  ) {
+    return this.adminTenant.commentDeskGrievance(principal, grievanceId, dto.body);
+  }
+
+  @Post('desk/grievances/staff/sweep-sla')
+  @ApiOperation({ summary: 'Tenant Desk admin SLA sweep for overdue grievances' })
+  sweepDeskGrievanceSla(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.sweepDeskGrievanceSla(principal);
   }
 
   @Get('exports/applications.csv')

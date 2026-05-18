@@ -151,10 +151,15 @@ pnpm --filter @enagar/admin-tenant dev
 
 - Tenant Admin: **`http://localhost:3002`**
 - Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
-- Exit checklists/plans: **`docs/runbooks/master-sprint-61-exit.md`**, **`docs/runbooks/master-sprint-62-exit.md`**, **`docs/runbooks/master-sprint-63-exit.md`**, **`docs/runbooks/master-sprint-64-exit.md`**, **`docs/runbooks/master-sprint-67-exit.md`**, **`docs/runbooks/master-sprint-68-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-611-exit.md`**, **`docs/runbooks/master-sprint-612-exit.md`**
+- Exit checklists/plans: **`docs/runbooks/master-sprint-61-exit.md`** … **`docs/runbooks/master-sprint-612-exit.md`**, **`docs/runbooks/master-sprint-613-exit.md`** (Operator Desk — closed **2026-05-18**)
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
-After login, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel and Sprint 6.10 escalation authoring. The **Dashboard** includes Sprint 6.9 trend tables, SLA-breached queues, workload cards, tenant CSV exports, and Sprint 6.11 PDF downloads. Use **Masters** for revenue heads, address master rows, tax/tariff rows, Sprint 6.9 address CSV dry-run/import, and Sprint 6.10 guided revenue/tariff plus catalogue governance. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, staff/role assignments, Sprint 6.8 maintenance banners, notification-template preview, Sprint 6.11 KB/RAG, branding asset, bookings controls, and Sprint 6.12 guided staff invite/provisioning UX.
+
+**Sprint 6.13 (closed):** clerks (`kmc-tenant-clerk-dummy`, `kmc-municipality-clerk-dummy`) sign in to the **same** Tenant Admin URL and use **Desk** (`/dashboard/desk`) for application and grievance processing. Municipality admins use Desk plus Dashboard/Masters/Operations. Manual smoke checklist: **`docs/runbooks/master-sprint-613-exit.md`** § Manual smoke.
+
+**Citizen apply smoke (PWA):** hub **Apply** → pick a municipality (e.g. **KMC**) → workspace **Services** → **Birth Certificate** → submit. Dev OTP **`12345`** when `DEV_AUTH_ENABLED`; published birth-cert form uses **`applicant_dob`** (see **`apps/citizen-pwa/lib/service-schemas.ts`**).
+
+After login as **municipality admin**, click **Configure** on a service to open the Sprint 6.7 visual form palette / workflow canvas plus Sprint 6.8 guided fee/document/revenue configuration panel and Sprint 6.10 escalation authoring. The **Dashboard** includes Sprint 6.9 trend tables, SLA-breached queues, workload cards, tenant CSV exports, and Sprint 6.11 PDF downloads. Use **Masters** for revenue heads, address master rows, tax/tariff rows, Sprint 6.9 address CSV dry-run/import, and Sprint 6.10 guided revenue/tariff plus catalogue governance. Use **Operations** for Sprint 6.4 branding, feature flags, KB articles, staff/role assignments, Sprint 6.8 maintenance banners, notification-template preview, Sprint 6.11 KB/RAG, branding asset, bookings controls, and Sprint 6.12 guided staff invite/provisioning UX.
 
 ---
 

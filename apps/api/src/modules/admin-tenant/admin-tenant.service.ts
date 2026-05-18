@@ -1,8 +1,27 @@
+import { randomUUID } from 'node:crypto';
+
 import { createBlankFormSchemaDraft, validateFormSchema } from '@enagar/forms';
-import { createLinearWorkflowDraft, validateWorkflowDefinition } from '@enagar/workflow';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  calculateSlaDueAt,
+  createLinearWorkflowDraft,
+  evaluateTransition,
+  validateWorkflowDefinition,
+  workflowForPattern,
+} from '@enagar/workflow';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import {
+  assertGrievanceTransition,
+  GRIEVANCE_STATUSES,
+  isGrievanceStatus,
+  type GrievanceStatus,
+} from '../grievances/grievance-lifecycle';
 
 import {
   assertCode,
@@ -55,7 +74,7 @@ import type {
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Prisma } from '../../generated/prisma';
 import type { EnagarFormSchema } from '@enagar/forms';
-import type { WorkflowDefinition, WorkflowEffect } from '@enagar/workflow';
+import type { WorkflowDefinition, WorkflowEffect, WorkflowRole } from '@enagar/workflow';
 
 export type TenantAdminDashboardSnapshot = {
   tenant_id: string;
@@ -339,6 +358,94 @@ export type TenantAdminRoleStageMapRow = {
   role_code: string;
   can_view: boolean;
   can_act: boolean;
+};
+
+export type TenantDeskMe = {
+  subject: string;
+  tenant_id: string;
+  tenant_code?: string;
+  roles: string[];
+  normalized_roles: string[];
+  is_admin: boolean;
+  ward_scopes: Array<{ id: string; number: string; name: string | null }>;
+};
+
+export type TenantDeskSummary = {
+  applications_my_queue: number;
+  applications_all_open: number;
+  grievances_my_queue: number;
+  grievances_all_open: number;
+  grievances_sla_breached: number;
+};
+
+export type TenantDeskApplicationListItem = {
+  id: string;
+  docket_no: string;
+  service_code: string;
+  service_name: string;
+  status: string;
+  status_label: string;
+  current_stage: string;
+  pending_role: string | null;
+  payment_status: string;
+  submitted_at: string;
+  updated_at: string | null;
+};
+
+export type TenantDeskAllowedTransition = {
+  verb: string;
+  to_stage: string;
+  label: string;
+  actor_role: string;
+  requires_comment: boolean;
+};
+
+export type TenantDeskApplicationDetail = {
+  application: TenantDeskApplicationListItem & {
+    form_data: Prisma.JsonValue;
+    timeline: Array<{
+      id: string;
+      from_stage: string | null;
+      to_stage: string;
+      verb: string;
+      actor_role: string;
+      comment: string | null;
+      created_at: string;
+    }>;
+    documents: Prisma.JsonValue;
+  };
+  allowed_transitions: TenantDeskAllowedTransition[];
+};
+
+export type TenantDeskGrievanceListItem = {
+  id: string;
+  grievance_no: string;
+  category: string;
+  status: string;
+  priority: string;
+  routed_role_code: string | null;
+  assigned_to_user_id: string | null;
+  sla_due_at: string | null;
+  sla_breached_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TenantDeskGrievanceDetail = {
+  grievance: TenantDeskGrievanceListItem & {
+    description: string;
+    location: Prisma.JsonValue;
+    photo_keys: Prisma.JsonValue;
+  };
+  timeline: Array<{
+    id: string;
+    event_type: string;
+    actor_subject: string;
+    body: string | null;
+    metadata: Prisma.JsonValue;
+    occurred_at: string;
+  }>;
+  allowed_statuses: GrievanceStatus[];
 };
 
 type WorkflowWithChildren = Prisma.WorkflowGetPayload<{
@@ -2450,6 +2557,572 @@ export class AdminTenantService {
     });
   }
 
+  async getDeskMe(principal: AuthenticatedPrincipal): Promise<TenantDeskMe> {
+    assertDeskAccess(principal);
+    const normalizedRoles = normalizeDeskRoles(principal.roles);
+    const wardScopes = isUuidString(principal.subject)
+      ? await this.prisma.userRole.findMany({
+          where: {
+            tenantId: principal.tenantId,
+            user: { keycloakUserId: principal.subject },
+            wardId: { not: null },
+          },
+          select: {
+            ward: { select: { id: true, number: true, name: true } },
+          },
+        })
+      : [];
+
+    return {
+      subject: principal.subject,
+      tenant_id: principal.tenantId,
+      tenant_code: principal.tenantCode,
+      roles: principal.roles,
+      normalized_roles: normalizedRoles,
+      is_admin: hasDeskAdminRole(principal.roles),
+      ward_scopes: wardScopes
+        .map((row) => row.ward)
+        .filter((ward): ward is { id: string; number: string; name: string | null } =>
+          Boolean(ward),
+        ),
+    };
+  }
+
+  async getDeskSummary(principal: AuthenticatedPrincipal): Promise<TenantDeskSummary> {
+    assertDeskAccess(principal);
+    const admin = hasDeskAdminRole(principal.roles);
+    const [myApplications, allApplications, myGrievances, allGrievances] = await Promise.all([
+      this.listDeskApplications(principal, 'my'),
+      admin ? this.listDeskApplications(principal, 'all') : Promise.resolve([]),
+      this.listDeskGrievances(principal, 'my'),
+      admin ? this.listDeskGrievances(principal, 'all') : Promise.resolve([]),
+    ]);
+
+    return {
+      applications_my_queue: myApplications.length,
+      applications_all_open: admin ? allApplications.length : myApplications.length,
+      grievances_my_queue: myGrievances.length,
+      grievances_all_open: admin ? allGrievances.length : myGrievances.length,
+      grievances_sla_breached: (admin ? allGrievances : myGrievances).filter(
+        (row) => row.sla_breached_at,
+      ).length,
+    };
+  }
+
+  async listDeskApplications(
+    principal: AuthenticatedPrincipal,
+    queue = 'my',
+  ): Promise<TenantDeskApplicationListItem[]> {
+    assertDeskAccess(principal);
+    if (queue === 'all' && !hasDeskAdminRole(principal.roles)) {
+      throw new ForbiddenException('Only municipality admins can view all open applications');
+    }
+    const rows = await this.prisma.application.findMany({
+      where: {
+        tenantId: principal.tenantId,
+        NOT: { status: { in: ['closed', 'cancelled'] } },
+      },
+      select: {
+        id: true,
+        docketNo: true,
+        serviceCode: true,
+        status: true,
+        statusLabel: true,
+        pendingRole: true,
+        paymentStatus: true,
+        submittedAt: true,
+        updatedAt: true,
+        runtimeSnapshot: true,
+        service: { select: { name: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { submittedAt: 'desc' }],
+      take: 200,
+    });
+    const roles = normalizeDeskRoles(principal.roles);
+    return rows
+      .map((row) => toDeskApplicationListItem(row))
+      .filter(
+        (row) => queue !== 'my' || (row.pending_role ? roles.includes(row.pending_role) : false),
+      );
+  }
+
+  async getDeskApplication(
+    principal: AuthenticatedPrincipal,
+    docketNo: string,
+  ): Promise<TenantDeskApplicationDetail> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.application.findFirst({
+      where: { tenantId: principal.tenantId, docketNo },
+      select: {
+        id: true,
+        docketNo: true,
+        serviceCode: true,
+        status: true,
+        statusLabel: true,
+        pendingRole: true,
+        paymentStatus: true,
+        submittedAt: true,
+        updatedAt: true,
+        runtimeSnapshot: true,
+        service: { select: { id: true, code: true, name: true } },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+    if (!hasDeskAdminRole(principal.roles)) {
+      const pendingRole = row.pendingRole ?? snapshotString(row.runtimeSnapshot, 'pending_role');
+      const roles = normalizeDeskRoles(principal.roles);
+      const pendingAtRole = pendingRole ? roles.includes(pendingRole) : false;
+      if (!pendingAtRole && !timelineHasActorRole(snapshot, roles)) {
+        throw new ForbiddenException('Application is not pending at your role');
+      }
+    }
+    const workflow = await this.loadWorkflowForDesk(row.service.id);
+    return {
+      application: {
+        ...toDeskApplicationListItem(row),
+        form_data: (snapshot.form_data ?? {}) as Prisma.JsonValue,
+        timeline: Array.isArray(snapshot.timeline)
+          ? (snapshot.timeline as TenantDeskApplicationDetail['application']['timeline'])
+          : [],
+        documents: (snapshot.documents ?? []) as Prisma.JsonValue,
+      },
+      allowed_transitions: await this.allowedApplicationTransitions(
+        principal,
+        workflow,
+        typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status,
+      ),
+    };
+  }
+
+  async transitionDeskApplication(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    dto: { verb: string; comment?: string },
+  ): Promise<TenantDeskApplicationDetail> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.application.findFirst({
+      where: { tenantId: principal.tenantId, id: applicationId },
+      select: {
+        id: true,
+        docketNo: true,
+        tenantId: true,
+        citizenId: true,
+        serviceId: true,
+        serviceCode: true,
+        status: true,
+        runtimeSnapshot: true,
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+    const workflow = await this.loadWorkflowForDesk(row.serviceId);
+    const actorRoles = normalizeDeskRoles(principal.roles);
+    const evaluated = evaluateTransition({
+      workflow: workflow.definition,
+      current_stage:
+        typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status,
+      verb: dto.verb,
+      actor_roles: actorRoles as WorkflowRole[],
+      comment: dto.comment,
+    });
+    if (!evaluated.ok) {
+      throw new BadRequestException(`Workflow transition rejected: ${evaluated.reason}`);
+    }
+    await this.assertRoleStageCanAct(
+      principal,
+      workflow.row,
+      evaluated.from.code,
+      evaluated.transition.actor_role,
+    );
+
+    const now = new Date();
+    const dueAt = calculateSlaDueAt(now, evaluated.to.sla_hours);
+    const pendingRole = evaluated.to.terminal
+      ? null
+      : (resolvePendingRoleFromEffects(evaluated.effects) ?? evaluated.to.owner_role);
+    const timeline = Array.isArray(snapshot.timeline) ? snapshot.timeline : [];
+    const nextSnapshot = {
+      ...snapshot,
+      current_stage: evaluated.to.code,
+      status: evaluated.to.terminal ? 'closed' : evaluated.to.code,
+      status_label: evaluated.to.label.en,
+      pending_role: pendingRole,
+      timeline: [
+        ...timeline,
+        {
+          id: cryptoRandomId(),
+          from_stage: evaluated.from.code,
+          to_stage: evaluated.to.code,
+          verb: evaluated.transition.verb,
+          actor_role: evaluated.transition.actor_role,
+          comment: dto.comment?.trim() || null,
+          created_at: now.toISOString(),
+        },
+        ...(dueAt
+          ? [
+              {
+                id: cryptoRandomId(),
+                from_stage: evaluated.to.code,
+                to_stage: evaluated.to.code,
+                verb: 'sla-armed',
+                actor_role: 'system',
+                comment: `SLA due at ${dueAt.toISOString()}`,
+                created_at: now.toISOString(),
+              },
+            ]
+          : []),
+      ],
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      const nextStage = workflow.row?.stages.find((stage) => stage.code === evaluated.to.code);
+      await tx.application.update({
+        where: { id: row.id },
+        data: {
+          workflowId: workflow.row?.id ?? undefined,
+          currentStageId: nextStage?.id ?? null,
+          status: nextSnapshot.status,
+          statusLabel: { en: nextSnapshot.status_label },
+          pendingRole,
+          runtimeSnapshot: nextSnapshot as Prisma.InputJsonValue,
+        },
+      });
+      await tx.applicationTimeline.create({
+        data: {
+          tenantId: row.tenantId,
+          applicationId: row.id,
+          fromStage: evaluated.from.code,
+          toStage: evaluated.to.code,
+          verb: evaluated.transition.verb,
+          actorSubject: principal.subject,
+          actorRole: evaluated.transition.actor_role,
+          comment: dto.comment?.trim() || null,
+          metadata: { effects: evaluated.effects } as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (evaluated.effects.some((effect) => effect.type === 'notify')) {
+        await tx.notification.create({
+          data: {
+            tenantId: row.tenantId,
+            citizenId: row.citizenId,
+            type: 'application_status',
+            title: 'Application status updated',
+            body: `${row.docketNo} moved to ${evaluated.to.label.en}`,
+            deepLink: `/applications?application=${encodeURIComponent(row.docketNo)}`,
+          },
+        });
+      }
+    });
+
+    await this.auditTenantMutation(principal, 'desk.application.transition', {
+      docket_no: row.docketNo,
+      verb: evaluated.transition.verb,
+      from_stage: evaluated.from.code,
+      to_stage: evaluated.to.code,
+    });
+
+    return this.getDeskApplication(principal, row.docketNo);
+  }
+
+  async listDeskGrievances(
+    principal: AuthenticatedPrincipal,
+    queue = 'my',
+  ): Promise<TenantDeskGrievanceListItem[]> {
+    assertDeskAccess(principal);
+    if (queue === 'all' && !hasDeskAdminRole(principal.roles)) {
+      throw new ForbiddenException('Only municipality admins can view all grievances');
+    }
+    const rows = await this.prisma.grievance.findMany({
+      where: {
+        tenantId: principal.tenantId,
+        NOT: { status: { in: ['resolved', 'closed'] } },
+        ...(queue === 'breached' ? { slaBreachedAt: { not: null } } : {}),
+      },
+      orderBy: [{ slaBreachedAt: 'asc' }, { updatedAt: 'desc' }],
+      take: 200,
+    });
+    return rows
+      .map(toDeskGrievanceListItem)
+      .filter((row) => queue !== 'my' || deskGrievanceMatchesMyQueue(principal, row));
+  }
+
+  async getDeskGrievance(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+  ): Promise<TenantDeskGrievanceDetail> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.grievance.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [{ id: grievanceId }, { grievanceNo: grievanceId }],
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Grievance not found');
+    }
+    const timelineRows = await this.prisma.grievanceTimelineEntry.findMany({
+      where: { tenantId: principal.tenantId, grievanceId: row.id },
+      orderBy: { occurredAt: 'asc' },
+    });
+    return {
+      grievance: {
+        ...toDeskGrievanceListItem(row),
+        description: row.description,
+        location: row.location as Prisma.JsonValue,
+        photo_keys: row.photoKeys as Prisma.JsonValue,
+      },
+      timeline: timelineRows.map((entry) => ({
+        id: entry.id,
+        event_type: entry.eventType,
+        actor_subject: entry.actorSubject,
+        body: entry.body,
+        metadata: entry.metadata as Prisma.JsonValue,
+        occurred_at: entry.occurredAt.toISOString(),
+      })),
+      allowed_statuses: nextGrievanceStatuses(row.status as GrievanceStatus),
+    };
+  }
+
+  async updateDeskGrievanceStatus(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    dto: { status: string; note?: string },
+  ): Promise<TenantDeskGrievanceDetail> {
+    assertDeskAccess(principal);
+    if (!isGrievanceStatus(dto.status)) {
+      throw new BadRequestException('Invalid status');
+    }
+    const row = await this.prisma.grievance.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [{ id: grievanceId }, { grievanceNo: grievanceId }],
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Grievance not found');
+    }
+    const from = row.status as GrievanceStatus;
+    const to = dto.status as GrievanceStatus;
+    try {
+      assertGrievanceTransition(from, to);
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'Invalid transition');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.grievance.update({
+        where: { id: row.id },
+        data: { status: to, resolvedAt: to === 'resolved' ? new Date() : row.resolvedAt },
+      });
+      await tx.grievanceTimelineEntry.create({
+        data: {
+          tenantId: principal.tenantId,
+          grievanceId: row.id,
+          eventType: 'status_change',
+          actorSubject: principal.subject,
+          body: dto.note ?? `Status → ${to}`,
+          metadata: { from, to },
+        },
+      });
+    });
+    await this.auditTenantMutation(principal, 'desk.grievance.status', {
+      grievance_no: row.grievanceNo,
+      from,
+      to,
+    });
+    return this.getDeskGrievance(principal, row.id);
+  }
+
+  async assignDeskGrievance(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    userId: string,
+  ): Promise<TenantDeskGrievanceDetail> {
+    assertDeskAdmin(principal);
+    const [row, user] = await Promise.all([
+      this.prisma.grievance.findFirst({
+        where: {
+          tenantId: principal.tenantId,
+          OR: [{ id: grievanceId }, { grievanceNo: grievanceId }],
+        },
+      }),
+      this.prisma.user.findFirst({ where: { tenantId: principal.tenantId, id: userId } }),
+    ]);
+    if (!row) {
+      throw new NotFoundException('Grievance not found');
+    }
+    if (!user) {
+      throw new BadRequestException('User not found in tenant');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.grievance.update({
+        where: { id: row.id },
+        data: {
+          assignedToUserId: userId,
+          status: row.status === 'submitted' ? 'under_review' : row.status,
+        },
+      });
+      await tx.grievanceTimelineEntry.create({
+        data: {
+          tenantId: principal.tenantId,
+          grievanceId: row.id,
+          eventType: 'assignment',
+          actorSubject: principal.subject,
+          body: `Assigned to user ${userId}`,
+          metadata: {},
+        },
+      });
+    });
+    await this.auditTenantMutation(principal, 'desk.grievance.assign', {
+      grievance_no: row.grievanceNo,
+      user_id: userId,
+    });
+    return this.getDeskGrievance(principal, row.id);
+  }
+
+  async commentDeskGrievance(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    body: string,
+  ): Promise<TenantDeskGrievanceDetail> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.grievance.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [{ id: grievanceId }, { grievanceNo: grievanceId }],
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Grievance not found');
+    }
+    await this.prisma.grievanceTimelineEntry.create({
+      data: {
+        tenantId: principal.tenantId,
+        grievanceId: row.id,
+        eventType: 'comment',
+        actorSubject: principal.subject,
+        body,
+        metadata: {},
+      },
+    });
+    return this.getDeskGrievance(principal, row.id);
+  }
+
+  async sweepDeskGrievanceSla(principal: AuthenticatedPrincipal): Promise<{ breached: number }> {
+    assertDeskAdmin(principal);
+    const now = new Date();
+    const rows = await this.prisma.grievance.findMany({
+      where: {
+        tenantId: principal.tenantId,
+        slaDueAt: { lt: now },
+        slaBreachedAt: null,
+        NOT: { status: { in: ['resolved', 'closed'] } },
+      },
+      take: 100,
+    });
+    await this.prisma.$transaction(async (tx) => {
+      for (const row of rows) {
+        await tx.grievance.update({
+          where: { id: row.id },
+          data: {
+            slaBreachedAt: now,
+            routedRoleCode: 'municipality_admin',
+            assignedToUserId: null,
+          },
+        });
+        await tx.grievanceTimelineEntry.create({
+          data: {
+            tenantId: principal.tenantId,
+            grievanceId: row.id,
+            eventType: 'sla_breach',
+            actorSubject: principal.subject,
+            body: 'SLA breached; escalated to municipality_admin',
+            metadata: { previous_role: row.routedRoleCode },
+          },
+        });
+      }
+    });
+    await this.auditTenantMutation(principal, 'desk.grievance.sweep_sla', {
+      breached: rows.length,
+    });
+    return { breached: rows.length };
+  }
+
+  private async loadWorkflowForDesk(
+    serviceId: string,
+  ): Promise<{ definition: WorkflowDefinition; row: WorkflowWithChildren | null }> {
+    const row = await this.prisma.workflow.findFirst({
+      where: { serviceId, status: 'published' },
+      orderBy: { version: 'desc' },
+      include: workflowInclude,
+    });
+    if (row) {
+      return { definition: normalizeDeskWorkflowActors(toWorkflowDefinition(row)), row };
+    }
+    return {
+      definition: normalizeDeskWorkflowActors(workflowForPattern('certificate-issuance')),
+      row: null,
+    };
+  }
+
+  private async allowedApplicationTransitions(
+    principal: AuthenticatedPrincipal,
+    workflow: { definition: WorkflowDefinition; row: WorkflowWithChildren | null },
+    currentStage: string,
+  ): Promise<TenantDeskAllowedTransition[]> {
+    const roles = normalizeDeskRoles(principal.roles);
+    const transitions = workflow.definition.transitions.filter(
+      (transition) => transition.from === currentStage && roles.includes(transition.actor_role),
+    );
+    const allowed: TenantDeskAllowedTransition[] = [];
+    for (const transition of transitions) {
+      try {
+        await this.assertRoleStageCanAct(
+          principal,
+          workflow.row,
+          currentStage,
+          transition.actor_role,
+        );
+      } catch {
+        continue;
+      }
+      allowed.push({
+        verb: transition.verb,
+        to_stage: transition.to,
+        label: labelForTransition(transition.verb),
+        actor_role: transition.actor_role,
+        requires_comment: transition.requires_comment === true,
+      });
+    }
+    return allowed;
+  }
+
+  private async assertRoleStageCanAct(
+    principal: AuthenticatedPrincipal,
+    workflow: WorkflowWithChildren | null,
+    stageCode: string,
+    actorRole: string,
+  ): Promise<void> {
+    if (!workflow) {
+      return;
+    }
+    const stage = workflow.stages.find((item) => item.code === stageCode);
+    if (!stage) {
+      return;
+    }
+    const roles = normalizeDeskRoles([...principal.roles, actorRole]);
+    const rows = await this.prisma.roleStageMap.findMany({
+      where: { tenantId: principal.tenantId, stageId: stage.id, roleCode: { in: roles } },
+    });
+    if (rows.length > 0 && !rows.some((row) => row.canAct)) {
+      throw new ForbiddenException('Role cannot act on this workflow stage');
+    }
+  }
+
   private async getBookableAsset(tenantId: string, code: string) {
     const asset = await this.prisma.bookableAsset.findUnique({
       where: { tenantId_code: { tenantId, code } },
@@ -2549,6 +3222,210 @@ const workflowInclude = {
     },
   },
 };
+
+const DESK_ROLES = new Set([
+  'tenant_clerk',
+  'municipality_clerk',
+  'tenant_admin',
+  'municipality_admin',
+  'state_admin',
+]);
+
+const DESK_ADMIN_ROLES = new Set(['tenant_admin', 'municipality_admin', 'state_admin']);
+
+function assertDeskAccess(principal: AuthenticatedPrincipal): void {
+  if (!principal.tenantId || !principal.roles.some((role) => DESK_ROLES.has(role))) {
+    throw new ForbiddenException('Tenant Desk requires clerk or municipality admin role');
+  }
+}
+
+function assertDeskAdmin(principal: AuthenticatedPrincipal): void {
+  assertDeskAccess(principal);
+  if (!hasDeskAdminRole(principal.roles)) {
+    throw new ForbiddenException('Municipality admin role required');
+  }
+}
+
+function hasDeskAdminRole(roles: string[]): boolean {
+  return roles.some((role) => DESK_ADMIN_ROLES.has(role));
+}
+
+function normalizeDeskRoles(roles: string[]): string[] {
+  const out = new Set(roles.filter(Boolean));
+  if (out.has('municipality_clerk')) {
+    out.add('tenant_clerk');
+  }
+  if (out.has('tenant_clerk')) {
+    out.add('municipality_clerk');
+  }
+  if (out.has('municipality_admin')) {
+    out.add('tenant_admin');
+  }
+  if (out.has('tenant_admin')) {
+    out.add('municipality_admin');
+  }
+  if (out.has('state_admin')) {
+    out.add('tenant_admin');
+    out.add('municipality_admin');
+    out.add('tenant_clerk');
+    out.add('municipality_clerk');
+  }
+  return [...out];
+}
+
+function normalizeDeskWorkflowActors(workflow: WorkflowDefinition): WorkflowDefinition {
+  const ownerByStage = new Map(workflow.stages.map((stage) => [stage.code, stage.owner_role]));
+  return {
+    ...workflow,
+    transitions: workflow.transitions.map((transition) => {
+      const fromOwner = ownerByStage.get(transition.from);
+      if (
+        (fromOwner === 'tenant_clerk' || fromOwner === 'municipality_clerk') &&
+        (transition.actor_role === 'tenant_admin' || transition.actor_role === 'municipality_admin')
+      ) {
+        return { ...transition, actor_role: fromOwner };
+      }
+      return transition;
+    }),
+  };
+}
+
+function isUuidString(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function cryptoRandomId(): string {
+  return randomUUID();
+}
+
+function toApplicationSnapshot(value: Prisma.JsonValue): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function snapshotString(value: Prisma.JsonValue, key: string): string | null {
+  const snapshot = toApplicationSnapshot(value);
+  const v = snapshot[key];
+  return typeof v === 'string' ? v : null;
+}
+
+function timelineHasActorRole(snapshot: Record<string, unknown>, roles: string[]): boolean {
+  if (!Array.isArray(snapshot.timeline)) {
+    return false;
+  }
+  return snapshot.timeline.some((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return false;
+    }
+    const actorRole = (item as Record<string, unknown>).actor_role;
+    return typeof actorRole === 'string' && roles.includes(actorRole);
+  });
+}
+
+function toDeskApplicationListItem(row: {
+  id: string;
+  docketNo: string;
+  serviceCode: string;
+  status: string;
+  statusLabel: Prisma.JsonValue;
+  pendingRole: string | null;
+  paymentStatus: string;
+  submittedAt: Date;
+  updatedAt?: Date;
+  runtimeSnapshot: Prisma.JsonValue;
+  service: { name: Prisma.JsonValue };
+}): TenantDeskApplicationListItem {
+  const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+  return {
+    id: row.id,
+    docket_no: row.docketNo,
+    service_code: row.serviceCode,
+    service_name: labelFromJson(row.service.name).en,
+    status: snapshotString(row.runtimeSnapshot, 'status') ?? row.status,
+    status_label:
+      snapshotString(row.runtimeSnapshot, 'status_label') ?? labelFromJson(row.statusLabel).en,
+    current_stage: snapshotString(row.runtimeSnapshot, 'current_stage') ?? row.status,
+    pending_role: snapshotString(row.runtimeSnapshot, 'pending_role') ?? row.pendingRole,
+    payment_status: snapshotString(row.runtimeSnapshot, 'payment_status') ?? row.paymentStatus,
+    submitted_at:
+      typeof snapshot.submitted_at === 'string'
+        ? snapshot.submitted_at
+        : row.submittedAt.toISOString(),
+    updated_at: row.updatedAt?.toISOString() ?? null,
+  };
+}
+
+function resolvePendingRoleFromEffects(effects: WorkflowEffect[]): string | null {
+  for (const effect of effects) {
+    if (effect.type === 'escalate') {
+      const target = effect.payload?.target_role;
+      if (typeof target === 'string' && target.trim()) {
+        return target.trim();
+      }
+    }
+  }
+  return null;
+}
+
+function labelForTransition(verb: string): string {
+  return verb
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function toDeskGrievanceListItem(row: {
+  id: string;
+  grievanceNo: string;
+  category: string;
+  status: string;
+  grievancePriority: string;
+  routedRoleCode: string | null;
+  assignedToUserId: string | null;
+  slaDueAt: Date | null;
+  slaBreachedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): TenantDeskGrievanceListItem {
+  return {
+    id: row.id,
+    grievance_no: row.grievanceNo,
+    category: row.category,
+    status: row.status,
+    priority: row.grievancePriority,
+    routed_role_code: row.routedRoleCode,
+    assigned_to_user_id: row.assignedToUserId,
+    sla_due_at: row.slaDueAt?.toISOString() ?? null,
+    sla_breached_at: row.slaBreachedAt?.toISOString() ?? null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+function deskGrievanceMatchesMyQueue(
+  principal: AuthenticatedPrincipal,
+  row: TenantDeskGrievanceListItem,
+): boolean {
+  const roles = normalizeDeskRoles(principal.roles);
+  return Boolean(
+    (row.routed_role_code && roles.includes(row.routed_role_code)) ||
+    row.assigned_to_user_id === principal.subject ||
+    (row.sla_breached_at && hasDeskAdminRole(principal.roles)),
+  );
+}
+
+function nextGrievanceStatuses(status: GrievanceStatus): GrievanceStatus[] {
+  return GRIEVANCE_STATUSES.filter((candidate) => {
+    try {
+      assertGrievanceTransition(status, candidate);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
 
 function toSettingsRow(
   tenant: {

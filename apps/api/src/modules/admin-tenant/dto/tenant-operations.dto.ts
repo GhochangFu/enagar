@@ -273,6 +273,34 @@ export class UpdateStaffInviteDto {
   action!: string;
 }
 
+export class DeskApplicationTransitionDto {
+  @IsString()
+  verb!: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
+}
+
+export class DeskGrievanceAssignDto {
+  @IsString()
+  user_id!: string;
+}
+
+export class DeskGrievanceStatusDto {
+  @IsString()
+  status!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class DeskCommentDto {
+  @IsString()
+  body!: string;
+}
+
 export class UpsertRoleStageMapDto {
   @IsString()
   workflow_code!: string;

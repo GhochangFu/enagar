@@ -272,7 +272,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **Master Sprint 6.12** is **closed in-repo (engineering)** for Phase 6 P5 staff invite/provisioning UX, global service library curation, integration cockpit metadata, and audit/onboarding hardening. **Hub H5.1** — repo slice landed (Keycloak runbook, realm roles, API `tenant_clerk` parity); staging bootstrap + DevOps sign-off still env-specific. **Hub H6.1**, **Master Sprint 5.4**, and **Master Sprints 6.1–6.12** are **closed in-repo (engineering)** — see the corresponding runbooks under [`docs/runbooks/`](./docs/runbooks/). **Sprint 7.1** can resume Phase 7 AI/RAG work when the sponsor pulls it. **Sprint 3.1B** deferred.
+**Next:** **Phase 7 — Sahayak AI** may proceed — **Master Sprint 6.13** is **closed** ([`master-sprint-613-exit.md`](./docs/runbooks/master-sprint-613-exit.md), engineering + manual smoke **2026-05-18**): clerks and municipality admins process applications and grievances on **Tenant Admin :3002**. **Sprints 6.1–6.12** are **closed in-repo (engineering)** — see [`docs/runbooks/`](./docs/runbooks/). **Sprint 3.1B** deferred.
 
 ---
 

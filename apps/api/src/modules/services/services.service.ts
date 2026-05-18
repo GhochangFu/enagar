@@ -22,6 +22,19 @@ import type {
 } from './service-catalogue.seed';
 import type { Prisma } from '../../generated/prisma';
 import type { EnagarFormSchema } from '@enagar/forms';
+import type { WorkflowDefinition, WorkflowEffect } from '@enagar/workflow';
+
+type WorkflowWithChildren = Prisma.WorkflowGetPayload<{
+  include: {
+    stages: true;
+    transitions: {
+      include: {
+        fromStage: true;
+        toStage: true;
+      };
+    };
+  };
+}>;
 
 type DbTenantServiceRow = {
   id: string;
@@ -115,6 +128,26 @@ export class ServicesService {
     }
 
     return { ...service };
+  }
+
+  async getPublishedWorkflowDefinition(
+    tenantCode: string,
+    serviceCode: string,
+  ): Promise<WorkflowDefinition | null> {
+    if (!this.prisma) {
+      return null;
+    }
+    const tenant = await this.findActiveTenant(tenantCode);
+    const workflow = await this.prisma.workflow.findFirst({
+      where: {
+        tenantId: tenant.id,
+        status: 'published',
+        service: { code: serviceCode.trim().toLowerCase() },
+      },
+      orderBy: { version: 'desc' },
+      include: workflowInclude,
+    });
+    return workflow ? normalizeWorkflowActorsForStageOwners(toWorkflowDefinition(workflow)) : null;
   }
 
   /**
@@ -263,6 +296,59 @@ export class ServicesService {
       throw new NotFoundException('Tenant not found');
     }
   }
+}
+
+const workflowInclude = {
+  stages: { orderBy: { sortOrder: 'asc' as const } },
+  transitions: {
+    include: {
+      fromStage: true,
+      toStage: true,
+    },
+  },
+};
+
+function toWorkflowDefinition(row: WorkflowWithChildren): WorkflowDefinition {
+  return {
+    code: row.code,
+    version: row.version,
+    stages: row.stages
+      .slice()
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((stage) => ({
+        code: stage.code,
+        label: stage.label as { en: string; bn: string; hi: string },
+        owner_role: stage.ownerRole,
+        sla_hours: stage.slaHours ?? undefined,
+        initial: stage.isInitial,
+        terminal: stage.isTerminal,
+      })),
+    transitions: row.transitions.map((transition) => ({
+      from: transition.fromStage.code,
+      to: transition.toStage.code,
+      verb: transition.verb,
+      actor_role: transition.actorRole,
+      requires_comment: transition.requiresComment,
+      effects: transition.sideEffects as unknown as WorkflowEffect[],
+    })),
+  };
+}
+
+function normalizeWorkflowActorsForStageOwners(workflow: WorkflowDefinition): WorkflowDefinition {
+  const ownerByStage = new Map(workflow.stages.map((stage) => [stage.code, stage.owner_role]));
+  return {
+    ...workflow,
+    transitions: workflow.transitions.map((transition) => {
+      const fromOwner = ownerByStage.get(transition.from);
+      if (
+        (fromOwner === 'tenant_clerk' || fromOwner === 'municipality_clerk') &&
+        (transition.actor_role === 'tenant_admin' || transition.actor_role === 'municipality_admin')
+      ) {
+        return { ...transition, actor_role: fromOwner };
+      }
+      return transition;
+    }),
+  };
 }
 
 function toEffectiveServiceSummary(

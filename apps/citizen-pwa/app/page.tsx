@@ -20,8 +20,9 @@ import {
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { TenantBanners } from '../components/tenant-banners';
-import { defaultFormValuesForService } from '../lib/service-schemas';
+import { defaultFormValuesForSchema } from '../lib/service-schemas';
 import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
+import { resolveTenantFromCatalogue } from '../lib/tenant-catalogue';
 import {
   authHeaders,
   CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
@@ -204,10 +205,9 @@ export default function HomePage(): JSX.Element {
     if (!hubDashboard) {
       return [];
     }
-    const byCode = new Map(tenants.map((tenant) => [tenant.code, tenant]));
     return [...hubDashboard.municipalities]
       .map((bucket) => {
-        const catalogue = byCode.get(bucket.tenant_code);
+        const catalogue = resolveTenantFromCatalogue(bucket.tenant_code, bucket.tenant_id, tenants);
         return {
           bucket,
           catalogue,
@@ -240,6 +240,11 @@ export default function HomePage(): JSX.Element {
       .map((code) => byBucketCode.get(code))
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
   }, [citizenPreferences?.pinned_tenant_codes, hubDashboard, cataloguedDashboardRows]);
+
+  const applyPickerTenants = useMemo(
+    () => [...tenants].sort((left, right) => left.code.localeCompare(right.code)),
+    [tenants],
+  );
 
   const tenantsById = useMemo(
     () => new Map(tenants.map((tenant) => [tenant.id, tenant])),
@@ -406,6 +411,23 @@ export default function HomePage(): JSX.Element {
     })();
   }, [step]);
 
+  useEffect(() => {
+    if (step !== 'hub' || hubTab !== 'apply' || tenants.length || !token) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/tenants`);
+        if (response.ok) {
+          setTenants((await response.json()) as TenantSummary[]);
+        }
+      } catch {
+        /* Hub refresh will reconcile. */
+      }
+    })();
+  }, [step, hubTab, tenants.length, token]);
+
   async function requestOtp(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setStatus(t('status.sendingOtp', language));
@@ -518,7 +540,7 @@ export default function HomePage(): JSX.Element {
 
   async function chooseTenant(
     tenant: TenantSummary,
-    opts?: { workspaceServiceCodes?: string[] | null },
+    opts?: { workspaceServiceCodes?: string[] | null; workspaceTab?: WorkspaceTab },
   ): Promise<void> {
     setApplicationDetail(null);
     setSelectedTenant(tenant);
@@ -530,7 +552,7 @@ export default function HomePage(): JSX.Element {
         : null;
 
     setWorkspaceServiceCodesFilter(focusCodes);
-    setActiveTab(focusCodes ? 'services' : 'home');
+    setActiveTab(opts?.workspaceTab ?? (focusCodes ? 'services' : 'home'));
 
     if (token?.access_token) {
       try {
@@ -829,7 +851,7 @@ export default function HomePage(): JSX.Element {
 
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
-    setFormValues(defaultFormValuesForService(service.code));
+    setFormValues(defaultFormValuesForSchema(service.code, service.form_schema));
     setHoldingLookup(null);
     setApplicationDetail(null);
     setActiveTab('apply');
@@ -1940,30 +1962,37 @@ export default function HomePage(): JSX.Element {
                   Browse municipalities
                 </button>
               </div>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {cataloguedDashboardRows.map(({ bucket, catalogue, shortName }) => (
-                  <button
-                    className={`rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                      !catalogue ? 'cursor-not-allowed opacity-60' : ''
-                    }`}
-                    disabled={!catalogue}
-                    key={`apply-${bucket.tenant_id}`}
-                    onClick={() => {
-                      if (catalogue) {
-                        void chooseTenant(catalogue);
-                      }
-                    }}
-                    type="button"
-                  >
-                    <span
-                      className="block h-2 w-full rounded-full"
-                      style={{ backgroundColor: bucket.theme_color }}
-                    />
-                    <span className="mt-4 block text-lg font-bold">{bucket.tenant_code}</span>
-                    <span className="mt-1 block text-sm text-slate-600">{shortName}</span>
-                  </button>
-                ))}
-              </div>
+              {applyPickerTenants.length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  Loading municipalities… use <strong>Browse municipalities</strong> if this
+                  persists.
+                </p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {applyPickerTenants.map((tenant) => (
+                    <button
+                      className="rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                      key={`apply-${tenant.code}`}
+                      onClick={() => {
+                        void chooseTenant(tenant, { workspaceTab: 'services' });
+                      }}
+                      type="button"
+                    >
+                      <span
+                        className="block h-2 w-full rounded-full"
+                        style={{ backgroundColor: tenant.theme_color }}
+                      />
+                      <span className="mt-4 block text-lg font-bold">{tenant.code}</span>
+                      <span className="mt-1 block text-sm text-slate-600">
+                        {tenant.name.replace(' Municipal', '')}
+                      </span>
+                      <span className="mt-4 block text-sm font-medium text-slate-500">
+                        {tenant.ward_count} wards
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
@@ -2158,7 +2187,10 @@ export default function HomePage(): JSX.Element {
                         className="w-full rounded-2xl border border-slate-100 px-4 py-3 text-left transition hover:border-brand/40"
                         onClick={() => {
                           setMunicipalityBrowseOpen(false);
-                          void chooseTenant(tenant);
+                          void chooseTenant(
+                            tenant,
+                            hubTab === 'apply' ? { workspaceTab: 'services' } : undefined,
+                          );
                         }}
                         type="button"
                       >
