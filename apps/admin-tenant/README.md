@@ -78,7 +78,7 @@ JWT must include **`tenant_id` / `tenant_code`** claims (`tenant-claims` scope).
 - **Clerks and municipality admins** both sign in here (**`:3002`**); no separate clerk PWA.
 - New **`/dashboard/desk`**: application inbox (workflow approve/reject/forward) + grievance inbox (status, assign, comment).
 - Desk APIs: **`/admin/tenant/desk/*`**; existing configure APIs stay admin-only.
-- Exit: **`docs/runbooks/master-sprint-613-exit.md`** — closed (engineering + manual smoke **2026-05-18**); Phase 7 unblocked.
+- Exit: **`docs/runbooks/master-sprint-613-exit.md`** — closed (2026-05-18). **Phase UX (6.14–6.19)** next — [`phase-ux-revamp-plan.md`](../../docs/runbooks/phase-ux-revamp-plan.md); gates Phase 7.
 
 ## Relation to citizen catalogue API
 

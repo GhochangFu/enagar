@@ -272,7 +272,7 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 **Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
 
-**Next:** **Phase 7 — Sahayak AI** may proceed — **Master Sprint 6.13** is **closed** ([`master-sprint-613-exit.md`](./docs/runbooks/master-sprint-613-exit.md), engineering + manual smoke **2026-05-18**): clerks and municipality admins process applications and grievances on **Tenant Admin :3002**. **Sprints 6.1–6.12** are **closed in-repo (engineering)** — see [`docs/runbooks/`](./docs/runbooks/). **Sprint 3.1B** deferred.
+**Next:** **Phase UX (Sprints 6.14–6.19)** — cross-portal UI revamp (**Tricolor Calm** + per-tenant `theme_color`) on Citizen PWA, Tenant Admin/Desk, State Admin, and mobile parity in **6.19** — [`phase-ux-revamp-plan.md`](./docs/runbooks/phase-ux-revamp-plan.md); start [`master-sprint-614-plan.md`](./docs/runbooks/master-sprint-614-plan.md). **Phase 7 — Sahayak AI** follows **6.19** UX sign-off. **Sprint 6.13** (Operator Desk) is **closed** — [`master-sprint-613-exit.md`](./docs/runbooks/master-sprint-613-exit.md). **Sprint 3.1B** deferred.
 
 ---
 

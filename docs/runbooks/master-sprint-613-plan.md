@@ -6,7 +6,7 @@ Status: **executed — engineering verification in progress** (gate before **Pha
 
 - **No separate clerk PWA.** Operator processing lives in **`apps/admin-tenant`** on port **3002**.
 - **Clerks and municipality admins** use the **same Keycloak login**; **role-gated navigation** separates Desk from configuration.
-- **Phase 7 (Sahayak AI / RAG)** does not start until this sprint’s engineering exit + manual smoke are closed — **both closed 2026-05-18** ([`master-sprint-613-exit.md`](./master-sprint-613-exit.md)).
+- **Phase 7 (Sahayak AI / RAG)** does not start until **Phase UX (6.14–6.19)** closes — this sprint’s functional scope is **closed 2026-05-18** ([`master-sprint-613-exit.md`](./master-sprint-613-exit.md)); UX programme: [`phase-ux-revamp-plan.md`](./phase-ux-revamp-plan.md).
 
 ## Problem
 
@@ -125,7 +125,7 @@ Deliverables:
 - Municipality admin can act on **admin-stage** transitions, **assign** grievances, and run **SLA sweep**.
 - Citizen PWA shows updated application/grievance status after clerk action (existing read APIs).
 - Config routes remain **inaccessible** to clerk-only tokens.
-- Phase 7 work does not start until this exit record is **closed engineering** + manual smoke passed — **complete 2026-05-18**.
+- Phase 7 work does not start until **Phase UX (6.19)** exits — this sprint’s engineering + manual smoke are **complete 2026-05-18**.
 
 ## Verification plan
 

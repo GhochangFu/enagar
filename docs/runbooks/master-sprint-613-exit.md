@@ -1,6 +1,6 @@
 # Master Sprint 6.13 Exit — Operator Desk in Tenant Admin
 
-Status: **closed — engineering and manual smoke 2026-05-18**. Phase 7 is unblocked.
+Status: **closed — engineering and manual smoke 2026-05-18**. **Next programme:** Phase UX (**6.14–6.19**) gates Phase 7 — [`phase-ux-revamp-plan.md`](./phase-ux-revamp-plan.md).
 
 ## Delivered
 

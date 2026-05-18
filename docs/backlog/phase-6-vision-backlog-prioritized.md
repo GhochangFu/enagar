@@ -4,7 +4,7 @@
 **Authority:** deltas vs **`ROADMAP.md` § Phase 6 — Admin Portals (State + Tenant)** (~lines 1311–1380).  
 **Baseline shipped:** Master Sprints **6.1–6.12** (Tenant + State portals, catalogue alignment, designer polish, P1 operator polish, P2 reporting/bulk ops/state visibility, P3 governance/transparency, P4 content/reports/branding/bookings, P5 identity/library/integration hardening).
 
-**Gate before Phase 7:** **Sprint 6.13 — Operator Desk in Tenant Admin** is **closed (engineering + manual smoke 2026-05-18)** — [`docs/runbooks/master-sprint-613-exit.md`](../runbooks/master-sprint-613-exit.md). Clerks and municipality admins process applications and grievances on **`apps/admin-tenant` (:3002)**; no separate clerk PWA. **Phase 7 may start.**
+**Gate before Phase 7:** **Sprint 6.13** (Operator Desk) is **closed (2026-05-18)** — [`master-sprint-613-exit.md`](../runbooks/master-sprint-613-exit.md). **Phase UX (Sprints 6.14–6.19)** is **confirmed and next** — [`phase-ux-revamp-plan.md`](../runbooks/phase-ux-revamp-plan.md) — Tricolor Calm + tenant themes on PWA, Tenant Admin, State Admin, mobile in **6.19**. **Phase 7 starts after 6.19 UX sign-off.**
 
 This backlog is **not** a commitment to dates; use it when opening new sprints (**6.8+**, Phase **6.x hardening**, or Phase **7-adjacent** slices).
 
@@ -57,7 +57,8 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 |  21   |    P5    | **Global Service Library curator** (state-wide template authoring)                                                 | State                   | Closed engineering — Sprint 6.12  | _Library product_                      | State template authoring/publish/deprecate over existing catalogue governance.         |
 |  22   |    P5    | **State integration cockpit** (DigiLocker, PSP, SMS DLT, etc.)                                                     | State                   | Closed engineering — Sprint 6.12  | _Enterprise integrations_              | Metadata/readiness cockpit only; no production secrets or live provider launch.        |
 |  23   |    P5    | **Phase 6 “exit prose” verbatim** — every admin mutation audited everywhere; wizard-only onboarding for Nᵗʰ tenant | Both                    | Closed engineering — Sprint 6.12  | _Hardening / audit completeness_       | Measurable audit/onboarding hardening subset; full sponsor acceptance remains broader. |
-|  24   |   Gate   | **Operator Desk** — clerk/admin application workflow inbox + grievance handling in Tenant Admin                    | Tenant (`admin-tenant`) | Closed — Sprint 6.13 (2026-05-18) | _ULB processing workstation_           | Role-gated Desk on :3002; manual smoke signed off — Phase 7 unblocked.                 |
+|  24   |   Gate   | **Operator Desk** — clerk/admin application workflow inbox + grievance handling in Tenant Admin                    | Tenant (`admin-tenant`) | Closed — Sprint 6.13 (2026-05-18) | _ULB processing workstation_           | Desk on :3002; functional smoke done.                                                  |
+|  25   |   Gate   | **Phase UX** — Tricolor Calm revamp; tenant `theme_color` workspaces; citizen → admin → state + mobile             | PWA + admin + mobile    | **Next — 6.14–6.19**              | _Experience layer_                     | Confirmed 2026-05-18; **blocks Phase 7** until 6.19 exit.                              |
 
 \* **Repo today** legend: aligned with **`apps/admin-tenant`** + **`apps/admin-state`** dashboards as of backlog authoring; APIs may expose more than the portal surfaces.
 
@@ -71,7 +72,8 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 - **`docs/runbooks/master-sprint-610-plan.md`** / **`master-sprint-610-exit.md`** — P3 sprint plan and engineering exit record.
 - **`docs/runbooks/master-sprint-611-plan.md`** / **`master-sprint-611-exit.md`** — P4 sprint plan and engineering exit record.
 - **`docs/runbooks/master-sprint-612-plan.md`** / **`master-sprint-612-exit.md`** — P5 sprint plan and engineering exit record.
-- **`docs/runbooks/master-sprint-613-plan.md`** / **`master-sprint-613-exit.md`** — Operator Desk sprint (gate before Phase 7).
+- **`docs/runbooks/master-sprint-613-plan.md`** / **`master-sprint-613-exit.md`** — Operator Desk (functional gate, closed).
+- **`docs/runbooks/phase-ux-revamp-plan.md`** / **`master-sprint-614-plan.md`** — Phase UX programme (gate before Phase 7).
 - **`docs/help/start-the-app-step-by-step.md`** — how to smoke local portals.
 
 ---
@@ -83,4 +85,4 @@ Reorder when sponsor priorities shift (example: PSP live before PDF reports).
 3. Add `tests/security` or domain contract specs when touching cross-cutting behaviour (patterns in `tests/security/`).
 4. When a slice **closes**, append a **`docs/runbooks/master-sprint-*.md`** (or backlog row update) linking **Order** IDs.
 
-_Last updated: 2026-05-18 (P1–P5 closed in Sprints 6.8–6.12; Sprint 6.13 Operator Desk closed including manual smoke — Phase 7 unblocked)._
+_Last updated: 2026-05-18 (Sprint 6.13 closed; Phase UX 6.14–6.19 confirmed next — gates Phase 7)._

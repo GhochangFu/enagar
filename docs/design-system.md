@@ -4,7 +4,8 @@
 
 > **Scope of v0.1.** Tokens, iconography, multi-tenant theming model, component inventory, and **textual wireframes** for the six critical citizen flows. Pixel-level Figma artefacts are intentionally out of scope — we are an open-source government project and wireframes need to survive copy-paste, version control, and code review.
 
-> **Status:** Sprint 0.2 deliverable. Implemented incrementally from Phase 2 onwards under `@enagar/ui` (web) and `@enagar/ui-native` (RN).
+> **Status:** Sprint 0.2 deliverable. Implemented incrementally from Phase 2 onwards under `@enagar/ui` (web) and `@enagar/ui-native` (RN).  
+> **Phase UX (Sprints 6.14–6.19):** Sponsor-confirmed revamp — **Tricolor Calm** platform pastels + tenant palette derivation — see [`docs/runbooks/phase-ux-revamp-plan.md`](./runbooks/phase-ux-revamp-plan.md). Typography locked to **Plus Jakarta Sans** + **Noto** (bn/hi); Inter removed from theme default in 6.14.
 
 ---
 
