@@ -19,7 +19,11 @@ This plan does **not** change APIs, workflow JSON, auth, or business rules — o
 
 ---
 
-## 2. Design direction — “Tricolor Calm”
+## 2. Design direction — “Warm Coral” (B+ Pro, sponsor-locked)
+
+> **Citizen PWA palette (2026-05):** Sponsor confirmed **Option B+ Pro** — warm white canvas `#FAF7F4`, burnt primary `#BF4A0A`, forest/sage greens, peach `#FFCDAA` accent-only, **no gradients**. See [`docs/design-previews/citizen-pwa-palette-preview.html`](../design-previews/citizen-pwa-palette-preview.html) and [`docs/design-system.md`](../design-system.md).
+
+## 2a. Legacy note — “Tricolor Calm” (6.14)
 
 ### 2.1 Concept
 

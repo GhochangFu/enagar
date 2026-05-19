@@ -27,6 +27,9 @@ export type ThemeRoot = {
 
 const PLUS_JAKARTA = '"Plus Jakarta Sans", system-ui, sans-serif';
 
+/** Citizen hub / auth platform brand (Warm Coral B+ Pro). ULB workspace uses `theme_color`. */
+export const PLATFORM_BRAND_HEX = '#BF4A0A';
+
 export const DEFAULT_THEME: ThemeTokens = {
   ...createTenantPalette('#0F4C75'),
   logoUrl: null,
@@ -75,9 +78,13 @@ export function applyTenantTheme(
   return tokens;
 }
 
-/** Hub / statewide shell — Tricolor Calm platform canvas without a selected ULB. */
+/** Hub / statewide shell — Warm Coral platform canvas without a selected ULB. */
 export function applyPlatformTheme(root: ThemeRoot | undefined = getDocumentRoot()): ThemeTokens {
-  const tokens = { ...DEFAULT_THEME, fontFamily: PLUS_JAKARTA };
+  const tokens: ThemeTokens = {
+    ...createTenantPalette(PLATFORM_BRAND_HEX),
+    logoUrl: null,
+    fontFamily: PLUS_JAKARTA,
+  };
   applyPaletteToRoot(tokens, root);
   root?.style.setProperty('--tenant-font-family', PLUS_JAKARTA);
   root?.style.removeProperty('--tenant-logo-url');

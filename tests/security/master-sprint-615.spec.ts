@@ -24,10 +24,11 @@ describe('Master Sprint 6.15 — Citizen PWA auth, hub and navigation', () => {
     expect(page).toContain('BrowseMunicipalityModal');
   });
 
-  it('keeps the sprint focused on Tricolor Calm UX without API drift', () => {
-    expect(authFlow).toContain('bg-platform-gradient');
-    expect(authFlow).toContain('bg-saffron-wash');
-    expect(authFlow).toContain('bg-green-wash');
+  it('keeps the sprint focused on Warm Coral B+ Pro UX without API drift', () => {
+    expect(authFlow).toContain('bg-canvas');
+    expect(authFlow).not.toContain('radial-gradient');
+    expect(authFlow).toContain('bg-mint-band');
+    expect(authFlow).toContain('bg-peach-accent');
     expect(hubComponents).toContain('CitizenHubNavigation');
     expect(hubComponents).toContain('theme_color');
     expect(page).toContain('/citizen/preferences');
@@ -54,6 +55,7 @@ describe('Master Sprint 6.15 — Citizen PWA auth, hub and navigation', () => {
     expect(sprintPlan).toContain('No API route, database, service schema');
     expect(sprintPlan).toContain('360 px viewport');
     expect(phasePlan).toContain('Sprint 6.15 — Citizen PWA: auth, hub & navigation');
-    expect(phasePlan).toContain('Sprint 6.15 closed; ready for Sprint 6.16');
+    expect(phasePlan).toContain('Option B+ Pro');
+    expect(phasePlan).toMatch(/Sprint 6\.1[67]/);
   });
 });

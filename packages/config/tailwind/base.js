@@ -15,9 +15,19 @@ module.exports = {
       },
       colors: {
         canvas: 'rgb(var(--canvas-rgb) / <alpha-value>)',
+        surface: 'rgb(var(--surface-rgb) / <alpha-value>)',
+        peach: {
+          accent: 'rgb(var(--peach-accent-rgb) / <alpha-value>)',
+          soft: 'rgb(var(--peach-soft-rgb) / <alpha-value>)',
+        },
         saffron: {
           wash: 'rgb(var(--saffron-wash-rgb) / <alpha-value>)',
         },
+        mint: {
+          band: 'rgb(var(--mint-band-rgb) / <alpha-value>)',
+        },
+        sage: 'rgb(var(--sage-rgb) / <alpha-value>)',
+        forest: 'rgb(var(--forest-rgb) / <alpha-value>)',
         green: {
           wash: 'rgb(var(--green-wash-rgb) / <alpha-value>)',
         },
@@ -33,18 +43,20 @@ module.exports = {
         ink: {
           primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
           secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+          muted: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
         },
         warm: {
           border: 'rgb(var(--border-warm-rgb) / <alpha-value>)',
         },
+        link: 'rgb(var(--link-rgb) / <alpha-value>)',
       },
       borderRadius: {
         '2xl': '1rem',
         '3xl': '1.5rem',
       },
       backgroundImage: {
-        'platform-gradient':
-          'linear-gradient(135deg, rgb(var(--saffron-wash-rgb)) 0%, rgb(var(--canvas-rgb)) 45%, rgb(var(--green-wash-rgb)) 100%)',
+        /* Solid canvas alias — use `bg-canvas` in new code; kept for compat */
+        'platform-gradient': 'linear-gradient(rgb(var(--canvas-rgb)), rgb(var(--canvas-rgb)))',
       },
     },
   },

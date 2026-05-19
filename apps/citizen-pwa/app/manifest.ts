@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'One-stop municipal services for the citizens of West Bengal.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#0F4C75',
-    theme_color: '#0F4C75',
+    background_color: '#FAF7F4',
+    theme_color: '#BF4A0A',
     icons: [
       { src: '/icon', type: 'image/png', sizes: '512x512', purpose: 'any' },
       { src: '/icon', type: 'image/png', sizes: '512x512', purpose: 'maskable' },

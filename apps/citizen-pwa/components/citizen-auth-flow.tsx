@@ -23,19 +23,14 @@ export function CitizenAuthFrame({
   status: string;
 }): JSX.Element {
   return (
-    <section
-      className="relative isolate -mx-6 -my-10 flex min-h-screen items-center overflow-hidden px-6 py-10"
-      style={{
-        background:
-          'radial-gradient(circle at 8% 18%, rgba(251, 146, 60, 0.42), transparent 32%), radial-gradient(circle at 92% 82%, rgba(34, 197, 94, 0.3), transparent 34%), linear-gradient(135deg, rgb(var(--saffron-wash-rgb)) 0%, rgb(var(--canvas-rgb)) 48%, rgb(var(--green-wash-rgb)) 100%)',
-      }}
-    >
-      <div className="absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-orange-300/20" />
-      <div className="absolute right-[18%] top-[8%] h-32 w-32 rounded-full bg-amber-200/35" />
-      <div className="absolute bottom-[-10rem] right-[-6rem] h-80 w-80 rounded-full bg-green-300/20" />
+    <section className="relative isolate -mx-6 -my-10 flex min-h-screen items-center overflow-hidden bg-canvas px-6 py-10">
+      <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-peach-accent" />
       <div className="mx-auto grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[1fr_0.85fr]">
         <div className="space-y-5">
-          <Badge tone="brand" className="uppercase tracking-[0.24em]">
+          <Badge
+            className="border-sage/40 bg-sage uppercase tracking-[0.24em] text-ink-primary"
+            tone="neutral"
+          >
             eNagarSeba
           </Badge>
           <h1 className="max-w-2xl text-4xl font-black leading-tight text-ink-primary md:text-6xl">
@@ -66,8 +61,8 @@ export function SplashStep({
 }): JSX.Element {
   return (
     <CitizenAuthFrame status={status}>
-      <Card className="bg-white/90 p-7 shadow-xl backdrop-blur" padding="none">
-        <div className="rounded-[1.75rem] bg-brand-surface p-6 text-brand">
+      <Card className="border border-warm-border bg-surface p-7 shadow-lg" padding="none">
+        <div className="rounded-[1.75rem] bg-mint-band p-6 text-forest">
           <p className="text-xs font-bold uppercase tracking-[0.24em]">Citizen Services Preview</p>
           <p className="mt-16 text-2xl font-black leading-tight">
             Services, applications, documents, payments, and timelines in one place.
@@ -94,7 +89,7 @@ export function LanguageStep({
 }): JSX.Element {
   return (
     <CitizenAuthFrame status={status}>
-      <Card className="bg-white/90 p-7 shadow-xl backdrop-blur" padding="none">
+      <Card className="border border-warm-border bg-surface p-7 shadow-lg" padding="none">
         <h2 className="text-2xl font-black text-ink-primary">{t('language.title', language)}</h2>
         <div className="mt-6 grid gap-3">
           {(['en', 'bn', 'hi'] as const).map((code) => (
@@ -140,7 +135,7 @@ export function LoginStep({
 }): JSX.Element {
   return (
     <CitizenAuthFrame status={status}>
-      <Card className="bg-white/90 p-7 shadow-xl backdrop-blur" padding="none">
+      <Card className="border border-warm-border bg-surface p-7 shadow-lg" padding="none">
         <form onSubmit={onSubmit}>
           <h2 className="text-2xl font-black text-ink-primary">{t('login.title', language)}</h2>
           <label className="mt-6 block text-sm font-semibold text-ink-secondary" htmlFor="mobile">
@@ -181,7 +176,7 @@ export function OtpStep({
 }): JSX.Element {
   return (
     <CitizenAuthFrame status={status}>
-      <Card className="bg-white/90 p-7 shadow-xl backdrop-blur" padding="none">
+      <Card className="border border-warm-border bg-surface p-7 shadow-lg" padding="none">
         <form onSubmit={onSubmit}>
           <Badge tone="brand">OTP sent to {mobile || 'your mobile'}</Badge>
           <h2 className="mt-4 text-2xl font-black text-ink-primary">{t('otp.title', language)}</h2>
@@ -229,7 +224,7 @@ export function PinMunicipalitiesStep({
   return (
     <CitizenAuthFrame status={status}>
       <Card
-        className="flex max-h-[78vh] flex-col overflow-hidden bg-white/90 p-7 shadow-xl backdrop-blur"
+        className="flex max-h-[78vh] flex-col overflow-hidden border border-warm-border bg-surface p-7 shadow-lg"
         padding="none"
       >
         <header>
@@ -288,7 +283,7 @@ export function PinMunicipalitiesStep({
             );
           })}
         </ul>
-        <div className="mt-5 shrink-0 border-t border-warm-border bg-white/90 pt-4">
+        <div className="mt-5 shrink-0 border-t border-warm-border bg-surface pt-4">
           <Button
             className="w-full"
             disabled={pinsDraftCodes.length === 0 || !tokenPresent}

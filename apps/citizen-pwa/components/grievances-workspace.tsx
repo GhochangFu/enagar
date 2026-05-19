@@ -1070,7 +1070,7 @@ export function GrievancesWorkspace({
           ← {t('grievance.nav', language)}
         </button>
         <div className="overflow-hidden rounded-[2rem] border border-warm-border bg-white shadow-sm">
-          <div className="border-b border-warm-border bg-gradient-to-br from-orange-50 via-white to-emerald-50 p-6">
+          <div className="border-b border-warm-border bg-mint-band p-6">
             <p className="font-mono text-xs font-black uppercase tracking-[0.16em] text-brand">
               {g.grievance_no}
             </p>

@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Citizen PWA — palette preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: #f5f0eb;
+        color: #2b211f;
+        line-height: 1.45;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.35rem;
+      }
+      .sub {
+        color: #5c4a47;
+        margin: 0 0 2rem;
+        max-width: 52ch;
+      }
+      h2 {
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin: 2.5rem 0 0.75rem;
+        letter-spacing: -0.02em;
+      }
+      h3 {
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #7a6561;
+        margin: 1.5rem 0 0.5rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+      }
+      .swatch {
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(43, 33, 31, 0.12);
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(43, 33, 31, 0.06);
+      }
+      .swatch-color {
+        height: 72px;
+      }
+      .swatch-meta {
+        padding: 0.55rem 0.65rem 0.65rem;
+        font-size: 0.72rem;
+      }
+      .swatch-meta strong {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #2b211f;
+      }
+      .swatch-meta code {
+        font-size: 0.68rem;
+        color: #5c4a47;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 0.75rem;
+      }
+      @media (max-width: 640px) {
+        .pair {
+          grid-template-columns: 1fr;
+        }
+      }
+      .panel {
+        border-radius: 18px;
+        padding: 1.25rem 1.35rem;
+        border: 1px solid rgba(43, 33, 31, 0.1);
+      }
+      .panel h4 {
+        margin: 0 0 0.35rem;
+        font-size: 1.1rem;
+        font-weight: 800;
+      }
+      .panel p {
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+      }
+      .btn {
+        display: inline-block;
+        padding: 0.65rem 1.1rem;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 0.88rem;
+        border: none;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .card-mock {
+        background: #fff;
+        border-radius: 16px;
+        padding: 1rem;
+        margin-top: 0.75rem;
+        border: 1px solid;
+      }
+      .ratio {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.15rem 0.4rem;
+        border-radius: 6px;
+        display: inline-block;
+        margin-top: 0.35rem;
+      }
+      .ratio.pass {
+        background: #e8f5e9;
+        color: #1b5e20;
+      }
+      .ratio.warn {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .ratio.fail {
+        background: #ffebee;
+        color: #b71c1c;
+      }
+      .nav-mock {
+        display: flex;
+        gap: 0.35rem;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .nav-mock span {
+        padding: 0.45rem 0.75rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+      .note {
+        font-size: 0.8rem;
+        color: #5c4a47;
+        margin-top: 0.5rem;
+      }
+      .scheme-label {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.75rem;
+      }
+      .scheme-label.recommended {
+        box-shadow: 0 0 0 2px #4a6b47;
+      }
+      .kpi-band {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin: 0.75rem 0;
+        padding: 0.65rem;
+        border-radius: 12px;
+      }
+      .kpi-band div {
+        text-align: center;
+        font-size: 0.72rem;
+      }
+      .kpi-band strong {
+        display: block;
+        font-size: 1.15rem;
+        font-weight: 800;
+      }
+      .stripe-sage {
+        display: block;
+        width: 4px;
+        height: 100%;
+        min-height: 3rem;
+        border-radius: 4px;
+        background: #9cb898;
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+      }
+      .card-mock.stripe-wrap {
+        position: relative;
+        padding-left: 1rem;
+      }
+      .pick-banner {
+        background: #e8f0e7;
+        border: 1px solid #9cb898;
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.88rem;
+        color: #2b211f;
+      }
+      .pick-banner strong {
+        color: #4a6b47;
+      }
+      .ux-callout {
+        background: #fff;
+        border: 1px solid #e8ddd6;
+        border-left: 4px solid #bf4a0a;
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.88rem;
+        color: #5c4a47;
+      }
+      .ux-callout h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+        color: #2b211f;
+      }
+      .ux-callout ul {
+        margin: 0.5rem 0 0;
+        padding-left: 1.2rem;
+      }
+      .canvas-compare {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-top: 0.75rem;
+      }
+      @media (max-width: 900px) {
+        .canvas-compare {
+          grid-template-columns: 1fr;
+        }
+      }
+      .canvas-compare .panel {
+        padding: 1rem;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.2rem 0.45rem;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+      }
+      .tag.warn {
+        background: #fff3e0;
+        color: #bf4a0a;
+      }
+      .tag.ok {
+        background: #e8f0e7;
+        color: #4a6b47;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Citizen PWA — color preview</h1>
+      <p class="sub">
+        Solid colors only (no gradients). <strong>Option B+ Pro</strong> is the recommended
+        direction: warm white canvas, colour in accents only. Contrast ratios are approximate (WCAG
+        AA body text = 4.5:1).
+      </p>
+
+      <div class="ux-callout">
+        <h2>UX note — why the canvas should be lighter</h2>
+        <p style="margin: 0">
+          A full-page <code>#FFCDAA</code> peach reads playful and saturated — fine for marketing,
+          but for a <strong>government service app</strong> it competes with CTAs and feels less
+          calm. Professionals use <strong>90% neutral + 10% brand colour</strong>:
+        </p>
+        <ul>
+          <li>
+            <strong>Canvas</strong> → warm white (<code>#FAF7F4</code>) — barely tinted, paper-like
+          </li>
+          <li>
+            <strong>Peach / salmon</strong> → small accents (badges, 1px borders, optional card top
+            strip) — not full bleed
+          </li>
+          <li><strong>Burnt + forest</strong> → buttons and KPI band — carry the identity</li>
+          <li>
+            <strong>Cards</strong> → pure <code>#FFFFFF</code> on the warm white canvas for clear
+            hierarchy
+          </li>
+        </ul>
+      </div>
+
+      <p class="pick-banner">
+        <strong>Sponsor-locked:</strong> Option B+ Pro — canvas <code>#FAF7F4</code>, border
+        <code>#E8DDD6</code>, burnt <code>#BF4A0A</code>, forest <code>#4A6B47</code>, sage
+        <code>#9CB898</code>. Peach <code>#FFCDAA</code> accent only. Implementation in Citizen PWA
+        + <code>tricolor-calm.css</code>.
+      </p>
+
+      <h2>Canvas options — pick a page background</h2>
+      <div class="canvas-compare" id="canvas-compare"></div>
+
+      <h2>Your base palette (fixed)</h2>
+      <div class="grid" id="base-palette"></div>
+
+      <h2>Primary accent options</h2>
+      <h3>Coral family</h3>
+      <div class="grid" id="coral-shades"></div>
+      <h3>Burnt orange family</h3>
+      <div class="grid" id="burnt-shades"></div>
+
+      <h3>Green tier (Option B+)</h3>
+      <div class="grid" id="green-shades"></div>
+
+      <h2>Canvas &amp; neutral options</h2>
+      <div class="grid" id="canvas-options"></div>
+
+      <h2>Option B+ Pro — locked token set</h2>
+      <div class="grid" id="bplus-tokens"></div>
+
+      <h2>Ink / text on backgrounds</h2>
+      <div class="grid" id="ink-shades"></div>
+
+      <h2>Side-by-side mockups</h2>
+
+      <h3>Option A — Coral primary</h3>
+      <span class="scheme-label" style="background: #f14666; color: #fff">Primary #F14666</span>
+      <div class="pair">
+        <div class="panel" style="background: #ffcdaa; border-color: #ee8980">
+          <h4 style="color: #2b211f">Citizen hub</h4>
+          <p style="color: #5c4a47">Track services across municipalities.</p>
+          <button class="btn" style="background: #f14666; color: #fff">Continue</button>
+          <button class="btn" style="background: #fff; color: #f14666; border: 2px solid #f14666">
+            Secondary
+          </button>
+          <div class="card-mock" style="border-color: #ee8980">
+            <strong style="color: #2b211f">Kolkata Municipal Corporation</strong>
+            <p style="margin: 0.35rem 0 0; font-size: 0.8rem; color: #5c4a47">
+              12 applications · 3 grievances
+            </p>
+            <div
+              style="
+                margin-top: 0.5rem;
+                display: inline-block;
+                padding: 0.2rem 0.5rem;
+                border-radius: 8px;
+                background: #9cb898;
+                color: #2b211f;
+                font-size: 0.7rem;
+                font-weight: 700;
+              "
+            >
+              KPI chip
+            </div>
+          </div>
+          <div class="nav-mock">
+            <span style="background: #f14666; color: #fff">Home</span>
+            <span style="background: #fff; color: #5c4a47">Applications</span>
+            <span style="background: #fff; color: #5c4a47">Grievances</span>
+          </div>
+          <p class="note" id="coral-on-peach"></p>
+        </div>
+        <div class="panel" style="background: #fff">
+          <h4 style="color: #2b211f">Auth card on peach screen</h4>
+          <p style="color: #5c4a47">Full viewport behind card uses <code>#FFCDAA</code>.</p>
+          <div class="card-mock" style="border-color: #ee8980; background: #fff">
+            <p
+              style="
+                margin: 0;
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: #f14666;
+                text-transform: uppercase;
+              "
+            >
+              eNagarSeba
+            </p>
+            <p style="margin: 0.5rem 0 0; font-weight: 800; color: #2b211f">
+              One calm place for every municipal service.
+            </p>
+            <button class="btn" style="background: #f14666; color: #fff; margin-top: 0.75rem">
+              Verify OTP
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <h3>Option B — Burnt orange primary</h3>
+      <span class="scheme-label" style="background: #bf4a0a; color: #fff">Primary #BF4A0A</span>
+      <div class="pair">
+        <div class="panel" style="background: #ffcdaa; border-color: #ee8980">
+          <h4 style="color: #2b211f">Citizen hub</h4>
+          <p style="color: #5c4a47">Track services across municipalities.</p>
+          <button class="btn" style="background: #bf4a0a; color: #fff">Continue</button>
+          <button class="btn" style="background: #fff; color: #bf4a0a; border: 2px solid #bf4a0a">
+            Secondary
+          </button>
+          <div class="card-mock" style="border-color: #ee8980">
+            <strong style="color: #2b211f">Kolkata Municipal Corporation</strong>
+            <p style="margin: 0.35rem 0 0; font-size: 0.8rem; color: #5c4a47">
+              12 applications · 3 grievances
+            </p>
+            <div
+              style="
+                margin-top: 0.5rem;
+                display: inline-block;
+                padding: 0.2rem 0.5rem;
+                border-radius: 8px;
+                background: #9cb898;
+                color: #2b211f;
+                font-size: 0.7rem;
+                font-weight: 700;
+              "
+            >
+              KPI chip
+            </div>
+          </div>
+          <div class="nav-mock">
+            <span style="background: #bf4a0a; color: #fff">Home</span>
+            <span style="background: #fff; color: #5c4a47">Applications</span>
+            <span style="background: #fff; color: #5c4a47">Grievances</span>
+          </div>
+          <p class="note">
+            Links on peach: use <strong style="color: #7a3a12">#7A3A12</strong> (dark burnt), not
+            mid orange.
+            <span id="burnt-on-peach"></span>
+          </p>
+        </div>
+        <div class="panel" style="background: #fff">
+          <h4 style="color: #2b211f">Salmon vs primary</h4>
+          <p style="color: #5c4a47">
+            Salmon <code>#EE8980</code> stays borders/muted — primary is darker burnt.
+          </p>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap">
+            <div
+              style="width: 64px; height: 48px; background: #ee8980; border-radius: 8px"
+              title="Salmon"
+            ></div>
+            <div
+              style="width: 64px; height: 48px; background: #bf4a0a; border-radius: 8px"
+              title="Primary"
+            ></div>
+            <div
+              style="width: 64px; height: 48px; background: #c45c1a; border-radius: 8px"
+              title="Alt burnt"
+            ></div>
+            <div
+              style="width: 64px; height: 48px; background: #cc5500; border-radius: 8px"
+              title="Classic burnt"
+            ></div>
+          </div>
+          <p class="note" style="margin-top: 0.75rem">
+            If salmon feels too close to primary, use salmon only for 1px borders, not large panels.
+          </p>
+        </div>
+      </div>
+
+      <h3>Option B+ Pro — Warm white canvas (recommended)</h3>
+      <span class="scheme-label recommended" style="background: #bf4a0a; color: #fff"
+        >Primary #BF4A0A</span
+      >
+      <span class="scheme-label" style="background: #4a6b47; color: #fff; margin-left: 0.35rem"
+        >Forest #4A6B47</span
+      >
+      <span
+        class="scheme-label"
+        style="background: #faf7f4; color: #5c4a47; margin-left: 0.35rem; border: 1px solid #e8ddd6"
+        >Canvas #FAF7F4</span
+      >
+      <div class="pair" id="bplus-pro-mock"></div>
+
+      <h3>Option B+ — Full peach canvas (reference — more colorful)</h3>
+      <span class="scheme-label" style="background: #ffcdaa; color: #2b211f">Saturated canvas</span>
+      <div class="pair">
+        <div class="panel" style="background: #ffcdaa; border-color: #ee8980">
+          <p
+            style="
+              margin: 0 0 0.5rem;
+              font-size: 0.72rem;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              color: #4a6b47;
+            "
+          >
+            Citizen hub
+          </p>
+          <h4 style="color: #2b211f; margin: 0">Track services across municipalities</h4>
+          <div class="kpi-band" style="background: #e8f0e7; border: 1px solid #9cb898">
+            <div>
+              <span style="color: #5c4a47">Applications</span>
+              <strong style="color: #4a6b47">24</strong>
+            </div>
+            <div>
+              <span style="color: #5c4a47">Paid</span>
+              <strong style="color: #4a6b47">18</strong>
+            </div>
+            <div>
+              <span style="color: #5c4a47">Open grievances</span>
+              <strong style="color: #4a6b47">3</strong>
+            </div>
+          </div>
+          <button class="btn" style="background: #bf4a0a; color: #fff">Continue</button>
+          <button class="btn" style="background: #4a6b47; color: #fff">Enter KMC workspace</button>
+          <div class="card-mock stripe-wrap" style="border-color: #ee8980">
+            <span class="stripe-sage" aria-hidden="true"></span>
+            <strong style="color: #2b211f">Kolkata Municipal Corporation</strong>
+            <p style="margin: 0.35rem 0 0; font-size: 0.8rem; color: #5c4a47">
+              12 applications · 3 grievances
+            </p>
+            <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem; flex-wrap: wrap">
+              <span
+                style="
+                  padding: 0.2rem 0.5rem;
+                  border-radius: 8px;
+                  background: #9cb898;
+                  color: #2b211f;
+                  font-size: 0.7rem;
+                  font-weight: 700;
+                "
+                >Active</span
+              >
+              <span
+                style="
+                  padding: 0.2rem 0.5rem;
+                  border-radius: 8px;
+                  background: #e8f0e7;
+                  color: #4a6b47;
+                  font-size: 0.7rem;
+                  font-weight: 700;
+                  border: 1px solid #9cb898;
+                "
+                >Paid fees</span
+              >
+            </div>
+          </div>
+          <div class="nav-mock">
+            <span style="background: #bf4a0a; color: #fff">Home</span>
+            <span style="background: #e8f0e7; color: #4a6b47; border: 1px solid #9cb898"
+              >Applications</span
+            >
+            <span style="background: #fff; color: #5c4a47">Grievances</span>
+          </div>
+          <p class="note" id="bplus-notes"></p>
+        </div>
+        <div class="panel" style="background: #fff">
+          <h4 style="color: #2b211f">Splash / auth (peach + green accent)</h4>
+          <p style="color: #5c4a47">Peach full screen; sage badge; burnt CTA only.</p>
+          <div
+            style="
+              background: #ffcdaa;
+              border-radius: 14px;
+              padding: 1rem;
+              border: 1px solid #ee8980;
+            "
+          >
+            <span
+              style="
+                display: inline-block;
+                padding: 0.25rem 0.55rem;
+                border-radius: 8px;
+                background: #9cb898;
+                color: #2b211f;
+                font-size: 0.68rem;
+                font-weight: 800;
+                text-transform: uppercase;
+              "
+              >Citizen services</span
+            >
+            <div
+              class="card-mock"
+              style="border-color: #ee8980; background: #fff; margin-top: 0.65rem"
+            >
+              <p
+                style="
+                  margin: 0;
+                  font-size: 0.75rem;
+                  font-weight: 700;
+                  color: #4a6b47;
+                  text-transform: uppercase;
+                "
+              >
+                eNagarSeba
+              </p>
+              <p style="margin: 0.5rem 0 0; font-weight: 800; color: #2b211f">
+                One calm place for every municipal service.
+              </p>
+              <button class="btn" style="background: #bf4a0a; color: #fff; margin-top: 0.75rem">
+                Verify OTP
+              </button>
+            </div>
+          </div>
+          <p class="note" style="margin-top: 0.75rem">
+            Green is <strong>secondary</strong> — KPI band, chips, forest button, sage stripe. Burnt
+            stays the only primary CTA.
+          </p>
+        </div>
+      </div>
+
+      <h2>Green shade ladder</h2>
+      <div class="grid" id="green-ladder"></div>
+
+      <h2>Burnt + peach + green harmony ladder</h2>
+      <div class="grid" id="harmony-ladder"></div>
+
+      <h2>Burnt orange shade ladder (pick one primary)</h2>
+      <div class="grid" id="burnt-ladder"></div>
+
+      <h2>Contrast quick reference (warm white canvas #FAF7F4)</h2>
+      <div id="contrast-table" style="font-size: 0.85rem"></div>
+    </div>
+
+    <script>
+      function luminance(hex) {
+        const n = hex.replace('#', '');
+        const r = parseInt(n.slice(0, 2), 16) / 255;
+        const g = parseInt(n.slice(2, 4), 16) / 255;
+        const b = parseInt(n.slice(4, 6), 16) / 255;
+        const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      }
+      function contrast(a, b) {
+        const l1 = luminance(a);
+        const l2 = luminance(b);
+        const lighter = Math.max(l1, l2);
+        const darker = Math.min(l1, l2);
+        return ((lighter + 0.05) / (darker + 0.05)).toFixed(2);
+      }
+      function ratioClass(r) {
+        const n = parseFloat(r);
+        if (n >= 4.5) return 'pass';
+        if (n >= 3) return 'warn';
+        return 'fail';
+      }
+      function swatch(name, hex, note = '') {
+        return `<div class="swatch">
+          <div class="swatch-color" style="background:${hex}"></div>
+          <div class="swatch-meta"><strong>${name}</strong><code>${hex.toUpperCase()}</code>${note ? `<br><span style="color:#7a6561">${note}</span>` : ''}</div>
+        </div>`;
+      }
+
+      const TOKENS = {
+        canvasPro: '#FAF7F4',
+        canvasAlt: '#FFFAF7',
+        canvasCool: '#F8F7F5',
+        canvasSaturated: '#FFCDAA',
+        borderPro: '#E8DDD6',
+        peachAccent: '#FFCDAA',
+        peachSoft: '#FFF0E6',
+        salmon: '#EE8980',
+      };
+
+      const base = [
+        ['Canvas (pro)', TOKENS.canvasPro, 'Page background — recommended'],
+        ['Peach (accent only)', TOKENS.peachAccent, 'Strips, chips — not full page'],
+        ['Border (warm)', TOKENS.borderPro, 'Cards, dividers'],
+        ['Sage', '#9CB898', 'KPI / positive accent'],
+      ];
+      document.getElementById('base-palette').innerHTML = base
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      const canvasOpts = [
+        ['Saturated peach', TOKENS.canvasSaturated, 'Too colorful for full page'],
+        ['Warm white ★', TOKENS.canvasPro, 'Recommended canvas'],
+        ['Warm white (alt)', TOKENS.canvasAlt, 'Slightly cooler'],
+        ['Neutral warm', TOKENS.canvasCool, 'Most neutral'],
+        ['Peach soft wash', TOKENS.peachSoft, 'Card highlight only'],
+        ['Border neutral', TOKENS.borderPro, 'Professional dividers'],
+      ];
+      document.getElementById('canvas-options').innerHTML = canvasOpts
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      document.getElementById('canvas-compare').innerHTML = [
+        {
+          tag: 'warn',
+          tagText: 'Too saturated',
+          bg: TOKENS.canvasSaturated,
+          border: TOKENS.salmon,
+          title: 'Full peach canvas',
+          code: '#FFCDAA',
+        },
+        {
+          tag: 'ok',
+          tagText: 'Recommended',
+          bg: TOKENS.canvasPro,
+          border: TOKENS.borderPro,
+          title: 'Warm white canvas',
+          code: '#FAF7F4',
+        },
+        {
+          tag: 'ok',
+          tagText: 'Alternative',
+          bg: TOKENS.canvasAlt,
+          border: TOKENS.borderPro,
+          title: 'Warm white (alt)',
+          code: '#FFFAF7',
+        },
+      ]
+        .map(
+          (c) => `<div class="panel" style="background:${c.bg};border-color:${c.border}">
+          <span class="tag ${c.tag}">${c.tagText}</span>
+          <h4 style="color:#2b211f;margin:0 0 0.35rem">${c.title}</h4>
+          <code style="font-size:0.75rem;color:#5c4a47">${c.code}</code>
+          <div class="card-mock" style="background:#fff;border-color:${TOKENS.borderPro};margin-top:0.65rem;box-shadow:0 1px 4px rgba(43,33,31,0.08)">
+            <strong style="font-size:0.85rem;color:#2b211f">White card on canvas</strong>
+            <p style="margin:0.35rem 0 0;font-size:0.75rem;color:#5c4a47">Hierarchy stays clear.</p>
+            <button class="btn" style="background:#bf4a0a;color:#fff;font-size:0.75rem;padding:0.45rem 0.75rem;margin-top:0.5rem">Primary action</button>
+          </div>
+        </div>`,
+        )
+        .join('');
+
+      const coral = [
+        ['Coral', '#F14666', 'Primary A'],
+        ['Coral dark', '#D63A58', 'Hover / pressed'],
+        ['Coral light', '#F58A9E', 'Rare — avoid large fills'],
+      ];
+      document.getElementById('coral-shades').innerHTML = coral
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      const burnt = [
+        ['Burnt (recommended)', '#BF4A0A', 'Primary B — buttons'],
+        ['Burnt alt', '#C45C1A', 'Slightly lighter'],
+        ['Classic burnt', '#CC5500', 'Stronger orange'],
+        ['Burnt dark', '#7A3A12', 'Links on peach'],
+        ['Burnt deeper', '#5C2E0E', 'Headings on peach if needed'],
+      ];
+      document.getElementById('burnt-shades').innerHTML = burnt
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      const green = [
+        ['Sage', '#9CB898', 'Chips, stripes, soft accents'],
+        ['Forest', '#4A6B47', 'Secondary buttons, KPI numbers'],
+        ['Forest hover', '#5A7F56', 'Hover on forest controls'],
+        ['Mint band', '#E8F0E7', 'Solid KPI section background'],
+        ['Green link', '#3D5C3A', 'Optional links on peach'],
+      ];
+      document.getElementById('green-shades').innerHTML = green
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      const bplus = [
+        ['Canvas (warm white)', TOKENS.canvasPro, 'Page background ★'],
+        ['Surface (cards)', '#FFFFFF', 'Cards, modals'],
+        ['Border (neutral)', TOKENS.borderPro, 'Dividers'],
+        ['Peach (accent)', TOKENS.peachAccent, 'Strips, chips only'],
+        ['Primary (burnt)', '#BF4A0A', 'CTAs, active tab'],
+        ['Link', '#7A3A12', 'Inline links'],
+        ['Sage', '#9CB898', 'Chips, badge'],
+        ['Forest', '#4A6B47', 'Secondary action'],
+        ['Mint band', '#E8F0E7', 'KPI strip'],
+        ['Ink primary', '#2B211F', 'Body text'],
+      ];
+      document.getElementById('bplus-tokens').innerHTML = bplus
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      document.getElementById('bplus-pro-mock').innerHTML = `
+        <div class="panel" style="background:${TOKENS.canvasPro};border-color:${TOKENS.borderPro}">
+          <div style="height:4px;width:100%;background:${TOKENS.peachAccent};border-radius:4px;margin-bottom:0.75rem" title="Peach accent strip only"></div>
+          <p style="margin:0 0 0.5rem;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#4a6b47">Citizen hub</p>
+          <h4 style="color:#2b211f;margin:0">Track services across municipalities</h4>
+          <div class="kpi-band" style="background:#e8f0e7;border:1px solid #9cb898">
+            <div><span style="color:#5c4a47">Applications</span><strong style="color:#4a6b47">24</strong></div>
+            <div><span style="color:#5c4a47">Paid</span><strong style="color:#4a6b47">18</strong></div>
+            <div><span style="color:#5c4a47">Open grievances</span><strong style="color:#4a6b47">3</strong></div>
+          </div>
+          <button class="btn" style="background:#bf4a0a;color:#fff">Continue</button>
+          <button class="btn" style="background:#4a6b47;color:#fff">Enter KMC workspace</button>
+          <div class="card-mock stripe-wrap" style="border-color:${TOKENS.borderPro};box-shadow:0 1px 3px rgba(43,33,31,0.06)">
+            <span class="stripe-sage" aria-hidden="true"></span>
+            <strong style="color:#2b211f">Kolkata Municipal Corporation</strong>
+            <p style="margin:0.35rem 0 0;font-size:0.8rem;color:#5c4a47">12 applications · 3 grievances</p>
+            <div style="margin-top:0.5rem;display:flex;gap:0.35rem;flex-wrap:wrap">
+              <span style="padding:0.2rem 0.5rem;border-radius:8px;background:#9cb898;color:#2b211f;font-size:0.7rem;font-weight:700">Active</span>
+              <span style="padding:0.2rem 0.5rem;border-radius:8px;background:${TOKENS.peachSoft};color:#7a3a12;font-size:0.7rem;font-weight:700;border:1px solid ${TOKENS.peachAccent}">Due soon</span>
+            </div>
+          </div>
+          <div class="nav-mock">
+            <span style="background:#bf4a0a;color:#fff">Home</span>
+            <span style="background:#e8f0e7;color:#4a6b47;border:1px solid #9cb898">Applications</span>
+            <span style="background:#fff;color:#5c4a47;border:1px solid ${TOKENS.borderPro}">Grievances</span>
+          </div>
+          <p class="note" id="bplus-pro-notes"></p>
+        </div>
+        <div class="panel" style="background:#fff;border-color:${TOKENS.borderPro}">
+          <h4 style="color:#2b211f">Splash / auth</h4>
+          <p style="color:#5c4a47">Warm white screen; elevated white card; sage badge; burnt CTA.</p>
+          <div style="background:${TOKENS.canvasPro};border-radius:14px;padding:1rem;border:1px solid ${TOKENS.borderPro}">
+            <span style="display:inline-block;padding:0.25rem 0.55rem;border-radius:8px;background:#9cb898;color:#2b211f;font-size:0.68rem;font-weight:800;text-transform:uppercase">Citizen services</span>
+            <div class="card-mock" style="border-color:${TOKENS.borderPro};background:#fff;margin-top:0.65rem;box-shadow:0 4px 14px rgba(43,33,31,0.08)">
+              <p style="margin:0;font-size:0.75rem;font-weight:700;color:#4a6b47;text-transform:uppercase">eNagarSeba</p>
+              <p style="margin:0.5rem 0 0;font-weight:800;color:#2b211f">One calm place for every municipal service.</p>
+              <button class="btn" style="background:#bf4a0a;color:#fff;margin-top:0.75rem">Verify OTP</button>
+            </div>
+          </div>
+          <p class="note" style="margin-top:0.75rem">Professional tone: neutral ground, colour where it matters.</p>
+        </div>`;
+
+      const ink = [
+        ['Ink primary', '#2B211F', 'On peach / white'],
+        ['Ink secondary', '#5C4A47', 'Meta text'],
+        ['Ink muted', '#7A6561', 'Placeholder'],
+        ['On-primary', '#FFFFFF', 'On coral / burnt buttons'],
+      ];
+      document.getElementById('ink-shades').innerHTML = ink
+        .map(([n, h, t]) => swatch(n, h, t))
+        .join('');
+
+      const ladder = [
+        '#FFCDAA',
+        '#EE8980',
+        '#E8A060',
+        '#D97A2E',
+        '#C45C1A',
+        '#BF4A0A',
+        '#A84308',
+        '#7A3A12',
+        '#5C2E0E',
+        '#9CB898',
+      ];
+      document.getElementById('burnt-ladder').innerHTML = ladder
+        .map((h, i) => swatch(`Step ${i + 1}`, h, ''))
+        .join('');
+
+      const greenLadder = [
+        '#E8F0E7',
+        '#C5D9C3',
+        '#9CB898',
+        '#7A9A76',
+        '#5A7F56',
+        '#4A6B47',
+        '#3D5C3A',
+        '#2F472D',
+      ];
+      document.getElementById('green-ladder').innerHTML = greenLadder
+        .map((h, i) => swatch(`Green ${i + 1}`, h, ''))
+        .join('');
+
+      const harmony = [
+        TOKENS.canvasPro,
+        TOKENS.borderPro,
+        TOKENS.peachAccent,
+        '#BF4A0A',
+        '#E8F0E7',
+        '#9CB898',
+        '#4A6B47',
+        '#2B211F',
+      ];
+      document.getElementById('harmony-ladder').innerHTML = harmony
+        .map((h, i) =>
+          swatch(
+            ['Canvas pro', 'Border', 'Peach accent', 'Burnt', 'Mint', 'Sage', 'Forest', 'Ink'][i],
+            h,
+            '',
+          ),
+        )
+        .join('');
+
+      const canvasPro = TOKENS.canvasPro;
+      const peach = TOKENS.canvasSaturated;
+      const mint = '#E8F0E7';
+      const pairs = [
+        ['Ink primary on warm white', '#2B211F', canvasPro],
+        ['Ink secondary on warm white', '#5C4A47', canvasPro],
+        ['Forest on warm white', '#4A6B47', canvasPro],
+        ['Burnt dark link on warm white', '#7A3A12', canvasPro],
+        ['Forest on mint band', '#4A6B47', mint],
+        ['Ink on mint band', '#2B211F', mint],
+        ['Ink on saturated peach (ref)', '#2B211F', peach],
+        ['Burnt on saturated peach (ref)', '#BF4A0A', peach],
+        ['White on burnt button', '#FFFFFF', '#BF4A0A'],
+        ['White on forest button', '#FFFFFF', '#4A6B47'],
+      ];
+      document.getElementById('contrast-table').innerHTML =
+        '<table style="width:100%;border-collapse:collapse;margin-top:0.5rem"><tr style="text-align:left"><th style="padding:0.4rem 0">Pair</th><th>Ratio</th><th>AA body?</th></tr>' +
+        pairs
+          .map(([label, fg, bg]) => {
+            const r = contrast(fg, bg);
+            const ok = parseFloat(r) >= 4.5;
+            return `<tr style="border-top:1px solid #e8e4df"><td style="padding:0.45rem 0">${label}</td><td><span class="ratio ${ratioClass(r)}">${r}:1</span></td><td>${ok ? '✓' : '✗ use darker or larger text'}</td></tr>`;
+          })
+          .join('') +
+        '</table>';
+
+      document.getElementById('coral-on-peach').innerHTML =
+        `Coral as small link on peach: <span class="ratio ${ratioClass(contrast('#F14666', peach))}">${contrast('#F14666', peach)}:1</span>`;
+      document.getElementById('burnt-on-peach').innerHTML =
+        ` Mid burnt as link: <span class="ratio ${ratioClass(contrast('#BF4A0A', peach))}">${contrast('#BF4A0A', peach)}:1</span> · Dark burnt: <span class="ratio ${ratioClass(contrast('#7A3A12', peach))}">${contrast('#7A3A12', peach)}:1</span>`;
+
+      const bplusEl = document.getElementById('bplus-notes');
+      if (bplusEl) {
+        bplusEl.innerHTML = `Forest on saturated peach: <span class="ratio ${ratioClass(contrast('#4A6B47', peach))}">${contrast('#4A6B47', peach)}:1</span> · Reference only`;
+      }
+      const bplusProEl = document.getElementById('bplus-pro-notes');
+      if (bplusProEl) {
+        bplusProEl.innerHTML = `Forest on warm white: <span class="ratio ${ratioClass(contrast('#4A6B47', canvasPro))}">${contrast('#4A6B47', canvasPro)}:1</span> · Ink on warm white: <span class="ratio ${ratioClass(contrast('#2B211F', canvasPro))}">${contrast('#2B211F', canvasPro)}:1</span>`;
+      }
+    </script>
+  </body>
+</html>

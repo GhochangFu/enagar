@@ -52,6 +52,8 @@ describe('Master Sprint 6.16 — Citizen PWA workspace and transactions', () => 
     expect(sprintPlan).toContain('No API route, DB, workflow, payment');
     expect(sprintPlan).toContain('360 px viewport');
     expect(sprintExit).toContain('closed');
+    expect(sprintExit).toContain('Manual Smoke');
+    expect(sprintExit).toContain('Complete — signed off');
     expect(sprintExit).toContain('post-smoke UX polish');
     expect(sprintExit).toContain('No API route, database migration');
   });

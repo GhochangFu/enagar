@@ -38,22 +38,27 @@ The Tailwind preset (`@enagar/config/tailwind/base`) maps `bg-brand` / `text-bra
 }
 ```
 
-#### Tricolor Calm platform shell (Sprint 6.14, not tenant-overridable)
+#### Warm Coral platform shell — Option B+ Pro (Citizen PWA, sponsor-locked 2026-05)
 
-Imported from `@enagar/config/styles/tricolor-calm.css`. Used on hub / statewide surfaces and as page canvas under tenant chrome.
+Imported from `@enagar/config/styles/tricolor-calm.css` (filename retained). **Solid colours only — no gradients.** Peach/salmon are **accents**, not full-page fills.
 
-| Token           | CSS variable            | Tailwind               | Use                |
-| --------------- | ----------------------- | ---------------------- | ------------------ |
-| Canvas          | `--canvas-rgb`          | `bg-canvas`            | Page background    |
-| Saffron wash    | `--saffron-wash-rgb`    | `bg-saffron-wash`      | Hub gradient start |
-| Green wash      | `--green-wash-rgb`      | `bg-green-wash`        | Hub gradient end   |
-| Platform accent | `--platform-accent-rgb` | `text-platform-accent` | Links on hub       |
-| Warm border     | `--border-warm-rgb`     | `border-warm-border`   | Dividers           |
-| Ink primary     | `--text-primary-rgb`    | `text-ink-primary`     | Headings, body     |
-| Ink secondary   | `--text-secondary-rgb`  | `text-ink-secondary`   | Meta, captions     |
-| Hub gradient    | —                       | `bg-platform-gradient` | Citizen hub hero   |
+| Token            | Hex       | CSS variable            | Tailwind                    | Use                              |
+| ---------------- | --------- | ----------------------- | --------------------------- | -------------------------------- |
+| Canvas           | `#FAF7F4` | `--canvas-rgb`          | `bg-canvas`                 | Page background (warm white)     |
+| Surface          | `#FFFFFF` | `--surface-rgb`         | `bg-surface`                | Cards, modals                    |
+| Warm border      | `#E8DDD6` | `--border-warm-rgb`     | `border-warm-border`        | Dividers                         |
+| Peach accent     | `#FFCDAA` | `--peach-accent-rgb`    | `bg-peach-accent`           | Top strip, small chips only      |
+| Peach soft       | `#FFF0E6` | `--peach-soft-rgb`      | `bg-peach-soft`             | Optional card highlight          |
+| Platform primary | `#BF4A0A` | `--platform-accent-rgb` | `text-platform-accent`      | Hub CTAs (`applyPlatformTheme`)  |
+| Link on canvas   | `#7A3A12` | `--link-rgb`            | `text-link`                 | Inline links on canvas           |
+| Mint band        | `#E8F0E7` | `--mint-band-rgb`       | `bg-mint-band`              | KPI strip, grievance detail head |
+| Sage             | `#9CB898` | `--sage-rgb`            | `bg-sage`                   | Chips, badges                    |
+| Forest           | `#4A6B47` | `--forest-rgb`          | `bg-forest` / `text-forest` | Secondary actions, KPI numbers   |
+| Ink primary      | `#2B211F` | `--text-primary-rgb`    | `text-ink-primary`          | Headings, body                   |
+| Ink secondary    | `#5C4A47` | `--text-secondary-rgb`  | `text-ink-secondary`        | Meta, captions                   |
+| Ink muted        | `#7A6561` | `--text-muted-rgb`      | `text-ink-muted`            | Placeholders                     |
 
-Runtime: `applyPlatformTheme()` restores platform pastels; `applyTenantTheme(tenant)` sets brand + muted + surface from `createTenantPalette(theme_color)`.
+Runtime: `applyPlatformTheme()` sets hub/auth brand to **`#BF4A0A`** (`PLATFORM_BRAND_HEX`); `applyTenantTheme(tenant)` sets ULB `theme_color` in workspace. Preview: [`docs/design-previews/citizen-pwa-palette-preview.html`](./design-previews/citizen-pwa-palette-preview.html).
 
 | Tenant | Hex       | Theme rationale                    |
 | ------ | --------- | ---------------------------------- |
@@ -108,7 +113,7 @@ Inter                 →  deprecated as default (removed in 6.14); legacy docs 
 
 > **Bengali / Hindi sizing.** Devanagari and Bengali scripts have larger optical x-heights. We bump `line-height` by 4 px (`+0.25rem`) when the active locale is `bn` or `hi`. The shared Tailwind preset will expose `font-bn` / `font-hi` utility classes wired to those families.
 
-**Citizen PWA rendering (Sprint 6.16).** `apps/citizen-pwa/app/globals.css` sets body text to `var(--tenant-font-family)` with **Noto Sans Bengali** / **Noto Sans Devanagari** fallbacks; headings use **Plus Jakarta Sans** with slightly tighter tracking. Grievance list/detail surfaces use semantic chips:
+**Citizen PWA rendering (Sprint 6.16 + B+ Pro palette).** `apps/citizen-pwa/app/globals.css` imports platform tokens; body uses `var(--tenant-font-family)` with **Noto** fallbacks; headings use **Plus Jakarta Sans**. Auth/hub use **warm white canvas** + white cards; **burnt orange** primary and **forest/sage** secondary accents. Grievance list/detail surfaces use semantic chips:
 
 | Field    | Values (examples)              | Chip tone                       |
 | -------- | ------------------------------ | ------------------------------- |

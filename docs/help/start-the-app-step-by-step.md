@@ -134,6 +134,7 @@ pnpm --filter @enagar/citizen-pwa dev
 Leave this terminal open.
 
 - Citizen PWA: **`http://localhost:3000`**
+- Screenshot walkthrough deck: [`docs/presentations/citizen-pwa/`](../presentations/citizen-pwa/README.md) (`npx serve docs/presentations/citizen-pwa -p 8787`)
 
 By default the PWA talks to **`http://localhost:3001/api`**. Change that only if you run the API on another host/port (`NEXT_PUBLIC_API_BASE_URL` — see [`apps/citizen-pwa/README.md`](../../apps/citizen-pwa/README.md)).
 

@@ -10,7 +10,7 @@ import {
 } from '@enagar/forms';
 import { DynamicFormFields } from '@enagar/forms/web';
 import { t } from '@enagar/i18n';
-import { applyTenantTheme } from '@enagar/tenant-theme';
+import { applyPlatformTheme, applyTenantTheme } from '@enagar/tenant-theme';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -377,6 +377,14 @@ export default function HomePage(): JSX.Element {
   const latestApplication = applications[0];
 
   useEffect(() => {
+    if (step === 'workspace' && selectedTenant) {
+      applyTenantTheme(selectedTenant);
+      return;
+    }
+    applyPlatformTheme();
+  }, [step, selectedTenant]);
+
+  useEffect(() => {
     if (step !== 'hub' || !token) {
       return;
     }
@@ -665,7 +673,7 @@ export default function HomePage(): JSX.Element {
   }
 
   function goBackToHub(): void {
-    applyTenantTheme(null);
+    applyPlatformTheme();
     setSelectedTenant(null);
     setActiveTab('home');
     setHubTab('home');
@@ -1344,26 +1352,24 @@ export default function HomePage(): JSX.Element {
       )}
 
       {step === 'hub' && (
-        <section
-          className="relative isolate -mx-2 space-y-6 overflow-hidden rounded-[2rem] border border-orange-100/80 p-4 shadow-sm md:-mx-4 md:p-6"
-          style={{
-            background:
-              'radial-gradient(circle at 6% 8%, rgba(251, 146, 60, 0.28), transparent 30%), radial-gradient(circle at 94% 0%, rgba(251, 191, 36, 0.18), transparent 24%), radial-gradient(circle at 92% 92%, rgba(34, 197, 94, 0.2), transparent 30%), rgba(255, 255, 255, 0.72)',
-          }}
-        >
-          <div className="pointer-events-none absolute -left-16 top-8 -z-10 h-44 w-44 rounded-full bg-orange-300/15" />
-          <div className="pointer-events-none absolute -right-16 bottom-4 -z-10 h-52 w-52 rounded-full bg-green-300/15" />
+        <section className="relative isolate -mx-2 space-y-6 overflow-hidden rounded-[2rem] border border-warm-border bg-canvas p-4 shadow-sm md:-mx-4 md:p-6">
+          <div
+            aria-hidden
+            className="absolute inset-x-4 top-0 h-1 rounded-full bg-peach-accent md:inset-x-6"
+          />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase text-brand">Citizen hub</p>
-              <h2 className="text-3xl font-bold">Track services across municipalities</h2>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              <p className="text-sm font-semibold uppercase text-forest">Citizen hub</p>
+              <h2 className="text-3xl font-bold text-ink-primary">
+                Track services across municipalities
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm text-ink-secondary">
                 <strong>Pinned ULBs</strong> anchor your day-to-day work. Browse any operational
                 municipality when you need another service, while your saved shortcuts stay ready.
               </p>
             </div>
             <button
-              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold"
+              className="rounded-2xl border border-warm-border bg-surface px-4 py-2 text-sm font-semibold text-ink-primary"
               onClick={() => void refreshHubData()}
               type="button"
             >
@@ -1372,7 +1378,7 @@ export default function HomePage(): JSX.Element {
           </div>
 
           {!hubDashboard && (
-            <p className="rounded-3xl bg-slate-50 p-6 text-slate-600">
+            <p className="rounded-3xl bg-mint-band p-6 text-ink-secondary">
               Loading municipality dashboard…
             </p>
           )}
@@ -1389,7 +1395,7 @@ export default function HomePage(): JSX.Element {
             />
           )}
 
-          <section className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-950">
+          <section className="rounded-3xl border border-sage/40 bg-mint-band p-5 text-sm text-ink-primary">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -1976,7 +1982,7 @@ export default function HomePage(): JSX.Element {
 
           {hubTab === 'grievances' && (
             <section className="rounded-[2rem] border border-warm-border bg-white/95 p-6 shadow-sm">
-              <div className="mb-5 rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-emerald-50 p-5">
+              <div className="mb-5 rounded-3xl border border-warm-border bg-surface p-5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">
                   Grievance desk
                 </p>

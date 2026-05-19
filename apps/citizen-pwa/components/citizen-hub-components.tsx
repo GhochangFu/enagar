@@ -34,7 +34,7 @@ export function CitizenHubNavigation<T extends string>({
   return (
     <nav
       aria-label="Citizen hub navigation"
-      className="sticky top-3 z-20 rounded-[1.6rem] border border-warm-border bg-white/90 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/75"
+      className="sticky top-3 z-20 rounded-[1.6rem] border border-warm-border bg-surface p-2 shadow-sm"
     >
       <div className="grid grid-cols-3 gap-1 sm:grid-cols-4 lg:grid-cols-7">
         {tabs.map((tabEntry) => {
@@ -65,9 +65,9 @@ export function HubKpiGrid({ items }: { items: readonly [string, string][] }): J
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {items.map(([label, value]) => (
-        <Card className="bg-white/90 shadow-sm" key={label} padding="sm">
+        <Card className="border border-warm-border bg-mint-band shadow-sm" key={label} padding="sm">
           <span className="text-sm font-semibold text-ink-secondary">{label}</span>
-          <strong className="mt-1 block text-3xl font-black text-ink-primary">{value}</strong>
+          <strong className="mt-1 block text-3xl font-black text-forest">{value}</strong>
         </Card>
       ))}
     </div>
@@ -106,7 +106,7 @@ export function PinnedMunicipalityCard({
           <span className="block text-2xl font-black text-ink-primary">{bucket.tenant_code}</span>
           <span className="mt-1 block text-sm font-semibold text-ink-secondary">{shortName}</span>
           {catalogue ? (
-            <span className="mt-1 block text-xs uppercase tracking-wide text-slate-400">
+            <span className="mt-1 block text-xs uppercase tracking-wide text-ink-muted">
               {catalogue.district} · {catalogue.ward_count} wards
             </span>
           ) : null}
@@ -194,7 +194,7 @@ export function ApplicationSummaryCard({
         className="absolute inset-y-0 left-0 w-1.5"
         style={{ backgroundColor: themeColor }}
       />
-      <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-700">
+      <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-mint-band px-2.5 py-1 text-[11px] font-black text-forest">
         <span
           className="inline-block h-2.5 w-2.5 rounded-full"
           style={{ backgroundColor: themeColor }}

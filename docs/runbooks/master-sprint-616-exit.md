@@ -1,6 +1,6 @@
 # Master Sprint 6.16 Exit — Citizen PWA Workspace & Transactions
 
-Status: **closed — engineering, manual smoke, and post-smoke UX polish 2026-05-18**. **Next:** Sprint **6.17** (Tenant Admin: shell, dashboard & Desk) per [`phase-ux-revamp-plan.md`](./phase-ux-revamp-plan.md).
+Status: **closed — engineering, manual smoke signed off, and post-smoke UX polish complete (2026-05-18)**. No open exit criteria. **Next:** Sprint **6.17** (Tenant Admin: shell, dashboard & Desk) per [`phase-ux-revamp-plan.md`](./phase-ux-revamp-plan.md).
 
 ## Delivered
 
@@ -40,7 +40,7 @@ graphify update .
 
 ## Manual Smoke
 
-**Signed off 2026-05-18** — Citizen PWA (`:3000`), dev OTP `12345`.
+**Complete — signed off 2026-05-18** — Citizen PWA (`:3000`), dev OTP `12345`. Operator confirmed all scenarios **Pass** after workspace delivery and grievance/status polish.
 
 | #   | Scenario                                                                                                                      | Result |
 | --- | ----------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -52,6 +52,12 @@ graphify update .
 | 6   | Grievances file/list/detail states are readable and tenant-scoped                                                             | Pass   |
 | 7   | Payments initiate/stub-complete path works; settled payment shows receipt metadata placeholder; failed/retry states are clear | Pass   |
 | 8   | Back to hub resets tenant theme; switching KMC/HMC/CMC visibly changes workspace brand                                        | Pass   |
+
+## Closure
+
+- Engineering verification: complete (see §Verification).
+- Manual smoke (8 scenarios): **Pass** — sprint may be treated as closed for programme tracking.
+- Post-smoke UX polish (hub, applications, grievances): delivered in-repo; no follow-up blockers recorded.
 
 ## Phase Gate
 

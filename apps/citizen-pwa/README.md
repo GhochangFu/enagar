@@ -15,6 +15,8 @@ Citizen-facing **Progressive Web App** built on **Next.js 14** App Router (per A
 
 Shared: Tailwind preset (`@enagar/config/tailwind/base`), **`@enagar/forms`**, **`@enagar/forms/web`**, **`@enagar/ui`**, `@enagar/i18n`, `@enagar/tenant-theme`. **Tailwind `content`** scans **`packages/ui/src`** and **`packages/forms/src/web`** (see `tailwind.config.ts`).
 
+**Visual system (B+ Pro):** warm white canvas, burnt-orange hub CTAs, forest/sage KPI accents — locked palette in [`docs/design-system.md`](../../docs/design-system.md); interactive preview [`docs/design-previews/citizen-pwa-palette-preview.html`](../../docs/design-previews/citizen-pwa-palette-preview.html).
+
 ### Manual smoke — Sprint 5.3 (`@enagar/forms/web` + `@enagar/ui`)
 
 1. **Automated:** root **`pnpm lint`** / **`pnpm typecheck`** — or scoped **`pnpm --filter @enagar/citizen-pwa run typecheck`**.
