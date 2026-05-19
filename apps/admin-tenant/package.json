@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@enagar/forms": "workspace:^",
+    "@enagar/tenant-theme": "workspace:^",
     "@enagar/types": "workspace:*",
     "@enagar/ui": "workspace:^",
     "@enagar/workflow": "workspace:^",

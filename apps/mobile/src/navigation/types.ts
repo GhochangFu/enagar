@@ -5,10 +5,15 @@ export type CitizenRootStackParamList = {
   Splash: undefined;
   TenantPicker: undefined;
   OtpLogin: undefined;
+  PinMunicipalities: undefined;
+  CitizenHub: undefined;
+  BrowseTenants: { intent?: 'grievance' | 'workspace' } | undefined;
+  Workspace: undefined;
+  /** Legacy single-tenant home — redirects via deep links only. */
   Home: undefined;
   GrievanceList: undefined;
   GrievanceComposer: undefined;
-  GrievanceDetail: { id: string };
+  GrievanceDetail: { id: string; tenantCode?: string };
   ServiceCatalog: undefined;
   ApplicationComposer: { serviceCode: string; serviceName?: string; service?: ServiceSummary };
   ApplicationList: undefined;
@@ -18,6 +23,6 @@ export type CitizenRootStackParamList = {
 
 /**
  * Canonical bootstrap labels audited by tests/security contracts
- * (`Splash → TenantPicker → OtpLogin → authenticated hub`).
+ * (`Splash → OtpLogin → hub` with optional pin gate).
  */
-export type CitizenShellFlowContract = 'splash' | 'tenant' | 'login' | 'main';
+export type CitizenShellFlowContract = 'splash' | 'login' | 'pins' | 'hub' | 'workspace';

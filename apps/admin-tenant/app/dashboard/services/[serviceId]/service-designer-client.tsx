@@ -10,6 +10,7 @@ import {
   type FormSubmission,
 } from '@enagar/forms';
 import { DynamicFormFields } from '@enagar/forms/web';
+import { Button, PageHeader } from '@enagar/ui';
 import {
   validateWorkflowDefinition,
   type WorkflowDefinition,
@@ -22,13 +23,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type DragEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { publicEnv } from '../../../../lib/env/public-env';
-import {
-  ADMIN_OAUTH_STORAGE_KEY,
-  type AdminOAuthBundle,
-} from '../../../../lib/oauth/session-storage-keys';
+import { useTenantAdminSession } from '../../../../components/tenant-admin-session';
+import { clearStoredAuth } from '../../../../lib/admin-auth';
 
 import { ServiceConfigPanel } from './service-config-panel';
+
+import type { Route } from 'next';
 
 type ServiceDesignerResponse = {
   service: {
@@ -186,25 +186,6 @@ const FIELD_DRAG_MIME = 'application/x-enagar-form-field';
 const DEFAULT_STAGE_ROLES = ['tenant_clerk', 'tenant_admin', 'citizen'];
 const DEFAULT_EFFECT_TYPES = ['audit', 'notify', 'sla_timer', 'certificate', 'escalate'];
 
-function readStoredAuth(): AdminOAuthBundle | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const raw = sessionStorage.getItem(ADMIN_OAUTH_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as AdminOAuthBundle;
-    if (!parsed.access_token || typeof parsed.expires_at !== 'number') {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 function pickLabel(json: unknown): string {
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     const record = json as Record<string, unknown>;
@@ -326,10 +307,7 @@ function buildWorkflowEdges(workflow: WorkflowDefinition): Edge[] {
 
 export default function ServiceDesignerClient({ serviceId }: { serviceId: string }): JSX.Element {
   const router = useRouter();
-  const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
-
-  const [token, setToken] = useState<string | null>(null);
-  const [apiBase, setApiBase] = useState(fallbackApi);
+  const { token, apiBase } = useTenantAdminSession();
   const [designer, setDesigner] = useState<ServiceDesignerResponse | null>(null);
   const [serviceConfig, setServiceConfig] = useState<ServiceConfigResponse | null>(null);
   const [revenueHeads, setRevenueHeads] = useState<RevenueHeadRow[]>([]);
@@ -343,21 +321,6 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
   const [selectedStageCode, setSelectedStageCode] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    const auth = readStoredAuth();
-    if (!auth) {
-      router.replace('/login');
-      return;
-    }
-    if (auth.expires_at < Math.floor(Date.now() / 1000)) {
-      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-      router.replace('/login?error=session_expired');
-      return;
-    }
-    setToken(auth.access_token);
-    setApiBase(auth.api_base_url ?? fallbackApi);
-  }, [router, fallbackApi]);
-
   const authHeaders = useCallback(
     (): HeadersInit => ({
       authorization: `Bearer ${token}`,
@@ -370,64 +333,75 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     if (res.status !== 401) {
       return false;
     }
-    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+    clearStoredAuth();
     router.replace('/login?error=session_expired');
     return true;
   }
 
   const loadDesigner = useCallback(async () => {
-    if (!token) {
+    if (!token || !serviceId) {
       return;
     }
-    const [designerRes, configRes, revenueRes] = await Promise.all([
-      fetch(`${apiBase}/admin/tenant/services/${serviceId}/designer`, {
-        headers: authHeaders(),
-      }),
-      fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
-        headers: authHeaders(),
-      }),
-      fetch(`${apiBase}/admin/tenant/revenue-heads`, {
-        headers: authHeaders(),
-      }),
-    ]);
-    if (designerRes.status === 401 || configRes.status === 401 || revenueRes.status === 401) {
-      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-      router.replace('/login?error=session_expired');
-      return;
-    }
-    if (!designerRes.ok || !configRes.ok || !revenueRes.ok) {
-      setStatus(
-        `Designer load failed (${designerRes.status}/${configRes.status}/${revenueRes.status}).`,
-      );
-      return;
-    }
-    const data = (await designerRes.json()) as ServiceDesignerResponse;
-    const config = (await configRes.json()) as ServiceConfigResponse;
-    const heads = (await revenueRes.json()) as RevenueHeadRow[];
-    setDesigner(data);
-    setServiceConfig(config);
-    setRevenueHeads(heads.filter((head) => head.is_active));
-    setFeeText(pretty(config.fee_rule));
-    setDocumentsText(pretty(config.required_documents));
-    setRevenueHeadCode(config.revenue_head?.code ?? '');
-    setFormText(
-      pretty(
-        data.form_draft?.form_schema ??
-          data.form_published?.form_schema ??
-          data.starter_form_schema,
-      ),
-    );
-    setWorkflowText(
-      pretty(
-        data.workflow_draft?.definition ??
-          data.workflow_published?.definition ??
-          data.starter_workflow,
-      ),
-    );
-    setValues({});
-    setSelectedFieldId(null);
-    setSelectedStageCode(null);
     setStatus(null);
+    try {
+      const [designerRes, configRes, revenueRes] = await Promise.all([
+        fetch(`${apiBase}/admin/tenant/services/${serviceId}/designer`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
+        fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
+        fetch(`${apiBase}/admin/tenant/revenue-heads`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
+      ]);
+      if (designerRes.status === 401 || configRes.status === 401 || revenueRes.status === 401) {
+        clearStoredAuth();
+        router.replace('/login?error=session_expired');
+        return;
+      }
+      if (!designerRes.ok || !configRes.ok || !revenueRes.ok) {
+        const detail = await designerRes.text().catch(() => '');
+        setStatus(
+          `Designer load failed (${designerRes.status}/${configRes.status}/${revenueRes.status}). ${detail.slice(0, 180)}`,
+        );
+        return;
+      }
+      const data = (await designerRes.json()) as ServiceDesignerResponse;
+      const config = (await configRes.json()) as ServiceConfigResponse;
+      const heads = (await revenueRes.json()) as RevenueHeadRow[];
+      setDesigner(data);
+      setServiceConfig(config);
+      setRevenueHeads(heads.filter((head) => head.is_active));
+      setFeeText(pretty(config.fee_rule));
+      setDocumentsText(pretty(config.required_documents));
+      setRevenueHeadCode(config.revenue_head?.code ?? '');
+      setFormText(
+        pretty(
+          data.form_draft?.form_schema ??
+            data.form_published?.form_schema ??
+            data.starter_form_schema,
+        ),
+      );
+      setWorkflowText(
+        pretty(
+          data.workflow_draft?.definition ??
+            data.workflow_published?.definition ??
+            data.starter_workflow,
+        ),
+      );
+      setValues({});
+      setSelectedFieldId(null);
+      setSelectedStageCode(null);
+      setStatus(null);
+    } catch {
+      setStatus(
+        `Could not reach the API at ${apiBase}. Start the API on port 3001 (pnpm --filter @enagar/api dev) and confirm NEXT_PUBLIC_API_BASE_URL.`,
+      );
+    }
   }, [apiBase, authHeaders, router, serviceId, token]);
 
   useEffect(() => {
@@ -780,26 +754,26 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/dashboard" className="text-sm text-slate-500 underline">
-            Back to dashboard
+    <div className="mx-auto max-w-7xl space-y-8">
+      <PageHeader
+        eyebrow="Service configuration"
+        title={pickLabel(designer.service.name)}
+        subtitle={`Service code ${designer.service.code}`}
+        actions={
+          <Link
+            href={'/dashboard' as Route}
+            className="text-sm font-medium text-brand hover:underline"
+          >
+            Back to catalogue
           </Link>
-          <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sprint 6.2 · Form Schema Builder + Workflow Designer
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-900">
-            {pickLabel(designer.service.name)}
-          </h1>
-          <p className="mt-2 font-mono text-xs text-slate-500">{designer.service.code}</p>
-        </div>
-        {status ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            {status}
-          </p>
-        ) : null}
-      </div>
+        }
+      />
+
+      {status ? (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {status}
+        </p>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
@@ -885,7 +859,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
           </div>
         </aside>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -1627,27 +1601,19 @@ function EditorPanel({
   onPublish: () => void;
 }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warm-border bg-mint-band/40 px-4 py-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">{meta}</p>
+          <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
+          <p className="text-xs text-ink-secondary">{meta}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onSave}
-            className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
-          >
+          <Button type="button" size="sm" variant="secondary" onClick={onSave}>
             Save draft
-          </button>
-          <button
-            type="button"
-            onClick={onPublish}
-            className="rounded bg-[rgb(var(--brand-rgb))] px-3 py-2 text-xs font-medium text-white hover:opacity-95"
-          >
+          </Button>
+          <Button type="button" size="sm" onClick={onPublish}>
             Publish
-          </button>
+          </Button>
         </div>
       </div>
       <textarea

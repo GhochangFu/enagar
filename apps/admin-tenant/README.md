@@ -78,7 +78,19 @@ JWT must include **`tenant_id` / `tenant_code`** claims (`tenant-claims` scope).
 - **Clerks and municipality admins** both sign in here (**`:3002`**); no separate clerk PWA.
 - New **`/dashboard/desk`**: application inbox (workflow approve/reject/forward) + grievance inbox (status, assign, comment).
 - Desk APIs: **`/admin/tenant/desk/*`**; existing configure APIs stay admin-only.
-- Exit: **`docs/runbooks/master-sprint-613-exit.md`** — closed (2026-05-18). **Phase UX (6.14–6.19)** next — [`phase-ux-revamp-plan.md`](../../docs/runbooks/phase-ux-revamp-plan.md); gates Phase 7.
+- Exit: **`docs/runbooks/master-sprint-613-exit.md`** — closed (2026-05-18).
+
+## Sprint 6.17 — Tenant Admin shell, dashboard & Desk (Phase UX)
+
+- **Closed** (2026-05-19) — shared **Warm Coral B+ Pro** operator shell (sidebar, role-aware nav), login polish, dashboard KPI/deep-link tiles, Desk inbox/detail styling, `@enagar/ui` buttons.
+- Exit: **`docs/runbooks/master-sprint-617-exit.md`** · plan: **`docs/runbooks/master-sprint-617-plan.md`**
+
+## Sprint 6.18 — Masters, Operations & designer chrome (Phase UX)
+
+- **Closed** (2026-05-19) — guided Masters/Operations (list edit, JSON fallback panels), service designer toolbar/publish bar, Desk detail field summary, catalogue B+ Pro cards, `AdminOnlyPanel` for clerks; shared `useTenantAdminSession`; **no API changes**.
+- Plan: **`docs/runbooks/master-sprint-618-plan.md`** · exit: **`docs/runbooks/master-sprint-618-exit.md`**
+- **Next:** Sprint **6.19** (State Admin + mobile) — [`phase-ux-revamp-plan.md`](../../docs/runbooks/phase-ux-revamp-plan.md) §6.19.
+- **Phase UX (6.14–6.19)** — gates Phase 7 after **6.19** sign-off.
 
 ## Relation to citizen catalogue API
 

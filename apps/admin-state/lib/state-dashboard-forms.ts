@@ -1,0 +1,199 @@
+export type TenantDraft = {
+  code: string;
+  name: string;
+  district: string;
+  ward_count: string;
+  theme_color: string;
+  languages_enabled: string;
+  status: string;
+  inherit_default_services: string;
+  default_language: string;
+  support_email: string;
+};
+
+export type LibraryDraft = {
+  code: string;
+  category_code: string;
+  name_en: string;
+  description_en: string;
+  workflow_pattern: string;
+  default_sla_days: string;
+  fee_type: string;
+  fee_amount_rupees: string;
+  lifecycle_status: string;
+  curator_notes: string;
+};
+
+export type IntegrationDraft = {
+  provider_key: string;
+  environment: string;
+  status: string;
+  owner: string;
+  notes: string;
+  required_docs: string;
+};
+
+export const EMPTY_TENANT_DRAFT: TenantDraft = {
+  code: 'NBM',
+  name: 'New Barrackpore Municipality',
+  district: 'North 24 Pgs',
+  ward_count: '20',
+  theme_color: '#0E7490',
+  languages_enabled: 'en, bn',
+  status: 'active',
+  inherit_default_services: 'true',
+  default_language: 'bn',
+  support_email: 'support@example.gov.in',
+};
+
+export const EMPTY_LIBRARY_DRAFT: LibraryDraft = {
+  code: 'community-hall-booking-state',
+  category_code: 'municipal-services',
+  name_en: 'Community Hall Booking',
+  description_en: 'State-curated template for community hall booking.',
+  workflow_pattern: 'single_window',
+  default_sla_days: '7',
+  fee_type: 'fixed',
+  fee_amount_rupees: '500',
+  lifecycle_status: 'draft',
+  curator_notes: 'Sprint 6.12 smoke template.',
+};
+
+export const EMPTY_INTEGRATION_DRAFT: IntegrationDraft = {
+  provider_key: 'digilocker',
+  environment: 'sandbox',
+  status: 'manual_check_required',
+  owner: 'DevOps',
+  notes: 'Metadata only. Secrets remain outside eNagar.',
+  required_docs: 'MoU, UAT credentials approval',
+};
+
+export function pickLabel(json: unknown): string {
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
+    const record = json as Record<string, unknown>;
+    return typeof record.en === 'string' ? record.en : 'Untitled';
+  }
+  return 'Untitled';
+}
+
+export function tenantDraftToPayload(draft: TenantDraft): Record<string, unknown> {
+  const languages = draft.languages_enabled
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return {
+    code: draft.code.trim().toUpperCase(),
+    name: draft.name.trim(),
+    district: draft.district.trim(),
+    ward_count: draft.ward_count ? Number(draft.ward_count) : undefined,
+    theme_color: draft.theme_color.trim(),
+    logo_url: null,
+    languages_enabled: languages.length ? languages : ['en'],
+    status: draft.status,
+    inherit_default_services: draft.inherit_default_services === 'true',
+    config: {
+      default_language: draft.default_language,
+      support_email: draft.support_email,
+      onboarding_source: 'state_wizard',
+      wizard_completed: true,
+    },
+  };
+}
+
+export function libraryDraftToPayload(draft: LibraryDraft): Record<string, unknown> {
+  const amountPaise = Math.round(Number(draft.fee_amount_rupees || '0') * 100);
+  return {
+    code: draft.code.trim(),
+    category_code: draft.category_code.trim(),
+    name: { en: draft.name_en.trim(), bn: draft.name_en.trim(), hi: draft.name_en.trim() },
+    description: { en: draft.description_en.trim() },
+    workflow_pattern: draft.workflow_pattern,
+    default_sla_days: Number(draft.default_sla_days || '0'),
+    fee_config:
+      draft.fee_type === 'fixed'
+        ? { type: 'fixed', amount_paise: amountPaise }
+        : { type: draft.fee_type },
+    required_documents: [{ code: 'identity-proof', label: { en: 'Identity proof' } }],
+    lifecycle_status: draft.lifecycle_status,
+    curator_notes: draft.curator_notes,
+  };
+}
+
+export function tenantRowToDraft(row: {
+  code: string;
+  name: string;
+  district: string | null;
+  ward_count: number | null;
+  theme_color: string | null;
+  languages_enabled: string[];
+  is_active: boolean;
+}): TenantDraft {
+  return {
+    code: row.code,
+    name: row.name,
+    district: row.district ?? '',
+    ward_count: row.ward_count != null ? String(row.ward_count) : '',
+    theme_color: row.theme_color ?? '#0E7490',
+    languages_enabled: row.languages_enabled.join(', '),
+    status: row.is_active ? 'active' : 'inactive',
+    inherit_default_services: 'true',
+    default_language: 'bn',
+    support_email: 'support@example.gov.in',
+  };
+}
+
+export function libraryRowToDraft(row: {
+  code: string;
+  category_code: string;
+  name: unknown;
+  lifecycle_status: string;
+  default_sla_days: number | null;
+  curator_notes: string | null;
+}): LibraryDraft {
+  return {
+    code: row.code,
+    category_code: row.category_code,
+    name_en: pickLabel(row.name),
+    description_en: pickLabel(row.name),
+    workflow_pattern: 'single_window',
+    default_sla_days: row.default_sla_days != null ? String(row.default_sla_days) : '7',
+    fee_type: 'fixed',
+    fee_amount_rupees: '500',
+    lifecycle_status: row.lifecycle_status,
+    curator_notes: row.curator_notes ?? '',
+  };
+}
+
+export function integrationRowToDraft(row: {
+  provider_key: string;
+  environment: string;
+  status: string;
+  owner: string | null;
+  notes: string | null;
+}): IntegrationDraft {
+  return {
+    provider_key: row.provider_key,
+    environment: row.environment,
+    status: row.status,
+    owner: row.owner ?? '',
+    notes: row.notes ?? '',
+    required_docs: '',
+  };
+}
+
+export function integrationDraftToPayload(draft: IntegrationDraft): Record<string, unknown> {
+  const docs = draft.required_docs
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return {
+    provider_key: draft.provider_key.trim(),
+    environment: draft.environment,
+    status: draft.status,
+    owner: draft.owner.trim() || null,
+    notes: draft.notes.trim() || null,
+    required_docs: docs,
+  };
+}

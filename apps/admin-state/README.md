@@ -27,6 +27,13 @@ The JWT must include the `state_admin` role and tenant claims from the `tenant-c
 scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA for
 `state_admin` accounts when the API verifier requires it.
 
+## Phase UX — Sprint 6.19 (closed)
+
+- Platform **teal** accent via `applyStateAdminTheme()` (`#0E7490`) — distinct from tenant Warm Coral.
+- Login, `StateAdminShell`, dashboard guided forms, KPI strip, tenant drawer.
+- Exit: `docs/runbooks/master-sprint-619-exit.md`
+- **Next programme gate:** Citizen mobile PWA parity — `docs/runbooks/master-sprint-620-plan.md`
+
 ## Engineering Exit Record
 
 - `docs/runbooks/master-sprint-65-exit.md`

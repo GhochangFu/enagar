@@ -1,20 +1,10 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, PageHeader } from '@enagar/ui';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
-import { publicEnv } from '../../../lib/env/public-env';
-import {
-  ADMIN_OAUTH_STORAGE_KEY,
-  type AdminOAuthBundle,
-} from '../../../lib/oauth/session-storage-keys';
-
-type DeskMe = {
-  tenant_code?: string;
-  roles: string[];
-  normalized_roles: string[];
-  is_admin: boolean;
-};
+import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
+import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
 type DeskSummary = {
   applications_my_queue: number;
@@ -89,18 +79,6 @@ type GrievanceDetail = {
   allowed_statuses: string[];
 };
 
-function readStoredAuth(): AdminOAuthBundle | null {
-  if (typeof window === 'undefined') return null;
-  const raw = sessionStorage.getItem(ADMIN_OAUTH_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as AdminOAuthBundle;
-    return parsed.access_token && parsed.expires_at ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function prettyJson(value: unknown): string {
   try {
     return JSON.stringify(value ?? {}, null, 2);
@@ -109,14 +87,52 @@ function prettyJson(value: unknown): string {
   }
 }
 
-export default function DeskClient(): JSX.Element {
-  const router = useRouter();
-  const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
+function humanizeFieldKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
-  const [token, setToken] = useState<string | null>(null);
-  const [apiBase, setApiBase] = useState(fallbackApi);
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return prettyJson(value);
+  return String(value);
+}
+
+function FormDataSummary({ data }: { data: unknown }): JSX.Element {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return (
+      <p className="rounded-2xl border border-warm-border bg-mint-band/30 px-4 py-3 text-sm text-ink-secondary">
+        No structured application fields to display.
+      </p>
+    );
+  }
+
+  const entries = Object.entries(data as Record<string, unknown>);
+  if (!entries.length) {
+    return (
+      <p className="rounded-2xl border border-warm-border bg-mint-band/30 px-4 py-3 text-sm text-ink-secondary">
+        Application form is empty.
+      </p>
+    );
+  }
+
+  return (
+    <dl className="grid gap-3 rounded-2xl border border-warm-border bg-mint-band/30 p-4 md:grid-cols-2">
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <dt className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            {humanizeFieldKey(key)}
+          </dt>
+          <dd className="mt-0.5 text-sm font-medium text-ink-primary">{formatFieldValue(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export default function DeskClient(): JSX.Element {
+  const { token, apiBase, me, refreshMe } = useTenantAdminSession();
   const [status, setStatus] = useState<string | null>(null);
-  const [me, setMe] = useState<DeskMe | null>(null);
   const [summary, setSummary] = useState<DeskSummary | null>(null);
   const [tab, setTab] = useState<'applications' | 'grievances'>('applications');
   const [appQueue, setAppQueue] = useState<'my' | 'all'>('my');
@@ -127,21 +143,6 @@ export default function DeskClient(): JSX.Element {
   const [grievanceDetail, setGrievanceDetail] = useState<GrievanceDetail | null>(null);
   const [comment, setComment] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
-
-  useEffect(() => {
-    const auth = readStoredAuth();
-    if (!auth) {
-      router.replace('/login');
-      return;
-    }
-    if (auth.expires_at < Math.floor(Date.now() / 1000)) {
-      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-      router.replace('/login?error=session_expired');
-      return;
-    }
-    setToken(auth.access_token);
-    setApiBase(auth.api_base_url ?? fallbackApi);
-  }, [fallbackApi, router]);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -155,8 +156,7 @@ export default function DeskClient(): JSX.Element {
     if (!token) return;
     setStatus(null);
     try {
-      const [meRes, summaryRes, appRes, grievanceRes] = await Promise.all([
-        fetch(`${apiBase}/admin/tenant/desk/me`, { cache: 'no-store', headers: authHeaders() }),
+      const [summaryRes, appRes, grievanceRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/desk/inbox/summary`, {
           cache: 'no-store',
           headers: authHeaders(),
@@ -170,20 +170,18 @@ export default function DeskClient(): JSX.Element {
           headers: authHeaders(),
         }),
       ]);
-      if (!meRes.ok || !summaryRes.ok || !appRes.ok || !grievanceRes.ok) {
-        setStatus(
-          `Desk API error (${meRes.status}/${summaryRes.status}/${appRes.status}/${grievanceRes.status}).`,
-        );
+      if (!summaryRes.ok || !appRes.ok || !grievanceRes.ok) {
+        setStatus(`Desk API error (${summaryRes.status}/${appRes.status}/${grievanceRes.status}).`);
         return;
       }
-      setMe((await meRes.json()) as DeskMe);
       setSummary((await summaryRes.json()) as DeskSummary);
       setApplications((await appRes.json()) as ApplicationRow[]);
       setGrievances((await grievanceRes.json()) as GrievanceRow[]);
+      await refreshMe();
     } catch {
       setStatus('Network error loading Desk.');
     }
-  }, [apiBase, appQueue, authHeaders, grievanceQueue, token]);
+  }, [apiBase, appQueue, authHeaders, grievanceQueue, refreshMe, token]);
 
   useEffect(() => {
     void loadDesk();
@@ -321,51 +319,22 @@ export default function DeskClient(): JSX.Element {
     await loadDesk();
   }
 
-  function logout(): void {
-    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-    router.replace('/login');
-  }
-
-  if (!token) {
-    return (
-      <main className="mx-auto max-w-5xl px-6 py-16">
-        <p className="text-slate-600">Checking session…</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10">
-      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sprint 6.13 · Operator Desk
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-900">Desk</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {me?.tenant_code ? <span className="font-mono">{me.tenant_code}</span> : 'Loading'} ·{' '}
-            {me?.roles.join(', ') ?? 'roles'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {me?.is_admin ? (
-            <>
-              <a className="btn-secondary" href="/dashboard">
-                Dashboard
-              </a>
-              <a className="btn-secondary" href="/dashboard/operations">
-                Operations
-              </a>
-            </>
-          ) : null}
-          <button type="button" onClick={() => void loadDesk()} className="btn-secondary">
-            Refresh
-          </button>
-          <button type="button" onClick={logout} className="btn-secondary">
-            Sign out
-          </button>
-        </div>
-      </header>
+    <div className="mx-auto max-w-7xl space-y-8">
+      <PageHeader
+        eyebrow="Operator Desk"
+        title="Desk"
+        subtitle={
+          me?.tenant_code
+            ? `${me.tenant_code} · ${me.roles.join(', ')}`
+            : 'Applications and grievances inbox'
+        }
+        actions={
+          <Button type="button" variant="secondary" onClick={() => void loadDesk()}>
+            Refresh inbox
+          </Button>
+        }
+      />
 
       {status ? (
         <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -384,20 +353,20 @@ export default function DeskClient(): JSX.Element {
       ) : null}
 
       <section className="mb-6 flex flex-wrap gap-3">
-        <button
+        <Button
           type="button"
+          variant={tab === 'applications' ? 'primary' : 'secondary'}
           onClick={() => setTab('applications')}
-          className={tab === 'applications' ? 'btn-primary' : 'btn-secondary'}
         >
           Applications
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant={tab === 'grievances' ? 'primary' : 'secondary'}
           onClick={() => setTab('grievances')}
-          className={tab === 'grievances' ? 'btn-primary' : 'btn-secondary'}
         >
           Grievances
-        </button>
+        </Button>
       </section>
 
       {tab === 'applications' ? (
@@ -414,20 +383,20 @@ export default function DeskClient(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => void openApplication(row.docket_no)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left hover:bg-slate-50"
+                    className="w-full rounded-xl border border-warm-border bg-surface p-3 text-left transition hover:bg-brand-muted/20"
                   >
-                    <p className="font-mono text-xs font-semibold text-slate-900">
+                    <p className="font-mono text-xs font-semibold text-ink-primary">
                       {row.docket_no}
                     </p>
-                    <p className="mt-1 text-sm text-slate-700">{row.service_name}</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-sm text-ink-primary">{row.service_name}</p>
+                    <p className="mt-1 text-xs text-ink-secondary">
                       {row.current_stage} · pending {row.pending_role ?? 'none'}
                     </p>
                   </button>
                 </li>
               ))}
               {!applications.length ? (
-                <li className="text-sm text-slate-500">No applications.</li>
+                <li className="text-sm text-ink-secondary">No applications.</li>
               ) : null}
             </ul>
           </Panel>
@@ -439,34 +408,39 @@ export default function DeskClient(): JSX.Element {
                   title={applicationDetail.application.docket_no}
                   subtitle={`${applicationDetail.application.service_name} · ${applicationDetail.application.status_label}`}
                 />
-                <pre className="max-h-56 overflow-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-                  {prettyJson(applicationDetail.application.form_data)}
-                </pre>
+                <FormDataSummary data={applicationDetail.application.form_data} />
+                <JsonFallbackPanel
+                  readOnly
+                  title="Raw form data (JSON)"
+                  description="Expand only when you need the exact submitted payload."
+                  value={prettyJson(applicationDetail.application.form_data)}
+                />
                 <textarea
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
-                  className="min-h-24 w-full rounded border border-slate-300 p-2 text-sm"
+                  className="min-h-24 w-full rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary"
                   placeholder="Comment for workflow action"
                 />
                 <div className="flex flex-wrap gap-2">
                   {applicationDetail.allowed_transitions.map((transition) => (
-                    <button
+                    <Button
                       key={transition.verb}
                       type="button"
                       onClick={() => void transitionApplication(transition.verb)}
-                      className="btn-primary"
+                      variant="primary"
+                      size="sm"
                     >
                       {transition.label} → {transition.to_stage}
-                    </button>
+                    </Button>
                   ))}
                   {!applicationDetail.allowed_transitions.length ? (
-                    <p className="text-sm text-slate-500">No allowed actions for your role.</p>
+                    <p className="text-sm text-ink-secondary">No allowed actions for your role.</p>
                   ) : null}
                 </div>
                 <Timeline rows={applicationDetail.application.timeline} />
               </div>
             ) : (
-              <p className="text-sm text-slate-500">Select a docket.</p>
+              <p className="text-sm text-ink-secondary">Select a docket.</p>
             )}
           </Panel>
         </section>
@@ -480,9 +454,9 @@ export default function DeskClient(): JSX.Element {
                 onChange={(next) => setGrievanceQueue(next as 'my' | 'all' | 'breached')}
               />
               {me?.is_admin ? (
-                <button type="button" onClick={() => void sweepSla()} className="btn-secondary">
+                <Button type="button" variant="secondary" size="sm" onClick={() => void sweepSla()}>
                   Sweep SLA
-                </button>
+                </Button>
               ) : null}
             </div>
             <ul className="mt-4 space-y-3">
@@ -491,22 +465,22 @@ export default function DeskClient(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => void openGrievance(row.id)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left hover:bg-slate-50"
+                    className="w-full rounded-xl border border-warm-border bg-surface p-3 text-left transition hover:bg-brand-muted/20"
                   >
-                    <p className="font-mono text-xs font-semibold text-slate-900">
+                    <p className="font-mono text-xs font-semibold text-ink-primary">
                       {row.grievance_no}
                     </p>
-                    <p className="mt-1 text-sm text-slate-700">
+                    <p className="mt-1 text-sm text-ink-primary">
                       {row.category} · {row.priority}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-ink-secondary">
                       {row.status} · routed {row.routed_role_code ?? 'none'}
                     </p>
                   </button>
                 </li>
               ))}
               {!grievances.length ? (
-                <li className="text-sm text-slate-500">No grievances.</li>
+                <li className="text-sm text-ink-secondary">No grievances.</li>
               ) : null}
             </ul>
           </Panel>
@@ -518,49 +492,61 @@ export default function DeskClient(): JSX.Element {
                   title={grievanceDetail.grievance.grievance_no}
                   subtitle={`${grievanceDetail.grievance.category} · ${grievanceDetail.grievance.status}`}
                 />
-                <p className="rounded bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="rounded-2xl border border-warm-border bg-mint-band/30 p-4 text-sm text-ink-primary">
                   {grievanceDetail.grievance.description}
                 </p>
+                {grievanceDetail.grievance.location ? (
+                  <>
+                    <FormDataSummary data={grievanceDetail.grievance.location} />
+                    <JsonFallbackPanel
+                      readOnly
+                      title="Raw location (JSON)"
+                      value={prettyJson(grievanceDetail.grievance.location)}
+                    />
+                  </>
+                ) : null}
                 <textarea
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
-                  className="min-h-24 w-full rounded border border-slate-300 p-2 text-sm"
+                  className="min-h-24 w-full rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary"
                   placeholder="Comment / status note"
                 />
                 <div className="flex flex-wrap gap-2">
                   {grievanceDetail.allowed_statuses.map((next) => (
-                    <button
+                    <Button
                       key={next}
                       type="button"
+                      size="sm"
                       onClick={() => void updateGrievanceStatus(next)}
-                      className="btn-primary"
                     >
                       Mark {next}
-                    </button>
+                    </Button>
                   ))}
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => void commentGrievance()}
-                    className="btn-secondary"
                   >
                     Add comment
-                  </button>
+                  </Button>
                 </div>
                 {me?.is_admin ? (
                   <div className="flex gap-2">
                     <input
                       value={assignUserId}
                       onChange={(event) => setAssignUserId(event.target.value)}
-                      className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                      className="flex-1 rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary"
                       placeholder="User UUID to assign"
                     />
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => void assignGrievance()}
-                      className="btn-secondary"
                     >
                       Assign
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 <Timeline
@@ -576,28 +562,28 @@ export default function DeskClient(): JSX.Element {
                 />
               </div>
             ) : (
-              <p className="text-sm text-slate-500">Select a grievance.</p>
+              <p className="text-sm text-ink-secondary">Select a grievance.</p>
             )}
           </Panel>
         </section>
       )}
-    </main>
+    </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
+    <article className="rounded-2xl border border-warm-border bg-surface p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-ink-primary">{value}</p>
     </article>
   );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
       <div className="mt-4">{children}</div>
     </article>
   );
@@ -615,14 +601,15 @@ function QueueSwitch({
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((item) => (
-        <button
+        <Button
           key={item}
           type="button"
+          size="sm"
+          variant={value === item ? 'primary' : 'secondary'}
           onClick={() => onChange(item)}
-          className={value === item ? 'btn-primary' : 'btn-secondary'}
         >
           {item}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -631,8 +618,8 @@ function QueueSwitch({
 function DetailHeader({ title, subtitle }: { title: string; subtitle: string }): JSX.Element {
   return (
     <div>
-      <p className="font-mono text-xs font-semibold text-slate-500">{title}</p>
-      <h3 className="text-xl font-semibold text-slate-900">{subtitle}</h3>
+      <p className="font-mono text-xs font-semibold text-ink-secondary">{title}</p>
+      <h3 className="text-xl font-semibold text-ink-primary">{subtitle}</h3>
     </div>
   );
 }
@@ -651,19 +638,22 @@ function Timeline({
   }>;
 }): JSX.Element {
   return (
-    <ol className="space-y-2 border-t border-slate-200 pt-4">
+    <ol className="space-y-2 border-t border-warm-border pt-4">
       {rows.map((row) => (
-        <li key={row.id} className="rounded border border-slate-100 bg-slate-50 p-3 text-sm">
-          <p className="font-medium text-slate-900">
+        <li
+          key={row.id}
+          className="rounded-xl border border-warm-border bg-mint-band/20 p-3 text-sm"
+        >
+          <p className="font-medium text-ink-primary">
             {row.verb}: {row.from_stage ?? 'start'} → {row.to_stage}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-secondary">
             {row.actor_role} · {new Date(row.created_at).toLocaleString()}
           </p>
-          {row.comment ? <p className="mt-1 text-slate-700">{row.comment}</p> : null}
+          {row.comment ? <p className="mt-1 text-ink-primary">{row.comment}</p> : null}
         </li>
       ))}
-      {!rows.length ? <li className="text-sm text-slate-500">No timeline events.</li> : null}
+      {!rows.length ? <li className="text-sm text-ink-secondary">No timeline events.</li> : null}
     </ol>
   );
 }

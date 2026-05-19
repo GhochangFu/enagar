@@ -19,6 +19,7 @@ async function bootstrap(): Promise<void> {
       'http://localhost:3000',
       'http://localhost:3002',
       'http://localhost:3003',
+      'http://localhost:8081', // Expo web (`@enagar/mobile`)
     ],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

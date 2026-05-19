@@ -8,6 +8,11 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { useSession } from '../context/SessionContext';
 import type { CitizenRootStackParamList } from '../navigation/types';
+import {
+  mobileTypography,
+  platformBrandHex,
+  readableOnBrandHex,
+} from '../theme/citizenMobileTheme';
 
 type SplashNav = NativeStackNavigationProp<CitizenRootStackParamList, 'Splash'>;
 
@@ -24,10 +29,10 @@ export function SplashScreen() {
         return;
       }
       if (recovered) {
-        navigation.replace('Home');
+        navigation.replace('CitizenHub');
         return;
       }
-      timer.current = setTimeout(() => navigation.replace('TenantPicker'), 2400);
+      timer.current = setTimeout(() => navigation.replace('OtpLogin'), 2400);
     })();
 
     return () => {
@@ -42,21 +47,27 @@ export function SplashScreen() {
     if (timer.current) {
       clearTimeout(timer.current);
     }
-    navigation.replace('TenantPicker');
+    navigation.replace('OtpLogin');
   }
+
+  const brand = platformBrandHex();
+  const brandFg = readableOnBrandHex(brand);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('action.continue', locale)}
       onPress={skip}
-      style={[styles.fill, { justifyContent: 'center', padding: 24 }]}
+      style={[styles.fill, { justifyContent: 'center', padding: 28, backgroundColor: brand }]}
     >
       <StatusBar style="light" />
-      <Text style={styles.title}>{t('splash.title', locale)}</Text>
-      <Text style={[styles.subtitle]}>{t('splash.subtitle', locale)}</Text>
-      <Text style={styles.skipHint}>{t('action.continue', locale)}</Text>
-      <Text style={styles.micro}>
+      <Text style={[mobileTypography.eyebrow, styles.eyebrowOnBrand, { color: brandFg }]}>
+        eNagarSeba
+      </Text>
+      <Text style={[styles.title, { color: brandFg }]}>{t('splash.title', locale)}</Text>
+      <Text style={[styles.subtitle, { color: brandFg }]}>{t('splash.subtitle', locale)}</Text>
+      <Text style={[styles.skipHint, { color: brandFg }]}>{t('action.continue', locale)}</Text>
+      <Text style={[styles.micro, { color: brandFg }]}>
         {Constants.expoConfig?.version
           ? `${Constants.expoConfig.name ?? 'eNagarSeba'} v${Constants.expoConfig.version}`
           : '@enagar/mobile'}
@@ -66,21 +77,20 @@ export function SplashScreen() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#0F4C75' },
-  title: { fontSize: 26, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
+  fill: { flex: 1 },
+  eyebrowOnBrand: { opacity: 0.88, marginBottom: 8 },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: {
     marginTop: 10,
     fontSize: 16,
     lineHeight: 23,
-    color: '#FFFFFF',
     opacity: 0.92,
   },
   skipHint: {
     marginTop: 24,
     fontSize: 14,
     textDecorationLine: 'underline',
-    color: '#FFFFFF',
     opacity: 0.85,
   },
-  micro: { marginTop: 14, fontSize: 11, color: '#FFFFFF', opacity: 0.65 },
+  micro: { marginTop: 14, fontSize: 11, opacity: 0.65 },
 });

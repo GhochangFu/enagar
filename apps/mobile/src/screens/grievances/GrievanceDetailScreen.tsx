@@ -18,7 +18,7 @@ export function GrievanceDetailScreen() {
   const route = useRoute<DetailRoute>();
   const { locale, accessToken, selectedTenant } = useSession();
   const grievanceId = route.params.id;
-  const scope = selectedTenant?.code;
+  const scope = route.params.tenantCode ?? selectedTenant?.code;
 
   const [detail, setDetail] = useState<GrievanceDetailDto | null>(null);
   const [busy, setBusy] = useState(false);

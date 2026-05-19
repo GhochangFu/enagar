@@ -2,16 +2,19 @@ import type { Locale } from '@enagar/i18n';
 import { resolveLocale } from '@enagar/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { applyPlatformTheme, applyTenantTheme } from '@enagar/tenant-theme';
 import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
 import { Platform } from 'react-native';
 
+import { resolveSessionApiRoot } from '../lib/devApiBase';
 import type { TenantListItem } from '../tenantApi';
 
 const LEGACY_SELECTED_TENANT_KEY = '@enagar/mobile/selected-tenant-json';
@@ -60,9 +63,9 @@ async function deleteSecret(key: string): Promise<void> {
 /** Expo injects `EXPO_PUBLIC_*` at bundle time. */
 export function sessionApiRoot(): string {
   const raw = process.env.EXPO_PUBLIC_API_BASE_URL;
-  const base =
-    typeof raw === 'string' && raw.trim().length > 0 ? raw.trim().replace(/\/$/, '') : '';
-  return base.length > 0 ? base : 'http://localhost:3001/api';
+  const configured =
+    typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'http://localhost:3001/api';
+  return resolveSessionApiRoot(configured);
 }
 
 type SessionState = {
@@ -91,6 +94,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
   const [mobile, setMobile] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+    if (selectedTenant) {
+      applyTenantTheme({
+        theme_color: selectedTenant.theme_color,
+        logo_url: null,
+        languages_enabled: ['en'],
+      });
+      return;
+    }
+    applyPlatformTheme();
+  }, [selectedTenant]);
 
   const setLocale = useCallback((lng: Locale) => {
     setLocaleState(lng);
@@ -127,13 +145,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const restoreSession = useCallback(async (): Promise<boolean> => {
     const tenantRaw = await AsyncStorage.getItem(LEGACY_SELECTED_TENANT_KEY);
-    let tenantOk = false;
     if (tenantRaw && tenantRaw.length > 0) {
       try {
         const row = JSON.parse(tenantRaw) as TenantListItem;
         if (row && typeof row.code === 'string') {
           setSelectedTenantState(row);
-          tenantOk = true;
         }
       } catch {
         /** ignore corrupted */
@@ -143,7 +159,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const at = await readSecret(tokenAccessKey());
     const rt = await readSecret(tokenRefreshKey());
     const mob = await AsyncStorage.getItem('@enagar/mobile/citizen-mobile');
-    const recovered = !!(at && mob && mob.length >= 10 && tenantOk);
+    const recovered = !!(at && mob && mob.length >= 10);
     if (recovered && at && mob) {
       setAccessToken(at);
       setRefreshTokenState(rt);

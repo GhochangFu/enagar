@@ -1,16 +1,34 @@
 'use client';
 
-import Link from 'next/link';
+import { Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { publicEnv } from '../../../lib/env/public-env';
-import {
-  ADMIN_OAUTH_STORAGE_KEY,
-  type AdminOAuthBundle,
-} from '../../../lib/oauth/session-storage-keys';
+import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
+import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
+import { useTenantAdminSession } from '../../../components/tenant-admin-session';
+import { clearStoredAuth } from '../../../lib/admin-auth';
 
 import type { ReactNode } from 'react';
+
+type OperationsSection =
+  | 'banners'
+  | 'settings'
+  | 'templates'
+  | 'kb'
+  | 'branding'
+  | 'bookings'
+  | 'staff';
+
+const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
+  { id: 'banners', label: 'Banners' },
+  { id: 'settings', label: 'Branding & flags' },
+  { id: 'templates', label: 'Templates' },
+  { id: 'kb', label: 'Knowledge base' },
+  { id: 'branding', label: 'Branding assets' },
+  { id: 'bookings', label: 'Bookings' },
+  { id: 'staff', label: 'Staff & roles' },
+];
 
 type SettingsRow = {
   tenant_code?: string;
@@ -153,25 +171,6 @@ type RoleStageMapRow = {
   can_act: boolean;
 };
 
-function readStoredAuth(): AdminOAuthBundle | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const raw = sessionStorage.getItem(ADMIN_OAUTH_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as AdminOAuthBundle;
-    if (!parsed.access_token || typeof parsed.expires_at !== 'number') {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 function pickLabel(json: unknown): string {
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     const record = json as Record<string, unknown>;
@@ -206,12 +205,77 @@ function renderTemplatePreview(template: string, samples: Record<string, string>
 
 export default function OperationsClient(): JSX.Element {
   const router = useRouter();
-  const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
-
-  const [token, setToken] = useState<string | null>(null);
-  const [apiBase, setApiBase] = useState(fallbackApi);
+  const { token, apiBase, me } = useTenantAdminSession();
   const [status, setStatus] = useState<string | null>(null);
+  const [opsSection, setOpsSection] = useState<OperationsSection>('banners');
+  const [selectedBannerCode, setSelectedBannerCode] = useState<string | null>(null);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const [selectedKbSlug, setSelectedKbSlug] = useState<string | null>(null);
+  const [selectedBrandingCode, setSelectedBrandingCode] = useState<string | null>(null);
+  const [selectedBookableCode, setSelectedBookableCode] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsRow | null>(null);
+  const [settingsDraft, setSettingsDraft] = useState({
+    theme_color: '#0f766e',
+    logo_url: '',
+    hero_image_url: '',
+    kb_cms: true,
+    notification_templates: true,
+    staff_roles: true,
+    languages_enabled: 'en,bn,hi',
+    default_language: 'en',
+    contact_phone: '',
+    contact_email: '',
+  });
+  const [brandingAssetDraft, setBrandingAssetDraft] = useState({
+    code: 'kmc-logo',
+    kind: 'logo',
+    storage_key: '',
+    public_url: '',
+    mime_type: 'image/png',
+    size_bytes: '120000',
+    width: '512',
+    height: '512',
+  });
+  const [bookingAssetDraft, setBookingAssetDraft] = useState({
+    code: 'community-hall-main',
+    name_en: 'Community Hall Main',
+    ward: '001',
+    address: 'Main municipal hall',
+    capacity: '120',
+    is_active: true,
+  });
+  const [bookingAvailabilityDraft, setBookingAvailabilityDraft] = useState({
+    asset_code: 'community-hall-main',
+    kind: 'available',
+    starts_at: '',
+    ends_at: '',
+    note: 'General booking window',
+  });
+  const [bookingReservationDraft, setBookingReservationDraft] = useState({
+    asset_code: 'community-hall-main',
+    holder_name: 'Citizen booking smoke',
+    holder_mobile: '',
+    docket_no: '',
+    starts_at: '',
+    ends_at: '',
+    status: 'hold',
+    note: 'Smoke reservation',
+  });
+  const [staffInviteDraft, setStaffInviteDraft] = useState({
+    username: 'kmc-tenant-clerk-demo',
+    display_name: 'KMC Tenant Clerk Invite',
+    email: 'kmc-clerk-demo@example.gov.in',
+    mobile: '',
+    role_codes: 'tenant_clerk',
+    ward_number: '',
+  });
+  const [roleStageDraft, setRoleStageDraft] = useState({
+    workflow_code: 'birth-cert-workflow-v1',
+    stage_code: 'document-verification',
+    role_code: 'tenant_clerk',
+    can_view: true,
+    can_act: true,
+  });
   const [banners, setBanners] = useState<BannerRow[]>([]);
   const [templates, setTemplates] = useState<NotificationTemplateRow[]>([]);
   const [kbArticles, setKbArticles] = useState<KbArticleRow[]>([]);
@@ -379,21 +443,6 @@ export default function OperationsClient(): JSX.Element {
     }),
   );
 
-  useEffect(() => {
-    const auth = readStoredAuth();
-    if (!auth) {
-      router.replace('/login');
-      return;
-    }
-    if (auth.expires_at < Math.floor(Date.now() / 1000)) {
-      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-      router.replace('/login?error=session_expired');
-      return;
-    }
-    setToken(auth.access_token);
-    setApiBase(auth.api_base_url ?? fallbackApi);
-  }, [fallbackApi, router]);
-
   const authHeaders = useCallback(
     (): HeadersInit => ({
       authorization: `Bearer ${token}`,
@@ -406,7 +455,7 @@ export default function OperationsClient(): JSX.Element {
     if (res.status !== 401) {
       return false;
     }
-    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+    clearStoredAuth();
     router.replace('/login?error=session_expired');
     return true;
   }
@@ -453,7 +502,7 @@ export default function OperationsClient(): JSX.Element {
           mapsRes,
         ].some((res) => res.status === 401)
       ) {
-        sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
+        clearStoredAuth();
         router.replace('/login?error=session_expired');
         return;
       }
@@ -476,6 +525,28 @@ export default function OperationsClient(): JSX.Element {
       }
       const settingsJson = (await settingsRes.json()) as SettingsRow;
       setSettings(settingsJson);
+      const brandingRecord =
+        settingsJson.branding && typeof settingsJson.branding === 'object'
+          ? (settingsJson.branding as Record<string, unknown>)
+          : {};
+      const flagsRecord =
+        settingsJson.feature_flags && typeof settingsJson.feature_flags === 'object'
+          ? (settingsJson.feature_flags as Record<string, unknown>)
+          : {};
+      setSettingsDraft({
+        theme_color:
+          typeof brandingRecord.theme_color === 'string' ? brandingRecord.theme_color : '#0f766e',
+        logo_url: typeof brandingRecord.logo_url === 'string' ? brandingRecord.logo_url : '',
+        hero_image_url:
+          typeof brandingRecord.hero_image_url === 'string' ? brandingRecord.hero_image_url : '',
+        kb_cms: flagsRecord.kb_cms !== false,
+        notification_templates: flagsRecord.notification_templates !== false,
+        staff_roles: flagsRecord.staff_roles !== false,
+        languages_enabled: settingsJson.languages_enabled.join(','),
+        default_language: settingsJson.default_language,
+        contact_phone: settingsJson.contact_phone ?? '',
+        contact_email: settingsJson.contact_email ?? '',
+      });
       setSettingsText(
         pretty({
           branding: settingsJson.branding,
@@ -678,383 +749,980 @@ export default function OperationsClient(): JSX.Element {
     );
   }
 
-  if (!token) {
-    return (
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <p className="text-sm text-slate-600">Checking session...</p>
-      </main>
+  function selectBanner(banner: BannerRow): void {
+    setSelectedBannerCode(banner.code);
+    setBannerDraft({
+      code: banner.code,
+      severity: banner.severity,
+      title: pickLabel(banner.title),
+      body: pickLabel(banner.body),
+      link_url: banner.link_url ?? '',
+      starts_at: banner.starts_at ?? '',
+      ends_at: banner.ends_at ?? '',
+      is_active: banner.is_active,
+    });
+  }
+
+  function newBanner(): void {
+    setSelectedBannerCode(null);
+    setBannerDraft({
+      code: '',
+      severity: 'info',
+      title: '',
+      body: '',
+      link_url: '',
+      starts_at: '',
+      ends_at: '',
+      is_active: true,
+    });
+  }
+
+  function selectTemplate(template: NotificationTemplateRow): void {
+    const key = `${template.code}:${template.channel}:${template.locale}`;
+    setSelectedTemplateKey(key);
+    setTemplateDraft({
+      code: template.code,
+      channel: template.channel,
+      locale: template.locale,
+      trigger: template.trigger,
+      subject: template.subject ?? '',
+      body: template.body,
+      variables: Array.isArray(template.variables) ? (template.variables as string[]) : [],
+      sampleValues: {},
+      is_active: template.is_active,
+    });
+    setTemplateText(pretty(template));
+  }
+
+  function selectKbArticle(article: KbArticleRow): void {
+    setSelectedKbSlug(article.slug);
+    setKbDraft({
+      slug: article.slug,
+      title_en: pickLabel(article.title),
+      body_en: pickLabel(article.body),
+      tags: article.tags.join(','),
+      status: article.status,
+    });
+    setKbText(
+      pretty({
+        slug: article.slug,
+        title: article.title,
+        body: article.body,
+        tags: article.tags,
+        status: article.status,
+      }),
     );
   }
 
+  function selectBrandingAsset(asset: BrandingAssetRow): void {
+    setSelectedBrandingCode(asset.code);
+    setBrandingAssetDraft({
+      code: asset.code,
+      kind: asset.kind,
+      storage_key: '',
+      public_url: asset.public_url,
+      mime_type: asset.mime_type,
+      size_bytes: String(asset.size_bytes),
+      width: asset.width === null ? '' : String(asset.width),
+      height: asset.height === null ? '' : String(asset.height),
+    });
+    setBrandingAssetText(
+      pretty({ code: asset.code, kind: asset.kind, public_url: asset.public_url }),
+    );
+  }
+
+  function selectBookableAsset(asset: BookableAssetRow): void {
+    setSelectedBookableCode(asset.code);
+    setBookingAssetDraft({
+      code: asset.code,
+      name_en: pickLabel(asset.name),
+      ward: '',
+      address: '',
+      capacity: asset.capacity === null ? '' : String(asset.capacity),
+      is_active: asset.is_active,
+    });
+  }
+
+  async function saveGuidedSettings(): Promise<void> {
+    const payload = {
+      branding: {
+        theme_color: settingsDraft.theme_color,
+        logo_url: settingsDraft.logo_url,
+        hero_image_url: settingsDraft.hero_image_url,
+      },
+      feature_flags: {
+        kb_cms: settingsDraft.kb_cms,
+        notification_templates: settingsDraft.notification_templates,
+        staff_roles: settingsDraft.staff_roles,
+      },
+      languages_enabled: settingsDraft.languages_enabled
+        .split(',')
+        .map((lang) => lang.trim())
+        .filter(Boolean),
+      default_language: settingsDraft.default_language,
+      contact_phone: settingsDraft.contact_phone || null,
+      contact_email: settingsDraft.contact_email || null,
+    };
+    setSettingsText(pretty(payload));
+    await upsert('settings', JSON.stringify(payload), 'Settings');
+  }
+
+  async function saveGuidedBrandingAsset(): Promise<void> {
+    const payload = {
+      code: brandingAssetDraft.code,
+      kind: brandingAssetDraft.kind,
+      storage_key: brandingAssetDraft.storage_key,
+      public_url: brandingAssetDraft.public_url,
+      mime_type: brandingAssetDraft.mime_type,
+      size_bytes: Number(brandingAssetDraft.size_bytes || '0'),
+      width: brandingAssetDraft.width ? Number(brandingAssetDraft.width) : null,
+      height: brandingAssetDraft.height ? Number(brandingAssetDraft.height) : null,
+      metadata: {},
+    };
+    setBrandingAssetText(pretty(payload));
+    await saveJsonEndpoint('branding-assets', pretty(payload), 'PATCH', 'Branding asset');
+  }
+
+  async function saveGuidedBookableAsset(): Promise<void> {
+    const payload = {
+      code: bookingAssetDraft.code,
+      name: asLocaleMap(bookingAssetDraft.name_en),
+      location: { ward: bookingAssetDraft.ward, address: bookingAssetDraft.address },
+      capacity: bookingAssetDraft.capacity ? Number(bookingAssetDraft.capacity) : null,
+      is_active: bookingAssetDraft.is_active,
+      metadata: {},
+    };
+    setBookingAssetText(pretty(payload));
+    await saveJsonEndpoint('bookings/assets', pretty(payload), 'PATCH', 'Bookable asset');
+  }
+
+  async function saveGuidedAvailability(): Promise<void> {
+    const payload = {
+      asset_code: bookingAvailabilityDraft.asset_code,
+      kind: bookingAvailabilityDraft.kind,
+      starts_at: bookingAvailabilityDraft.starts_at || new Date().toISOString(),
+      ends_at: bookingAvailabilityDraft.ends_at || new Date(Date.now() + 3600000).toISOString(),
+      note: bookingAvailabilityDraft.note,
+    };
+    setBookingAvailabilityText(pretty(payload));
+    await saveJsonEndpoint('bookings/availability', pretty(payload), 'POST', 'Availability');
+  }
+
+  async function saveGuidedReservation(): Promise<void> {
+    const payload = {
+      asset_code: bookingReservationDraft.asset_code,
+      holder_name: bookingReservationDraft.holder_name,
+      holder_mobile: bookingReservationDraft.holder_mobile,
+      docket_no: bookingReservationDraft.docket_no || null,
+      starts_at: bookingReservationDraft.starts_at || new Date().toISOString(),
+      ends_at: bookingReservationDraft.ends_at || new Date(Date.now() + 3600000).toISOString(),
+      status: bookingReservationDraft.status,
+      note: bookingReservationDraft.note,
+    };
+    setBookingReservationText(pretty(payload));
+    await saveJsonEndpoint('bookings/reservations', pretty(payload), 'POST', 'Reservation');
+  }
+
+  async function saveGuidedStaffInvite(): Promise<void> {
+    const payload = {
+      username: staffInviteDraft.username,
+      display_name: staffInviteDraft.display_name,
+      email: staffInviteDraft.email,
+      mobile: staffInviteDraft.mobile,
+      role_codes: staffInviteDraft.role_codes
+        .split(',')
+        .map((role) => role.trim())
+        .filter(Boolean),
+      ward_number: staffInviteDraft.ward_number || null,
+    };
+    setStaffText(pretty(payload));
+    await saveJsonEndpoint('staff-invites', pretty(payload), 'POST', 'Staff invite');
+  }
+
+  async function saveGuidedRoleStageMap(): Promise<void> {
+    const payload = {
+      workflow_code: roleStageDraft.workflow_code,
+      stage_code: roleStageDraft.stage_code,
+      role_code: roleStageDraft.role_code,
+      can_view: roleStageDraft.can_view,
+      can_act: roleStageDraft.can_act,
+    };
+    setRoleStageText(pretty(payload));
+    await upsert('role-stage-maps', pretty(payload), 'Role-stage map');
+  }
+
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/dashboard" className="text-sm text-slate-500 underline">
-            Back to dashboard
-          </Link>
-          <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sprint 6.4 · Tenant operations
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-900">
-            Templates, KB, branding, flags, and staff
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {settings?.tenant_code ? (
-              <>
-                Municipality <span className="font-mono">{settings.tenant_code}</span>
-              </>
-            ) : (
-              'Tenant-scoped configuration'
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/dashboard/masters"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Masters
-          </Link>
-          <button
-            type="button"
-            onClick={() => void loadOperations()}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
+    <div className="mx-auto max-w-7xl space-y-8">
+      <PageHeader
+        eyebrow="Configuration"
+        title="Operations"
+        subtitle={
+          (settings?.tenant_code ?? me?.tenant_code)
+            ? `Templates, branding, KB, and staff for ${settings?.tenant_code ?? me?.tenant_code}`
+            : 'Templates, KB, branding, flags, and staff'
+        }
+        actions={
+          <Button type="button" variant="secondary" onClick={() => void loadOperations()}>
             Refresh
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
       {status ? (
-        <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {status}
         </p>
       ) : null}
 
-      <section className="mb-6">
-        <BannerEditor
-          draft={bannerDraft}
-          onChange={setBannerDraft}
-          onSave={() => void saveBanner()}
-        />
-      </section>
+      <nav className="flex flex-wrap gap-2" aria-label="Operations sections">
+        {OPERATIONS_SECTIONS.map((item) => (
+          <Button
+            key={item.id}
+            type="button"
+            size="sm"
+            variant={opsSection === item.id ? 'primary' : 'secondary'}
+            onClick={() => setOpsSection(item.id)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </nav>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <OperationsEditor
-          title="Branding, languages, and feature flags"
-          value={settingsText}
-          onChange={setSettingsText}
-          onSave={() => void upsert('settings', settingsText, 'Settings')}
-        />
-        <TemplatePreviewEditor
-          draft={templateDraft}
-          jsonValue={templateText}
-          onDraftChange={setTemplateDraft}
-          onJsonChange={setTemplateText}
-          onJsonSave={() =>
-            void upsert('notification-templates', templateText, 'Notification template')
-          }
-          onSave={() => void saveTemplateDraft()}
-        />
-        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Sprint 6.11 · Rich KB authoring
-              </p>
-              <h2 className="text-lg font-semibold text-slate-900">Guided KB article</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Markdown-safe fields with preview; JSON fallback remains below.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void saveKbDraft()}
-              className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white"
+      {opsSection === 'banners' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <BannerEditor
+            draft={bannerDraft}
+            onChange={setBannerDraft}
+            onSave={() => void saveBanner()}
+          />
+          <RecordListPanel
+            title="Maintenance banners"
+            selectedKey={selectedBannerCode}
+            onNew={newBanner}
+            newLabel="New banner"
+            emptyLabel="No banners yet."
+          >
+            {banners.map((banner) => (
+              <RecordListItem
+                key={banner.id}
+                itemKey={banner.code}
+                selected={selectedBannerCode === banner.code}
+                title={pickLabel(banner.title)}
+                subtitle={`${banner.severity} · ${banner.is_active ? 'active' : 'inactive'}`}
+                meta={`${banner.starts_at ?? 'now'} → ${banner.ends_at ?? 'open-ended'}`}
+                onSelect={() => selectBanner(banner)}
+              />
+            ))}
+          </RecordListPanel>
+        </section>
+      ) : null}
+
+      {opsSection === 'settings' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4">
+            <GuidedOpsCard
+              title="Branding, languages, and feature flags"
+              saveLabel="Save settings"
+              onSave={() => void saveGuidedSettings()}
             >
-              Save KB
-            </button>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {(
-              [
-                ['slug', 'Slug'],
-                ['title_en', 'Title EN'],
-                ['tags', 'Tags comma-separated'],
-              ] as Array<[keyof Pick<typeof kbDraft, 'slug' | 'title_en' | 'tags'>, string]>
-            ).map(([key, label]) => (
-              <label
-                key={key}
-                className="text-xs font-medium uppercase tracking-wide text-slate-500"
-              >
-                {label}
-                <input
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
-                  value={String(kbDraft[key as keyof typeof kbDraft])}
-                  onChange={(event) =>
-                    setKbDraft((draft) => ({ ...draft, [key]: event.target.value }))
+              <div className="grid gap-3 md:grid-cols-2">
+                <OpsField
+                  label="Theme color"
+                  value={settingsDraft.theme_color}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, theme_color: value }))}
+                />
+                <OpsField
+                  label="Logo URL"
+                  value={settingsDraft.logo_url}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, logo_url: value }))}
+                />
+                <OpsField
+                  label="Hero image URL"
+                  value={settingsDraft.hero_image_url}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, hero_image_url: value }))}
+                />
+                <OpsField
+                  label="Languages (comma-separated)"
+                  value={settingsDraft.languages_enabled}
+                  onChange={(value) =>
+                    setSettingsDraft((d) => ({ ...d, languages_enabled: value }))
                   }
                 />
-              </label>
-            ))}
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Status
-              <select
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
-                value={kbDraft.status}
-                onChange={(event) =>
-                  setKbDraft((draft) => ({ ...draft, status: event.target.value }))
-                }
-              >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-            </label>
-          </div>
-          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
-            Body markdown
-            <textarea
-              className="mt-1 h-28 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
-              value={kbDraft.body_en}
-              onChange={(event) =>
-                setKbDraft((draft) => ({ ...draft, body_en: event.target.value }))
-              }
-            />
-          </label>
-          <div className="mt-3 rounded bg-slate-50 p-3 text-sm text-slate-700">
-            <p className="font-semibold">{kbDraft.title_en}</p>
-            <p className="mt-1 whitespace-pre-wrap">{kbDraft.body_en}</p>
-          </div>
-        </article>
-        <OperationsEditor
-          title="Knowledge-base article JSON fallback"
-          value={kbText}
-          onChange={setKbText}
-          onSave={() => void upsert('kb-articles', kbText, 'KB article')}
-        />
-        <OperationsEditor
-          title="Branding asset registration"
-          value={brandingAssetText}
-          onChange={setBrandingAssetText}
-          onSave={() =>
-            void saveJsonEndpoint('branding-assets', brandingAssetText, 'PATCH', 'Branding asset')
-          }
-        />
-        <OperationsEditor
-          title="Bookable asset"
-          value={bookingAssetText}
-          onChange={setBookingAssetText}
-          onSave={() =>
-            void saveJsonEndpoint('bookings/assets', bookingAssetText, 'PATCH', 'Bookable asset')
-          }
-        />
-        <OperationsEditor
-          title="Asset availability / blackout"
-          value={bookingAvailabilityText}
-          onChange={setBookingAvailabilityText}
-          onSave={() =>
-            void saveJsonEndpoint(
-              'bookings/availability',
-              bookingAvailabilityText,
-              'POST',
-              'Availability',
-            )
-          }
-        />
-        <OperationsEditor
-          title="Booking reservation"
-          value={bookingReservationText}
-          onChange={setBookingReservationText}
-          onSave={() =>
-            void saveJsonEndpoint(
-              'bookings/reservations',
-              bookingReservationText,
-              'POST',
-              'Reservation',
-            )
-          }
-        />
-        <OperationsEditor
-          title="Guided staff invite / provisioning"
-          value={staffText}
-          onChange={setStaffText}
-          onSave={() => void saveJsonEndpoint('staff-invites', staffText, 'POST', 'Staff invite')}
-        />
-        <OperationsEditor
-          title="Legacy staff role assignment fallback"
-          value={legacyStaffText}
-          onChange={setLegacyStaffText}
-          onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
-        />
-        <OperationsEditor
-          title="Workflow role-stage mapping"
-          value={roleStageText}
-          onChange={setRoleStageText}
-          onSave={() => void upsert('role-stage-maps', roleStageText, 'Role-stage map')}
-        />
-      </section>
-
-      <section className="mt-8 grid gap-6 xl:grid-cols-3">
-        <ListCard title="Maintenance banners">
-          {banners.map((banner) => (
-            <li key={banner.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {banner.code} · {banner.severity} · {banner.is_active ? 'active' : 'inactive'}
-              </p>
-              <p className="font-medium text-slate-900">{pickLabel(banner.title)}</p>
-              <p className="mt-1 text-xs text-slate-500">{pickLabel(banner.body)}</p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {banner.starts_at ?? 'now'} → {banner.ends_at ?? 'open-ended'}
-              </p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Notification templates">
-          {templates.map((template) => (
-            <li key={template.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {template.code} · {template.channel} · {template.locale}
-              </p>
-              <p className="mt-1 text-sm text-slate-700">{template.trigger}</p>
-              <p className="mt-1 text-xs text-slate-500">{template.body.slice(0, 120)}</p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="KB articles">
-          {kbArticles.map((article) => (
-            <li key={article.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">{article.slug}</p>
-              <p className="font-medium text-slate-900">{pickLabel(article.title)}</p>
-              <p className="text-xs text-slate-500">
-                {article.status} · {article.tags.join(', ') || 'no tags'} · index{' '}
-                {article.index_status ?? 'not queued'}
-              </p>
-              {article.status === 'published' ? (
-                <button
-                  type="button"
-                  onClick={() => void requeueKb(article.slug)}
-                  className="mt-2 text-xs font-medium text-slate-900 underline"
-                >
-                  Requeue RAG index
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Branding assets">
-          {brandingAssets.map((asset) => (
-            <li key={asset.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {asset.code} · {asset.kind} · {(asset.size_bytes / 1024).toFixed(0)} KB
-              </p>
-              <p className="truncate text-xs text-slate-500">{asset.public_url}</p>
-              {asset.contrast_warnings.length ? (
-                <p className="mt-1 text-xs text-amber-700">{asset.contrast_warnings.join('; ')}</p>
-              ) : (
-                <p className="mt-1 text-xs text-emerald-700">Contrast check passed.</p>
-              )}
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Bookable assets">
-          {bookings.assets.map((asset) => (
-            <li key={asset.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {asset.code} · {asset.is_active ? 'active' : 'inactive'}
-              </p>
-              <p className="font-medium text-slate-900">{pickLabel(asset.name)}</p>
-              <p className="text-xs text-slate-500">Capacity {asset.capacity ?? 'not set'}</p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Booking calendar">
-          {bookings.availability.map((row) => (
-            <li key={row.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {row.asset_code} · {row.kind}
-              </p>
-              <p className="text-xs text-slate-500">
-                {new Date(row.starts_at).toLocaleString()} →{' '}
-                {new Date(row.ends_at).toLocaleString()}
-              </p>
-            </li>
-          ))}
-          {bookings.reservations.map((row) => (
-            <li key={row.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {row.asset_code} · {row.status}
-              </p>
-              <p className="font-medium text-slate-900">{row.holder_name}</p>
-              <p className="text-xs text-slate-500">
-                {new Date(row.starts_at).toLocaleString()} →{' '}
-                {new Date(row.ends_at).toLocaleString()}
-              </p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Staff">
-          {staffInvites.map((invite) => (
-            <li key={invite.id} className="rounded border border-indigo-100 bg-indigo-50 p-3">
-              <p className="font-mono text-xs">
-                Invite · {invite.username} · {invite.provisioning_mode}
-              </p>
-              <p className="font-medium text-slate-900">{invite.display_name}</p>
-              <p className="text-xs text-slate-500">
-                {invite.status} · {invite.role_codes.join(', ')}
-                {invite.ward_number ? ` · ward ${invite.ward_number}` : ''}
-              </p>
-              {invite.failure_reason ? (
-                <p className="mt-1 text-xs text-red-700">{invite.failure_reason}</p>
-              ) : null}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(['retry', 'mark_provisioned', 'disable'] as const).map((action) => (
-                  <button
-                    key={action}
-                    type="button"
-                    className="rounded border border-indigo-200 bg-white px-2 py-1 text-[11px] font-medium text-indigo-800"
-                    onClick={() => void updateStaffInvite(invite.id, action)}
+                <OpsField
+                  label="Default language"
+                  value={settingsDraft.default_language}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, default_language: value }))}
+                />
+                <OpsField
+                  label="Contact phone"
+                  value={settingsDraft.contact_phone}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, contact_phone: value }))}
+                />
+                <OpsField
+                  label="Contact email"
+                  value={settingsDraft.contact_email}
+                  onChange={(value) => setSettingsDraft((d) => ({ ...d, contact_email: value }))}
+                />
+                {(
+                  [
+                    ['kb_cms', 'KB CMS enabled'],
+                    ['notification_templates', 'Notification templates enabled'],
+                    ['staff_roles', 'Staff roles enabled'],
+                  ] as Array<
+                    [
+                      keyof Pick<
+                        typeof settingsDraft,
+                        'kb_cms' | 'notification_templates' | 'staff_roles'
+                      >,
+                      string,
+                    ]
                   >
-                    {action.replace('_', ' ')}
-                  </button>
+                ).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-ink-primary">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft[key]}
+                      onChange={(event) =>
+                        setSettingsDraft((d) => ({ ...d, [key]: event.target.checked }))
+                      }
+                    />
+                    {label}
+                  </label>
                 ))}
               </div>
-            </li>
-          ))}
-          {staff.map((member) => (
-            <li key={member.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">{member.username}</p>
-              <p className="font-medium text-slate-900">{member.display_name}</p>
-              <p className="text-xs text-slate-500">
-                {member.status} · {member.roles.map((role) => role.code).join(', ')}
-              </p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Roles">
-          {roles.map((role) => (
-            <li key={role.code} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">{role.code}</p>
-              <p className="font-medium text-slate-900">{role.name}</p>
-            </li>
-          ))}
-        </ListCard>
-        <ListCard title="Role-stage maps">
-          {roleStageMaps.map((map) => (
-            <li key={map.id} className="rounded border border-slate-200 p-3">
-              <p className="font-mono text-xs">
-                {map.workflow_code} / {map.stage_code}
-              </p>
-              <p className="font-medium text-slate-900">{map.role_code}</p>
-              <p className="text-xs text-slate-500">
-                view: {String(map.can_view)} · act: {String(map.can_act)}
-              </p>
-            </li>
-          ))}
-        </ListCard>
-      </section>
-    </main>
+            </GuidedOpsCard>
+            <JsonFallbackPanel
+              value={settingsText}
+              onChange={setSettingsText}
+              onSave={() => void upsert('settings', settingsText, 'Settings')}
+              saveLabel="Save settings JSON"
+            />
+          </div>
+          <RecordListPanel title="Tenant settings" emptyLabel="Settings load on refresh.">
+            <RecordListItem
+              itemKey={settings?.tenant_code ?? 'tenant'}
+              selected
+              title="Current tenant configuration"
+              subtitle="Branding, languages, and feature flags"
+              meta={settingsDraft.default_language}
+              onSelect={() => undefined}
+            />
+          </RecordListPanel>
+        </section>
+      ) : null}
+
+      {opsSection === 'templates' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <TemplatePreviewEditor
+            draft={templateDraft}
+            jsonValue={templateText}
+            onDraftChange={setTemplateDraft}
+            onJsonChange={setTemplateText}
+            onJsonSave={() =>
+              void upsert('notification-templates', templateText, 'Notification template')
+            }
+            onSave={() => void saveTemplateDraft()}
+          />
+          <RecordListPanel
+            title="Notification templates"
+            selectedKey={selectedTemplateKey}
+            emptyLabel="No templates yet."
+          >
+            {templates.map((template) => {
+              const key = `${template.code}:${template.channel}:${template.locale}`;
+              return (
+                <RecordListItem
+                  key={template.id}
+                  itemKey={key}
+                  selected={selectedTemplateKey === key}
+                  title={template.trigger}
+                  subtitle={`${template.code} · ${template.channel} · ${template.locale}`}
+                  meta={template.body.slice(0, 80)}
+                  onSelect={() => selectTemplate(template)}
+                />
+              );
+            })}
+          </RecordListPanel>
+        </section>
+      ) : null}
+
+      {opsSection === 'kb' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4">
+            <GuidedOpsCard
+              title={selectedKbSlug ? `Edit KB · ${selectedKbSlug}` : 'New KB article'}
+              saveLabel="Save KB"
+              onSave={() => void saveKbDraft()}
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                <OpsField
+                  label="Slug"
+                  value={kbDraft.slug}
+                  onChange={(value) => setKbDraft((d) => ({ ...d, slug: value }))}
+                />
+                <OpsField
+                  label="Title EN"
+                  value={kbDraft.title_en}
+                  onChange={(value) => setKbDraft((d) => ({ ...d, title_en: value }))}
+                />
+                <OpsField
+                  label="Tags (comma-separated)"
+                  value={kbDraft.tags}
+                  onChange={(value) => setKbDraft((d) => ({ ...d, tags: value }))}
+                />
+                <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                  Status
+                  <select
+                    className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
+                    value={kbDraft.status}
+                    onChange={(event) => setKbDraft((d) => ({ ...d, status: event.target.value }))}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+              </div>
+              <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                Body markdown
+                <textarea
+                  className="mt-1 h-28 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
+                  value={kbDraft.body_en}
+                  onChange={(event) => setKbDraft((d) => ({ ...d, body_en: event.target.value }))}
+                />
+              </label>
+            </GuidedOpsCard>
+            <JsonFallbackPanel
+              value={kbText}
+              onChange={setKbText}
+              onSave={() => void upsert('kb-articles', kbText, 'KB article')}
+              saveLabel="Save KB JSON"
+            />
+          </div>
+          <RecordListPanel
+            title="KB articles"
+            selectedKey={selectedKbSlug}
+            emptyLabel="No KB articles yet."
+          >
+            {kbArticles.map((article) => (
+              <RecordListItem
+                key={article.id}
+                itemKey={article.slug}
+                selected={selectedKbSlug === article.slug}
+                title={pickLabel(article.title)}
+                subtitle={`${article.status} · ${article.tags.join(', ') || 'no tags'}`}
+                meta={`index ${article.index_status ?? 'not queued'}`}
+                onSelect={() => selectKbArticle(article)}
+              />
+            ))}
+          </RecordListPanel>
+          {selectedKbSlug &&
+          kbArticles.some((a) => a.slug === selectedKbSlug && a.status === 'published') ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void requeueKb(selectedKbSlug)}
+            >
+              Requeue RAG index
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {opsSection === 'branding' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4">
+            <GuidedOpsCard
+              title={
+                selectedBrandingCode
+                  ? `Edit branding asset · ${selectedBrandingCode}`
+                  : 'Register branding asset'
+              }
+              saveLabel="Save asset"
+              onSave={() => void saveGuidedBrandingAsset()}
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {(
+                  [
+                    ['code', 'Code'],
+                    ['kind', 'Kind'],
+                    ['storage_key', 'Storage key'],
+                    ['public_url', 'Public URL'],
+                    ['mime_type', 'MIME type'],
+                    ['size_bytes', 'Size bytes'],
+                    ['width', 'Width'],
+                    ['height', 'Height'],
+                  ] as Array<[keyof typeof brandingAssetDraft, string]>
+                ).map(([key, label]) => (
+                  <OpsField
+                    key={key}
+                    label={label}
+                    value={brandingAssetDraft[key]}
+                    onChange={(value) => setBrandingAssetDraft((d) => ({ ...d, [key]: value }))}
+                  />
+                ))}
+              </div>
+            </GuidedOpsCard>
+            <JsonFallbackPanel
+              value={brandingAssetText}
+              onChange={setBrandingAssetText}
+              onSave={() =>
+                void saveJsonEndpoint(
+                  'branding-assets',
+                  brandingAssetText,
+                  'PATCH',
+                  'Branding asset',
+                )
+              }
+              saveLabel="Save asset JSON"
+            />
+          </div>
+          <RecordListPanel
+            title="Branding assets"
+            selectedKey={selectedBrandingCode}
+            emptyLabel="No branding assets yet."
+          >
+            {brandingAssets.map((asset) => (
+              <RecordListItem
+                key={asset.id}
+                itemKey={asset.code}
+                selected={selectedBrandingCode === asset.code}
+                title={asset.kind}
+                subtitle={`${(asset.size_bytes / 1024).toFixed(0)} KB`}
+                meta={asset.public_url}
+                onSelect={() => selectBrandingAsset(asset)}
+              />
+            ))}
+          </RecordListPanel>
+        </section>
+      ) : null}
+
+      {opsSection === 'bookings' ? (
+        <section className="space-y-8">
+          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-4">
+              <GuidedOpsCard
+                title={
+                  selectedBookableCode
+                    ? `Edit bookable asset · ${selectedBookableCode}`
+                    : 'Bookable asset'
+                }
+                saveLabel="Save asset"
+                onSave={() => void saveGuidedBookableAsset()}
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <OpsField
+                    label="Code"
+                    value={bookingAssetDraft.code}
+                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, code: value }))}
+                  />
+                  <OpsField
+                    label="Name EN"
+                    value={bookingAssetDraft.name_en}
+                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, name_en: value }))}
+                  />
+                  <OpsField
+                    label="Ward"
+                    value={bookingAssetDraft.ward}
+                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, ward: value }))}
+                  />
+                  <OpsField
+                    label="Address"
+                    value={bookingAssetDraft.address}
+                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, address: value }))}
+                  />
+                  <OpsField
+                    label="Capacity"
+                    value={bookingAssetDraft.capacity}
+                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, capacity: value }))}
+                  />
+                  <label className="flex items-center gap-2 text-sm text-ink-primary">
+                    <input
+                      type="checkbox"
+                      checked={bookingAssetDraft.is_active}
+                      onChange={(event) =>
+                        setBookingAssetDraft((d) => ({ ...d, is_active: event.target.checked }))
+                      }
+                    />
+                    Active
+                  </label>
+                </div>
+              </GuidedOpsCard>
+              <JsonFallbackPanel
+                value={bookingAssetText}
+                onChange={setBookingAssetText}
+                onSave={() =>
+                  void saveJsonEndpoint(
+                    'bookings/assets',
+                    bookingAssetText,
+                    'PATCH',
+                    'Bookable asset',
+                  )
+                }
+                saveLabel="Save bookable asset JSON"
+              />
+            </div>
+            <RecordListPanel
+              title="Bookable assets"
+              selectedKey={selectedBookableCode}
+              emptyLabel="No bookable assets yet."
+            >
+              {bookings.assets.map((asset) => (
+                <RecordListItem
+                  key={asset.id}
+                  itemKey={asset.code}
+                  selected={selectedBookableCode === asset.code}
+                  title={pickLabel(asset.name)}
+                  subtitle={asset.is_active ? 'active' : 'inactive'}
+                  meta={`Capacity ${asset.capacity ?? 'not set'}`}
+                  onSelect={() => selectBookableAsset(asset)}
+                />
+              ))}
+            </RecordListPanel>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-2">
+            <div className="space-y-4">
+              <GuidedOpsCard
+                title="Availability / blackout window"
+                saveLabel="Save availability"
+                onSave={() => void saveGuidedAvailability()}
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <OpsField
+                    label="Asset code"
+                    value={bookingAvailabilityDraft.asset_code}
+                    onChange={(value) =>
+                      setBookingAvailabilityDraft((d) => ({ ...d, asset_code: value }))
+                    }
+                  />
+                  <OpsField
+                    label="Kind"
+                    value={bookingAvailabilityDraft.kind}
+                    onChange={(value) =>
+                      setBookingAvailabilityDraft((d) => ({ ...d, kind: value }))
+                    }
+                  />
+                  <OpsField
+                    label="Starts at (ISO)"
+                    value={bookingAvailabilityDraft.starts_at}
+                    onChange={(value) =>
+                      setBookingAvailabilityDraft((d) => ({ ...d, starts_at: value }))
+                    }
+                  />
+                  <OpsField
+                    label="Ends at (ISO)"
+                    value={bookingAvailabilityDraft.ends_at}
+                    onChange={(value) =>
+                      setBookingAvailabilityDraft((d) => ({ ...d, ends_at: value }))
+                    }
+                  />
+                  <OpsField
+                    label="Note"
+                    value={bookingAvailabilityDraft.note}
+                    onChange={(value) =>
+                      setBookingAvailabilityDraft((d) => ({ ...d, note: value }))
+                    }
+                  />
+                </div>
+              </GuidedOpsCard>
+              <JsonFallbackPanel
+                value={bookingAvailabilityText}
+                onChange={setBookingAvailabilityText}
+                onSave={() =>
+                  void saveJsonEndpoint(
+                    'bookings/availability',
+                    bookingAvailabilityText,
+                    'POST',
+                    'Availability',
+                  )
+                }
+                saveLabel="Save availability JSON"
+              />
+            </div>
+            <div className="space-y-4">
+              <GuidedOpsCard
+                title="Booking reservation"
+                saveLabel="Save reservation"
+                onSave={() => void saveGuidedReservation()}
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(
+                    [
+                      ['asset_code', 'Asset code'],
+                      ['holder_name', 'Holder name'],
+                      ['holder_mobile', 'Holder mobile'],
+                      ['docket_no', 'Docket no'],
+                      ['starts_at', 'Starts at (ISO)'],
+                      ['ends_at', 'Ends at (ISO)'],
+                      ['status', 'Status'],
+                      ['note', 'Note'],
+                    ] as Array<[keyof typeof bookingReservationDraft, string]>
+                  ).map(([key, label]) => (
+                    <OpsField
+                      key={key}
+                      label={label}
+                      value={bookingReservationDraft[key]}
+                      onChange={(value) =>
+                        setBookingReservationDraft((d) => ({ ...d, [key]: value }))
+                      }
+                    />
+                  ))}
+                </div>
+              </GuidedOpsCard>
+              <JsonFallbackPanel
+                value={bookingReservationText}
+                onChange={setBookingReservationText}
+                onSave={() =>
+                  void saveJsonEndpoint(
+                    'bookings/reservations',
+                    bookingReservationText,
+                    'POST',
+                    'Reservation',
+                  )
+                }
+                saveLabel="Save reservation JSON"
+              />
+            </div>
+          </section>
+
+          <RecordListPanel title="Booking calendar" emptyLabel="No availability or reservations.">
+            {bookings.availability.map((row) => (
+              <RecordListItem
+                key={row.id}
+                itemKey={row.id}
+                selected={false}
+                title={`${row.asset_code} · ${row.kind}`}
+                subtitle={new Date(row.starts_at).toLocaleString()}
+                meta={new Date(row.ends_at).toLocaleString()}
+                onSelect={() => {
+                  setBookingAvailabilityDraft({
+                    asset_code: row.asset_code,
+                    kind: row.kind,
+                    starts_at: row.starts_at,
+                    ends_at: row.ends_at,
+                    note: row.note ?? '',
+                  });
+                }}
+              />
+            ))}
+            {bookings.reservations.map((row) => (
+              <RecordListItem
+                key={row.id}
+                itemKey={row.id}
+                selected={false}
+                title={`${row.asset_code} · ${row.status}`}
+                subtitle={row.holder_name}
+                meta={`${new Date(row.starts_at).toLocaleString()} → ${new Date(row.ends_at).toLocaleString()}`}
+                onSelect={() => {
+                  setBookingReservationDraft({
+                    asset_code: row.asset_code,
+                    holder_name: row.holder_name,
+                    holder_mobile: '',
+                    docket_no: row.docket_no ?? '',
+                    starts_at: row.starts_at,
+                    ends_at: row.ends_at,
+                    status: row.status,
+                    note: '',
+                  });
+                }}
+              />
+            ))}
+          </RecordListPanel>
+        </section>
+      ) : null}
+
+      {opsSection === 'staff' ? (
+        <section className="space-y-8">
+          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-4">
+              <GuidedOpsCard
+                title="Staff invite / provisioning"
+                saveLabel="Send invite"
+                onSave={() => void saveGuidedStaffInvite()}
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(
+                    [
+                      ['username', 'Username'],
+                      ['display_name', 'Display name'],
+                      ['email', 'Email'],
+                      ['mobile', 'Mobile'],
+                      ['role_codes', 'Role codes (comma-separated)'],
+                      ['ward_number', 'Ward number'],
+                    ] as Array<[keyof typeof staffInviteDraft, string]>
+                  ).map(([key, label]) => (
+                    <OpsField
+                      key={key}
+                      label={label}
+                      value={staffInviteDraft[key]}
+                      onChange={(value) => setStaffInviteDraft((d) => ({ ...d, [key]: value }))}
+                    />
+                  ))}
+                </div>
+              </GuidedOpsCard>
+              <JsonFallbackPanel
+                value={staffText}
+                onChange={setStaffText}
+                onSave={() =>
+                  void saveJsonEndpoint('staff-invites', staffText, 'POST', 'Staff invite')
+                }
+                saveLabel="Save invite JSON"
+              />
+              <GuidedOpsCard
+                title="Workflow role-stage mapping"
+                saveLabel="Save mapping"
+                onSave={() => void saveGuidedRoleStageMap()}
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <OpsField
+                    label="Workflow code"
+                    value={roleStageDraft.workflow_code}
+                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, workflow_code: value }))}
+                  />
+                  <OpsField
+                    label="Stage code"
+                    value={roleStageDraft.stage_code}
+                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, stage_code: value }))}
+                  />
+                  <OpsField
+                    label="Role code"
+                    value={roleStageDraft.role_code}
+                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, role_code: value }))}
+                  />
+                  <label className="flex items-center gap-2 text-sm text-ink-primary">
+                    <input
+                      type="checkbox"
+                      checked={roleStageDraft.can_view}
+                      onChange={(event) =>
+                        setRoleStageDraft((d) => ({ ...d, can_view: event.target.checked }))
+                      }
+                    />
+                    Can view
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-ink-primary">
+                    <input
+                      type="checkbox"
+                      checked={roleStageDraft.can_act}
+                      onChange={(event) =>
+                        setRoleStageDraft((d) => ({ ...d, can_act: event.target.checked }))
+                      }
+                    />
+                    Can act
+                  </label>
+                </div>
+              </GuidedOpsCard>
+              <JsonFallbackPanel
+                value={roleStageText}
+                onChange={setRoleStageText}
+                onSave={() => void upsert('role-stage-maps', roleStageText, 'Role-stage map')}
+                saveLabel="Save role-stage JSON"
+              />
+              <JsonFallbackPanel
+                title="Legacy staff assignment JSON"
+                value={legacyStaffText}
+                onChange={setLegacyStaffText}
+                onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
+                saveLabel="Save staff JSON"
+              />
+            </div>
+            <div className="space-y-6">
+              <RecordListPanel title="Staff invites" emptyLabel="No invites.">
+                {staffInvites.map((invite) => (
+                  <RecordListItem
+                    key={invite.id}
+                    itemKey={invite.username}
+                    selected={false}
+                    title={invite.display_name}
+                    subtitle={`${invite.status} · ${invite.role_codes.join(', ')}`}
+                    meta={invite.failure_reason ?? invite.provisioning_mode}
+                    onSelect={() => {
+                      setStaffInviteDraft({
+                        username: invite.username,
+                        display_name: invite.display_name,
+                        email: invite.email ?? '',
+                        mobile: invite.mobile ?? '',
+                        role_codes: invite.role_codes.join(','),
+                        ward_number: invite.ward_number ?? '',
+                      });
+                    }}
+                  />
+                ))}
+              </RecordListPanel>
+              {staffInvites.length ? (
+                <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-warm-border p-3">
+                  <p className="w-full text-xs text-ink-secondary">
+                    Provisioning actions (select invite above, then):
+                  </p>
+                  {(['retry', 'mark_provisioned', 'disable'] as const).map((action) => (
+                    <Button
+                      key={action}
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        const invite = staffInvites.find(
+                          (row) => row.username === staffInviteDraft.username,
+                        );
+                        if (invite) void updateStaffInvite(invite.id, action);
+                      }}
+                    >
+                      {action.replace('_', ' ')}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              <RecordListPanel title="Staff" emptyLabel="No staff loaded.">
+                {staff.map((member) => (
+                  <RecordListItem
+                    key={member.id}
+                    itemKey={member.username}
+                    selected={false}
+                    title={member.display_name}
+                    subtitle={member.status}
+                    meta={member.roles.map((role) => role.code).join(', ')}
+                    onSelect={() => undefined}
+                  />
+                ))}
+              </RecordListPanel>
+              <RecordListPanel title="Roles" emptyLabel="No roles.">
+                {roles.map((role) => (
+                  <RecordListItem
+                    key={role.code}
+                    itemKey={role.code}
+                    selected={false}
+                    title={role.name}
+                    onSelect={() => undefined}
+                  />
+                ))}
+              </RecordListPanel>
+              <RecordListPanel title="Role-stage maps" emptyLabel="No maps.">
+                {roleStageMaps.map((map) => (
+                  <RecordListItem
+                    key={map.id}
+                    itemKey={map.id}
+                    selected={false}
+                    title={map.role_code}
+                    subtitle={`${map.workflow_code} / ${map.stage_code}`}
+                    meta={`view ${String(map.can_view)} · act ${String(map.can_act)}`}
+                    onSelect={() => {
+                      setRoleStageDraft({
+                        workflow_code: map.workflow_code,
+                        stage_code: map.stage_code,
+                        role_code: map.role_code,
+                        can_view: map.can_view,
+                        can_act: map.can_act,
+                      });
+                    }}
+                  />
+                ))}
+              </RecordListPanel>
+            </div>
+          </section>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -1086,22 +1754,18 @@ function BannerEditor({
   onSave: () => void;
 }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Maintenance banner</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="text-lg font-semibold text-ink-primary">Maintenance banner</h2>
+          <p className="mt-1 text-sm text-ink-secondary">
             Tenant-scoped notice shown to citizens during outages, maintenance, or urgent
             advisories.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
+        <Button type="button" size="sm" onClick={onSave}>
           Save banner
-        </button>
+        </Button>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -1210,25 +1874,21 @@ function TemplatePreviewEditor({
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-forest">
             Sprint 6.8D · Channel matrix + variable preview
           </p>
-          <h2 className="text-lg font-semibold text-slate-900">Notification template</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="text-lg font-semibold text-ink-primary">Notification template</h2>
+          <p className="mt-1 text-sm text-ink-secondary">
             Author trusted copy without sending provider messages; outbound worker integration
             remains deferred.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
+        <Button type="button" size="sm" onClick={onSave}>
           Save template
-        </button>
+        </Button>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <TemplateTextInput
@@ -1327,13 +1987,9 @@ function TemplatePreviewEditor({
           JSON fallback
         </summary>
         <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onJsonSave}
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
-          >
+          <Button type="button" size="sm" variant="secondary" onClick={onJsonSave}>
             Save JSON
-          </button>
+          </Button>
         </div>
         <textarea
           className="mt-3 h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
@@ -1367,44 +2023,47 @@ function TemplateTextInput({
   );
 }
 
-function OperationsEditor({
+function GuidedOpsCard({
   title,
-  value,
-  onChange,
+  saveLabel,
   onSave,
+  children,
 }: {
   title: string;
-  value: string;
-  onChange: (value: string) => void;
+  saveLabel: string;
   onSave: () => void;
+  children: ReactNode;
 }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-        <button
-          type="button"
-          onClick={onSave}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          Save
-        </button>
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
+        <Button type="button" size="sm" onClick={onSave}>
+          {saveLabel}
+        </Button>
       </div>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-4 h-80 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50 shadow-inner outline-none focus:border-teal-400"
-        spellCheck={false}
-      />
+      {children}
     </article>
   );
 }
 
-function ListCard({ title, children }: { title: string; children: ReactNode }): JSX.Element {
+function OpsField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-      <ul className="mt-4 space-y-3">{children}</ul>
-    </article>
+    <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+      {label}
+      <input
+        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   );
 }

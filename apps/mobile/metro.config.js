@@ -13,4 +13,27 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+/** Workspace TS packages use NodeNext `.js` import specifiers; Metro resolves them to `.ts`. */
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (
+    moduleName.startsWith('.') &&
+    moduleName.endsWith('.js') &&
+    !moduleName.includes('node_modules')
+  ) {
+    const tsName = `${moduleName.slice(0, -3)}.ts`;
+    try {
+      return context.resolveRequest(context, tsName, platform);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (defaultResolveRequest) {
+    return defaultResolveRequest(context, moduleName, platform);
+  }
+
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

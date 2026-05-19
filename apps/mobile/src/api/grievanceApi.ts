@@ -1,7 +1,10 @@
-/** Bearer + `x-enagar-tenant-code` client for citizen grievances. */
+/** Citizen grievances — hub list omits `x-enagar-tenant-code`; workspace/detail use ULB scope. */
+
+import { citizenTenantFetch } from './citizenTenantHttp';
 
 export type GrievanceListItemDto = {
   id: string;
+  tenant_id: string;
   grievance_no: string;
   category: string;
   description: string;
@@ -23,53 +26,24 @@ export type GrievanceTimelineEntryDto = {
 };
 
 export type GrievanceDetailDto = {
-  grievance: {
-    id: string;
-    grievance_no: string;
-    category: string;
-    description: string;
-    status: string;
-    grievance_priority: string;
-    sla_due_at: string | null;
-    sla_breached_at: string | null;
-    created_at: string;
-    updated_at: string;
+  grievance: GrievanceListItemDto & {
+    citizen_id?: string;
+    location?: unknown;
+    photo_keys?: string[];
   };
   timeline: GrievanceTimelineEntryDto[];
 };
 
-const TENANT_SCOPE_HEADER = 'x-enagar-tenant-code';
-
-async function citizenFetch(
-  method: string,
-  apiRoot: string,
-  accessToken: string,
-  municipalityTenantCode: string,
-  path: string,
-  body?: unknown,
-): Promise<Response> {
-  const base = apiRoot.replace(/\/$/, '');
-  return fetch(`${base}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      [TENANT_SCOPE_HEADER]: municipalityTenantCode,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-}
-
 export async function fetchGrievanceList(
   apiRoot: string,
   accessToken: string,
-  municipalityTenantCode: string,
+  municipalityTenantCode?: string | null,
 ): Promise<GrievanceListItemDto[]> {
-  const response = await citizenFetch(
+  const response = await citizenTenantFetch(
     'GET',
     apiRoot,
     accessToken,
-    municipalityTenantCode,
+    municipalityTenantCode ?? undefined,
     '/grievances',
   );
   if (!response.ok) {
@@ -90,13 +64,13 @@ export async function createGrievance(
     location?: { address?: string; ward_hint?: string };
   },
 ): Promise<{ id: string; grievance_no: string }> {
-  const response = await citizenFetch(
+  const response = await citizenTenantFetch(
     'POST',
     apiRoot,
     accessToken,
     municipalityTenantCode,
     '/grievances',
-    dto,
+    { body: dto },
   );
   if (!response.ok) {
     throw new Error(`POST /grievances failed (${response.status})`);
@@ -110,7 +84,7 @@ export async function fetchGrievanceDetail(
   municipalityTenantCode: string,
   grievanceId: string,
 ): Promise<GrievanceDetailDto> {
-  const response = await citizenFetch(
+  const response = await citizenTenantFetch(
     'GET',
     apiRoot,
     accessToken,

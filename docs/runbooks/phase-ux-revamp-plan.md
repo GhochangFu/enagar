@@ -1,8 +1,8 @@
 # Phase UX — Cross-Portal UI/UX Revamp (Plan)
 
 **Status:** **Confirmed by sponsor — 2026-05-18.** Implementation not started; begin with **Sprint 6.14**.  
-**Gate:** **Sprints 6.14–6.19** must close (engineering + manual smoke) **before** [Phase 7 — Sahayak AI](../ROADMAP.md). Sprint **6.13** (functional Desk) remains closed — UX is the next programme track.  
-**Surfaces:** Citizen PWA (`:3000`), Tenant Admin + Clerk Desk (`:3002`), State Admin (`:3003`), and **`apps/mobile`** (parity in **6.19**).
+**Gate:** **Sprints 6.14–6.20** closed (2026-05-19) — [Phase 7 — Sahayak AI](../ROADMAP.md) may start. Sprint **6.13** (functional Desk) remains closed.  
+**Surfaces:** Citizen PWA (`:3000`), Tenant Admin + Clerk Desk (`:3002`), State Admin (`:3003`), and **`apps/mobile`** (full PWA parity in **6.20** — deferred from 6.19).
 
 ---
 
@@ -217,20 +217,41 @@ Program ID: **Phase UX** implemented as **Master Sprints 6.14 → 6.19** (six sp
 
 **Goal:** State portal parity + holistics.
 
-| Area            | Changes                                                                                                                                             |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| State dashboard | Executive layout, tenant directory table, audit filters, integration cockpit cards.                                                                 |
-| Cross-cutting   | Shared empty/error pages; toast notifications; focus rings; print styles for PDF/CSV pages.                                                         |
-| Mobile          | **`apps/mobile`:** themed home, tenant picker, OTP shell; `applyTenantTheme` on municipality workspace — aligned to Tricolor Calm tokens from 6.14. |
-| Docs            | Exit runbook `master-sprint-619-exit.md`; update `start-the-app-step-by-step.md` screenshots placeholders.                                          |
+| Area            | Changes                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| State dashboard | Executive layout, tenant directory table, audit filters, integration cockpit cards.                         |
+| Cross-cutting   | Shared empty/error pages; toast notifications; focus rings; print styles for PDF/CSV pages.                 |
+| Mobile          | **Closed in 6.20** — full hub parity signed off [`master-sprint-620-exit.md`](./master-sprint-620-exit.md). |
+| Docs            | Exit runbook `master-sprint-619-exit.md`; CORS `8081` for Expo web dev.                                     |
 
-**Exit criteria:** All three portals share tokens; state visually distinct; full regression smoke script passes.
+**Exit criteria:** State + web portals signed off; mobile explicitly out of scope (see **6.20**).
 
-**Manual smoke:** State admin login; tenant drill-down; tenant admin + citizen spot checks.
+**Manual smoke:** State admin (#1–6); citizen + tenant admin spot checks (#8–9). Mobile smoke **deferred**.
+
+**Status:** **Closed** 2026-05-19 — [`master-sprint-619-exit.md`](./master-sprint-619-exit.md).
 
 ---
 
-### Optional Sprint 6.20 — Hardening (if needed)
+### Sprint 6.20 — Citizen mobile PWA parity (**mandatory before Phase 7**)
+
+**Goal:** `apps/mobile` matches Citizen PWA — **central hub** after OTP, pinned municipalities, shortcuts, full workspace (services, apply, applications, payments, grievances), Tricolor Calm + `applyTenantTheme`.
+
+| Area        | Changes                                                                  |
+| ----------- | ------------------------------------------------------------------------ |
+| Hub         | Tab nav + KPI strip + pins + browse all — parity with `citizen-pwa` hub  |
+| Workspace   | Per-ULB flows wired through hub; back-to-hub resets theme                |
+| Engineering | Expo SDK 52 dev path, Metro monorepo, `react-native-web`, CORS, env docs |
+| Docs        | `master-sprint-620-plan.md`, `master-sprint-620-exit.md`                 |
+
+**Exit criteria:** Device/emulator smoke passes; side-by-side PWA parity check; Phase 7 unblocked.
+
+**Plan:** [`master-sprint-620-plan.md`](./master-sprint-620-plan.md) · **Exit:** [`master-sprint-620-exit.md`](./master-sprint-620-exit.md).
+
+**Status:** **Closed** 2026-05-19 — [`master-sprint-620-exit.md`](./master-sprint-620-exit.md). **Phase 7 unblocked.**
+
+---
+
+### Optional Sprint 6.21 — Hardening (if needed)
 
 - Performance: bundle split citizen `page.tsx` routes; image optimization for logos.
 - i18n visual QA matrix (en/bn/hi) for top 10 screens.
@@ -242,10 +263,10 @@ Program ID: **Phase UX** implemented as **Master Sprints 6.14 → 6.19** (six sp
 
 | Option                       | Recommendation                                                                                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A — Serial (recommended)** | Complete **6.14–6.19** (and 6.20 if needed); **then** start Phase 7 backend + chatbot UI using new tokens.                                      |
+| **A — Serial (recommended)** | Complete **6.14–6.20**; **then** start Phase 7 backend + chatbot UI using new tokens.                                                           |
 | **B — Parallel**             | Phase 7 RAG indexer/backend starts after **6.14**; chatbot UI sprint **7.x** uses UX tokens from 6.14+. Risk: merge conflicts in `citizen-pwa`. |
 
-**Suggested gate for Phase 7:** `master-sprint-619-exit.md` signed + citizen + clerk manual smoke on revamp UI.
+**Suggested gate for Phase 7:** `master-sprint-620-exit.md` signed + mobile device smoke + PWA side-by-side check.
 
 ---
 
@@ -256,6 +277,7 @@ Program ID: **Phase UX** implemented as **Master Sprints 6.14 → 6.19** (six sp
 | `pnpm --filter @enagar/citizen-pwa typecheck`            | 6.15–6.16        |
 | `pnpm --filter @enagar/admin-tenant typecheck` + `build` | 6.17–6.18        |
 | `pnpm --filter @enagar/admin-state typecheck` + `build`  | 6.19             |
+| `pnpm --filter @enagar/mobile typecheck` + device smoke  | 6.20             |
 | `pnpm test:security` (no regressions on auth routes)     | All              |
 | WCAG spot-check (axe) on hub, Desk, state dashboard      | 6.15, 6.17, 6.19 |
 | Tenant theme snapshot (KMC, HMC, CMC)                    | 6.14, 6.16       |
@@ -291,14 +313,14 @@ When implementation starts, each sprint adds:
 
 | #   | Decision                                   | Outcome                                                                           |
 | --- | ------------------------------------------ | --------------------------------------------------------------------------------- |
-| 1   | Program **6.14–6.19** gates Phase 7        | **Yes**                                                                           |
+| 1   | Program **6.14–6.20** gates Phase 7        | **Yes** (6.20 = mobile)                                                           |
 | 2   | **Tricolor Calm** + tenant-derived accents | **Agreed**                                                                        |
 | 3   | Typography                                 | **Plus Jakarta Sans + Noto** (bn/hi); Inter removed from theme default — see §2.3 |
-| 4   | Mobile                                     | **In Sprint 6.19** (`apps/mobile` parity)                                         |
+| 4   | Mobile                                     | **Sprint 6.20** — full PWA hub parity (deferred from 6.19)                        |
 | 5   | Dark mode                                  | **Out of scope** for UX v1                                                        |
-| 6   | Sprint order                               | **Citizen-first** (6.15–6.16 → 6.17–6.18 → 6.19 state + mobile)                   |
+| 6   | Sprint order                               | **Citizen-first** (6.15–6.16 → 6.17–6.18 → 6.19 state → **6.20 mobile**)          |
 
-**Next implementation run:** start **Sprint 6.17** (Tenant Admin shell, dashboard & Desk) — plan TBD as `master-sprint-617-plan.md`.
+**Current implementation run:** Phase UX **6.14–6.20 closed** — proceed to **Phase 7 (Sahayak AI)** per [`ROADMAP.md`](../ROADMAP.md). Last sprint: **6.20** — [`master-sprint-620-exit.md`](./master-sprint-620-exit.md).
 
 ---
 
@@ -311,4 +333,4 @@ When implementation starts, each sprint adds:
 
 ---
 
-_Last updated: 2026-05-18 — Sprint 6.16 closed; ready for Sprint 6.17._
+_Last updated: 2026-05-19 — Sprint 6.20 closed (Citizen mobile PWA parity). Phase 7 (Sahayak AI) unblocked._

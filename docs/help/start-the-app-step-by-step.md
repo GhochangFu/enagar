@@ -174,7 +174,7 @@ Only if you seeded Keycloak dummy operators and need the state-level Phase 6 UI:
 pnpm --filter @enagar/admin-state dev
 ```
 
-- State Admin: **`http://localhost:3003`**
+- State Admin: **`http://localhost:3003`** (Sprint **6.19** — teal platform theme, executive dashboard chrome)
 - Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
 - Exit checklists/plans: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-612-exit.md`**
 - Sprint 6.9 smoke: filter audit logs, export audit CSV, and click a tenant row for the detail drill-down panel.
@@ -182,6 +182,26 @@ pnpm --filter @enagar/admin-state dev
 - Sprint 6.12 covers global service library curation, integration cockpit metadata/readiness, and onboarding/audit hardening.
 
 Sign in with a **`state_admin`** dummy user. The dashboard supports municipality onboarding, tenant directory review, audited impersonation token creation, cross-tenant analytics, and recent audit log review.
+
+---
+
+## Step 9d — (Future) Citizen mobile app — Sprint 6.20
+
+**Not part of Sprint 6.19 sign-off.** Full **Citizen PWA parity** (central hub, shortcuts, all workspace tabs) is planned in **`docs/runbooks/master-sprint-620-plan.md`** and **blocks Phase 7** until closed.
+
+When implementing 6.20:
+
+```bash
+pnpm --filter @enagar/mobile dev
+```
+
+- Copy **`apps/mobile/.env.example`** → **`apps/mobile/.env`** (`EXPO_PUBLIC_API_BASE_URL=http://localhost:3001/api` on laptop web).
+- Add **`http://localhost:8081`** to **`CORS_ORIGIN`** in **`infrastructure/.env`** (already in template) and restart the API.
+- **Expo Web:** press **`w`** in the Expo terminal, or open the URL Metro prints.
+- **Android emulator:** use `http://10.0.2.2:3001/api` in `.env`.
+- **Physical device:** use your PC LAN IP; install **Expo Go for SDK 52** (project uses Expo SDK 52, not store SDK 54).
+
+See [`apps/mobile/README.md`](../../apps/mobile/README.md).
 
 ---
 

@@ -16,12 +16,4 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-@layer components {
-  .btn-primary {
-    @apply rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg shadow-sm hover:opacity-95;
-  }
-
-  .btn-secondary {
-    @apply rounded-lg border border-warm-border bg-white px-4 py-2 text-sm font-medium text-ink-primary shadow-sm hover:bg-brand-muted/40;
-  }
-}
+/* Sprint 6.18: configure surfaces use @enagar/ui Button — legacy .btn-* removed. */

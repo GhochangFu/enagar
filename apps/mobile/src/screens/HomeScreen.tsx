@@ -1,6 +1,6 @@
 import { SUPPORTED_LOCALES, t } from '@enagar/i18n';
 import type { Locale } from '@enagar/i18n';
-import { hexToRgb } from '@enagar/tenant-theme';
+import { readableOnBrandHex, resolveTenantBrandHex } from '../theme/citizenMobileTheme';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
@@ -185,16 +185,11 @@ export function HomeScreen() {
 }
 
 function brandBackgroundHex(tenant: TenantListItem | null): string {
-  const hex = tenant?.theme_color ?? '#0F4C75';
-  return /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#0F4C75';
+  return resolveTenantBrandHex(tenant?.theme_color);
 }
 
 function deriveForegroundRgb(tenant: TenantListItem | null): string {
-  const hex = brandBackgroundHex(tenant);
-  const [red = 15, green = 76, blue = 117] = hexToRgb(hex).split(' ').map(Number);
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-
-  return luminance > 0.55 ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)';
+  return readableOnBrandHex(brandBackgroundHex(tenant));
 }
 
 const styles = StyleSheet.create({

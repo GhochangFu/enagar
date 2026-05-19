@@ -30,6 +30,9 @@ const PLUS_JAKARTA = '"Plus Jakarta Sans", system-ui, sans-serif';
 /** Citizen hub / auth platform brand (Warm Coral B+ Pro). ULB workspace uses `theme_color`. */
 export const PLATFORM_BRAND_HEX = '#BF4A0A';
 
+/** State Super-Admin portal — cooler platform teal (Phase UX §6.19). */
+export const STATE_ADMIN_BRAND_HEX = '#0E7490';
+
 export const DEFAULT_THEME: ThemeTokens = {
   ...createTenantPalette('#0F4C75'),
   logoUrl: null,
@@ -86,6 +89,21 @@ export function applyPlatformTheme(root: ThemeRoot | undefined = getDocumentRoot
     fontFamily: PLUS_JAKARTA,
   };
   applyPaletteToRoot(tokens, root);
+  root?.style.setProperty('--platform-accent-rgb', tokens.brandRgb);
+  root?.style.setProperty('--tenant-font-family', PLUS_JAKARTA);
+  root?.style.removeProperty('--tenant-logo-url');
+  return tokens;
+}
+
+/** State Admin (`:3003`) — platform teal accent, shared canvas/surface tokens. */
+export function applyStateAdminTheme(root: ThemeRoot | undefined = getDocumentRoot()): ThemeTokens {
+  const tokens: ThemeTokens = {
+    ...createTenantPalette(STATE_ADMIN_BRAND_HEX),
+    logoUrl: null,
+    fontFamily: PLUS_JAKARTA,
+  };
+  applyPaletteToRoot(tokens, root);
+  root?.style.setProperty('--platform-accent-rgb', tokens.brandRgb);
   root?.style.setProperty('--tenant-font-family', PLUS_JAKARTA);
   root?.style.removeProperty('--tenant-logo-url');
   return tokens;

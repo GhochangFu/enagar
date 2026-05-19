@@ -1,13 +1,13 @@
 'use client';
 
+import { Button, PageHeader } from '@enagar/ui';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { publicEnv } from '../../lib/env/public-env';
-import {
-  ADMIN_OAUTH_STORAGE_KEY,
-  type AdminOAuthBundle,
-} from '../../lib/oauth/session-storage-keys';
+import { useTenantAdminSession } from '../../components/tenant-admin-session';
+
+import type { Route } from 'next';
 
 type DashboardSnapshot = {
   tenant_id: string;
@@ -80,51 +80,14 @@ function pickLabel(json: unknown): string {
   return '—';
 }
 
-function readStoredAuth(): AdminOAuthBundle | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const raw = sessionStorage.getItem(ADMIN_OAUTH_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as AdminOAuthBundle;
-    if (!parsed.access_token || typeof parsed.expires_at !== 'number') {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 export default function DashboardClient(): JSX.Element {
   const router = useRouter();
-  const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
-
-  const [token, setToken] = useState<string | null>(null);
-  const [apiBase, setApiBase] = useState(fallbackApi);
+  const { token, apiBase } = useTenantAdminSession();
   const [status, setStatus] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [dashboardDeep, setDashboardDeep] = useState<DashboardDeep | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [slaDrafts, setSlaDrafts] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    const auth = readStoredAuth();
-    if (!auth) {
-      router.replace('/login');
-      return;
-    }
-    if (auth.expires_at < Math.floor(Date.now() / 1000)) {
-      sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-      router.replace('/login?error=session_expired');
-      return;
-    }
-    setToken(auth.access_token);
-    setApiBase(auth.api_base_url ?? fallbackApi);
-  }, [router, fallbackApi]);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -254,72 +217,22 @@ export default function DashboardClient(): JSX.Element {
     setStatus(`${kind} PDF exported.`);
   }
 
-  function logout(): void {
-    sessionStorage.removeItem(ADMIN_OAUTH_STORAGE_KEY);
-    router.replace('/login');
-  }
-
-  if (!token) {
-    return (
-      <main className="mx-auto max-w-5xl px-6 py-16">
-        <p className="text-slate-600">Checking session…</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
-      <header className="mb-10 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Tenant Admin · Sprint 6.1
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {dashboard?.tenant_code ? (
-              <>
-                Municipality <span className="font-mono">{dashboard.tenant_code}</span>
-              </>
-            ) : (
-              <>Signed in</>
-            )}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <a
-            href="/dashboard/desk"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Desk
-          </a>
-          <a
-            href="/dashboard/masters"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Masters
-          </a>
-          <a
-            href="/dashboard/operations"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Operations
-          </a>
-          <button
-            type="button"
-            onClick={() => void loadAll()}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+    <div className="mx-auto max-w-6xl space-y-10">
+      <PageHeader
+        eyebrow="Tenant Admin"
+        title="Dashboard"
+        subtitle={
+          dashboard?.tenant_code
+            ? `Municipality ${dashboard.tenant_code}`
+            : 'Service catalogue and municipality KPIs'
+        }
+        actions={
+          <Button type="button" variant="secondary" onClick={() => void loadAll()}>
+            Refresh data
+          </Button>
+        }
+      />
 
       {status ? (
         <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -337,7 +250,7 @@ export default function DashboardClient(): JSX.Element {
           <KpiCard title="Payments settled (30d)" value={dashboard.payments_settled_last_30_days} />
         </section>
       ) : (
-        <p className="text-slate-600">Loading KPIs…</p>
+        <p className="text-ink-secondary">Loading KPIs…</p>
       )}
 
       {dashboardDeep ? (
@@ -352,21 +265,23 @@ export default function DashboardClient(): JSX.Element {
               </div>
               <div className="flex flex-wrap gap-2">
                 {['applications', 'payments', 'grievances', 'sla-summary'].map((kind) => (
-                  <div key={kind} className="flex overflow-hidden rounded border border-slate-300">
-                    <button
+                  <div key={kind} className="flex gap-1">
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => void downloadExport(kind)}
-                      className="bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       CSV {kind}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="ghost"
                       onClick={() => void downloadPdf(kind)}
-                      className="border-l border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-white"
                     >
                       PDF
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -413,6 +328,7 @@ export default function DashboardClient(): JSX.Element {
             empty="No application SLA breaches detected."
             rows={dashboardDeep.breached_applications.map((row) => ({
               key: row.id,
+              href: `/dashboard/desk?docket=${encodeURIComponent(row.docket_no)}`,
               title: row.docket_no,
               subtitle: `${row.service_code} · ${row.status}`,
               meta: row.expected_sla_at
@@ -425,6 +341,7 @@ export default function DashboardClient(): JSX.Element {
             empty="No open breached grievances."
             rows={dashboardDeep.breached_grievances.map((row) => ({
               key: row.id,
+              href: `/dashboard/desk?grievance=${encodeURIComponent(row.id)}`,
               title: row.reference,
               subtitle: `${row.category} · ${row.status}`,
               meta: row.sla_breached_at
@@ -487,9 +404,9 @@ export default function DashboardClient(): JSX.Element {
                         value={slaDrafts[row.id] ?? ''}
                         onChange={(e) => setSlaDrafts((d) => ({ ...d, [row.id]: e.target.value }))}
                       />
-                      <button
+                      <Button
                         type="button"
-                        className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                        size="sm"
                         onClick={() => {
                           const raw = slaDrafts[row.id]?.trim() ?? '';
                           const n = raw === '' ? undefined : Number.parseInt(raw, 10);
@@ -501,7 +418,7 @@ export default function DashboardClient(): JSX.Element {
                         }}
                       >
                         Save
-                      </button>
+                      </Button>
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
@@ -526,15 +443,15 @@ export default function DashboardClient(): JSX.Element {
           <span className="font-mono">docs/runbooks/keycloak.md</span> in this repository.
         </p>
       </section>
-    </main>
+    </div>
   );
 }
 
 function KpiCard({ title, value }: { title: string; value: number }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
-      <p className="mt-2 text-3xl font-semibold tabular-nums text-slate-900">{value}</p>
+    <article className="rounded-2xl border border-warm-border bg-mint-band p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-forest">{title}</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums text-forest">{value}</p>
     </article>
   );
 }
@@ -567,23 +484,29 @@ function QueueCard({
   empty,
 }: {
   title: string;
-  rows: Array<{ key: string; title: string; subtitle: string; meta: string }>;
+  rows: Array<{ key: string; href: string; title: string; subtitle: string; meta: string }>;
   empty: string;
 }): JSX.Element {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
+      <p className="mt-1 text-xs text-ink-secondary">Open in Desk</p>
       <ul className="mt-4 space-y-3">
         {rows.length ? (
           rows.map((row) => (
-            <li key={row.key} className="rounded border border-red-100 bg-red-50 p-3">
-              <p className="font-mono text-xs font-semibold text-red-950">{row.title}</p>
-              <p className="mt-1 text-sm text-red-900">{row.subtitle}</p>
-              <p className="mt-1 text-xs text-red-800">{row.meta}</p>
+            <li key={row.key}>
+              <Link
+                href={row.href as Route}
+                className="block rounded-2xl border border-peach/80 bg-peach/25 p-3 transition hover:bg-peach/40"
+              >
+                <p className="font-mono text-xs font-semibold text-ink-primary">{row.title}</p>
+                <p className="mt-1 text-sm text-ink-secondary">{row.subtitle}</p>
+                <p className="mt-1 text-xs text-ink-secondary">{row.meta}</p>
+              </Link>
             </li>
           ))
         ) : (
-          <li className="text-sm text-slate-500">{empty}</li>
+          <li className="text-sm text-ink-secondary">{empty}</li>
         )}
       </ul>
     </article>
