@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@enagar/config": "workspace:*",
-    "@types/react": "^18.3.11",
+    "@types/react": "^19.2.14",
     "eslint": "^8.57.1",
     "rimraf": "^6.0.1",
     "typescript": "^5.5.4"
