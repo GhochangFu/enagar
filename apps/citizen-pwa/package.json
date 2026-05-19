@@ -20,7 +20,7 @@
     "@enagar/tenant-theme": "workspace:^",
     "@enagar/types": "workspace:*",
     "@enagar/ui": "workspace:^",
-    "next": "14.2.13",
+    "next": "16.2.6",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
@@ -33,7 +33,7 @@
     "autoprefixer": "^10.4.20",
     "chrome-launcher": "^1.1.2",
     "eslint": "^8.57.1",
-    "eslint-config-next": "14.2.13",
+    "eslint-config-next": "16.2.6",
     "jest": "^29.7.0",
     "lighthouse": "^12.2.1",
     "postcss": "^8.4.47",
