@@ -5,6 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import {
+  categoryLabelFromCatalogue,
+  fetchPublicGrievanceCatalogue,
+  subtypeLabelFromCatalogue,
+  type GrievanceCatalogueResponse,
+} from '@enagar/grievance-catalogue';
+import type { Locale } from '@enagar/i18n';
+
 import { fetchGrievanceList, type GrievanceListItemDto } from '../../api/grievanceApi';
 import { MobilePrimaryButton, MobileScreen } from '../../components/ui/MobileChrome';
 import { grievanceRowTenantScope } from '../../lib/grievanceScope';
@@ -26,6 +34,20 @@ import {
   platformBrandHex,
 } from '../../theme/citizenMobileTheme';
 
+function catalogueLabel(
+  item: GrievanceListItemDto,
+  scope: string | null,
+  catalogue: GrievanceCatalogueResponse | null,
+  locale: Locale,
+): string {
+  if (!scope || !catalogue) {
+    return item.category;
+  }
+  const category = categoryLabelFromCatalogue(catalogue, item.category, locale);
+  const subtype = subtypeLabelFromCatalogue(catalogue, item.category, item.subtype_code, locale);
+  return subtype ? `${category} · ${subtype}` : category;
+}
+
 export function GrievanceListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<CitizenRootStackParamList>>();
   const { locale, accessToken, selectedTenant } = useSession();
@@ -33,6 +55,7 @@ export function GrievanceListScreen() {
   const hubPortfolio = !scope;
 
   const [tenants, setTenants] = useState<TenantListItem[]>([]);
+  const [catalogue, setCatalogue] = useState<GrievanceCatalogueResponse | null>(null);
   const [rows, setRows] = useState<GrievanceListItemDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [errorLine, setErrorLine] = useState<string | null>(null);
@@ -55,6 +78,11 @@ export function GrievanceListScreen() {
       if (hubPortfolio) {
         const catalogue = await fetchPublicTenants(apiRoot);
         setTenants(catalogue);
+      }
+      if (scope) {
+        setCatalogue(await fetchPublicGrievanceCatalogue(apiRoot, scope));
+      } else {
+        setCatalogue(null);
       }
       const items = await fetchGrievanceList(apiRoot, accessToken, scope);
       setRows(items);
@@ -149,7 +177,7 @@ export function GrievanceListScreen() {
             >
               {ulb ? <Text style={styles.ulb}>{ulb}</Text> : null}
               <Text style={styles.ref}>{item.grievance_no}</Text>
-              <Text style={styles.meta}>{item.category}</Text>
+              <Text style={styles.meta}>{catalogueLabel(item, scope, catalogue, locale)}</Text>
               <Text numberOfLines={2} style={styles.preview}>
                 {item.description}
               </Text>

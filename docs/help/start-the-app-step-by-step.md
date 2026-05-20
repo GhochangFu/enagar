@@ -215,6 +215,17 @@ When **`DEV_AUTH_ENABLED=true`** and **`DEV_OTP_CODE`** is set in **`infrastruct
 
 ---
 
+## Operator: add a grievance type (Sprint 6.21–6.24)
+
+1. **State Admin** (`http://localhost:3003`) → **Grievance library** — create a **global category** and its **sub-types** (kebab-case codes, e.g. `broken-streetlight` / `lamp-out`).
+2. **Tenant Admin** (`http://localhost:3002`) → **Masters** → **Grievance catalogue** — **Adopt** a global row, or create a **tenant-only** category. Use **Fork** to customize labels locally; **Deactivate** hides a type from citizens without deleting history.
+3. **Operations** tab (same Masters area) — set **SLA hours** and **routing role** per category.
+4. **Citizen PWA** (`http://localhost:3000`) or **mobile** (`http://localhost:8081`) — file a test grievance; the picker loads from `GET /api/public/tenants/:code/grievance-catalogue`.
+
+State can also **Adopt** global types for a municipality from the municipality **Profile** drawer (Municipalities tab).
+
+---
+
 ## Shortcut: run API + PWA together
 
 Instead of two terminals, from the repo root:

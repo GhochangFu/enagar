@@ -53,6 +53,8 @@ model Tenant {
   grievanceSlaPolicies     SlaPolicy[]
   grievanceTimelineEntries GrievanceTimelineEntry[]
   grievanceAttachments     GrievanceAttachment[]
+  grievanceCategories      TenantGrievanceCategory[]
+  grievanceSubtypes        TenantGrievanceSubtype[]
   holdingLookupAudit       HoldingLookupAudit[]
   holdingRecords           HoldingRecord[]
   roleStageMaps            RoleStageMap[]
@@ -994,6 +996,78 @@ model SlaPolicy {
   @@map("sla_policies")
 }
 
+model GlobalGrievanceCategory {
+  code               String                   @id @db.VarChar(50)
+  name               Json
+  icon               String?                  @db.VarChar(80)
+  docketCode         String?                  @map("docket_code") @db.VarChar(10)
+  sortOrder          Int                      @default(0) @map("sort_order")
+  isActive           Boolean                  @default(true) @map("is_active")
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  subtypes           GlobalGrievanceSubtype[]
+  tenantCategories   TenantGrievanceCategory[]
+
+  @@index([sortOrder])
+  @@map("global_grievance_categories")
+}
+
+model GlobalGrievanceSubtype {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  globalCategoryCode String                  @map("global_category_code") @db.VarChar(50)
+  code               String                  @db.VarChar(50)
+  name               Json
+  sortOrder          Int                     @default(0) @map("sort_order")
+  isActive           Boolean                 @default(true) @map("is_active")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  globalCategory     GlobalGrievanceCategory @relation(fields: [globalCategoryCode], references: [code], onDelete: Cascade)
+
+  @@unique([globalCategoryCode, code])
+  @@index([globalCategoryCode, sortOrder])
+  @@map("global_grievance_subtypes")
+}
+
+model TenantGrievanceCategory {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                   @map("tenant_id") @db.Uuid
+  code               String                   @db.VarChar(50)
+  globalCategoryCode String?                  @map("global_category_code") @db.VarChar(50)
+  name               Json
+  icon               String?                  @db.VarChar(80)
+  sortOrder          Int                      @default(0) @map("sort_order")
+  isActive           Boolean                  @default(true) @map("is_active")
+  source             String                   @default("global_adopted") @db.VarChar(30)
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  globalCategory     GlobalGrievanceCategory? @relation(fields: [globalCategoryCode], references: [code], onDelete: SetNull)
+  subtypes           TenantGrievanceSubtype[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, sortOrder])
+  @@map("tenant_grievance_categories")
+}
+
+model TenantGrievanceSubtype {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                  @map("tenant_id") @db.Uuid
+  categoryCode String                  @map("category_code") @db.VarChar(50)
+  code         String                  @db.VarChar(50)
+  name         Json
+  sortOrder    Int                     @default(0) @map("sort_order")
+  isActive     Boolean                 @default(true) @map("is_active")
+  source       String                  @default("global_adopted") @db.VarChar(30)
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category     TenantGrievanceCategory @relation(fields: [tenantId, categoryCode], references: [tenantId, code], onDelete: Cascade)
+
+  @@unique([tenantId, categoryCode, code])
+  @@index([tenantId, categoryCode, sortOrder])
+  @@map("tenant_grievance_subtypes")
+}
+
 model GrievanceRoutingRule {
   id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId               String   @map("tenant_id") @db.Uuid
@@ -1019,6 +1093,7 @@ model Grievance {
   citizenId         String                   @map("citizen_id") @db.Uuid
   grievanceNo       String                   @map("grievance_no") @db.VarChar(64)
   category          String                   @db.VarChar(50)
+  subtypeCode       String?                  @map("subtype_code") @db.VarChar(50)
   description       String
   location          Json                     @default(dbgenerated("'{}'::jsonb"))
   photoKeys         Json                     @default(dbgenerated("'[]'::jsonb")) @map("photo_keys")

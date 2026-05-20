@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type GrievanceComposerDraftPayload = {
   category_slug: string;
+  subtype_slug?: string;
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   ward_hint?: string;

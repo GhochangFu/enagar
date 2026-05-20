@@ -14,7 +14,8 @@ React Native + **Expo SDK 52** citizen app — **Master Sprint 5.1** shell, **`5
 - **Apply** (`ApplicationComposerScreen`): API-published `form_schema` from **`GET /services/tenants/:code/:serviceCode`** → **`createRenderPlan`** with **`platform: 'native'`** (`DynamicFormFields`) → draft PATCH → **`/documents/upload-intents`** simulated clean scan (`finalizeDraftDocumentsMobile`) → **`/submit`** (no empty JSON body on submit).
 - **Application detail**: timeline/comments; fixed-fee **`/payments/initiate`** + **`x-idempotency-key`** + **`/payments/stub/complete`** (tenant + application scope, mirroring Citizen PWA).
 - **OTP verify** → **`POST /citizen/register`** (same fire-and-forget pattern as PWA).
-- **Offline** grievance composer autosave (**AsyncStorage** + **`@enagar/forms`** draft envelope).
+- **Offline** grievance composer autosave (**AsyncStorage** + **`@enagar/forms`** draft envelope; stores **category + subtype codes** only).
+- **Sprint 6.23:** Filing categories/sub-types from **`GET /public/grievances/catalogue`** (`@enagar/grievance-catalogue`) — no static slug list in the composer.
 
 Shares **`@enagar/i18n`**, **`@enagar/forms`**, **`@enagar/tenant-theme`** with other citizen surfaces.
 

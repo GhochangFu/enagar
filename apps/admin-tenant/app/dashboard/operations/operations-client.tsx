@@ -4,6 +4,7 @@ import { Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
@@ -18,7 +19,8 @@ type OperationsSection =
   | 'kb'
   | 'branding'
   | 'bookings'
-  | 'staff';
+  | 'staff'
+  | 'grievances';
 
 const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'banners', label: 'Banners' },
@@ -28,6 +30,7 @@ const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'branding', label: 'Branding assets' },
   { id: 'bookings', label: 'Bookings' },
   { id: 'staff', label: 'Staff & roles' },
+  { id: 'grievances', label: 'Grievance SLA & routing' },
 ];
 
 type SettingsRow = {
@@ -1722,6 +1725,8 @@ export default function OperationsClient(): JSX.Element {
           </section>
         </section>
       ) : null}
+
+      {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
     </div>
   );
 }

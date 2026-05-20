@@ -7,6 +7,7 @@ import { CurrentPrincipal } from '../../common/auth/current-principal.decorator'
 import {
   AssignGrievanceDto,
   CreateGrievanceDto,
+  CreateGrievanceEvidenceUploadIntentDto,
   GrievanceCommentDto,
   GrievanceFeedbackDto,
   GrievanceReopenDto,
@@ -34,6 +35,28 @@ function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
 @Controller('grievances')
 export class GrievancesController {
   constructor(private readonly grievances: GrievancesService) {}
+
+  @Get('catalogue')
+  @ApiOperation({
+    summary: 'Active grievance categories for scoped municipality',
+    description: 'Requires JWT. Pass `x-enagar-tenant-code` (portal) or use staff tenant context.',
+  })
+  getCatalogue(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.grievances.getCatalogueForPrincipal(principal, municipalityTenantCode);
+  }
+
+  @Post('evidence/upload-intent')
+  @ApiOperation({ summary: 'Create upload target for grievance photo/video evidence (citizen)' })
+  createEvidenceUploadIntent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: CreateGrievanceEvidenceUploadIntentDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.grievances.createEvidenceUploadIntent(principal, dto, municipalityTenantCode);
+  }
 
   @Post()
   @ApiOperation({ summary: 'File a grievance (citizen)' })

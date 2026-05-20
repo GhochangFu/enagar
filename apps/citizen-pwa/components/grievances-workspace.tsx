@@ -1,27 +1,28 @@
 'use client';
 
-import { t, type Locale, type MessageKey } from '@enagar/i18n';
+import {
+  categoryLabelFromCatalogue,
+  fetchPublicGrievanceCatalogue,
+  resolveGrievanceCategoryLabel,
+  resolveGrievanceSubtypeLabel,
+  sortCatalogueCategories,
+  subtypeLabelFromCatalogue,
+  type GrievanceCatalogueResponse,
+} from '@enagar/grievance-catalogue';
+import { t, type Locale } from '@enagar/i18n';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  attachPendingEvidenceToGrievance,
+  type PendingGrievanceEvidence,
+} from '../lib/grievance-evidence';
 import { grievanceCreateWriteScope, grievanceRowTenantScope } from '../lib/grievance-scope';
 import { authHeaders, readApiError } from '../lib/workspace-http';
 
+import { GrievanceEvidenceField } from './grievance-evidence-field';
+import { GrievanceLocationMap } from './grievance-location-map';
+
 type LanguageCode = Locale;
-
-export const GRIEVANCE_CATEGORY_CODES = [
-  'roads',
-  'sanitation',
-  'streetlights',
-  'water',
-  'drainage',
-  'stray_dogs',
-  'parks',
-  'encroachment',
-  'trade',
-  'other',
-] as const;
-
-export type GrievanceCategoryCode = (typeof GRIEVANCE_CATEGORY_CODES)[number];
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
@@ -136,6 +137,7 @@ export type GrievanceApiRow = {
   citizen_id: string;
   grievance_no: string;
   category: string;
+  subtype_code?: string | null;
   description: string;
   location: unknown;
   photo_keys: string[];
@@ -179,10 +181,6 @@ interface TokenResponse {
   expires_in: number;
 }
 
-function grievanceCatKey(code: GrievanceCategoryCode): MessageKey {
-  return `grievance.cat.${code}` as MessageKey;
-}
-
 /** Minimal tenant row for hub grievance filing (portal JWT needs ULB scope on POST). */
 export type HubGrievanceTenantOption = {
   id: string;
@@ -200,6 +198,29 @@ function tenantMatchesHubPickQuery(row: HubGrievanceTenantOption, query: string)
     row.name.toLowerCase().includes(q) ||
     row.district.toLowerCase().includes(q)
   );
+}
+
+function hubTenantCodeForRow(
+  row: { tenant_id: string },
+  hubMunicipalityCatalogue: readonly HubGrievanceTenantOption[] | null | undefined,
+): string | null {
+  return (
+    hubMunicipalityCatalogue?.find((tenantRow) => tenantRow.id === row.tenant_id)?.code ?? null
+  );
+}
+
+function catalogueForGrievanceRow(
+  row: GrievanceApiRow,
+  workspaceScope: string | undefined,
+  workspaceCatalogue: GrievanceCatalogueResponse | null,
+  hubCatalogues: Record<string, GrievanceCatalogueResponse>,
+  hubMunicipalityCatalogue: readonly HubGrievanceTenantOption[] | null | undefined,
+): GrievanceCatalogueResponse | null {
+  if (workspaceScope) {
+    return workspaceCatalogue;
+  }
+  const tenantCode = hubTenantCodeForRow(row, hubMunicipalityCatalogue);
+  return tenantCode ? (hubCatalogues[tenantCode] ?? null) : null;
 }
 
 export function GrievancesWorkspace({
@@ -235,9 +256,9 @@ export function GrievancesWorkspace({
   const [filingTenantCode, setFilingTenantCode] = useState<string | null>(null);
   const [tenantPickQuery, setTenantPickQuery] = useState('');
 
-  /** list | selectTenant | pick | compose | done | detail */
+  /** list | selectTenant | pick | pickSubtype | compose | done | detail */
   const [surface, setSurface] = useState<
-    'list' | 'selectTenant' | 'pick' | 'compose' | 'done' | 'detail'
+    'list' | 'selectTenant' | 'pick' | 'pickSubtype' | 'compose' | 'done' | 'detail'
   >('list');
 
   const workspaceScope = tenantScopeCode?.trim() || undefined;
@@ -247,13 +268,25 @@ export function GrievancesWorkspace({
     filingTenantCode,
   });
 
-  const [pickedCategory, setPickedCategory] = useState<GrievanceCategoryCode | null>(null);
+  const [catalogue, setCatalogue] = useState<GrievanceCatalogueResponse | null>(null);
+  /** Hub aggregate list: per-ULB catalogues for label resolution on cross-tenant inbox rows. */
+  const [hubCatalogues, setHubCatalogues] = useState<Record<string, GrievanceCatalogueResponse>>(
+    {},
+  );
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogueError, setCatalogueError] = useState<string | null>(null);
+  const [pickedCategory, setPickedCategory] = useState<string | null>(null);
+  const [pickedSubtype, setPickedSubtype] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>('medium');
   const [locNote, setLocNote] = useState('');
   const [wardHint, setWardHint] = useState('');
   const [latitudeStr, setLatitudeStr] = useState('');
   const [longitudeStr, setLongitudeStr] = useState('');
+  const [mapPin, setMapPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [showManualCoords, setShowManualCoords] = useState(false);
+  const [pendingEvidence, setPendingEvidence] = useState<PendingGrievanceEvidence[]>([]);
+  const [submittingGrievance, setSubmittingGrievance] = useState(false);
   const [slaInboxUnread, setSlaInboxUnread] = useState(0);
   const [lastCreated, setLastCreated] = useState<GrievanceApiRow | null>(null);
   const [detailPayload, setDetailPayload] = useState<GrievanceDetailResponse | null>(null);
@@ -310,6 +343,71 @@ export function GrievancesWorkspace({
       setSurface('selectTenant');
     }
   }, [surface, workspaceScope, filingTenantCode]);
+
+  const catalogueTenantCode =
+    grievanceWriteScope ?? workspaceScope ?? filingTenantCode?.trim() ?? null;
+
+  useEffect(() => {
+    const tenantCode = catalogueTenantCode;
+    if (!tenantCode) {
+      setCatalogue(null);
+      setCatalogueError(null);
+      return;
+    }
+    let cancelled = false;
+    setCatalogueLoading(true);
+    setCatalogueError(null);
+    void fetchPublicGrievanceCatalogue(apiBaseUrl, tenantCode)
+      .then((data) => {
+        if (!cancelled) {
+          setCatalogue(data);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setCatalogue(null);
+          setCatalogueError(
+            err instanceof Error ? err.message : t('grievance.loadError', language),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCatalogueLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, catalogueTenantCode, language]);
+
+  useEffect(() => {
+    if (workspaceScope || !hubMunicipalityCatalogue?.length || !list.length) {
+      return;
+    }
+    let cancelled = false;
+    const tenantCodes = new Set<string>();
+    for (const row of list) {
+      const code = hubTenantCodeForRow(row, hubMunicipalityCatalogue);
+      if (code) {
+        tenantCodes.add(code);
+      }
+    }
+    for (const tenantCode of tenantCodes) {
+      void fetchPublicGrievanceCatalogue(apiBaseUrl, tenantCode)
+        .then((data) => {
+          if (!cancelled) {
+            setHubCatalogues((prev) => (prev[tenantCode] ? prev : { ...prev, [tenantCode]: data }));
+          }
+        })
+        .catch(() => {
+          /* list still shows category code until catalogue loads */
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, hubMunicipalityCatalogue, list, workspaceScope]);
 
   const refreshProfileGate = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -615,6 +713,13 @@ export function GrievancesWorkspace({
       return;
     }
 
+    const categoryRow = catalogue?.categories.find((row) => row.code === pickedCategory);
+    if (categoryRow && categoryRow.subtypes.length > 0 && !pickedSubtype) {
+      onBanner(t('grievance.chooseSubtype', language));
+      setSurface('pickSubtype');
+      return;
+    }
+
     const location: Record<string, string | number> = {};
     if (locNote.trim()) {
       location.address = locNote.trim();
@@ -622,8 +727,10 @@ export function GrievancesWorkspace({
     if (wardHint.trim()) {
       location.ward_hint = wardHint.trim();
     }
-    const lat = parseLatLngField(latitudeStr);
-    const lng = parseLatLngField(longitudeStr);
+    const latFromMap = mapPin?.lat;
+    const lngFromMap = mapPin?.lng;
+    const lat = latFromMap ?? parseLatLngField(latitudeStr);
+    const lng = lngFromMap ?? parseLatLngField(longitudeStr);
     if (latitudeStr.trim() && lat === undefined) {
       onBanner('Latitude must be a valid number between -90 and 90, or leave the field blank.');
       return;
@@ -662,6 +769,7 @@ export function GrievancesWorkspace({
       return;
     }
 
+    setSubmittingGrievance(true);
     let response: Response;
     try {
       response = await fetch(`${apiBaseUrl}/grievances`, {
@@ -669,12 +777,14 @@ export function GrievancesWorkspace({
         headers: authHeaders(token, true, grievanceWriteScope),
         body: JSON.stringify({
           category: pickedCategory,
+          ...(pickedSubtype ? { subtype_code: pickedSubtype } : {}),
           description: description.trim(),
           grievance_priority: priority,
           ...(Object.keys(location).length > 0 ? { location } : {}),
         }),
       });
     } catch (e: unknown) {
+      setSubmittingGrievance(false);
       onBanner(
         e instanceof TypeError
           ? 'Network error — check the API is reachable and NEXT_PUBLIC_API_BASE_URL is correct.'
@@ -686,11 +796,35 @@ export function GrievancesWorkspace({
     }
 
     if (!response.ok) {
+      setSubmittingGrievance(false);
       onBanner(await readApiError(response));
       return;
     }
 
     const row = (await response.json()) as GrievanceApiRow;
+
+    if (pendingEvidence.length > 0) {
+      try {
+        await attachPendingEvidenceToGrievance(
+          apiBaseUrl,
+          authHeaders(token, true, grievanceWriteScope),
+          row.id,
+          pendingEvidence.map((item) => item.file),
+        );
+      } catch (e: unknown) {
+        setSubmittingGrievance(false);
+        onBanner(
+          e instanceof Error
+            ? `Grievance filed (${row.grievance_no}) but evidence upload failed: ${e.message}`
+            : 'Grievance filed but evidence upload failed.',
+        );
+        setLastCreated(row);
+        setSurface('done');
+        return;
+      }
+    }
+
+    setSubmittingGrievance(false);
     setLastCreated(row);
     setSurface('done');
     setDescription('');
@@ -698,6 +832,9 @@ export function GrievancesWorkspace({
     setWardHint('');
     setLatitudeStr('');
     setLongitudeStr('');
+    setMapPin(null);
+    setShowManualCoords(false);
+    setPendingEvidence([]);
     setPickedCategory(null);
     if (!workspaceScope) {
       setFilingTenantCode(null);
@@ -889,18 +1026,75 @@ export function GrievancesWorkspace({
           </div>
         ) : null}
         <h3 className="text-xl font-bold">{t('grievance.chooseCategory', language)}</h3>
+        {catalogueLoading ? (
+          <p className="text-sm text-slate-600">{t('status.sendingOtp', language)}</p>
+        ) : null}
+        {catalogueError ? (
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            {catalogueError}
+          </p>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          {GRIEVANCE_CATEGORY_CODES.map((code) => (
+          {sortCatalogueCategories(catalogue?.categories ?? []).map((row) => (
             <button
               className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-brand"
-              key={code}
+              key={row.code}
               onClick={() => {
-                setPickedCategory(code);
+                setPickedCategory(row.code);
+                setPickedSubtype(null);
+                if (row.subtypes.length > 0) {
+                  setSurface('pickSubtype');
+                } else {
+                  setSurface('compose');
+                }
+              }}
+              type="button"
+            >
+              <span className="font-semibold">
+                {resolveGrievanceCategoryLabel(row.code, row.name, language)}
+              </span>
+            </button>
+          ))}
+        </div>
+        {!catalogueLoading && !catalogueError && !(catalogue?.categories.length ?? 0) ? (
+          <p className="text-sm text-slate-600">
+            No grievance categories are available for this municipality.
+          </p>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (surface === 'pickSubtype' && pickedCategory) {
+    const categoryRow = catalogue?.categories.find((row) => row.code === pickedCategory);
+    const subtypes = categoryRow?.subtypes ?? [];
+    return (
+      <section className="space-y-4">
+        <button
+          className="text-sm font-semibold text-brand"
+          onClick={() => setSurface('pick')}
+          type="button"
+        >
+          ← {t('grievance.back', language)}
+        </button>
+        <h3 className="text-xl font-bold">{t('grievance.chooseSubtype', language)}</h3>
+        <p className="text-sm text-slate-600">
+          {resolveGrievanceCategoryLabel(pickedCategory, categoryRow?.name, language)}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {subtypes.map((subtype) => (
+            <button
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-brand"
+              key={subtype.code}
+              onClick={() => {
+                setPickedSubtype(subtype.code);
                 setSurface('compose');
               }}
               type="button"
             >
-              <span className="font-semibold">{t(grievanceCatKey(code), language)}</span>
+              <span className="font-semibold">
+                {resolveGrievanceSubtypeLabel(subtype, language)}
+              </span>
             </button>
           ))}
         </div>
@@ -909,11 +1103,18 @@ export function GrievancesWorkspace({
   }
 
   if (surface === 'compose' && pickedCategory) {
+    const composeCategory = catalogue?.categories.find((row) => row.code === pickedCategory);
     return (
       <section className="rounded-3xl bg-white p-6 shadow-sm">
         <button
           className="text-sm font-semibold text-brand"
-          onClick={() => setSurface('pick')}
+          onClick={() => {
+            if (composeCategory && composeCategory.subtypes.length > 0) {
+              setSurface('pickSubtype');
+              return;
+            }
+            setSurface('pick');
+          }}
           type="button"
         >
           ← {t('grievance.back', language)}
@@ -931,7 +1132,12 @@ export function GrievancesWorkspace({
             </button>
           </p>
         ) : null}
-        <h3 className="mt-2 text-xl font-bold">{t(grievanceCatKey(pickedCategory), language)}</h3>
+        <h3 className="mt-2 text-xl font-bold">
+          {resolveGrievanceCategoryLabel(pickedCategory, composeCategory?.name, language)}
+          {pickedSubtype
+            ? ` · ${subtypeLabelFromCatalogue(catalogue, pickedCategory, pickedSubtype, language) ?? pickedSubtype}`
+            : ''}
+        </h3>
         <form className="mt-4 space-y-4" onSubmit={submitNew}>
           <label className="block text-sm font-medium text-slate-700">
             {t('grievance.description', language)}
@@ -980,39 +1186,85 @@ export function GrievancesWorkspace({
             />
           </label>
 
-          <fieldset className="space-y-2">
+          <GrievanceEvidenceField
+            language={language}
+            items={pendingEvidence}
+            onChange={setPendingEvidence}
+            onError={onBanner}
+          />
+
+          <fieldset className="space-y-3">
             <legend className="text-sm font-medium text-slate-700">
-              Optional map pin (decimal degrees, WGS-84)
+              {t('grievance.mapPinTitle', language)}
             </legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-xs text-slate-600">
-                Latitude
-                <input
-                  className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
-                  inputMode="decimal"
-                  onChange={(event) => setLatitudeStr(event.target.value)}
-                  placeholder="-90 … 90"
-                  value={latitudeStr}
-                />
-              </label>
-              <label className="block text-xs text-slate-600">
-                Longitude
-                <input
-                  className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
-                  inputMode="decimal"
-                  onChange={(event) => setLongitudeStr(event.target.value)}
-                  placeholder="-180 … 180"
-                  value={longitudeStr}
-                />
-              </label>
-            </div>
+            <p className="text-xs text-slate-600">{t('grievance.mapPinHelp', language)}</p>
+            <GrievanceLocationMap
+              latitude={mapPin?.lat ?? null}
+              longitude={mapPin?.lng ?? null}
+              onPinChange={(lat, lng) => {
+                setMapPin({ lat, lng });
+                setLatitudeStr(String(lat));
+                setLongitudeStr(String(lng));
+              }}
+              onError={onBanner}
+            />
+            <button
+              type="button"
+              className="text-xs font-semibold text-brand underline"
+              onClick={() => setShowManualCoords((value) => !value)}
+            >
+              {showManualCoords
+                ? t('grievance.mapHideManual', language)
+                : t('grievance.mapShowManual', language)}
+            </button>
+            {showManualCoords ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs text-slate-600">
+                  Latitude
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                    inputMode="decimal"
+                    onChange={(event) => {
+                      setLatitudeStr(event.target.value);
+                      const parsed = parseLatLngField(event.target.value);
+                      const lngParsed = parseLatLngField(longitudeStr);
+                      if (parsed !== undefined && lngParsed !== undefined) {
+                        setMapPin({ lat: parsed, lng: lngParsed });
+                      }
+                    }}
+                    placeholder="-90 … 90"
+                    value={latitudeStr}
+                  />
+                </label>
+                <label className="block text-xs text-slate-600">
+                  Longitude
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                    inputMode="decimal"
+                    onChange={(event) => {
+                      setLongitudeStr(event.target.value);
+                      const parsed = parseLatLngField(event.target.value);
+                      const latParsed = parseLatLngField(latitudeStr);
+                      if (parsed !== undefined && latParsed !== undefined) {
+                        setMapPin({ lat: latParsed, lng: parsed });
+                      }
+                    }}
+                    placeholder="-180 … 180"
+                    value={longitudeStr}
+                  />
+                </label>
+              </div>
+            ) : null}
           </fieldset>
 
           <button
-            className="w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
+            className="w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:opacity-60"
             type="submit"
+            disabled={submittingGrievance}
           >
-            {t('grievance.submit', language)}
+            {submittingGrievance
+              ? t('grievance.submitting', language)
+              : t('grievance.submit', language)}
           </button>
         </form>
       </section>
@@ -1076,7 +1328,20 @@ export function GrievancesWorkspace({
             </p>
             <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h3 className="text-3xl font-black leading-tight text-ink-primary">{g.category}</h3>
+                <h3 className="text-3xl font-black leading-tight text-ink-primary">
+                  {tTryCategoryLabel(
+                    g.category,
+                    language,
+                    catalogueForGrievanceRow(
+                      g,
+                      workspaceScope,
+                      catalogue,
+                      hubCatalogues,
+                      hubMunicipalityCatalogue,
+                    ),
+                    g.subtype_code,
+                  )}
+                </h3>
                 <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-ink-secondary">
                   {g.description}
                 </p>
@@ -1100,7 +1365,18 @@ export function GrievancesWorkspace({
             <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
               <DetailStat
                 label={t('grievance.categoryLabel', language)}
-                value={tTryCategoryLabel(g.category, language)}
+                value={tTryCategoryLabel(
+                  g.category,
+                  language,
+                  catalogueForGrievanceRow(
+                    g,
+                    workspaceScope,
+                    catalogue,
+                    hubCatalogues,
+                    hubMunicipalityCatalogue,
+                  ),
+                  g.subtype_code,
+                )}
               />
               <DetailStat
                 label={t('grievance.updatedLabel', language)}
@@ -1304,7 +1580,18 @@ export function GrievancesWorkspace({
                 <div>
                   <p className="font-mono text-sm font-black text-brand">{item.grievance_no}</p>
                   <h4 className="mt-2 text-xl font-black leading-tight text-ink-primary">
-                    {item.category}
+                    {tTryCategoryLabel(
+                      item.category,
+                      language,
+                      catalogueForGrievanceRow(
+                        item,
+                        workspaceScope,
+                        catalogue,
+                        hubCatalogues,
+                        hubMunicipalityCatalogue,
+                      ),
+                      item.subtype_code,
+                    )}
                   </h4>
                 </div>
                 <span
@@ -1360,10 +1647,16 @@ function ToneChip({ label, tone }: { label: string; tone: GrievanceTone }): JSX.
   );
 }
 
-/** Show translated label when `category` matches our filing codes; else raw API value */
-function tTryCategoryLabel(category: string, locale: LanguageCode): string {
-  if (GRIEVANCE_CATEGORY_CODES.includes(category as GrievanceCategoryCode)) {
-    return t(grievanceCatKey(category as GrievanceCategoryCode), locale);
+function tTryCategoryLabel(
+  category: string,
+  locale: LanguageCode,
+  catalogue?: GrievanceCatalogueResponse | null,
+  subtypeCode?: string | null,
+): string {
+  const categoryLabel = categoryLabelFromCatalogue(catalogue, category, locale);
+  const subtypeLabel = subtypeLabelFromCatalogue(catalogue, category, subtypeCode, locale);
+  if (subtypeLabel) {
+    return `${categoryLabel} · ${subtypeLabel}`;
   }
-  return category;
+  return categoryLabel;
 }

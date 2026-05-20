@@ -3,6 +3,7 @@
 import { Button } from '@enagar/ui';
 
 import { JsonFallbackPanel } from './json-fallback-panel';
+import { StateTenantGrievanceCatalogueSection } from './state-tenant-grievance-catalogue-section';
 
 export type TenantDetail = {
   code: string;
@@ -33,11 +34,13 @@ export type TenantDetail = {
 
 export function StateTenantDetailDrawer({
   tenant,
+  api,
   onClose,
   onEdit,
   onImpersonate,
 }: {
   tenant: TenantDetail;
+  api?: <T>(path: string, init?: RequestInit) => Promise<T>;
   onClose: () => void;
   onEdit: () => void;
   onImpersonate: () => void;
@@ -130,6 +133,8 @@ export function StateTenantDetailDrawer({
               </div>
             ))}
           </div>
+
+          {api ? <StateTenantGrievanceCatalogueSection tenantCode={tenant.code} api={api} /> : null}
 
           <div className="mt-4 space-y-3">
             <p className="text-sm font-semibold text-ink-primary">Recent tenant audit</p>

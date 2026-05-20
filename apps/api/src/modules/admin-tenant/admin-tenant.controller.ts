@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   StreamableFile,
 } from '@nestjs/common';
@@ -13,7 +14,17 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
+import { AdminTenantGrievanceConfigService } from './admin-tenant-grievance-config.service';
+import { AdminTenantGrievanceGovernanceService } from './admin-tenant-grievance-governance.service';
 import { AdminTenantService } from './admin-tenant.service';
+import {
+  PatchGrievanceCategoryDto,
+  PatchGrievanceSubtypeDto,
+  ReplaceGrievanceRoutingRulesDto,
+  ReplaceSlaPoliciesDto,
+  UpsertGrievanceCategoryDto,
+  UpsertGrievanceSubtypeDto,
+} from './dto/grievance-config.dto';
 import { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
 import {
   PatchTenantServiceConfigDto,
@@ -49,7 +60,11 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 @ApiBearerAuth()
 @Controller('admin/tenant')
 export class AdminTenantController {
-  constructor(private readonly adminTenant: AdminTenantService) {}
+  constructor(
+    private readonly adminTenant: AdminTenantService,
+    private readonly grievanceConfig: AdminTenantGrievanceConfigService,
+    private readonly grievanceGovernance: AdminTenantGrievanceGovernanceService,
+  ) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Tenant-scoped KPI snapshot for the admin portal dashboard' })
@@ -119,6 +134,24 @@ export class AdminTenantController {
     @Param('grievanceId') grievanceId: string,
   ) {
     return this.adminTenant.getDeskGrievance(principal, grievanceId);
+  }
+
+  @Get('desk/grievances/:grievanceId/attachments/:attachmentId/blob')
+  @ApiOperation({ summary: 'Tenant Desk grievance evidence blob for inline preview' })
+  getDeskGrievanceAttachmentBlob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('grievanceId') grievanceId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.adminTenant
+      .getDeskGrievanceAttachmentBlob(principal, grievanceId, attachmentId)
+      .then(
+        ({ buffer, contentType }) =>
+          new StreamableFile(buffer, {
+            type: contentType,
+            disposition: 'inline',
+          }),
+      );
   }
 
   @Patch('desk/grievances/:grievanceId/status')
@@ -632,5 +665,125 @@ export class AdminTenantController {
     @Param('serviceId') serviceId: string,
   ) {
     return this.adminTenant.publishWorkflowDraft(principal, serviceId);
+  }
+
+  @Get('grievance-catalogue/categories')
+  @ApiOperation({ summary: 'List tenant grievance categories (Masters)' })
+  listGrievanceCategories(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.grievanceConfig.listCategories(principal);
+  }
+
+  @Get('grievance-catalogue/governance')
+  @ApiOperation({
+    summary: 'Tenant catalogue rows plus adoptable global categories (Sprint 6.24)',
+  })
+  listGrievanceCatalogueGovernance(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.grievanceGovernance.listGovernance(principal);
+  }
+
+  @Post('grievance-catalogue/global/:globalCode/adopt')
+  @ApiOperation({ summary: 'Adopt a global grievance category for this tenant' })
+  adoptGlobalGrievanceCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('globalCode') globalCode: string,
+  ) {
+    return this.grievanceGovernance.adoptGlobalCategory(principal, globalCode);
+  }
+
+  @Post('grievance-catalogue/categories/:code/fork')
+  @ApiOperation({ summary: 'Fork a category into a tenant-local copy' })
+  forkGrievanceCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.grievanceGovernance.forkCategory(principal, code);
+  }
+
+  @Post('grievance-catalogue/categories/:code/deactivate')
+  @ApiOperation({ summary: 'Deactivate a tenant grievance category (hide from citizens)' })
+  deactivateGrievanceCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.grievanceGovernance.deactivateCategory(principal, code);
+  }
+
+  @Post('grievance-catalogue/categories')
+  @ApiOperation({ summary: 'Create a tenant-only grievance category' })
+  createGrievanceCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertGrievanceCategoryDto,
+  ) {
+    return this.grievanceConfig.createCategory(principal, dto);
+  }
+
+  @Patch('grievance-catalogue/categories/:code')
+  @ApiOperation({ summary: 'Update grievance category labels, sort, or active flag' })
+  patchGrievanceCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: PatchGrievanceCategoryDto,
+  ) {
+    return this.grievanceConfig.patchCategory(principal, code, dto);
+  }
+
+  @Get('grievance-catalogue/categories/:code/subtypes')
+  @ApiOperation({ summary: 'List sub-types for a grievance category' })
+  listGrievanceSubtypes(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.grievanceConfig.listSubtypes(principal, code);
+  }
+
+  @Post('grievance-catalogue/categories/:code/subtypes')
+  @ApiOperation({ summary: 'Create a sub-type under a category' })
+  createGrievanceSubtype(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: UpsertGrievanceSubtypeDto,
+  ) {
+    return this.grievanceConfig.createSubtype(principal, code, dto);
+  }
+
+  @Patch('grievance-catalogue/categories/:code/subtypes/:subtypeCode')
+  @ApiOperation({ summary: 'Update a grievance sub-type' })
+  patchGrievanceSubtype(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Param('subtypeCode') subtypeCode: string,
+    @Body() dto: PatchGrievanceSubtypeDto,
+  ) {
+    return this.grievanceConfig.patchSubtype(principal, code, subtypeCode, dto);
+  }
+
+  @Get('sla-policies')
+  @ApiOperation({ summary: 'List grievance SLA policies for this tenant' })
+  listSlaPolicies(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.grievanceConfig.listSlaPolicies(principal);
+  }
+
+  @Put('sla-policies')
+  @ApiOperation({ summary: 'Replace all grievance SLA policies (ordered)' })
+  replaceSlaPolicies(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: ReplaceSlaPoliciesDto,
+  ) {
+    return this.grievanceConfig.replaceSlaPolicies(principal, dto);
+  }
+
+  @Get('grievance-routing-rules')
+  @ApiOperation({ summary: 'List grievance routing rules for this tenant' })
+  listGrievanceRoutingRules(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.grievanceConfig.listRoutingRules(principal);
+  }
+
+  @Put('grievance-routing-rules')
+  @ApiOperation({ summary: 'Replace all grievance routing rules (ordered)' })
+  replaceGrievanceRoutingRules(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: ReplaceGrievanceRoutingRulesDto,
+  ) {
+    return this.grievanceConfig.replaceRoutingRules(principal, dto);
   }
 }

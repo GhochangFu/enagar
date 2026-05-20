@@ -1,4 +1,5 @@
 @import '@enagar/config/styles/tricolor-calm.css';
+@import 'leaflet/dist/leaflet.css';
 
 @tailwind base;
 @tailwind components;
@@ -17,3 +18,20 @@ body {
 }
 
 /* Sprint 6.18: configure surfaces use @enagar/ui Button — legacy .btn-* removed. */
+
+/* Leaflet divIcon pin (default marker PNGs break under Next.js) */
+.leaflet-div-icon.enagar-grievance-map-pin {
+  background: transparent;
+  border: none;
+}
+
+.enagar-grievance-map-pin__head {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: #bf4a0a;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}

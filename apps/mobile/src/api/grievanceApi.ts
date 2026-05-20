@@ -7,6 +7,7 @@ export type GrievanceListItemDto = {
   tenant_id: string;
   grievance_no: string;
   category: string;
+  subtype_code?: string | null;
   description: string;
   status: string;
   grievance_priority: string;
@@ -59,6 +60,7 @@ export async function createGrievance(
   municipalityTenantCode: string,
   dto: {
     category: string;
+    subtype_code?: string;
     description: string;
     grievance_priority?: 'low' | 'medium' | 'high' | 'urgent';
     location?: { address?: string; ward_hint?: string };

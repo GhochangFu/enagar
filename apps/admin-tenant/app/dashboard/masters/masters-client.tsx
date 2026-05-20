@@ -3,19 +3,21 @@
 import { Button, PageHeader } from '@enagar/ui';
 import { useCallback, useEffect, useState } from 'react';
 
+import { GrievanceCataloguePanel } from '../../../components/grievance-catalogue-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
 import type { ReactNode } from 'react';
 
-type MastersSection = 'revenue' | 'tariffs' | 'address' | 'catalogue';
+type MastersSection = 'revenue' | 'tariffs' | 'address' | 'catalogue' | 'grievances';
 
 const MASTERS_SECTIONS: Array<{ id: MastersSection; label: string }> = [
   { id: 'revenue', label: 'Revenue heads' },
   { id: 'tariffs', label: 'Tariffs' },
   { id: 'address', label: 'Address master' },
   { id: 'catalogue', label: 'Catalogue' },
+  { id: 'grievances', label: 'Grievance catalogue' },
 ];
 
 type RevenueHeadRow = {
@@ -801,6 +803,22 @@ export default function MastersClient(): JSX.Element {
               </div>
             ) : null}
           </section>
+        </section>
+      ) : null}
+
+      {section === 'grievances' ? (
+        <section className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-forest">
+              Sprint 6.22 · Grievance taxonomy
+            </p>
+            <h2 className="text-lg font-semibold text-ink-primary">Grievance catalogue</h2>
+            <p className="mt-1 text-sm text-ink-secondary">
+              Categories and sub-types citizens see when filing. Changes apply on next catalogue
+              fetch; PWA/mobile hardcoded lists update in Sprint 6.23.
+            </p>
+          </div>
+          <GrievanceCataloguePanel />
         </section>
       ) : null}
 

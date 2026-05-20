@@ -1,4 +1,13 @@
-import { t, type MessageKey } from '@enagar/i18n';
+import {
+  fetchPublicGrievanceCatalogue,
+  resolveGrievanceCategoryLabel,
+  resolveGrievanceSubtypeLabel,
+  sortCatalogueCategories,
+  type GrievanceCatalogueCategory,
+  type GrievanceCatalogueResponse,
+  type GrievanceCatalogueSubtype,
+} from '@enagar/grievance-catalogue';
+import { t } from '@enagar/i18n';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -17,10 +26,6 @@ import type { CitizenRootStackParamList } from '../../navigation/types';
 
 import { createGrievance } from '../../api/grievanceApi';
 
-import type { GrievanceCategorySlug } from '../../constants/grievanceCategories';
-
-import { GRIEVANCE_CATEGORY_SLUGS } from '../../constants/grievanceCategories';
-
 import { sessionApiRoot, useSession } from '../../context/SessionContext';
 
 import {
@@ -30,25 +35,9 @@ import {
   type GrievanceComposerDraftPayload,
 } from '../../draft/grievanceComposerDraft';
 
-function slugLabel(lng: 'en' | 'bn' | 'hi', slug: GrievanceCategorySlug): string {
-  const key = CATEGORY_KEYS[slug];
-  return t(key, lng);
-}
-
-const CATEGORY_KEYS: Record<GrievanceCategorySlug, MessageKey> = {
-  roads: 'grievance.cat.roads',
-  sanitation: 'grievance.cat.sanitation',
-  streetlights: 'grievance.cat.streetlights',
-  water: 'grievance.cat.water',
-  drainage: 'grievance.cat.drainage',
-  stray_dogs: 'grievance.cat.stray_dogs',
-  parks: 'grievance.cat.parks',
-  encroachment: 'grievance.cat.encroachment',
-  trade: 'grievance.cat.trade',
-  other: 'grievance.cat.other',
-};
-
 const PRIORITIES: GrievanceComposerDraftPayload['priority'][] = ['low', 'medium', 'high', 'urgent'];
+
+type ComposerStep = 'category' | 'subtype' | 'form';
 
 export function GrievanceComposerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<CitizenRootStackParamList>>();
@@ -56,13 +45,51 @@ export function GrievanceComposerScreen() {
   const lng = locale;
   const municipality = selectedTenant?.code ?? null;
 
-  const [category, setCategory] = useState<GrievanceCategorySlug>('roads');
+  const [step, setStep] = useState<ComposerStep>('category');
+  const [catalogue, setCatalogue] = useState<GrievanceCatalogueResponse | null>(null);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogueError, setCatalogueError] = useState<string | null>(null);
+  const [categoryCode, setCategoryCode] = useState<string | null>(null);
+  const [subtypeCode, setSubtypeCode] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<GrievanceComposerDraftPayload['priority']>('medium');
   const [wardHint, setWardHint] = useState('');
   const [addressHint, setAddressHint] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorLine, setErrorLine] = useState<string | null>(null);
+
+  const selectedCategory: GrievanceCatalogueCategory | undefined = catalogue?.categories.find(
+    (row) => row.code === categoryCode,
+  );
+
+  useEffect(() => {
+    if (!municipality) {
+      return;
+    }
+    let cancelled = false;
+    setCatalogueLoading(true);
+    setCatalogueError(null);
+    void fetchPublicGrievanceCatalogue(sessionApiRoot(), municipality)
+      .then((data) => {
+        if (!cancelled) {
+          setCatalogue(data);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setCatalogue(null);
+          setCatalogueError(err instanceof Error ? err.message : t('grievance.loadError', lng));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCatalogueLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lng, municipality]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,17 +104,13 @@ export function GrievanceComposerScreen() {
         return;
       }
 
-      const slug = saved.category_slug;
-      const safeCat =
-        slug && GRIEVANCE_CATEGORY_SLUGS.includes(slug as GrievanceCategorySlug)
-          ? (slug as GrievanceCategorySlug)
-          : 'roads';
-
-      setCategory(safeCat);
+      setCategoryCode(saved.category_slug || null);
+      setSubtypeCode(saved.subtype_slug ?? null);
       setDescription(saved.description ?? '');
       setPriority(saved.priority);
       setWardHint(saved.ward_hint ?? '');
       setAddressHint(saved.address_hint ?? '');
+      setStep(saved.subtype_slug ? 'form' : saved.category_slug ? 'form' : 'category');
     })();
 
     return () => {
@@ -96,13 +119,14 @@ export function GrievanceComposerScreen() {
   }, [municipality]);
 
   useEffect(() => {
-    if (!municipality) {
+    if (!municipality || !categoryCode) {
       return undefined;
     }
 
     const id = setTimeout(() => {
       void persistGrievanceComposerDraft(municipality, {
-        category_slug: category,
+        category_slug: categoryCode,
+        ...(subtypeCode ? { subtype_slug: subtypeCode } : {}),
         description,
         priority,
         ...(wardHint ? { ward_hint: wardHint } : {}),
@@ -111,13 +135,38 @@ export function GrievanceComposerScreen() {
     }, 420);
 
     return () => clearTimeout(id);
-  }, [addressHint, category, description, municipality, priority, wardHint]);
+  }, [addressHint, categoryCode, description, municipality, priority, subtypeCode, wardHint]);
+
+  function pickCategory(row: GrievanceCatalogueCategory): void {
+    setCategoryCode(row.code);
+    setSubtypeCode(null);
+    if (row.subtypes.length > 0) {
+      setStep('subtype');
+    } else {
+      setStep('form');
+    }
+  }
+
+  function pickSubtype(row: GrievanceCatalogueSubtype): void {
+    setSubtypeCode(row.code);
+    setStep('form');
+  }
 
   async function submit() {
     setErrorLine(null);
 
     const trimmedDesc = description.trim();
 
+    if (!categoryCode) {
+      setErrorLine(t('grievance.chooseCategory', lng));
+      setStep('category');
+      return;
+    }
+    if (selectedCategory && selectedCategory.subtypes.length > 0 && !subtypeCode) {
+      setErrorLine(t('grievance.chooseSubtype', lng));
+      setStep('subtype');
+      return;
+    }
     if (trimmedDesc.length < 3) {
       setErrorLine('Describe the issue in at least 3 characters.');
       return;
@@ -131,7 +180,8 @@ export function GrievanceComposerScreen() {
 
     try {
       await createGrievance(sessionApiRoot(), accessToken, municipality, {
-        category,
+        category: categoryCode,
+        ...(subtypeCode ? { subtype_code: subtypeCode } : {}),
         description: trimmedDesc,
         grievance_priority: priority,
         location: {
@@ -148,19 +198,35 @@ export function GrievanceComposerScreen() {
     }
   }
 
-  function chips(slug: GrievanceCategorySlug) {
-    const selected = slug === category;
-
+  function categoryChip(row: GrievanceCatalogueCategory) {
+    const selected = row.code === categoryCode;
     return (
       <Pressable
-        key={slug}
+        key={row.code}
         accessibilityRole="button"
         accessibilityState={{ selected }}
-        onPress={() => setCategory(slug)}
+        onPress={() => pickCategory(row)}
         style={[styles.slugChip, selected && styles.slugChipSel]}
       >
         <Text style={[styles.slugLabel, selected && styles.slugLabelSel]} numberOfLines={2}>
-          {slugLabel(lng, slug)}
+          {resolveGrievanceCategoryLabel(row.code, row.name, lng)}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  function subtypeChip(row: GrievanceCatalogueSubtype) {
+    const selected = row.code === subtypeCode;
+    return (
+      <Pressable
+        key={row.code}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={() => pickSubtype(row)}
+        style={[styles.slugChip, selected && styles.slugChipSel]}
+      >
+        <Text style={[styles.slugLabel, selected && styles.slugLabelSel]} numberOfLines={2}>
+          {resolveGrievanceSubtypeLabel(row, lng)}
         </Text>
       </Pressable>
     );
@@ -178,52 +244,104 @@ export function GrievanceComposerScreen() {
         <Text style={styles.screenTitle}>{t('grievance.fileNew', lng)}</Text>
         <Text style={{ color: '#475569', marginBottom: 8 }}>{t('grievance.intro', lng)}</Text>
 
-        <Text style={styles.label}>{t('grievance.chooseCategory', lng)}</Text>
-        <View style={styles.slugGrid}>{GRIEVANCE_CATEGORY_SLUGS.map(chips)}</View>
+        {step === 'category' ? (
+          <>
+            <Text style={styles.label}>{t('grievance.chooseCategory', lng)}</Text>
+            {catalogueLoading ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null}
+            {catalogueError ? <Text style={styles.error}>{catalogueError}</Text> : null}
+            <View style={styles.slugGrid}>
+              {sortCatalogueCategories(catalogue?.categories ?? []).map(categoryChip)}
+            </View>
+          </>
+        ) : null}
 
-        <Text style={[styles.label, { marginTop: 14 }]}>{t('grievance.description', lng)}</Text>
-        <Text style={{ color: '#475569', fontSize: 12, marginBottom: 6 }}>
-          {t('grievance.descriptionHelp', lng)}
-        </Text>
-        <TextInput
-          style={styles.bigInput}
-          multiline
-          numberOfLines={5}
-          onChangeText={setDescription}
-          value={description}
-        />
-
-        <Text style={[styles.label, { marginTop: 14 }]}>{t('grievance.priority', lng)}</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {PRIORITIES.map((p) => (
-            <Pressable
-              key={p}
-              accessibilityRole="button"
-              accessibilityState={{ selected: p === priority }}
-              onPress={() => setPriority(p)}
-              style={[styles.priChip, p === priority && styles.priChipSel]}
-            >
-              <Text
-                style={{
-                  fontWeight: '600',
-                  textTransform: 'capitalize',
-                  color: p === priority ? '#FFFFFF' : '#0F172A',
-                }}
-              >
-                {p}
-              </Text>
+        {step === 'subtype' && categoryCode ? (
+          <>
+            <Pressable accessibilityRole="button" onPress={() => setStep('category')}>
+              <Text style={styles.backLink}>← {t('grievance.back', lng)}</Text>
             </Pressable>
-          ))}
-        </View>
+            <Text style={styles.label}>{t('grievance.chooseSubtype', lng)}</Text>
+            <Text style={{ color: '#475569', marginBottom: 8 }}>
+              {resolveGrievanceCategoryLabel(categoryCode, selectedCategory?.name, lng)}
+            </Text>
+            <View style={styles.slugGrid}>
+              {(selectedCategory?.subtypes ?? []).map(subtypeChip)}
+            </View>
+          </>
+        ) : null}
 
-        <Text style={[styles.label, { marginTop: 14 }]}>
-          {t('grievance.optionalLocation', lng)}
-        </Text>
-        <TextInput style={styles.input} onChangeText={setAddressHint} value={addressHint} />
+        {step === 'form' && categoryCode ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (selectedCategory && selectedCategory.subtypes.length > 0) {
+                  setStep('subtype');
+                  return;
+                }
+                setStep('category');
+              }}
+            >
+              <Text style={styles.backLink}>← {t('grievance.back', lng)}</Text>
+            </Pressable>
+            <Text style={styles.formHeading}>
+              {resolveGrievanceCategoryLabel(categoryCode, selectedCategory?.name, lng)}
+              {subtypeCode
+                ? ` · ${
+                    resolveGrievanceSubtypeLabel(
+                      selectedCategory?.subtypes.find((s) => s.code === subtypeCode),
+                      lng,
+                    ) ?? subtypeCode
+                  }`
+                : ''}
+            </Text>
 
-        <Text style={[styles.label, { marginTop: 10 }]}>{t('grievance.optionalWard', lng)}</Text>
-        <TextInput style={styles.input} onChangeText={setWardHint} value={wardHint} />
+            <Text style={[styles.label, { marginTop: 14 }]}>{t('grievance.description', lng)}</Text>
+            <Text style={{ color: '#475569', fontSize: 12, marginBottom: 6 }}>
+              {t('grievance.descriptionHelp', lng)}
+            </Text>
+            <TextInput
+              style={styles.bigInput}
+              multiline
+              numberOfLines={5}
+              onChangeText={setDescription}
+              value={description}
+            />
+
+            <Text style={[styles.label, { marginTop: 14 }]}>{t('grievance.priority', lng)}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {PRIORITIES.map((p) => (
+                <Pressable
+                  key={p}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: p === priority }}
+                  onPress={() => setPriority(p)}
+                  style={[styles.priChip, p === priority && styles.priChipSel]}
+                >
+                  <Text
+                    style={{
+                      fontWeight: '600',
+                      textTransform: 'capitalize',
+                      color: p === priority ? '#FFFFFF' : '#0F172A',
+                    }}
+                  >
+                    {p}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { marginTop: 14 }]}>
+              {t('grievance.optionalLocation', lng)}
+            </Text>
+            <TextInput style={styles.input} onChangeText={setAddressHint} value={addressHint} />
+
+            <Text style={[styles.label, { marginTop: 10 }]}>
+              {t('grievance.optionalWard', lng)}
+            </Text>
+            <TextInput style={styles.input} onChangeText={setWardHint} value={wardHint} />
+          </>
+        ) : null}
 
         {errorLine ? <Text style={styles.error}>{errorLine}</Text> : null}
 
@@ -235,17 +353,19 @@ export function GrievanceComposerScreen() {
           <Text style={styles.secondaryLabel}>{t('grievance.back', lng)}</Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => submit()}
-          style={[styles.primary, busy && styles.disabled]}
-        >
-          {busy ? <ActivityIndicator accessibilityLabel={t('status.sendingOtp', lng)} /> : null}
-          <Text style={[styles.primaryLabel, { marginTop: busy ? 10 : 4 }]}>
-            {t('grievance.submit', lng)}
-          </Text>
-        </Pressable>
+        {step === 'form' ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => submit()}
+            style={[styles.primary, busy && styles.disabled]}
+          >
+            {busy ? <ActivityIndicator accessibilityLabel={t('status.sendingOtp', lng)} /> : null}
+            <Text style={[styles.primaryLabel, { marginTop: busy ? 10 : 4 }]}>
+              {t('grievance.submit', lng)}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -257,6 +377,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 6,
     color: '#0F172A',
+  },
+  formHeading: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 8,
+  },
+  backLink: {
+    color: '#0F4C75',
+    fontWeight: '600',
+    marginBottom: 8,
   },
   slugGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slugChip: {

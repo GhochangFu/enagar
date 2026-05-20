@@ -5,6 +5,8 @@ import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { TenantsService } from '../tenants/tenants.service';
 
+import { seedMinimalTenantGrievanceCatalogue } from './grievance-catalogue.seed';
+import { GrievanceCatalogueService } from './grievance-catalogue.service';
 import { GrievancesService } from './grievances.service';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -34,7 +36,8 @@ describeDb('Phase 4 grievance persistence', () => {
     expiresAt: new Date(Date.now() + 3_600_000),
   } satisfies AuthenticatedPrincipal;
 
-  const svc = new GrievancesService(prisma, new TenantsService());
+  const catalogue = new GrievanceCatalogueService(prisma);
+  const svc = new GrievancesService(prisma, new TenantsService(), catalogue);
 
   beforeAll(async () => {
     await prisma.tenant.create({
@@ -90,6 +93,7 @@ describeDb('Phase 4 grievance persistence', () => {
         },
       ],
     });
+    await seedMinimalTenantGrievanceCatalogue(prisma, tenantId);
   });
 
   afterAll(async () => {
@@ -99,9 +103,20 @@ describeDb('Phase 4 grievance persistence', () => {
     await prisma.notification.deleteMany({ where: { tenantId } });
     await prisma.slaPolicy.deleteMany({ where: { tenantId } });
     await prisma.grievanceRoutingRule.deleteMany({ where: { tenantId } });
+    await prisma.tenantGrievanceSubtype.deleteMany({ where: { tenantId } });
+    await prisma.tenantGrievanceCategory.deleteMany({ where: { tenantId } });
     await prisma.citizen.deleteMany({ where: { id: citizenId } });
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
     await prisma.$disconnect();
+  });
+
+  it('rejects unknown category when tenant catalogue is configured', async () => {
+    await expect(
+      svc.create(citizenPrincipal, {
+        category: 'not-a-real-category',
+        description: 'Should fail validation',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('creates grievance with SLA + routing metadata; staff advances status; sweep breach', async () => {

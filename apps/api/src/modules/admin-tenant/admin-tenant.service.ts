@@ -421,6 +421,9 @@ export type TenantDeskGrievanceListItem = {
   id: string;
   grievance_no: string;
   category: string;
+  category_label: string;
+  subtype_code: string | null;
+  subtype_label: string | null;
   status: string;
   priority: string;
   routed_role_code: string | null;
@@ -431,11 +434,20 @@ export type TenantDeskGrievanceListItem = {
   updated_at: string;
 };
 
+export type TenantDeskGrievanceAttachment = {
+  id: string;
+  content_type: string;
+  storage_key: string;
+  created_at: string;
+  download_url: string;
+};
+
 export type TenantDeskGrievanceDetail = {
   grievance: TenantDeskGrievanceListItem & {
     description: string;
     location: Prisma.JsonValue;
     photo_keys: Prisma.JsonValue;
+    attachments: TenantDeskGrievanceAttachment[];
   };
   timeline: Array<{
     id: string;
@@ -2846,9 +2858,15 @@ export class AdminTenantService {
       orderBy: [{ slaBreachedAt: 'asc' }, { updatedAt: 'desc' }],
       take: 200,
     });
+    const labelMaps = await this.loadGrievanceLabelMaps(principal.tenantId);
     return rows
-      .map(toDeskGrievanceListItem)
+      .map((row) => toDeskGrievanceListItem(row, labelMaps))
       .filter((row) => queue !== 'my' || deskGrievanceMatchesMyQueue(principal, row));
+  }
+
+  private signedGrievanceEvidenceUrl(objectKey: string, now: Date, ttlMs: number): string {
+    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+    return `minio://enagar-local/${objectKey}?action=download&expires_at=${encodeURIComponent(expiresAt)}`;
   }
 
   async getDeskGrievance(
@@ -2865,16 +2883,33 @@ export class AdminTenantService {
     if (!row) {
       throw new NotFoundException('Grievance not found');
     }
-    const timelineRows = await this.prisma.grievanceTimelineEntry.findMany({
-      where: { tenantId: principal.tenantId, grievanceId: row.id },
-      orderBy: { occurredAt: 'asc' },
-    });
+    const [timelineRows, attachmentRows] = await Promise.all([
+      this.prisma.grievanceTimelineEntry.findMany({
+        where: { tenantId: principal.tenantId, grievanceId: row.id },
+        orderBy: { occurredAt: 'asc' },
+      }),
+      this.prisma.grievanceAttachment.findMany({
+        where: { tenantId: principal.tenantId, grievanceId: row.id },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+    const labelMaps = await this.loadGrievanceLabelMaps(principal.tenantId);
+    const now = new Date();
+    const downloadTtlMs = 15 * 60 * 1000;
+    const attachments: TenantDeskGrievanceAttachment[] = attachmentRows.map((attachment) => ({
+      id: attachment.id,
+      content_type: attachment.contentType,
+      storage_key: attachment.storageKey,
+      created_at: attachment.createdAt.toISOString(),
+      download_url: this.signedGrievanceEvidenceUrl(attachment.storageKey, now, downloadTtlMs),
+    }));
     return {
       grievance: {
-        ...toDeskGrievanceListItem(row),
+        ...toDeskGrievanceListItem(row, labelMaps),
         description: row.description,
         location: row.location as Prisma.JsonValue,
         photo_keys: row.photoKeys as Prisma.JsonValue,
+        attachments,
       },
       timeline: timelineRows.map((entry) => ({
         id: entry.id,
@@ -2886,6 +2921,55 @@ export class AdminTenantService {
       })),
       allowed_statuses: nextGrievanceStatuses(row.status as GrievanceStatus),
     };
+  }
+
+  async getDeskGrievanceAttachmentBlob(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    attachmentId: string,
+  ): Promise<{ buffer: Buffer; contentType: string }> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.grievance.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [{ id: grievanceId }, { grievanceNo: grievanceId }],
+      },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Grievance not found');
+    }
+    const attachment = await this.prisma.grievanceAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        tenantId: principal.tenantId,
+        grievanceId: row.id,
+      },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+    const mime = attachment.contentType.toLowerCase();
+    if (mime.startsWith('image/')) {
+      const label = attachment.storageKey.split('/').pop() ?? 'evidence';
+      const safe = label.replace(/[<>&"]/g, '');
+      const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#e8f4ef"/>
+  <text x="320" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#1a3d2e">Evidence registered</text>
+  <text x="320" y="200" text-anchor="middle" font-family="monospace" font-size="12" fill="#4a6358">${safe}</text>
+  <text x="320" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#6b7f75">Local dev: object bytes not served from MinIO yet</text>
+</svg>`;
+      return { buffer: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml' };
+    }
+    if (mime.startsWith('video/')) {
+      throw new NotFoundException('Video preview not available in local dev');
+    }
+    throw new NotFoundException('Unsupported attachment type for preview');
+  }
+
+  private async loadGrievanceLabelMaps(tenantId: string): Promise<GrievanceLabelMaps> {
+    return loadGrievanceLabelMapsForTenant(this.prisma, tenantId);
   }
 
   async updateDeskGrievanceStatus(
@@ -3376,23 +3460,72 @@ function labelForTransition(verb: string): string {
     .join(' ');
 }
 
-function toDeskGrievanceListItem(row: {
-  id: string;
-  grievanceNo: string;
-  category: string;
-  status: string;
-  grievancePriority: string;
-  routedRoleCode: string | null;
-  assignedToUserId: string | null;
-  slaDueAt: Date | null;
-  slaBreachedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): TenantDeskGrievanceListItem {
+type GrievanceLabelMaps = {
+  categories: Map<string, string>;
+  subtypes: Map<string, string>;
+};
+
+async function loadGrievanceLabelMapsForTenant(
+  prisma: PrismaService,
+  tenantId: string,
+): Promise<GrievanceLabelMaps> {
+  const [categories, subtypes] = await Promise.all([
+    prisma.tenantGrievanceCategory.findMany({
+      where: { tenantId },
+      select: { code: true, name: true },
+    }),
+    prisma.tenantGrievanceSubtype.findMany({
+      where: { tenantId },
+      select: { categoryCode: true, code: true, name: true },
+    }),
+  ]);
+  const categoryMap = new Map<string, string>();
+  for (const row of categories) {
+    categoryMap.set(row.code, pickEnLabel(row.name));
+  }
+  const subtypeMap = new Map<string, string>();
+  for (const row of subtypes) {
+    subtypeMap.set(`${row.categoryCode}:${row.code}`, pickEnLabel(row.name));
+  }
+  return { categories: categoryMap, subtypes: subtypeMap };
+}
+
+function pickEnLabel(name: Prisma.JsonValue): string {
+  if (name && typeof name === 'object' && !Array.isArray(name)) {
+    const record = name as Record<string, unknown>;
+    if (typeof record.en === 'string' && record.en.trim().length > 0) {
+      return record.en;
+    }
+  }
+  return 'Category';
+}
+
+function toDeskGrievanceListItem(
+  row: {
+    id: string;
+    grievanceNo: string;
+    category: string;
+    subtypeCode: string | null;
+    status: string;
+    grievancePriority: string;
+    routedRoleCode: string | null;
+    assignedToUserId: string | null;
+    slaDueAt: Date | null;
+    slaBreachedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  labelMaps: GrievanceLabelMaps,
+): TenantDeskGrievanceListItem {
+  const subtypeKey =
+    row.subtypeCode && row.subtypeCode.length > 0 ? `${row.category}:${row.subtypeCode}` : null;
   return {
     id: row.id,
     grievance_no: row.grievanceNo,
     category: row.category,
+    category_label: labelMaps.categories.get(row.category) ?? row.category,
+    subtype_code: row.subtypeCode,
+    subtype_label: subtypeKey ? (labelMaps.subtypes.get(subtypeKey) ?? row.subtypeCode) : null,
     status: row.status,
     priority: row.grievancePriority,
     routed_role_code: row.routedRoleCode,

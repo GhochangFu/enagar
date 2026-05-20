@@ -3,8 +3,14 @@
 import { Button, PageHeader } from '@enagar/ui';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
+import { DeskGrievanceEvidencePanel } from '../../../components/desk-grievance-evidence-panel';
+import { DeskGrievanceLocationMap } from '../../../components/desk-grievance-location-map';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
+import {
+  locationSummaryWithoutCoords,
+  parseGrievanceLocationPin,
+} from '../../../lib/grievance-location';
 
 type DeskSummary = {
   applications_my_queue: number;
@@ -55,6 +61,9 @@ type GrievanceRow = {
   id: string;
   grievance_no: string;
   category: string;
+  category_label: string;
+  subtype_code: string | null;
+  subtype_label: string | null;
   status: string;
   priority: string;
   routed_role_code: string | null;
@@ -64,10 +73,20 @@ type GrievanceRow = {
   created_at: string;
 };
 
+type GrievanceAttachment = {
+  id: string;
+  content_type: string;
+  storage_key: string;
+  created_at: string;
+  download_url: string;
+};
+
 type GrievanceDetail = {
   grievance: GrievanceRow & {
     description: string;
     location: unknown;
+    photo_keys: unknown;
+    attachments: GrievanceAttachment[];
   };
   timeline: Array<{
     id: string;
@@ -471,7 +490,8 @@ export default function DeskClient(): JSX.Element {
                       {row.grievance_no}
                     </p>
                     <p className="mt-1 text-sm text-ink-primary">
-                      {row.category} · {row.priority}
+                      {row.category_label}
+                      {row.subtype_label ? ` · ${row.subtype_label}` : ''} · {row.priority}
                     </p>
                     <p className="mt-1 text-xs text-ink-secondary">
                       {row.status} · routed {row.routed_role_code ?? 'none'}
@@ -490,21 +510,60 @@ export default function DeskClient(): JSX.Element {
               <div className="space-y-4">
                 <DetailHeader
                   title={grievanceDetail.grievance.grievance_no}
-                  subtitle={`${grievanceDetail.grievance.category} · ${grievanceDetail.grievance.status}`}
+                  subtitle={`${grievanceDetail.grievance.category_label}${grievanceDetail.grievance.subtype_label ? ` · ${grievanceDetail.grievance.subtype_label}` : ''} · ${grievanceDetail.grievance.status}`}
                 />
                 <p className="rounded-2xl border border-warm-border bg-mint-band/30 p-4 text-sm text-ink-primary">
                   {grievanceDetail.grievance.description}
                 </p>
-                {grievanceDetail.grievance.location ? (
-                  <>
-                    <FormDataSummary data={grievanceDetail.grievance.location} />
-                    <JsonFallbackPanel
-                      readOnly
-                      title="Raw location (JSON)"
-                      value={prettyJson(grievanceDetail.grievance.location)}
-                    />
-                  </>
+                {token ? (
+                  <DeskGrievanceEvidencePanel
+                    apiBase={apiBase}
+                    token={token}
+                    grievanceId={grievanceDetail.grievance.id}
+                    attachments={grievanceDetail.grievance.attachments ?? []}
+                    photoKeys={grievanceDetail.grievance.photo_keys}
+                  />
                 ) : null}
+                {(() => {
+                  const pin = parseGrievanceLocationPin(grievanceDetail.grievance.location);
+                  const locationNotes = locationSummaryWithoutCoords(
+                    grievanceDetail.grievance.location,
+                  );
+                  if (!pin && !locationNotes) {
+                    return null;
+                  }
+                  return (
+                    <section className="space-y-3">
+                      <h4 className="text-sm font-semibold text-ink-primary">Location</h4>
+                      {pin ? (
+                        <DeskGrievanceLocationMap latitude={pin.lat} longitude={pin.lng} />
+                      ) : null}
+                      {locationNotes ? <FormDataSummary data={locationNotes} /> : null}
+                      {pin ? (
+                        <dl className="grid gap-3 rounded-2xl border border-warm-border bg-mint-band/30 p-4 md:grid-cols-2">
+                          <div>
+                            <dt className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                              Latitude
+                            </dt>
+                            <dd className="mt-0.5 font-mono text-sm text-ink-primary">{pin.lat}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                              Longitude
+                            </dt>
+                            <dd className="mt-0.5 font-mono text-sm text-ink-primary">{pin.lng}</dd>
+                          </div>
+                        </dl>
+                      ) : null}
+                      <JsonFallbackPanel
+                        readOnly
+                        title="Raw location (JSON)"
+                        description="Power-user escape hatch."
+                        value={prettyJson(grievanceDetail.grievance.location)}
+                      />
+                    </section>
+                  );
+                })()}
                 <textarea
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}

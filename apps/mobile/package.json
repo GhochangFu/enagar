@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@enagar/forms": "workspace:*",
+    "@enagar/grievance-catalogue": "workspace:*",
     "@enagar/i18n": "workspace:*",
     "@enagar/tenant-theme": "workspace:*",
     "@enagar/types": "workspace:*",

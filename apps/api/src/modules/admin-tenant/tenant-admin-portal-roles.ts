@@ -19,3 +19,8 @@ export function assertTenantPortalStaff(principal: AuthenticatedPrincipal): void
     );
   }
 }
+
+/** Masters / Operations configuration writes (grievance catalogue, SLA, routing). */
+export function assertTenantPortalAdminWrite(principal: AuthenticatedPrincipal): void {
+  assertTenantPortalStaff(principal);
+}

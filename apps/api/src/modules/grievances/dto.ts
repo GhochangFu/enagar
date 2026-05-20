@@ -48,6 +48,12 @@ export class CreateGrievanceDto {
   @MaxLength(50)
   category!: string;
 
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  subtype_code?: string;
+
   @IsString()
   @MinLength(3)
   @MaxLength(8000)
@@ -68,6 +74,40 @@ export class CreateGrievanceDto {
   @IsOptional()
   @IsIn([...PRIORITIES])
   grievance_priority?: (typeof PRIORITIES)[number];
+}
+
+export const GRIEVANCE_EVIDENCE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+] as const;
+
+export type GrievanceEvidenceMimeType = (typeof GRIEVANCE_EVIDENCE_MIME_TYPES)[number];
+
+export class CreateGrievanceEvidenceUploadIntentDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  original_name!: string;
+
+  @IsIn(GRIEVANCE_EVIDENCE_MIME_TYPES)
+  mime_type!: GrievanceEvidenceMimeType;
+
+  @IsNumber()
+  @Min(0.01)
+  @Max(25)
+  size_mb!: number;
+}
+
+export interface GrievanceEvidenceUploadIntentResponse {
+  storage_key: string;
+  upload_url: string;
+  upload_expires_at: string;
+  mime_type: GrievanceEvidenceMimeType;
+  original_name: string;
 }
 
 /** Register MinIO-compatible object key after client upload (citizen-owned grievance). */
@@ -140,6 +180,7 @@ export type GrievanceResponse = {
   citizen_id: string;
   grievance_no: string;
   category: string;
+  subtype_code: string | null;
   description: string;
   location: unknown;
   photo_keys: string[];

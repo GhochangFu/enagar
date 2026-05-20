@@ -6,6 +6,10 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 import { Prisma, PrismaClient } from '../src/generated/prisma';
 import {
+  seedGlobalGrievanceCatalogue,
+  seedTenantGrievanceCatalogue,
+} from '../src/modules/grievances/grievance-catalogue.seed';
+import {
   globalServices,
   resolveEffectiveServices,
   revenueHeads,
@@ -915,6 +919,9 @@ async function main(): Promise<void> {
   });
 
   try {
+    await seedGlobalGrievanceCatalogue(prisma);
+    console.info('Seeded global grievance taxonomy (Sprint 6.21)');
+
     for (const seed of tenantSeeds) {
       const tenant = await prisma.tenant.upsert({
         where: { code: seed.code },
@@ -949,6 +956,7 @@ async function main(): Promise<void> {
       /** Portal is not an operational grievance jurisdiction; SLA/routing stays on ULBs only. */
       if (tenant.code !== CITIZEN_PORTAL_TENANT_CODE) {
         await seedGrievancePoliciesForTenant(prisma, tenant.id);
+        await seedTenantGrievanceCatalogue(prisma, tenant.id, tenant.code);
       }
 
       console.info(`Seeded tenant ${tenant.code} (${tenant.id})`);

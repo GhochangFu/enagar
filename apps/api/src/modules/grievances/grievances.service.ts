@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   BadRequestException,
   ForbiddenException,
@@ -17,6 +19,10 @@ import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 import { TenantsService } from '../tenants/tenants.service';
 
 import {
+  assertGrievanceFilingMatchesCatalogue,
+  GrievanceCatalogueService,
+} from './grievance-catalogue.service';
+import {
   assertGrievanceTransition,
   type GrievanceStatus,
   isGrievanceStatus,
@@ -28,8 +34,10 @@ import { principalHasGrievanceStaffAccess } from './grievance-staff-roles';
 import type {
   AssignGrievanceDto,
   CreateGrievanceDto,
+  CreateGrievanceEvidenceUploadIntentDto,
   GrievanceAttachmentResponse,
   GrievanceCommentDto,
+  GrievanceEvidenceUploadIntentResponse,
   GrievanceFeedbackDto,
   GrievanceReopenDto,
   GrievanceResponse,
@@ -37,6 +45,7 @@ import type {
   RegisterGrievanceAttachmentDto,
   UpdateGrievanceStatusDto,
 } from './dto';
+import type { GrievanceCatalogueResponse } from './grievance-catalogue.types';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Grievance as GrievanceRow, Prisma } from '../../generated/prisma';
 import type { ApplicationReadScope } from '../applications/dto';
@@ -68,11 +77,23 @@ function escalationRoleAfterBreach(routedRoleCode: string | null): string {
 /** Max structured attachments beyond legacy `photo_keys` JSON array. */
 const MAX_ATTACHMENTS_PER_GRIEVANCE = 12;
 
+const GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS = 15 * 60 * 1000;
+
+const GRIEVANCE_EVIDENCE_MAX_MB: Record<string, number> = {
+  'image/jpeg': 8,
+  'image/png': 8,
+  'image/webp': 8,
+  'video/mp4': 25,
+  'video/webm': 25,
+  'video/quicktime': 25,
+};
+
 @Injectable()
 export class GrievancesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenants: TenantsService,
+    private readonly catalogue: GrievanceCatalogueService,
   ) {}
 
   /** Resolve `:id` path param — clients may send DB uuid or human-readable grievance_no (e.g. GRV-KMC-2026-000001). */
@@ -111,6 +132,25 @@ export class GrievancesService {
   }
 
   /** Reject traversal / opaque schemes in client-supplied object keys */
+  private createGrievanceEvidenceObjectKey(
+    tenantCode: string,
+    evidenceId: string,
+    originalName: string,
+  ): string {
+    const safeName = originalName.toLowerCase().replace(/[^a-z0-9.]+/g, '-');
+    return `tenants/${tenantCode.toLowerCase()}/grievances/evidence/${evidenceId}/${safeName}`;
+  }
+
+  private signedEvidenceUrl(
+    action: 'upload' | 'download',
+    objectKey: string,
+    now: Date,
+    ttlMs: number,
+  ): string {
+    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+    return `minio://enagar-local/${objectKey}?action=${action}&expires_at=${encodeURIComponent(expiresAt)}`;
+  }
+
   private assertSafeStorageKey(key: string): void {
     const k = key.trim();
     if (!k || k.includes('..') || k.startsWith('/') || k.includes('\\')) {
@@ -131,6 +171,7 @@ export class GrievancesService {
       citizen_id: row.citizenId,
       grievance_no: row.grievanceNo,
       category: row.category,
+      subtype_code: row.subtypeCode,
       description: row.description,
       location: row.location,
       photo_keys: row.photoKeys as unknown as string[],
@@ -213,7 +254,13 @@ export class GrievancesService {
     const citizenId = await this.ensureCitizenForTargetTenant(principal, tenantId);
 
     const priority = dto.grievance_priority ?? 'medium';
-    const category = dto.category;
+    const category = dto.category.trim();
+    const subtypeCode = dto.subtype_code?.trim() || null;
+
+    await assertGrievanceFilingMatchesCatalogue(this.prisma, tenantId, {
+      category,
+      subtype_code: subtypeCode ?? undefined,
+    });
     const wardRow = await this.prisma.citizen.findFirst({
       where: { id: citizenId, tenantId },
       select: { wardId: true },
@@ -241,6 +288,7 @@ export class GrievancesService {
           citizenId,
           grievanceNo,
           category,
+          subtypeCode,
           description: dto.description,
           location: locationJson,
           photoKeys: (dto.photos ?? []) as Prisma.InputJsonValue,
@@ -259,7 +307,11 @@ export class GrievancesService {
           eventType: 'created',
           actorSubject: principal.subject,
           body: `Grievance ${grievanceNo} filed`,
-          metadata: { category, priority: routing.targetRoleCode },
+          metadata: {
+            category,
+            subtype_code: subtypeCode,
+            priority: routing.targetRoleCode,
+          },
         },
       });
 
@@ -280,6 +332,30 @@ export class GrievancesService {
     });
 
     return this.toResponse(created);
+  }
+
+  async getCatalogueForPrincipal(
+    principal: AuthenticatedPrincipal,
+    municipalityScopeFromHeader?: string,
+  ): Promise<GrievanceCatalogueResponse> {
+    const staff = principalHasGrievanceStaffAccess(principal.roles);
+    if (staff) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: principal.tenantId },
+        select: { id: true, code: true },
+      });
+      if (!tenant) {
+        throw new NotFoundException('Tenant not found');
+      }
+      return this.catalogue.getActiveCatalogue(tenant.id, tenant.code);
+    }
+
+    const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
+      principal,
+      this.tenants.list(),
+      municipalityScopeFromHeader,
+    );
+    return this.catalogue.getActiveCatalogue(tenantId, tenantCode);
   }
 
   async list(
@@ -671,6 +747,53 @@ export class GrievancesService {
   }
 
   /**
+   * Presigned-style upload target for grievance photo/video evidence (citizen filing).
+   * Local dev uses `minio://` URLs; clients may skip PUT and register metadata only.
+   */
+  async createEvidenceUploadIntent(
+    principal: AuthenticatedPrincipal,
+    dto: CreateGrievanceEvidenceUploadIntentDto,
+    municipalityScopeFromHeader?: string,
+  ): Promise<GrievanceEvidenceUploadIntentResponse> {
+    this.assertCitizenOnly(principal);
+
+    const maxMb = GRIEVANCE_EVIDENCE_MAX_MB[dto.mime_type];
+    if (!maxMb || dto.size_mb > maxMb) {
+      throw new BadRequestException(`File size exceeds ${maxMb} MB for ${dto.mime_type}`);
+    }
+
+    const { tenantCode } = resolveCitizenMunicipalityForWrite(
+      principal,
+      this.tenants.list(),
+      municipalityScopeFromHeader,
+    );
+
+    const createdAt = new Date();
+    const evidenceId = randomUUID();
+    const storageKey = this.createGrievanceEvidenceObjectKey(
+      tenantCode,
+      evidenceId,
+      dto.original_name,
+    );
+    this.assertSafeStorageKey(storageKey);
+
+    return {
+      storage_key: storageKey,
+      upload_url: this.signedEvidenceUrl(
+        'upload',
+        storageKey,
+        createdAt,
+        GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS,
+      ),
+      upload_expires_at: new Date(
+        createdAt.getTime() + GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS,
+      ).toISOString(),
+      mime_type: dto.mime_type,
+      original_name: dto.original_name,
+    };
+  }
+
+  /**
    * Persist attachment metadata after the client uploads binary to object storage.
    * Ownership is enforced via the same read path as grievance detail (portal scope supported).
    */
@@ -720,6 +843,7 @@ export class GrievancesService {
     totals_by_status: Record<string, number>;
     totals_by_category: Record<string, number>;
     breached_open_count: number;
+    metadata: { legacy_unmapped: number };
   }> {
     const windowDaysRaw = params.windowDays ?? 30;
     const window_days = Math.min(365, Math.max(1, Math.floor(Number(windowDaysRaw)) || 30));
@@ -766,9 +890,30 @@ export class GrievancesService {
     for (const row of byStatus) {
       totals_by_status[row.status] = row._count;
     }
+
+    const activeCatalogueCodes = new Set<string>();
+    if (where.tenantId && typeof where.tenantId === 'string') {
+      const catalogueRows = await this.prisma.tenantGrievanceCategory.findMany({
+        where: { tenantId: where.tenantId, isActive: true },
+        select: { code: true },
+      });
+      for (const row of catalogueRows) {
+        activeCatalogueCodes.add(row.code);
+      }
+      activeCatalogueCodes.add('other');
+    }
+
+    let legacy_unmapped = 0;
     const totals_by_category: Record<string, number> = {};
     for (const row of byCategory) {
-      totals_by_category[row.category] = row._count;
+      const bucket =
+        activeCatalogueCodes.size === 0 || activeCatalogueCodes.has(row.category)
+          ? row.category
+          : 'other';
+      if (bucket === 'other' && row.category !== 'other' && activeCatalogueCodes.size > 0) {
+        legacy_unmapped += row._count;
+      }
+      totals_by_category[bucket] = (totals_by_category[bucket] ?? 0) + row._count;
     }
 
     return {
@@ -778,6 +923,7 @@ export class GrievancesService {
       totals_by_status,
       totals_by_category,
       breached_open_count: breachedOpen,
+      metadata: { legacy_unmapped },
     };
   }
 

@@ -20,6 +20,7 @@
     "@enagar/ui": "workspace:^",
     "@enagar/workflow": "workspace:^",
     "@xyflow/react": "^12.10.2",
+    "leaflet": "^1.9.4",
     "next": "14.2.13",
     "react": "18.3.1",
     "react-dom": "18.3.1"
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@enagar/config": "workspace:*",
     "@types/jest": "^29.5.13",
+    "@types/leaflet": "^1.9.12",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

@@ -12,6 +12,7 @@ import {
   StateTenantSection,
 } from '../../components/state-config-sections';
 import { StateDashboardTheme } from '../../components/state-dashboard-theme';
+import { StateGrievanceLibraryPanel } from '../../components/state-grievance-library-panel';
 import { StateKpiStrip } from '../../components/state-kpi-strip';
 import {
   StateTenantDetailDrawer,
@@ -102,12 +103,19 @@ type AuditCoverage = {
   missing_actions: string[];
 };
 
-type DashboardTab = 'overview' | 'tenants' | 'library' | 'integrations' | 'security';
+type DashboardTab =
+  | 'overview'
+  | 'tenants'
+  | 'library'
+  | 'grievanceLibrary'
+  | 'integrations'
+  | 'security';
 
 const TABS: Array<{ id: DashboardTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'tenants', label: 'Municipalities' },
   { id: 'library', label: 'Service library' },
+  { id: 'grievanceLibrary', label: 'Grievance library' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'security', label: 'Audit & access' },
 ];
@@ -498,6 +506,7 @@ export function StateDashboardClient(): JSX.Element {
       {drawerTenant ? (
         <StateTenantDetailDrawer
           tenant={drawerTenant}
+          api={api}
           onClose={() => setDrawerTenant(null)}
           onEdit={() => {
             selectTenantForEdit(drawerTenant.code);
@@ -582,6 +591,8 @@ export function StateDashboardClient(): JSX.Element {
             onLifecycle={(code, action) => void updateLibraryLifecycle(code, action)}
           />
         ) : null}
+
+        {activeTab === 'grievanceLibrary' ? <StateGrievanceLibraryPanel api={api} /> : null}
 
         {activeTab === 'integrations' ? (
           <StateIntegrationSection

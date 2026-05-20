@@ -3,7 +3,15 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
+import { AdminStateGrievanceLibraryService } from './admin-state-grievance-library.service';
 import { AdminStateService } from './admin-state.service';
+import {
+  AdoptGrievanceCatalogueDto,
+  PatchGlobalGrievanceCategoryDto,
+  PatchGlobalGrievanceSubtypeDto,
+  UpsertGlobalGrievanceCategoryDto,
+  UpsertGlobalGrievanceSubtypeDto,
+} from './dto/grievance-library.dto';
 import {
   CreateImpersonationTokenDto,
   GlobalServiceLifecycleDto,
@@ -18,7 +26,10 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 @ApiBearerAuth()
 @Controller('admin/state')
 export class AdminStateController {
-  constructor(private readonly adminState: AdminStateService) {}
+  constructor(
+    private readonly adminState: AdminStateService,
+    private readonly grievanceLibrary: AdminStateGrievanceLibraryService,
+  ) {}
 
   @Get('analytics')
   @ApiOperation({ summary: 'State-wide KPI snapshot for super-admin portal' })
@@ -188,5 +199,79 @@ export class AdminStateController {
   @ApiOperation({ summary: 'Sprint 6.12 audit coverage matrix' })
   getAuditCoverage(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminState.getAuditCoverage(principal);
+  }
+
+  @Get('grievance-library/categories')
+  @ApiOperation({ summary: 'List global grievance categories (state library)' })
+  listGrievanceLibraryCategories(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.grievanceLibrary.listCategories(principal);
+  }
+
+  @Post('grievance-library/categories')
+  @ApiOperation({ summary: 'Create a global grievance category' })
+  createGrievanceLibraryCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertGlobalGrievanceCategoryDto,
+  ) {
+    return this.grievanceLibrary.createCategory(principal, dto);
+  }
+
+  @Patch('grievance-library/categories/:code')
+  @ApiOperation({ summary: 'Update a global grievance category' })
+  patchGrievanceLibraryCategory(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: PatchGlobalGrievanceCategoryDto,
+  ) {
+    return this.grievanceLibrary.patchCategory(principal, code, dto);
+  }
+
+  @Get('grievance-library/categories/:code/subtypes')
+  @ApiOperation({ summary: 'List sub-types for a global grievance category' })
+  listGrievanceLibrarySubtypes(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.grievanceLibrary.listSubtypes(principal, code);
+  }
+
+  @Post('grievance-library/categories/:code/subtypes')
+  @ApiOperation({ summary: 'Create a global grievance sub-type' })
+  createGrievanceLibrarySubtype(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: UpsertGlobalGrievanceSubtypeDto,
+  ) {
+    return this.grievanceLibrary.createSubtype(principal, code, dto);
+  }
+
+  @Patch('grievance-library/categories/:code/subtypes/:subtypeCode')
+  @ApiOperation({ summary: 'Update a global grievance sub-type' })
+  patchGrievanceLibrarySubtype(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Param('subtypeCode') subtypeCode: string,
+    @Body() dto: PatchGlobalGrievanceSubtypeDto,
+  ) {
+    return this.grievanceLibrary.patchSubtype(principal, code, subtypeCode, dto);
+  }
+
+  @Get('tenants/:code/grievance-catalogue')
+  @ApiOperation({ summary: 'Read-only tenant grievance catalogue vs global library' })
+  getTenantGrievanceCatalogueOversight(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.grievanceLibrary.listTenantCatalogueOversight(principal, code);
+  }
+
+  @Post('tenants/:code/grievance-catalogue/adopt')
+  @ApiOperation({ summary: 'Adopt global grievance categories for a municipality' })
+  adoptTenantGrievanceCatalogue(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: AdoptGrievanceCatalogueDto,
+  ) {
+    return this.grievanceLibrary.adoptForTenant(principal, code, dto);
   }
 }
