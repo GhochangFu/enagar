@@ -1,11 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
+import { PrismaService } from '../../common/database/prisma.service';
+import { DocumentScanQueueService } from '../../common/document-scan/document-scan.queue';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { InMemoryApplicationStore } from '../applications/in-memory-application.store';
 import { ServicesService } from '../services/services.service';
 import { TenantsService } from '../tenants/tenants.service';
 
 import { DocumentsService } from './documents.service';
+import { createMockApplicationDocumentPrisma } from './testing/mock-application-document-prisma';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
@@ -41,14 +45,28 @@ const birthCertificateForm = {
 describe('DocumentsService', () => {
   let applications: ApplicationsService;
   let documents: DocumentsService;
+  let prisma: PrismaService;
+
+  const documentScanQueue = { enqueueScan: jest.fn().mockResolvedValue(undefined) } as Pick<
+    DocumentScanQueueService,
+    'enqueueScan'
+  >;
 
   beforeEach(() => {
+    process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
+    prisma = createMockApplicationDocumentPrisma();
     applications = new ApplicationsService(
       new ServicesService(),
       new TenantsService(),
       new InMemoryApplicationStore(),
+      prisma,
     );
-    documents = new DocumentsService(applications);
+    documents = new DocumentsService(
+      applications,
+      new ObjectStorageService(),
+      prisma,
+      documentScanQueue as DocumentScanQueueService,
+    );
   });
 
   it('creates tenant-scoped upload intents and attaches metadata to applications', async () => {
@@ -101,6 +119,23 @@ describe('DocumentsService', () => {
     await expect(documents.createDownloadUrl(principal, intent.id)).rejects.toThrow(
       'Document is not scan-clean',
     );
+  });
+
+  it('marks upload_status uploaded on confirm-upload (stub storage)', async () => {
+    const application = await applications.create(principal, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+    const intent = await documents.createUploadIntent(principal, {
+      application_id: application.id,
+      document_code: 'hospital_discharge',
+      original_name: 'proof.pdf',
+      mime_type: 'application/pdf',
+      size_mb: 1,
+    });
+
+    const confirmed = await documents.confirmUpload(principal, intent.id);
+    expect(confirmed.upload_status).toBe('uploaded');
   });
 
   it('allows download only after a clean scan result', async () => {
@@ -156,6 +191,28 @@ describe('DocumentsService', () => {
       'submit',
       'sla-armed',
     ]);
+  });
+
+  it('rejects client scan-result when simulation is disabled', async () => {
+    delete process.env.ALLOW_CLIENT_SCAN_SIMULATION;
+    const application = await applications.createDraft(principal, {
+      service_code: 'birth-cert',
+      form_data: birthCertificateForm,
+    });
+    const intent = await documents.createUploadIntent(principal, {
+      application_id: application.id,
+      document_code: 'hospital_discharge',
+      original_name: 'clean.pdf',
+      mime_type: 'application/pdf',
+      size_mb: 1,
+    });
+    await expect(
+      documents.updateScanResult(principal, intent.id, {
+        scan_status: 'clean',
+        scan_provider: 'test',
+      }),
+    ).rejects.toThrow('scan worker');
+    process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
   });
 
   it('rejects cross-tenant scan and download attempts as not found', async () => {

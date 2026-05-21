@@ -3,6 +3,7 @@
 import { Button, PageHeader } from '@enagar/ui';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
+import { DeskApplicationDocumentsPanel } from '../../../components/desk-application-documents-panel';
 import { DeskGrievanceEvidencePanel } from '../../../components/desk-grievance-evidence-panel';
 import { DeskGrievanceLocationMap } from '../../../components/desk-grievance-location-map';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
@@ -40,6 +41,17 @@ type AllowedTransition = {
   requires_comment: boolean;
 };
 
+type ApplicationDocumentRow = {
+  id: string;
+  document_code: string;
+  original_name: string;
+  mime_type: string;
+  size_mb: number;
+  upload_status: string;
+  scan_status: string;
+  created_at: string;
+};
+
 type ApplicationDetail = {
   application: ApplicationRow & {
     form_data: unknown;
@@ -52,7 +64,7 @@ type ApplicationDetail = {
       comment: string | null;
       created_at: string;
     }>;
-    documents: unknown;
+    documents: ApplicationDocumentRow[];
   };
   allowed_transitions: AllowedTransition[];
 };
@@ -428,6 +440,14 @@ export default function DeskClient(): JSX.Element {
                   subtitle={`${applicationDetail.application.service_name} · ${applicationDetail.application.status_label}`}
                 />
                 <FormDataSummary data={applicationDetail.application.form_data} />
+                {token ? (
+                  <DeskApplicationDocumentsPanel
+                    apiBase={apiBase}
+                    token={token}
+                    applicationId={applicationDetail.application.id}
+                    documents={applicationDetail.application.documents}
+                  />
+                ) : null}
                 <JsonFallbackPanel
                   readOnly
                   title="Raw form data (JSON)"

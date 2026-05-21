@@ -1,3 +1,5 @@
+import { isStubObjectStorageUploadUrl } from '@enagar/forms/upload';
+
 export const MAX_GRIEVANCE_EVIDENCE_FILES = 3;
 
 const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -58,7 +60,7 @@ async function createEvidenceUploadIntent(
 }
 
 async function putEvidenceBinary(uploadUrl: string, file: File): Promise<void> {
-  if (uploadUrl.startsWith('minio://')) {
+  if (isStubObjectStorageUploadUrl(uploadUrl)) {
     return;
   }
   const response = await fetch(uploadUrl, {

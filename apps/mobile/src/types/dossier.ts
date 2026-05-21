@@ -90,5 +90,6 @@ export interface PaymentApiResponse {
 export interface UploadIntentResponse {
   id: string;
   object_key: string;
+  upload_url: string;
   scan_status: string;
 }

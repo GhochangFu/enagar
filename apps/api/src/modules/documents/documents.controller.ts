@@ -40,6 +40,15 @@ export class DocumentsController {
     );
   }
 
+  @Post(':id/confirm-upload')
+  confirmUpload(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ): Promise<DocumentResponse> {
+    return this.documents.confirmUpload(principal, id, readScopeFromHeader(municipalityTenantCode));
+  }
+
   @Post(':id/scan-result')
   updateScanResult(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -66,5 +75,14 @@ export class DocumentsController {
       id,
       readScopeFromHeader(municipalityTenantCode),
     );
+  }
+
+  @Get(':id')
+  getDocument(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ): Promise<DocumentResponse> {
+    return this.documents.getDocument(principal, id, readScopeFromHeader(municipalityTenantCode));
   }
 }

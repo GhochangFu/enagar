@@ -16,6 +16,8 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
+import { decimalToNumber } from '../documents/application-document.mapper';
 import {
   assertGrievanceTransition,
   GRIEVANCE_STATUSES,
@@ -400,6 +402,17 @@ export type TenantDeskAllowedTransition = {
   requires_comment: boolean;
 };
 
+export type TenantDeskApplicationDocument = {
+  id: string;
+  document_code: string;
+  original_name: string;
+  mime_type: string;
+  size_mb: number;
+  upload_status: string;
+  scan_status: string;
+  created_at: string;
+};
+
 export type TenantDeskApplicationDetail = {
   application: TenantDeskApplicationListItem & {
     form_data: Prisma.JsonValue;
@@ -412,9 +425,18 @@ export type TenantDeskApplicationDetail = {
       comment: string | null;
       created_at: string;
     }>;
-    documents: Prisma.JsonValue;
+    documents: TenantDeskApplicationDocument[];
   };
   allowed_transitions: TenantDeskAllowedTransition[];
+};
+
+export type TenantAdminBrandingUploadIntentResponse = {
+  storage_key: string;
+  upload_url: string;
+  upload_expires_at: string;
+  public_url: string;
+  mime_type: string;
+  original_name: string;
 };
 
 export type TenantDeskGrievanceListItem = {
@@ -488,7 +510,10 @@ function mergeLabels(
 
 @Injectable()
 export class AdminTenantService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly objectStorage: ObjectStorageService,
+  ) {}
 
   async getDashboard(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardSnapshot> {
     assertTenantPortalStaff(principal);
@@ -2038,6 +2063,51 @@ export class AdminTenantService {
     return toKbArticleRow(refreshed);
   }
 
+  async createBrandingAssetUploadIntent(
+    principal: AuthenticatedPrincipal,
+    dto: {
+      code: string;
+      kind: string;
+      mime_type: string;
+      size_bytes: string;
+      original_name: string;
+    },
+  ): Promise<TenantAdminBrandingUploadIntentResponse> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.code, 'branding asset code');
+    assertBrandingAssetKind(dto.kind);
+    assertBrandingAssetMime(dto.mime_type);
+    const sizeBytes = parsePositiveInt(dto.size_bytes, 'size_bytes');
+    if (sizeBytes > 5 * 1024 * 1024) {
+      throw new BadRequestException('Branding asset size must be <= 5MB');
+    }
+    const tenantCode = principal.tenantCode?.trim();
+    if (!tenantCode) {
+      throw new BadRequestException('Tenant code is required for branding upload');
+    }
+    const safeName = dto.original_name.toLowerCase().replace(/[^a-z0-9.]+/g, '-');
+    const storageKey = `${tenantCode}/branding/${dto.code}/${safeName}`;
+    this.objectStorage.assertSafeObjectKey(storageKey);
+    if (!storageKey.startsWith(`${tenantCode}/`)) {
+      throw new BadRequestException('storage_key must be tenant-prefixed');
+    }
+    const createdAt = new Date();
+    const upload = await this.objectStorage.presignUpload(
+      storageKey,
+      dto.mime_type,
+      15 * 60 * 1000,
+      createdAt,
+    );
+    return {
+      storage_key: storageKey,
+      upload_url: upload.url,
+      upload_expires_at: upload.expires_at,
+      public_url: this.objectStorage.buildPublicObjectUrl(storageKey),
+      mime_type: dto.mime_type,
+      original_name: dto.original_name,
+    };
+  }
+
   async listBrandingAssets(
     principal: AuthenticatedPrincipal,
   ): Promise<TenantAdminBrandingAssetRow[]> {
@@ -2068,6 +2138,12 @@ export class AdminTenantService {
     }
     if (!dto.storage_key.startsWith(`${principal.tenantCode ?? principal.tenantId}/`)) {
       throw new BadRequestException('storage_key must be tenant-prefixed');
+    }
+    if (this.objectStorage.isEnabled()) {
+      const head = await this.objectStorage.headObject(dto.storage_key.trim());
+      if (!head || head.content_length <= 0) {
+        throw new BadRequestException('Branding object not found in storage');
+      }
     }
     const width = dto.width ? parsePositiveInt(dto.width, 'width') : null;
     const height = dto.height ? parsePositiveInt(dto.height, 'height') : null;
@@ -2692,6 +2768,14 @@ export class AdminTenantService {
       }
     }
     const workflow = await this.loadWorkflowForDesk(row.service.id);
+    const documentRows = await this.prisma.applicationDocument.findMany({
+      where: { tenantId: principal.tenantId, applicationId: row.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    const documents =
+      documentRows.length > 0
+        ? documentRows.map((doc) => toDeskApplicationDocument(doc))
+        : toDeskApplicationDocumentsFromSnapshot(snapshot.documents);
     return {
       application: {
         ...toDeskApplicationListItem(row),
@@ -2699,13 +2783,64 @@ export class AdminTenantService {
         timeline: Array.isArray(snapshot.timeline)
           ? (snapshot.timeline as TenantDeskApplicationDetail['application']['timeline'])
           : [],
-        documents: (snapshot.documents ?? []) as Prisma.JsonValue,
+        documents,
       },
       allowed_transitions: await this.allowedApplicationTransitions(
         principal,
         workflow,
         typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status,
       ),
+    };
+  }
+
+  async getDeskApplicationDocumentBlob(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    documentId: string,
+  ): Promise<{ buffer: Buffer; contentType: string; fileName: string }> {
+    assertDeskAccess(principal);
+    const application = await this.prisma.application.findFirst({
+      where: { tenantId: principal.tenantId, id: applicationId },
+      select: { id: true },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    const document = await this.prisma.applicationDocument.findFirst({
+      where: {
+        id: documentId,
+        tenantId: principal.tenantId,
+        applicationId: application.id,
+      },
+    });
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+    if (document.scanStatus !== 'clean') {
+      throw new BadRequestException('Document is not scan-clean');
+    }
+    if (document.uploadStatus !== 'uploaded') {
+      throw new BadRequestException('Document upload is not complete');
+    }
+    if (this.objectStorage.isEnabled()) {
+      const buffer = await this.objectStorage.getObjectBuffer(document.objectKey);
+      if (buffer && buffer.length > 0) {
+        return {
+          buffer,
+          contentType: document.mimeType,
+          fileName: document.originalName,
+        };
+      }
+      throw new NotFoundException('Document object not found in storage');
+    }
+    const placeholder = Buffer.from(
+      `Local dev placeholder for ${document.originalName} (${document.objectKey})`,
+      'utf8',
+    );
+    return {
+      buffer: placeholder,
+      contentType: document.mimeType,
+      fileName: document.originalName,
     };
   }
 
@@ -2864,11 +2999,6 @@ export class AdminTenantService {
       .filter((row) => queue !== 'my' || deskGrievanceMatchesMyQueue(principal, row));
   }
 
-  private signedGrievanceEvidenceUrl(objectKey: string, now: Date, ttlMs: number): string {
-    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
-    return `minio://enagar-local/${objectKey}?action=download&expires_at=${encodeURIComponent(expiresAt)}`;
-  }
-
   async getDeskGrievance(
     principal: AuthenticatedPrincipal,
     grievanceId: string,
@@ -2896,13 +3026,22 @@ export class AdminTenantService {
     const labelMaps = await this.loadGrievanceLabelMaps(principal.tenantId);
     const now = new Date();
     const downloadTtlMs = 15 * 60 * 1000;
-    const attachments: TenantDeskGrievanceAttachment[] = attachmentRows.map((attachment) => ({
-      id: attachment.id,
-      content_type: attachment.contentType,
-      storage_key: attachment.storageKey,
-      created_at: attachment.createdAt.toISOString(),
-      download_url: this.signedGrievanceEvidenceUrl(attachment.storageKey, now, downloadTtlMs),
-    }));
+    const attachments: TenantDeskGrievanceAttachment[] = await Promise.all(
+      attachmentRows.map(async (attachment) => {
+        const signed = await this.objectStorage.presignDownload(
+          attachment.storageKey,
+          downloadTtlMs,
+          now,
+        );
+        return {
+          id: attachment.id,
+          content_type: attachment.contentType,
+          storage_key: attachment.storageKey,
+          created_at: attachment.createdAt.toISOString(),
+          download_url: signed.url,
+        };
+      }),
+    );
     return {
       grievance: {
         ...toDeskGrievanceListItem(row, labelMaps),
@@ -2950,6 +3089,13 @@ export class AdminTenantService {
       throw new NotFoundException('Attachment not found');
     }
     const mime = attachment.contentType.toLowerCase();
+    if (this.objectStorage.isEnabled()) {
+      const buffer = await this.objectStorage.getObjectBuffer(attachment.storageKey);
+      if (buffer && buffer.length > 0) {
+        return { buffer, contentType: attachment.contentType };
+      }
+      throw new NotFoundException('Evidence object not found in storage');
+    }
     if (mime.startsWith('image/')) {
       const label = attachment.storageKey.split('/').pop() ?? 'evidence';
       const safe = label.replace(/[<>&"]/g, '');
@@ -3386,6 +3532,58 @@ function toApplicationSnapshot(value: Prisma.JsonValue): Record<string, unknown>
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function toDeskApplicationDocument(row: {
+  id: string;
+  documentCode: string;
+  originalName: string;
+  mimeType: string;
+  sizeMb: { toNumber(): number } | number;
+  uploadStatus: string;
+  scanStatus: string;
+  createdAt: Date;
+}): TenantDeskApplicationDocument {
+  return {
+    id: row.id,
+    document_code: row.documentCode,
+    original_name: row.originalName,
+    mime_type: row.mimeType,
+    size_mb: decimalToNumber(row.sizeMb),
+    upload_status: row.uploadStatus,
+    scan_status: row.scanStatus,
+    created_at: row.createdAt.toISOString(),
+  };
+}
+
+function toDeskApplicationDocumentsFromSnapshot(value: unknown): TenantDeskApplicationDocument[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const rows: TenantDeskApplicationDocument[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === 'string' ? record.id : null;
+    if (!id) {
+      continue;
+    }
+    rows.push({
+      id,
+      document_code: typeof record.document_code === 'string' ? record.document_code : 'document',
+      original_name: typeof record.original_name === 'string' ? record.original_name : 'attachment',
+      mime_type:
+        typeof record.mime_type === 'string' ? record.mime_type : 'application/octet-stream',
+      size_mb: typeof record.size_mb === 'number' ? record.size_mb : 0,
+      upload_status: typeof record.upload_status === 'string' ? record.upload_status : 'uploaded',
+      scan_status: typeof record.scan_status === 'string' ? record.scan_status : 'pending',
+      created_at:
+        typeof record.created_at === 'string' ? record.created_at : new Date().toISOString(),
+    });
+  }
+  return rows;
 }
 
 function snapshotString(value: Prisma.JsonValue, key: string): string | null {

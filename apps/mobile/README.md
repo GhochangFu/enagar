@@ -11,7 +11,8 @@ React Native + **Expo SDK 52** citizen app — **Master Sprint 5.1** shell, **`5
 - **Workspace** (`WorkspaceScreen`) — per-ULB chrome, **`POST /citizen/select-tenant`**, **`x-enagar-tenant-code`** on scoped APIs; back to hub clears ULB + restores platform theme.
 - **Tenant picker** — optional preview before login; hub pins replace pre-auth municipality selection.
 - Legacy **Home** screen retained for deep links only.
-- **Apply** (`ApplicationComposerScreen`): API-published `form_schema` from **`GET /services/tenants/:code/:serviceCode`** → **`createRenderPlan`** with **`platform: 'native'`** (`DynamicFormFields`) → draft PATCH → **`/documents/upload-intents`** simulated clean scan (`finalizeDraftDocumentsMobile`) → **`/submit`** (no empty JSON body on submit).
+- **Apply** (`ApplicationComposerScreen`): API-published `form_schema` from **`GET /services/tenants/:code/:serviceCode`** → **`createRenderPlan`** with **`platform: 'native'`** (`DynamicFormFields`) → draft PATCH → **`documentsApi`** upload-intent + PUT + confirm + scan poll (`finalizeDraftDocumentsMobile`) → **`/submit`** (no empty JSON body on submit).
+- **Grievances (6.28):** `GrievanceComposerScreen` — `expo-image-picker`, upload after create via `grievanceEvidenceApi.ts`.
 - **Application detail**: timeline/comments; fixed-fee **`/payments/initiate`** + **`x-idempotency-key`** + **`/payments/stub/complete`** (tenant + application scope, mirroring Citizen PWA).
 - **OTP verify** → **`POST /citizen/register`** (same fire-and-forget pattern as PWA).
 - **Offline** grievance composer autosave (**AsyncStorage** + **`@enagar/forms`** draft envelope; stores **category + subtype codes** only).
@@ -43,5 +44,9 @@ Run **`@enagar/api`** (`localhost:3001` default) with seeded tenants and publish
 **Expo Web** runs on **`http://localhost:8081`** — the API must allow that origin in CORS (`CORS_ORIGIN` in `infrastructure/.env`, or the default list in `apps/api/src/main.ts`). If the picker shows “API is unreachable” on **web** while `http://localhost:3001/health` works, add `http://localhost:8081` to `CORS_ORIGIN` and restart the API. On **Expo Go (device)**, CORS does not apply; fix the API host (LAN IP / auto-rewrite above), not CORS.
 
 **Tests:** `pnpm --filter @enagar/mobile run test` → `tenantApi.selftest.ts` (`tsx`). Root CI: **`pnpm lint`**, **`pnpm typecheck`**, **`pnpm test`**, **`pnpm test:security`**.
+
+### Object storage smoke (6.26 / 6.28)
+
+With API + MinIO (`OBJECT_STORAGE_DISABLED=false`), Expo app can file grievances with photos and apply flows with document upload (same API contract as PWA). Programme replay: `node scripts/smoke-sprint-630-programme.mjs` (API-level; includes 6.26 citizen path). Exit: [`docs/runbooks/master-sprint-630-exit.md`](../../docs/runbooks/master-sprint-630-exit.md).
 
 Exit records: **`docs/runbooks/master-sprint-51-exit.md`**, **`docs/runbooks/master-sprint-52-exit.md`** (**5.2a**), **`docs/runbooks/master-sprint-52b-exit.md`** (**5.2b**), **`docs/runbooks/master-sprint-66-exit.md`** (**6.6**). ADR‑0003 dual-surface sequencing vs locked-queue ordering is noted in **`master-sprint-51-exit.md`**.

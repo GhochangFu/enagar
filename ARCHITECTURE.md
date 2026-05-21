@@ -434,10 +434,24 @@ SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from
 - `GET  /chatbot/history/:session_id`
 - `POST /chatbot/feedback` — thumbs up/down per response
 
-### Documents
+### Documents & object storage (Sprint 6.25+)
+
+**Runtime:** `ObjectStorageModule` (`apps/api/src/common/object-storage/`) wraps S3-compatible storage (local **MinIO** in dev). When `OBJECT_STORAGE_DISABLED=false` and credentials are set, upload/download intents return **HTTP presigned URLs**; otherwise the API emits legacy **`minio://enagar-local/...?action=...`** stubs (CI default). Bucket **`enagar-local`** is created on API boot or via `pnpm infra:minio-cors`. Browser CORS uses **`MINIO_API_CORS_ALLOW_ORIGIN`** in `infrastructure/docker-compose.yml`.
+
+**Application documents** (citizen JWT):
+
+- `POST /api/documents/upload-intent` — tenant-scoped `object_key` + presigned PUT (15 min)
+- `POST /api/documents/:id/confirm-upload` — after client PUT; `headObject` when storage enabled (**6.25**)
+- `POST /api/documents/:id/scan-result` — scan state transition (ClamAV worker **6.27**)
+- `GET /api/documents/:id/download` — presigned GET when `scan_status = clean`
+
+**Grievance evidence:** `POST /api/grievances/evidence/upload-intent`, `POST /api/grievances/:id/attachments/register` (register checks object exists when storage on). Desk blob route streams from MinIO when enabled.
+
+**Programme:** [`docs/runbooks/object-storage-upload-programme.md`](docs/runbooks/object-storage-upload-programme.md) (**6.25–6.30** gates Phase 7 file ingest).
+
+Legacy certificate routes (future):
 
 - `GET /documents/certificates` — issued certificates with signed download URLs
-- `GET /documents/:id/download` — pre-signed MinIO URL (5-minute expiry)
 
 ### Admin (RBAC: municipality_admin role)
 
@@ -460,7 +474,7 @@ SLA hours resolve from per-tenant **`sla_policies`**. Routing hints resolve from
 | Sensitive Fields       | Aadhaar stored as SHA-256 hash + last 4 digits (for display only); never logged                                                                                                                               |
 | Mobile Storage         | Encrypted secure store (Expo SecureStore / Keychain / Keystore) for tokens                                                                                                                                    |
 | Rate Limiting          | Redis-backed: 5 OTP/hour/mobile, 100 req/min/citizen                                                                                                                                                          |
-| File Uploads           | MIME sniffing, ClamAV scan via BullMQ, max 10 MB per file                                                                                                                                                     |
+| File Uploads           | Tenant-prefixed object keys, presigned PUT/GET (`ObjectStorageService`), MIME/size limits; ClamAV via BullMQ (**6.27**); max 10 MB application docs / 8–25 MB grievance evidence                              |
 | Audit                  | Every state change in `application_timeline` + immutable Loki logs                                                                                                                                            |
 | OWASP MASVS            | Following Mobile App Security Verification Standard L2                                                                                                                                                        |
 | Vulnerability Scanning | Trivy in CI, Dependabot, manual quarterly pen-test                                                                                                                                                            |

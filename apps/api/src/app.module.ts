@@ -6,6 +6,8 @@ import { LoggerModule } from 'nestjs-pino';
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
 import { JwtVerifierService } from './common/auth/jwt-verifier.service';
 import { DatabaseModule } from './common/database/database.module';
+import { DocumentScanModule } from './common/document-scan/document-scan.module';
+import { ObjectStorageModule } from './common/object-storage/object-storage.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { AdminStateModule } from './modules/admin-state/admin-state.module';
 import { AdminTenantModule } from './modules/admin-tenant/admin-tenant.module';
@@ -54,6 +56,8 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
       },
     }),
     DatabaseModule,
+    ObjectStorageModule,
+    DocumentScanModule,
     AuthModule,
     AdminStateModule,
     AdminTenantModule,

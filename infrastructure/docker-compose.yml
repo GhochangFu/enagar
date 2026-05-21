@@ -63,6 +63,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Browser PUT from citizen PWA / admin portals (Sprint 6.25). Restart MinIO after changing.
+      MINIO_API_CORS_ALLOW_ORIGIN: >-
+        http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:8081
     command: server /data --console-address ":9001"
     ports:
       - "${MINIO_API_PORT}:9000"
@@ -188,6 +191,19 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    networks: [enagar]
+
+  # ------------------------------------------------------------------
+  # ClamAV — optional virus scan daemon (Sprint 6.27+)
+  # Start: docker compose --profile clamav up -d clamav
+  # ------------------------------------------------------------------
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: enagar-clamav
+    profiles: [clamav]
+    restart: unless-stopped
+    ports:
+      - "${CLAMAV_PORT:-3310}:3310"
     networks: [enagar]
 
   # ------------------------------------------------------------------

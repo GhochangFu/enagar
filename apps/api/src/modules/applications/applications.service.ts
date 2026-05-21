@@ -9,13 +9,24 @@ import {
   tradeLicenceSchema,
 } from '@enagar/forms/fixtures';
 import { calculateSlaDueAt, getInitialStage, workflowForPattern } from '@enagar/workflow';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 
 import {
   isCitizenSelfServicePrincipal,
   principalIsCitizenPortal,
   resolveCitizenMunicipalityForWrite,
 } from '../../common/auth/citizen-scope';
+import { PrismaService } from '../../common/database/prisma.service';
+import {
+  mapApplicationDocumentRow,
+  toApplicationDocumentResponse,
+} from '../documents/application-document.mapper';
 import { ServicesService } from '../services/services.service';
 import { TenantsService } from '../tenants/tenants.service';
 
@@ -55,6 +66,7 @@ export class ApplicationsService {
     private readonly tenants: TenantsService,
     @Inject(APPLICATION_STORE)
     private readonly store: ApplicationStore,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
   publishFormSchema(schema: EnagarFormSchema): void {
@@ -245,7 +257,7 @@ export class ApplicationsService {
       throw new NotFoundException('Application not found');
     }
 
-    return cloneApplication(application);
+    return cloneApplication(await this.withPersistedDocuments(application));
   }
 
   async cancel(
@@ -341,7 +353,31 @@ export class ApplicationsService {
     if (!application || !this.canAccess(principal, application, readScope)) {
       throw new NotFoundException('Application not found');
     }
-    return application;
+    return this.withPersistedDocuments(application);
+  }
+
+  private async withPersistedDocuments(
+    application: ApplicationResponse,
+  ): Promise<ApplicationResponse> {
+    if (!this.prisma) {
+      return application;
+    }
+    const rows = await this.prisma.applicationDocument.findMany({
+      where: {
+        tenantId: application.tenant_id,
+        applicationId: application.id,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (rows.length === 0) {
+      return application;
+    }
+    return {
+      ...application,
+      documents: rows.map((row) =>
+        toApplicationDocumentResponse(mapApplicationDocumentRow(row, application.citizen_subject)),
+      ),
+    };
   }
 
   async recordPaymentStatus(

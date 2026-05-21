@@ -28,7 +28,13 @@ NestJS backend for eNagarSeba.
 | `GET /api/public/grievances/aggregate-metrics`                                                                              | Phase 4 backlog — **no JWT** — anonymised grievance KPI counts (`tenant_code` + rolling `window_days` optional)                                                                                                                       |
 | `POST /api/auth/aadhaar-link`                                                                                               | Placeholder; real DigiLocker is blocked                                                                                                                                                                                               |
 | `POST /api/grievances`, `GET /api/grievances`, `GET /api/grievances/:id`                                                    | Sprint 4.1 grievances + timeline (**detail** adds `attachments[]` when registered — Phase 4 backlog); **Sprints 4.2 / 4.3** optional **`X-Enagar-Tenant-Code`** on citizen routes when JWT is portal (`:id` = UUID or `grievance_no`) |
-| `POST /api/grievances/:id/attachments/register`                                                                             | Phase 4 backlog — register MinIO-compatible **`storage_key`** after binary upload (**citizen**; scoped like **`GET …/:id`**)                                                                                                          |
+| `POST /api/grievances/evidence/upload-intent`                                                                               | Sprint **6.25** — presigned PUT for photo/video evidence (citizen; optional **`X-Enagar-Tenant-Code`**)                                                                                                                               |
+| `POST /api/grievances/:id/attachments/register`                                                                             | Register **`storage_key`** after binary upload (**citizen**; `headObject` when object storage enabled)                                                                                                                                |
+| `POST /api/documents/upload-intent`                                                                                         | Application document metadata + presigned PUT (**citizen**; optional scope header)                                                                                                                                                    |
+| `POST /api/documents/:id/confirm-upload`                                                                                    | Sprint **6.25** — mark upload complete after client PUT to MinIO/S3                                                                                                                                                                   |
+| `GET /api/documents/:id`                                                                                                    | Sprint **6.27** — document metadata / `scan_status` poll after confirm-upload                                                                                                                                                         |
+| `POST /api/documents/:id/scan-result`                                                                                       | Dev only when `ALLOW_CLIENT_SCAN_SIMULATION=true`; otherwise worker applies scan (**6.27**)                                                                                                                                           |
+| `GET /api/documents/:id/download`                                                                                           | Presigned download when **`scan_status=clean`**                                                                                                                                                                                       |
 | `POST /api/grievances/:id/reopen`, `POST …/feedback`                                                                        | Citizen **reopen resolved** grievances (**Sprint 4.3**) + **`/feedback`** (portal-safe ownership parity with **`getById`**; optional **`X-Enagar-Tenant-Code`**)                                                                      |
 | `PATCH /api/grievances/:id/status`, `POST /api/grievances/staff/sweep-sla`                                                  | Staff lifecycle + SLA sweep (**Sprint 4.3 sweep** bumps `routed_role_code`, clears assignee, adds `sla_escalation`, **Phase 4 backlog** inserts **`sla_breach` notification** rows for citizens)                                      |
 
@@ -86,3 +92,18 @@ If you still see Prisma errors like **`public.citizens` does not exist**:
 2. **Restart** `pnpm --filter @enagar/api dev` after migrations.
 
 3. If the log shows the **wrong** `db=` or host, something in your shell or IDE still sets **`DATABASE_URL`** (IDE env wins over `infrastructure/.env`). Temporarily **`Remove-Item Env:DATABASE_URL`** in PowerShell for that session, or fix/remove the conflicting user-level env var — then restart the API.
+
+### Object storage & upload smoke (programme 6.25–6.30)
+
+**Prerequisites:** `pnpm infra:up`, `OBJECT_STORAGE_DISABLED=false` in `infrastructure/.env`, `pnpm infra:minio-cors`, migrations + `pnpm db:seed`, Keycloak dummy users (`pnpm infra:seed-keycloak-users`).
+
+```bash
+pnpm --filter @enagar/api dev          # :3001
+pnpm --filter @enagar/document-scan-worker dev   # optional when ALLOW_CLIENT_SCAN_SIMULATION=false
+node scripts/smoke-sprint-626.mjs      # citizen PDF upload + MinIO head
+node scripts/smoke-sprint-629.mjs      # branding + Desk application blob
+node scripts/smoke-sprint-630-programme.mjs   # programme exit replay
+pnpm test:security -- --runTestsByPath tests/security/object-storage-programme.spec.ts
+```
+
+Exit record: [`docs/runbooks/master-sprint-630-exit.md`](../../docs/runbooks/master-sprint-630-exit.md).

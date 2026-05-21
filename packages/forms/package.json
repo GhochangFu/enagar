@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./fixtures": "./src/fixtures.ts",
+    "./upload": "./src/application-document-upload.ts",
     "./web": "./src/web/DynamicFormFields.tsx"
   },
   "typesVersions": {
@@ -19,6 +20,9 @@
       ],
       "fixtures": [
         "src/fixtures.ts"
+      ],
+      "upload": [
+        "src/application-document-upload.ts"
       ],
       "*": [
         "src/index.ts"

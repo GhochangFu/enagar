@@ -30,6 +30,7 @@
     "infra:logs": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env logs -f",
     "infra:reset": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env --profile offline-llm down -v",
     "infra:seed-keycloak-users": "node infrastructure/scripts/seed-keycloak-dummy-users.mjs",
+    "infra:minio-cors": "pnpm --filter @enagar/api exec node ../../infrastructure/scripts/configure-minio-cors.mjs",
     "infra:pull-llm": "docker exec enagar-ollama ollama pull llama3.1:8b",
     "prepare": "husky"
   },

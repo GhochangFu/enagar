@@ -14,7 +14,10 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { DocumentScanQueueService } from '../../common/document-scan/document-scan.queue';
 import { DocumentsModule } from '../documents/documents.module';
+import { createMockApplicationDocumentPrisma } from '../documents/testing/mock-application-document-prisma';
+import { createMockDocumentScanQueue } from '../documents/testing/mock-document-scan-queue';
 import { ServicesService } from '../services/services.service';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
@@ -47,7 +50,9 @@ const birthCertificateForm = {
 };
 
 function prismaSmokeMock(): PrismaService {
+  const documents = createMockApplicationDocumentPrisma();
   return {
+    ...documents,
     glPosting: {
       findMany: jest.fn().mockResolvedValue([]),
     },
@@ -60,6 +65,7 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
   beforeAll(async () => {
     delete process.env.PAYMENT_STORE_PROVIDER;
     delete process.env.APPLICATION_STORE_PROVIDER;
+    process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
 
     const moduleRef = await Test.createTestingModule({
       imports: [PaymentsModule, DocumentsModule],
@@ -85,6 +91,8 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prismaSmokeMock())
+      .overrideProvider(DocumentScanQueueService)
+      .useValue(createMockDocumentScanQueue())
       .overrideProvider(ServicesService)
       .useValue(new ServicesService())
       .compile();
@@ -139,6 +147,11 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
         })
         .expect(201)
     ).body;
+
+    await request(app.getHttpServer())
+      .post(`/api/documents/${intent.id}/confirm-upload`)
+      .set(auth())
+      .expect(201);
 
     await request(app.getHttpServer())
       .post(`/api/documents/${intent.id}/scan-result`)

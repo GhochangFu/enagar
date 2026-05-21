@@ -14,6 +14,7 @@ import {
   resolveMunicipalityTenantIdFromScopeCode,
 } from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { ensureMunicipalCitizenRow } from '../citizen/ensure-municipal-citizen-row';
 import { CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 import { TenantsService } from '../tenants/tenants.service';
@@ -94,6 +95,7 @@ export class GrievancesService {
     private readonly prisma: PrismaService,
     private readonly tenants: TenantsService,
     private readonly catalogue: GrievanceCatalogueService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   /** Resolve `:id` path param — clients may send DB uuid or human-readable grievance_no (e.g. GRV-KMC-2026-000001). */
@@ -141,26 +143,11 @@ export class GrievancesService {
     return `tenants/${tenantCode.toLowerCase()}/grievances/evidence/${evidenceId}/${safeName}`;
   }
 
-  private signedEvidenceUrl(
-    action: 'upload' | 'download',
-    objectKey: string,
-    now: Date,
-    ttlMs: number,
-  ): string {
-    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
-    return `minio://enagar-local/${objectKey}?action=${action}&expires_at=${encodeURIComponent(expiresAt)}`;
-  }
-
   private assertSafeStorageKey(key: string): void {
-    const k = key.trim();
-    if (!k || k.includes('..') || k.startsWith('/') || k.includes('\\')) {
+    try {
+      this.objectStorage.assertSafeObjectKey(key);
+    } catch {
       throw new BadRequestException('Invalid storage_key');
-    }
-    for (let i = 0; i < k.length; i += 1) {
-      const code = k.charCodeAt(i);
-      if (code < 0x20) {
-        throw new BadRequestException('Invalid storage_key');
-      }
     }
   }
 
@@ -777,17 +764,16 @@ export class GrievancesService {
     );
     this.assertSafeStorageKey(storageKey);
 
+    const upload = await this.objectStorage.presignUpload(
+      storageKey,
+      dto.mime_type,
+      GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS,
+      createdAt,
+    );
     return {
       storage_key: storageKey,
-      upload_url: this.signedEvidenceUrl(
-        'upload',
-        storageKey,
-        createdAt,
-        GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS,
-      ),
-      upload_expires_at: new Date(
-        createdAt.getTime() + GRIEVANCE_EVIDENCE_UPLOAD_TTL_MS,
-      ).toISOString(),
+      upload_url: upload.url,
+      upload_expires_at: upload.expires_at,
       mime_type: dto.mime_type,
       original_name: dto.original_name,
     };
@@ -805,6 +791,12 @@ export class GrievancesService {
   ): Promise<GrievanceAttachmentResponse> {
     this.assertCitizenOnly(principal);
     this.assertSafeStorageKey(dto.storage_key);
+    if (this.objectStorage.isEnabled()) {
+      const head = await this.objectStorage.headObject(dto.storage_key.trim());
+      if (!head || head.content_length <= 0) {
+        throw new BadRequestException('Evidence object not found in storage');
+      }
+    }
     const { grievance } = await this.getById(principal, grievanceId, readScope);
     const canonicalId = grievance.id;
 
@@ -831,6 +823,65 @@ export class GrievancesService {
       content_type: row.contentType,
       created_at: row.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Stream grievance evidence bytes for citizen detail preview (same ownership as getById).
+   */
+  async getCitizenAttachmentBlob(
+    principal: AuthenticatedPrincipal,
+    grievanceId: string,
+    attachmentId: string,
+    readScope?: ApplicationReadScope,
+  ): Promise<{ buffer: Buffer; contentType: string }> {
+    const { grievance } = await this.getById(principal, grievanceId, readScope);
+    return this.loadGrievanceAttachmentBlob(grievance.tenant_id, grievance.id, attachmentId);
+  }
+
+  private async loadGrievanceAttachmentBlob(
+    tenantId: string,
+    grievanceId: string,
+    attachmentId: string,
+  ): Promise<{ buffer: Buffer; contentType: string }> {
+    const attachment = await this.prisma.grievanceAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        tenantId,
+        grievanceId,
+      },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    const mime = attachment.contentType.toLowerCase();
+    if (this.objectStorage.isEnabled()) {
+      const buffer = await this.objectStorage.getObjectBuffer(attachment.storageKey);
+      if (buffer && buffer.length > 0) {
+        return { buffer, contentType: attachment.contentType };
+      }
+      throw new NotFoundException('Evidence object not found in storage');
+    }
+
+    if (mime.startsWith('image/')) {
+      const label = attachment.storageKey.split('/').pop() ?? 'evidence';
+      const safe = label.replace(/[<>&"]/g, '');
+      const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#e8f4ef"/>
+  <text x="320" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#1a3d2e">Evidence registered</text>
+  <text x="320" y="200" text-anchor="middle" font-family="monospace" font-size="12" fill="#4a6358">${safe}</text>
+  <text x="320" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#6b7f75">Enable MinIO (OBJECT_STORAGE_DISABLED=false) for real preview</text>
+</svg>`;
+      return { buffer: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml' };
+    }
+
+    if (mime.startsWith('video/')) {
+      throw new NotFoundException(
+        'Video preview requires object storage (set OBJECT_STORAGE_DISABLED=false)',
+      );
+    }
+    throw new NotFoundException('Unsupported attachment type for preview');
   }
 
   /**

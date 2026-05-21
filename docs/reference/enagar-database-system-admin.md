@@ -4,7 +4,8 @@
 **Engine:** PostgreSQL 16  
 **ORM / migrations:** Prisma (`apps/api/prisma/schema.prisma`)  
 **Connection (typical dev):** `postgresql://enagar:***@localhost:5432/enagarseba?schema=public`  
-**Source of truth:** Prisma schema + SQL migrations under `apps/api/prisma/migrations/`
+**Source of truth:** Prisma schema + SQL migrations under `apps/api/prisma/migrations/`  
+**Last aligned with schema:** Master Sprints **6.21–6.24** (grievance taxonomy programme, commit `f93b713`)
 
 This document is for **system administrators** who operate, monitor, back up, and troubleshoot the platform database. It describes all application tables, how they relate, and how multi-tenant isolation is enforced.
 
@@ -14,24 +15,30 @@ This document is for **system administrators** who operate, monitor, back up, an
 
 eNagar is a **multi-tenant municipal services platform**. Each **tenant** is a Urban Local Body (ULB), e.g. KMC or HMC. Almost all operational data is scoped by `tenant_id`.
 
-| Layer                    | Responsibility                                                                |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| **PostgreSQL**           | Persistent data, constraints, Row-Level Security (RLS)                        |
-| **@enagar/api (NestJS)** | Business logic; sets `app.tenant_id` session variable per request             |
-| **Keycloak**             | Authentication; staff/citizen identities (UUID subjects)                      |
-| **State Admin**          | Cross-tenant governance: global service library, integrations metadata, audit |
-| **Tenant Admin**         | Per-ULB configuration: services, workflows, staff, tariffs, content           |
+| Layer                    | Responsibility                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **PostgreSQL**           | Persistent data, constraints, Row-Level Security (RLS)                                                                   |
+| **@enagar/api (NestJS)** | Business logic; sets `app.tenant_id` session variable per request                                                        |
+| **Keycloak**             | Authentication; staff/citizen identities (UUID subjects)                                                                 |
+| **State Admin**          | Cross-tenant governance: global **service** and **grievance** libraries, tenant adopt oversight, integrations, audit     |
+| **Tenant Admin**         | Per-ULB configuration: services, **grievance catalogue** (adopt/fork/deactivate), SLA/routing, workflows, staff, content |
+| **Citizen (hub)**        | One Keycloak `sub` across ULBs; **WBPORTAL** JWT; per-ULB `citizens` rows created lazily on first filing                 |
 
 ### 1.1 Data scope classes
 
-| Scope                          | Tables                                                                        | RLS pattern                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Global catalogue**           | `revenue_heads`, `service_categories`, `global_services`, `service_documents` | `public_read` — any session can `SELECT`                                                          |
-| **State platform**             | `state_audit_logs`, `impersonation_tokens`, `state_integrations`              | **No RLS** — access only via State Admin API / elevated DB role                                   |
-| **Tenant registry (read-all)** | `tenants`, `roles`                                                            | `public_read` on `SELECT` only                                                                    |
-| **Tenant-isolated**            | All other tables with `tenant_id`                                             | `tenant_isolation` — row visible only when `tenant_id` matches `current_setting('app.tenant_id')` |
+| Scope                          | Tables                                                                                   | RLS pattern                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Global service catalogue**   | `revenue_heads`, `service_categories`, `global_services`, `service_documents`            | `public_read` — any session can `SELECT`                                                          |
+| **Global grievance library**   | `global_grievance_categories`, `global_grievance_subtypes`                               | **No RLS** — State Admin API / seed only; not exposed on citizen `SELECT`                         |
+| **State platform**             | `state_audit_logs`, `impersonation_tokens`, `state_integrations`                         | **No RLS** — access only via State Admin API / elevated DB role                                   |
+| **Tenant registry (read-all)** | `tenants`, `roles`                                                                       | `public_read` on `SELECT` only                                                                    |
+| **Tenant-isolated**            | All other tables with `tenant_id` (incl. `tenant_grievance_*`, `services`, `grievances`) | `tenant_isolation` — row visible only when `tenant_id` matches `current_setting('app.tenant_id')` |
 
 The API sets `SET app.tenant_id = '<uuid>'` from the JWT before running tenant-scoped queries. Cross-tenant access is blocked at the database layer when RLS is enabled.
+
+**Citizen public reads:** Active grievance pickers use `GET /api/public/grievances/catalogue?tenant_code={ULB}` (no JWT), which queries **`tenant_grievance_categories`** / **`tenant_grievance_subtypes`** (`is_active = true`) — not the global library tables directly.
+
+**Portal tenant `WBPORTAL`:** Seeded in `tenants` for Option A hub JWTs. It is **not** an operational ULB: no grievance SLA/routing seed, not listed on `GET /api/tenants`, and filings must target a municipality code (KMC, HMC, …).
 
 ### 1.2 High-level domain map
 
@@ -42,6 +49,8 @@ flowchart TB
     SC[service_categories]
     GS[global_services]
     SD[service_documents]
+    GGC[global_grievance_categories]
+    GGS[global_grievance_subtypes]
     SI[state_integrations]
     SAL[state_audit_logs]
     IT[impersonation_tokens]
@@ -82,12 +91,25 @@ flowchart TB
   T --> TenantCore
   T --> Identity
   T --> Services
+  T --> GrievTax[tenant_grievance_*]
   GS --> SVC
+  GGC --> GrievTax
   SVC --> APP
+  GrievTax --> GRV[grievances]
   APP --> PAY
   PAY --> RCP
   RCP --> GL
 ```
+
+### 1.3 Runtime data flow (admin mental model)
+
+| Citizen-facing capability | Primary DB tables                                                                                 | Configured by                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Service applications**  | `services`, `service_form_versions`, `workflows`, `applications`                                  | Tenant Admin (+ global `global_services` adopt)    |
+| **Grievance filing**      | `tenant_grievance_categories`, `tenant_grievance_subtypes`, `grievances`, `grievance_attachments` | State library adopt + Tenant Admin fork/deactivate |
+| **Desk triage**           | `grievances`, `grievance_timeline`, `sla_policies`, `grievance_routing_rules`                     | Tenant Admin Operations                            |
+
+Both catalogues are **per-tenant in Postgres** after seed/adopt — not hardcoded in mobile/PWA builds.
 
 ---
 
@@ -243,25 +265,49 @@ erDiagram
 
 Amounts are stored in **paise** (integer) to avoid floating-point errors.
 
-### 2.6 Grievances, SLA, and routing
+### 2.6 Grievance taxonomy, SLA, routing, and cases
 
 ```mermaid
 erDiagram
+  global_grievance_categories ||--o{ global_grievance_subtypes : has
+  global_grievance_categories ||--o{ tenant_grievance_categories : adopted_as
+  tenants ||--o{ tenant_grievance_categories : configures
+  tenant_grievance_categories ||--o{ tenant_grievance_subtypes : has
   tenants ||--o{ sla_policies : defines
   tenants ||--o{ grievance_routing_rules : routes
   citizens ||--o{ grievances : files
   users ||--o{ grievances : assigned
   wards ||--o{ grievance_routing_rules : matches
   grievances ||--o{ grievance_timeline : events
-  grievances ||--o{ grievance_attachments : files
+  grievances ||--o{ grievance_attachments : evidence
 
+  global_grievance_categories {
+    varchar code PK
+    jsonb name
+    varchar docket_code
+    boolean is_active
+  }
+  tenant_grievance_categories {
+    uuid id PK
+    uuid tenant_id FK
+    varchar code
+    varchar global_category_code FK
+    varchar source
+    boolean is_active
+  }
   grievances {
     uuid id PK
     varchar grievance_no UK
+    varchar category
+    varchar subtype_code
+    jsonb location
+    jsonb photo_keys
     timestamptz sla_due_at
     varchar status
   }
 ```
+
+**Filing validation:** When a tenant has rows in `tenant_grievance_categories`, `POST /api/grievances` requires `category` (and `subtype_code` when subtypes exist) to match active catalogue codes. Legacy slugs may still exist on old `grievances.category` rows after taxonomy migration.
 
 ### 2.7 Bookings, knowledge base, notifications, holdings
 
@@ -322,7 +368,8 @@ Below: **physical table name** (PostgreSQL), primary purpose, key columns, const
 
 **Purpose:** Root of multi-tenancy. Every ULB row drives theming, feature flags in `config`, and foreign keys across the schema.  
 **RLS:** `tenant_public_read` — all tenants visible on `SELECT` (needed for tenant picker / hub).  
-**Admin notes:** Deactivating a tenant does not delete child rows; apps should respect `is_active`.
+**Admin notes:** Deactivating a tenant does not delete child rows; apps should respect `is_active`.  
+**Special row `WBPORTAL`:** Citizen portal (not a municipality). Seeded with fixed UUID `99999999-9999-4999-8999-999999999999`; excluded from `GET /api/tenants` and from grievance SLA/routing seed. Operational ULBs in dev seed: **KMC, HMC, CMC, BMC, SMC, AMC, DMC, SDDM**.
 
 #### `tenant_config`
 
@@ -381,7 +428,7 @@ ULB-specific fee schedules: `code`, `category`, multilingual `name`, `rate_confi
 | `selected_tenant_code`                   | VARCHAR(20)  | Hub: last selected ULB                     |
 | `pinned_tenant_codes`, `pinned_services` | JSONB        | Citizen personalization                    |
 
-**Purpose:** Citizen profile per ULB. One person may have rows in multiple tenants.  
+**Purpose:** Citizen profile per ULB. Under **hub Option A**, one Keycloak `sub` may have **multiple** `citizens` rows (one per ULB after first filing); portal profile often lives on `WBPORTAL` tenant row.  
 **Unique:** `(tenant_id, mobile)`, `(tenant_id, keycloak_subject)`.
 
 #### `users`
@@ -491,6 +538,40 @@ Document requirements per global service (`accept` MIME types, `max_size_mb`, `i
 
 ---
 
+### 3.4.1 Global grievance library (State-curated, Sprint 6.21–6.24)
+
+Mirrors the **service catalogue** pattern: State publishes reference types; municipalities **adopt** into `tenant_grievance_*` (or add **tenant-only** / **forked** rows via Tenant Admin).
+
+#### `global_grievance_categories`
+
+| Column        | Type           | Description                                      |
+| ------------- | -------------- | ------------------------------------------------ |
+| `code`        | VARCHAR(50) PK | Stable slug, e.g. `roads`, `drainage`            |
+| `name`        | JSONB          | Multilingual labels (`en`, `bn`, `hi`)           |
+| `icon`        | VARCHAR(80)    | UI icon key                                      |
+| `docket_code` | VARCHAR(10)    | Optional token for future docket segment feature |
+| `sort_order`  | INT            | Display order in State library                   |
+| `is_active`   | BOOLEAN        | Publish flag                                     |
+
+**Purpose:** Statewide reference taxonomy. **RLS:** none (State Admin writes).
+
+#### `global_grievance_subtypes`
+
+| Column                 | Type        | Description                  |
+| ---------------------- | ----------- | ---------------------------- |
+| `id`                   | UUID PK     | Surrogate key                |
+| `global_category_code` | VARCHAR FK  | Parent category              |
+| `code`                 | VARCHAR(50) | Subtype slug within category |
+| `name`                 | JSONB       | Multilingual labels          |
+| `sort_order`           | INT         | Picker order                 |
+| `is_active`            | BOOLEAN     | Publish flag                 |
+
+**Unique:** `(global_category_code, code)`.
+
+**Admin notes:** Adopting into a tenant copies/links category + optional subtypes into `tenant_grievance_*` with `source = global_adopted`.
+
+---
+
 ### 3.5 Tenant services, forms, and workflows
 
 #### `services` (tenant services)
@@ -559,7 +640,19 @@ Staff/citizen comments on an application.
 
 #### `application_documents`
 
-Uploaded files: `object_key` (object storage), `upload_status`, `scan_status`, virus-scan provider fields.
+Citizen-uploaded service attachments (birth certificate scans, etc.). **Bytes live in MinIO/S3**; Postgres holds metadata and scan state only.
+
+| Column                                                 | Description                                                                         |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `tenant_id`, `application_id`                          | RLS-scoped ownership                                                                |
+| `document_code`                                        | Form field code (e.g. `hospital_discharge`)                                         |
+| `original_name`, `mime_type`, `size_mb`                | Client-declared metadata (validated at upload-intent)                               |
+| `object_key`                                           | Unique S3 key under `tenants/{tenantCode}/applications/{applicationId}/documents/…` |
+| `upload_status`                                        | `intent_created` → `uploaded` (after PUT + `confirm-upload`) or `rejected`          |
+| `scan_status`                                          | `pending` → `processing` → `clean` / `infected` / `failed` (BullMQ worker **6.27**) |
+| `scan_provider`, `scan_signature`, `scan_completed_at` | Worker audit fields                                                                 |
+
+**Runtime flow:** `POST /api/documents/upload-intent` → browser PUT to presigned URL → `POST …/confirm-upload` (enqueues `document-scan` job) → submit gate requires `scan_status = clean`. Desk operators read rows via `GET /admin/tenant/desk/applications/:docket` and stream bytes with `GET …/documents/:id/blob` when clean. Programme: [`object-storage-upload-programme.md`](../runbooks/object-storage-upload-programme.md).
 
 ---
 
@@ -626,27 +719,85 @@ Reservations with `status` (`hold`, `confirmed`, …), optional `application_id`
 
 ---
 
-### 3.9 Grievances
+### 3.9 Grievances (configurable taxonomy + cases)
+
+#### `tenant_grievance_categories`
+
+Per-ULB grievance **types** shown in citizen pickers and Desk labels.
+
+| Column                 | Type        | Description                                                                   |
+| ---------------------- | ----------- | ----------------------------------------------------------------------------- |
+| `tenant_id`            | UUID FK     | Owning ULB                                                                    |
+| `code`                 | VARCHAR(50) | Tenant-scoped slug (may differ after **fork**, e.g. `*-local`)                |
+| `global_category_code` | VARCHAR FK  | Link to `global_grievance_categories.code` when adopted; NULL for tenant-only |
+| `name`                 | JSONB       | Display labels (overrides global on fork)                                     |
+| `icon`                 | VARCHAR(80) | UI icon                                                                       |
+| `sort_order`           | INT         | Picker order                                                                  |
+| `is_active`            | BOOLEAN     | `false` hides from public catalogue; historical grievances retain `category`  |
+| `source`               | VARCHAR(30) | `global_adopted`, `forked`, `tenant_only` (governance semantics in API)       |
+
+**Unique:** `(tenant_id, code)`. **RLS:** `tenant_isolation`.  
+**Public API:** `GET /api/public/grievances/catalogue?tenant_code=` returns only `is_active = true` rows.
+
+#### `tenant_grievance_subtypes`
+
+Optional second step in citizen filing (e.g. _Blocked drain_ under _Drainage_).
+
+| Column          | Type        | Description                                       |
+| --------------- | ----------- | ------------------------------------------------- |
+| `tenant_id`     | UUID FK     | Owning ULB                                        |
+| `category_code` | VARCHAR(50) | FK with `tenant_grievance_categories` (composite) |
+| `code`          | VARCHAR(50) | Subtype slug                                      |
+| `name`          | JSONB       | Labels                                            |
+| `is_active`     | BOOLEAN     | Inactive subtypes hidden from pickers             |
+| `source`        | VARCHAR(30) | Same lineage semantics as categories              |
+
+**Unique:** `(tenant_id, category_code, code)`. **RLS:** `tenant_isolation`.
 
 #### `sla_policies`
 
-Tenant rules: match `category_match` / `grievance_priority_match`, `hours_to_resolve`, `sort_order`.
+Tenant rules: match `category_match` / `grievance_priority_match`, `hours_to_resolve`, `sort_order`. Applied at grievance create to set `sla_due_at`.
 
 #### `grievance_routing_rules`
 
-Auto-route new grievances to `target_role_code` and optional `assign_user_id` / `ward_id`.
+Auto-route new grievances to `target_role_code` and optional `assign_user_id` / `ward_id`. Evaluated at create alongside SLA.
 
 #### `grievances`
 
-Citizen complaints: `grievance_no`, `category`, `location` JSONB, `photo_keys`, priority, SLA timestamps, rating/feedback.
+Citizen complaints (transactional).
+
+| Column                | Type        | Description                                                  |
+| --------------------- | ----------- | ------------------------------------------------------------ |
+| `grievance_no`        | VARCHAR UK  | Public id, e.g. `GRV-KMC-2026-000021` (per-tenant sequence)  |
+| `category`            | VARCHAR(50) | **Code** from catalogue at filing time (not a display label) |
+| `subtype_code`        | VARCHAR(50) | Optional; required when active subtypes exist for category   |
+| `description`         | TEXT        | Free-text narrative                                          |
+| `location`            | JSONB       | Ward hints, `latitude`/`longitude` (WGS-84), etc.            |
+| `photo_keys`          | JSONB       | Legacy array of storage keys; prefer `grievance_attachments` |
+| `grievance_priority`  | VARCHAR(20) | e.g. `low`, `medium`, `high`                                 |
+| `status`              | VARCHAR(30) | Lifecycle: `submitted`, `under_review`, `in_progress`, …     |
+| `routed_role_code`    | VARCHAR     | From routing rules                                           |
+| `assigned_to_user_id` | UUID FK     | Optional staff assignee                                      |
+| `sla_due_at`          | TIMESTAMPTZ | Computed deadline                                            |
+| `sla_breached_at`     | TIMESTAMPTZ | Set when overdue                                             |
+| `rating`, `feedback`  |             | Post-resolution citizen feedback                             |
+
+**Unique:** `(tenant_id, grievance_no)`. **FK:** `citizen_id` → `citizens` (per-ULB row; hub creates municipal citizen lazily).
 
 #### `grievance_timeline`
 
-Event stream (`event_type`, `actor_subject`, `body`, `metadata`).
+Event stream on table `grievance_timeline` (`event_type`, `actor_subject`, `body`, `metadata`, `occurred_at`).
 
 #### `grievance_attachments`
 
-Object storage keys for photos/files.
+Structured evidence (Sprint 6.24): photo/video registered after MinIO upload intent.
+
+| Column         | Description                                    |
+| -------------- | ---------------------------------------------- |
+| `storage_key`  | Object key under tenant prefix (max 500 chars) |
+| `content_type` | MIME, e.g. `image/jpeg`, `video/mp4`           |
+
+**Index:** `(tenant_id, grievance_id)`. Metadata only — bytes live in object storage.
 
 ---
 
@@ -694,7 +845,9 @@ Short-lived tokens for State Admin support impersonation into a tenant context: 
 | `tenants`                                                                     | `tenant_public_read` | `SELECT` allowed for all rows                                                |
 | `roles`                                                                       | `roles_public_read`  | `SELECT` allowed for all rows                                                |
 | `revenue_heads`, `service_categories`, `global_services`, `service_documents` | `*_public_read`      | `SELECT` allowed for all rows                                                |
-| All tables listed in §3 with `tenant_id`                                      | `tenant_isolation`   | `USING` / `WITH CHECK`: `tenant_id = current_setting('app.tenant_id')::uuid` |
+| `tenant_grievance_categories`, `tenant_grievance_subtypes`                    | `tenant_isolation`   | Same as other tenant tables (migration `20260519120000_grievance_taxonomy`)  |
+| All other tables listed in §3 with `tenant_id`                                | `tenant_isolation`   | `USING` / `WITH CHECK`: `tenant_id = current_setting('app.tenant_id')::uuid` |
+| `global_grievance_categories`, `global_grievance_subtypes`                    | _(none)_             | State Admin / seed; no citizen RLS read policy                               |
 | `state_audit_logs`, `impersonation_tokens`, `state_integrations`              | _(none)_             | Application-layer authorization only                                         |
 
 **System admin implication:** Direct SQL access must either set `SET app.tenant_id = '...'` for tenant-scoped tables or use a superuser role that bypasses RLS (not used by the application).
@@ -703,17 +856,22 @@ Short-lived tokens for State Admin support impersonation into a tenant context: 
 
 ## 5. Key relationships quick reference
 
-| From              | To                     | Cardinality | On delete |
-| ----------------- | ---------------------- | ----------- | --------- |
-| `tenants`         | Most child tables      | 1:N         | CASCADE   |
-| `global_services` | `services`             | 1:N         | SET NULL  |
-| `services`        | `applications`         | 1:N         | RESTRICT  |
-| `citizens`        | `applications`         | 1:N         | CASCADE   |
-| `applications`    | `payments`             | 1:N         | CASCADE   |
-| `payments`        | `receipts`             | 1:1         | CASCADE   |
-| `payments`        | `gl_postings`          | 1:1         | CASCADE   |
-| `workflows`       | `workflow_stages`      | 1:N         | CASCADE   |
-| `workflow_stages` | `workflow_transitions` | 1:N         | CASCADE   |
+| From                          | To                            | Cardinality | On delete                                             |
+| ----------------------------- | ----------------------------- | ----------- | ----------------------------------------------------- |
+| `tenants`                     | Most child tables             | 1:N         | CASCADE                                               |
+| `global_services`             | `services`                    | 1:N         | SET NULL                                              |
+| `services`                    | `applications`                | 1:N         | RESTRICT                                              |
+| `citizens`                    | `applications`                | 1:N         | CASCADE                                               |
+| `applications`                | `payments`                    | 1:N         | CASCADE                                               |
+| `payments`                    | `receipts`                    | 1:1         | CASCADE                                               |
+| `payments`                    | `gl_postings`                 | 1:1         | CASCADE                                               |
+| `workflows`                   | `workflow_stages`             | 1:N         | CASCADE                                               |
+| `workflow_stages`             | `workflow_transitions`        | 1:N         | CASCADE                                               |
+| `global_grievance_categories` | `global_grievance_subtypes`   | 1:N         | CASCADE                                               |
+| `global_grievance_categories` | `tenant_grievance_categories` | 1:N         | SET NULL                                              |
+| `tenant_grievance_categories` | `tenant_grievance_subtypes`   | 1:N         | CASCADE                                               |
+| `tenant_grievance_categories` | `grievances.category`         | logical     | codes must match active row when catalogue configured |
+| `citizens`                    | `grievances`                  | 1:N         | RESTRICT                                              |
 
 ---
 
@@ -740,13 +898,22 @@ pnpm db:seed   # optional dev seed from repo root
 
 ### 6.4 Sensitive data inventory
 
-| Data            | Storage                                       | Notes                       |
-| --------------- | --------------------------------------------- | --------------------------- |
-| Passwords / MFA | Keycloak                                      | Not in Postgres             |
-| Aadhaar         | `citizens.aadhaar_hash` only                  | SHA-256                     |
-| Payment secrets | PSP / env vars                                | Not in `state_integrations` |
-| Uploaded files  | Object storage (`object_key`, `storage_key`)  | DB holds metadata only      |
-| PII             | `citizens`, `users`, `grievances`, `challans` | Subject to retention policy |
+| Data            | Storage                                       | Notes                                         |
+| --------------- | --------------------------------------------- | --------------------------------------------- |
+| Passwords / MFA | Keycloak                                      | Not in Postgres                               |
+| Aadhaar         | `citizens.aadhaar_hash` only                  | SHA-256                                       |
+| Payment secrets | PSP / env vars                                | Not in `state_integrations`                   |
+| Uploaded files  | MinIO/S3 (`object_key`, `storage_key`)        | DB holds metadata only; bytes not in Postgres |
+| PII             | `citizens`, `users`, `grievances`, `challans` | Subject to retention policy                   |
+
+**Object storage runtime (programme 6.25–6.30, closed 2026-05-21):**
+
+- **API:** `ObjectStorageService` — env `OBJECT_STORAGE_*`, `OBJECT_STORAGE_PUBLIC_BASE` (see `infrastructure/.env.example`).
+- **Tables:** `application_documents`, `grievance_attachments`, `tenant_branding_assets`.
+- **Scan queue:** Redis `REDIS_URL` + `services/document-scan-worker` (BullMQ `document-scan`); dev stub via `DOCUMENT_SCAN_STUB` / `ALLOW_CLIENT_SCAN_SIMULATION`.
+- **Local:** bucket `enagar-local`, `pnpm infra:minio-cors`, set `OBJECT_STORAGE_DISABLED=false`.
+- **Smoke:** `node scripts/smoke-sprint-630-programme.mjs` from repo root.
+- **Docs:** [`object-storage-upload-programme.md`](../runbooks/object-storage-upload-programme.md), [`master-sprint-630-exit.md`](../runbooks/master-sprint-630-exit.md).
 
 ### 6.5 Common admin queries
 
@@ -786,74 +953,109 @@ SELECT COUNT(*) FROM applications;
 RESET app.tenant_id;
 ```
 
+**Active grievance catalogue for one ULB (no RLS context needed for read-only public rows):**
+
+```sql
+SELECT c.code AS category, c.is_active, c.source,
+       COUNT(s.code) AS subtype_count
+FROM tenant_grievance_categories c
+LEFT JOIN tenant_grievance_subtypes s
+  ON s.tenant_id = c.tenant_id AND s.category_code = c.code AND s.is_active = TRUE
+JOIN tenants t ON t.id = c.tenant_id AND t.code = 'KMC'
+WHERE c.is_active = TRUE
+GROUP BY c.code, c.is_active, c.source, c.sort_order
+ORDER BY c.sort_order;
+```
+
+**Grievances filed per category (Desk reporting):**
+
+```sql
+SET app.tenant_id = (SELECT id FROM tenants WHERE code = 'KMC');
+SELECT category, subtype_code, status, COUNT(*) AS cnt
+FROM grievances
+GROUP BY category, subtype_code, status
+ORDER BY category, subtype_code;
+RESET app.tenant_id;
+```
+
 ---
 
 ## 7. Table index (alphabetical)
 
-| #   | Table                         | Scope    |
-| --- | ----------------------------- | -------- |
-| 1   | `application_comments`        | Tenant   |
-| 2   | `application_documents`       | Tenant   |
-| 3   | `application_timeline`        | Tenant   |
-| 4   | `applications`                | Tenant   |
-| 5   | `bookable_asset_availability` | Tenant   |
-| 6   | `bookable_assets`             | Tenant   |
-| 7   | `booking_reservations`        | Tenant   |
-| 8   | `boroughs`                    | Tenant   |
-| 9   | `challans`                    | Tenant   |
-| 10  | `citizen_push_devices`        | Tenant   |
-| 11  | `citizens`                    | Tenant   |
-| 12  | `deposits`                    | Tenant   |
-| 13  | `gl_postings`                 | Tenant   |
-| 14  | `global_services`             | Global   |
-| 15  | `grievance_attachments`       | Tenant   |
-| 16  | `grievance_routing_rules`     | Tenant   |
-| 17  | `grievance_timeline`          | Tenant   |
-| 18  | `grievances`                  | Tenant   |
-| 19  | `holding_lookup_audit`        | Tenant   |
-| 20  | `holding_records`             | Tenant   |
-| 21  | `impersonation_tokens`        | State    |
-| 22  | `kb_articles`                 | Tenant   |
-| 23  | `kb_index_jobs`               | Tenant   |
-| 24  | `localities`                  | Tenant   |
-| 25  | `notification_templates`      | Tenant   |
-| 26  | `notifications`               | Tenant   |
-| 27  | `payment_idempotency_keys`    | Tenant   |
-| 28  | `payments`                    | Tenant   |
-| 29  | `receipts`                    | Tenant   |
-| 30  | `refund_dispatches`           | Tenant   |
-| 31  | `revenue_heads`               | Global   |
-| 32  | `role_stage_map`              | Tenant   |
-| 33  | `roles`                       | Global   |
-| 34  | `service_categories`          | Global   |
-| 35  | `service_documents`           | Global   |
-| 36  | `service_form_versions`       | Tenant   |
-| 37  | `services`                    | Tenant   |
-| 38  | `sla_policies`                | Tenant   |
-| 39  | `staff_invites`               | Tenant   |
-| 40  | `state_audit_logs`            | State    |
-| 41  | `state_integrations`          | State    |
-| 42  | `tenant_banners`              | Tenant   |
-| 43  | `tenant_branding_assets`      | Tenant   |
-| 44  | `tenant_config`               | Tenant   |
-| 45  | `tenant_tariffs`              | Tenant   |
-| 46  | `tenants`                     | Registry |
-| 47  | `user_roles`                  | Tenant   |
-| 48  | `users`                       | Tenant   |
-| 49  | `wards`                       | Tenant   |
-| 50  | `workflow_stages`             | Tenant   |
-| 51  | `workflow_transitions`        | Tenant   |
-| 52  | `workflows`                   | Tenant   |
+| #   | Table                         | Scope                      |
+| --- | ----------------------------- | -------------------------- |
+| 1   | `application_comments`        | Tenant                     |
+| 2   | `application_documents`       | Tenant                     |
+| 3   | `application_timeline`        | Tenant                     |
+| 4   | `applications`                | Tenant                     |
+| 5   | `bookable_asset_availability` | Tenant                     |
+| 6   | `bookable_assets`             | Tenant                     |
+| 7   | `booking_reservations`        | Tenant                     |
+| 8   | `boroughs`                    | Tenant                     |
+| 9   | `challans`                    | Tenant                     |
+| 10  | `citizen_push_devices`        | Tenant                     |
+| 11  | `citizens`                    | Tenant                     |
+| 12  | `deposits`                    | Tenant                     |
+| 13  | `gl_postings`                 | Tenant                     |
+| 14  | `global_grievance_categories` | Global (grievance library) |
+| 15  | `global_grievance_subtypes`   | Global (grievance library) |
+| 16  | `global_services`             | Global                     |
+| 17  | `grievance_attachments`       | Tenant                     |
+| 18  | `grievance_routing_rules`     | Tenant                     |
+| 19  | `grievance_timeline`          | Tenant                     |
+| 20  | `grievances`                  | Tenant                     |
+| 21  | `holding_lookup_audit`        | Tenant                     |
+| 22  | `holding_records`             | Tenant                     |
+| 23  | `impersonation_tokens`        | State                      |
+| 24  | `kb_articles`                 | Tenant                     |
+| 25  | `kb_index_jobs`               | Tenant                     |
+| 26  | `localities`                  | Tenant                     |
+| 27  | `notification_templates`      | Tenant                     |
+| 28  | `notifications`               | Tenant                     |
+| 29  | `payment_idempotency_keys`    | Tenant                     |
+| 30  | `payments`                    | Tenant                     |
+| 31  | `receipts`                    | Tenant                     |
+| 32  | `refund_dispatches`           | Tenant                     |
+| 33  | `revenue_heads`               | Global                     |
+| 34  | `role_stage_map`              | Tenant                     |
+| 35  | `roles`                       | Global                     |
+| 36  | `service_categories`          | Global                     |
+| 37  | `service_documents`           | Global                     |
+| 38  | `service_form_versions`       | Tenant                     |
+| 39  | `services`                    | Tenant                     |
+| 40  | `sla_policies`                | Tenant                     |
+| 41  | `staff_invites`               | Tenant                     |
+| 42  | `state_audit_logs`            | State                      |
+| 43  | `state_integrations`          | State                      |
+| 44  | `tenant_banners`              | Tenant                     |
+| 45  | `tenant_branding_assets`      | Tenant                     |
+| 46  | `tenant_config`               | Tenant                     |
+| 47  | `tenant_grievance_categories` | Tenant                     |
+| 48  | `tenant_grievance_subtypes`   | Tenant                     |
+| 49  | `tenant_tariffs`              | Tenant                     |
+| 50  | `tenants`                     | Registry                   |
+| 51  | `user_roles`                  | Tenant                     |
+| 52  | `users`                       | Tenant                     |
+| 53  | `wards`                       | Tenant                     |
+| 54  | `workflow_stages`             | Tenant                     |
+| 55  | `workflow_transitions`        | Tenant                     |
+| 56  | `workflows`                   | Tenant                     |
 
-**Total: 52 tables** (as of Master Sprint 6.12 / commit with Phase 6 P5 schema).
+**Total: 56 tables** (as of Master Sprints **6.21–6.24** grievance taxonomy + Phase 6 P5 schema).
+
+**Seed coverage (dev):** `pnpm db:seed` loads global + **KMC/HMC** grievance catalogues from `grievance-catalogue.seed.ts`; other operational ULBs get **services** but may have **empty** `tenant_grievance_*` until State **adopt** or Tenant Admin **add local** — see [`grievance-taxonomy-programme.md`](../runbooks/grievance-taxonomy-programme.md).
 
 ---
 
 ## 8. Related documentation
 
 - [ADR-0001 — PostgreSQL 16](../ADRs/ADR-0001-database-postgresql.md) — RLS, JSONB, exclusion constraints
+- [Grievance taxonomy programme](../runbooks/grievance-taxonomy-programme.md) — Sprints 6.21–6.24, adopt/fork/deactivate
+- [Citizen unified hub](../runbooks/citizen-unified-hub.md) — WBPORTAL JWT and `X-Enagar-Tenant-Code`
 - [Form schema guide](../form-schema.md) — JSON Schema in `form_schema` columns
-- [Start the app step-by-step](../help/start-the-app-step-by-step.md) — local `enagarseba` setup
+- [Start the app step-by-step](../help/start-the-app-step-by-step.md) — local `enagarseba` setup, operator “add grievance type”
+- [Glossary — grievance taxonomy](../glossary.md) — domain terms
 - Prisma schema: `apps/api/prisma/schema.prisma`
+- Migration: `apps/api/prisma/migrations/20260519120000_grievance_taxonomy/migration.sql`
 
-_Generated from repository schema. Re-verify after migrations if this document drifts._
+_Aligned with repository schema at commit `f93b713`. Re-verify after migrations if this document drifts._

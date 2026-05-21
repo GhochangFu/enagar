@@ -9,7 +9,12 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { PrismaService } from '../../common/database/prisma.service';
+import { DocumentScanQueueService } from '../../common/document-scan/document-scan.queue';
+import { ObjectStorageModule } from '../../common/object-storage/object-storage.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { createMockApplicationDocumentPrisma } from '../documents/testing/mock-application-document-prisma';
+import { createMockDocumentScanQueue } from '../documents/testing/mock-document-scan-queue';
 import { HoldingsModule } from '../holdings/holdings.module';
 import { ServicesModule } from '../services/services.module';
 import { ServicesService } from '../services/services.service';
@@ -53,8 +58,15 @@ describe('Phase 2 API integration contract', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
     const moduleRef = await Test.createTestingModule({
-      imports: [ApplicationsModule, DocumentsModule, HoldingsModule, ServicesModule],
+      imports: [
+        ObjectStorageModule,
+        ApplicationsModule,
+        DocumentsModule,
+        HoldingsModule,
+        ServicesModule,
+      ],
       providers: [
         {
           provide: APP_GUARD,
@@ -80,6 +92,10 @@ describe('Phase 2 API integration contract', () => {
         },
       ],
     })
+      .overrideProvider(PrismaService)
+      .useValue(createMockApplicationDocumentPrisma())
+      .overrideProvider(DocumentScanQueueService)
+      .useValue(createMockDocumentScanQueue())
       .overrideProvider(ServicesService)
       .useValue(new ServicesService())
       .compile();
@@ -148,6 +164,11 @@ describe('Phase 2 API integration contract', () => {
       .set('authorization', 'Bearer citizen-b')
       .send({ scan_status: 'clean' })
       .expect(404);
+
+    await request(app.getHttpServer())
+      .post(`/api/documents/${intent.id}/confirm-upload`)
+      .set('authorization', 'Bearer citizen-a')
+      .expect(201);
 
     await request(app.getHttpServer())
       .post(`/api/documents/${intent.id}/scan-result`)

@@ -10,6 +10,7 @@ import {
 import { t } from '@enagar/i18n';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import {
@@ -25,6 +26,11 @@ import {
 import type { CitizenRootStackParamList } from '../../navigation/types';
 
 import { createGrievance } from '../../api/grievanceApi';
+import {
+  MAX_MOBILE_GRIEVANCE_EVIDENCE,
+  uploadGrievanceEvidenceAssets,
+  type MobileGrievanceEvidenceAsset,
+} from '../../api/grievanceEvidenceApi';
 
 import { sessionApiRoot, useSession } from '../../context/SessionContext';
 
@@ -57,6 +63,7 @@ export function GrievanceComposerScreen() {
   const [addressHint, setAddressHint] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorLine, setErrorLine] = useState<string | null>(null);
+  const [pendingEvidence, setPendingEvidence] = useState<MobileGrievanceEvidenceAsset[]>([]);
 
   const selectedCategory: GrievanceCatalogueCategory | undefined = catalogue?.categories.find(
     (row) => row.code === categoryCode,
@@ -152,6 +159,35 @@ export function GrievanceComposerScreen() {
     setStep('form');
   }
 
+  async function pickEvidence(): Promise<void> {
+    if (pendingEvidence.length >= MAX_MOBILE_GRIEVANCE_EVIDENCE) {
+      setErrorLine(t('grievance.evidenceLimit', lng));
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setErrorLine(t('grievance.evidencePermission', lng));
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: false,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? 'image/jpeg';
+    const name = asset.fileName ?? `evidence-${Date.now()}.jpg`;
+    const sizeMb = Math.max(0.01, (asset.fileSize ?? 500_000) / (1024 * 1024));
+    setPendingEvidence((prev) => [
+      ...prev,
+      { uri: asset.uri, name, mime_type: mime, size_mb: sizeMb },
+    ]);
+    setErrorLine(null);
+  }
+
   async function submit() {
     setErrorLine(null);
 
@@ -179,7 +215,7 @@ export function GrievanceComposerScreen() {
     setBusy(true);
 
     try {
-      await createGrievance(sessionApiRoot(), accessToken, municipality, {
+      const created = await createGrievance(sessionApiRoot(), accessToken, municipality, {
         category: categoryCode,
         ...(subtypeCode ? { subtype_code: subtypeCode } : {}),
         description: trimmedDesc,
@@ -189,6 +225,21 @@ export function GrievanceComposerScreen() {
           ...(wardHint.trim() ? { ward_hint: wardHint.trim() } : {}),
         },
       });
+      if (pendingEvidence.length > 0) {
+        try {
+          await uploadGrievanceEvidenceAssets(
+            sessionApiRoot(),
+            accessToken,
+            municipality,
+            created.id,
+            pendingEvidence,
+          );
+        } catch {
+          setErrorLine(t('grievance.evidenceUploadFailed', lng));
+          setBusy(false);
+          return;
+        }
+      }
       await clearGrievanceComposerDraft(municipality);
       navigation.replace('GrievanceList');
     } catch {
@@ -308,6 +359,25 @@ export function GrievanceComposerScreen() {
               value={description}
             />
 
+            <Text style={[styles.label, { marginTop: 14 }]}>
+              {t('grievance.evidenceTitle', lng)}
+            </Text>
+            <Text style={{ color: '#475569', fontSize: 12, marginBottom: 6 }}>
+              {t('grievance.evidenceHelp', lng)}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.evidenceBtn}
+              onPress={() => void pickEvidence()}
+            >
+              <Text style={styles.evidenceBtnText}>{t('grievance.evidenceAddPhoto', lng)}</Text>
+            </Pressable>
+            {pendingEvidence.length > 0 ? (
+              <Text style={{ color: '#64748B', fontSize: 12, marginTop: 6 }}>
+                {pendingEvidence.length} / {MAX_MOBILE_GRIEVANCE_EVIDENCE}
+              </Text>
+            ) : null}
+
             <Text style={[styles.label, { marginTop: 14 }]}>{t('grievance.priority', lng)}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {PRIORITIES.map((p) => (
@@ -422,6 +492,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   priChipSel: { backgroundColor: '#0F4C75', borderColor: '#0F4C75' },
+  evidenceBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0F4C75',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  evidenceBtnText: { color: '#FFFFFF', fontWeight: '600' },
+  evidenceLine: { marginTop: 6, fontSize: 12, color: '#475569' },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#CBD5F5',

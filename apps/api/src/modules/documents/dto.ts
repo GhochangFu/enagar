@@ -9,7 +9,7 @@ export const SUPPORTED_DOCUMENT_MIME_TYPES = [
 export const DOCUMENT_SCAN_STATUSES = ['clean', 'infected', 'failed'] as const;
 
 export type DocumentMimeType = (typeof SUPPORTED_DOCUMENT_MIME_TYPES)[number];
-export type DocumentScanStatus = 'pending' | (typeof DOCUMENT_SCAN_STATUSES)[number];
+export type DocumentScanStatus = 'pending' | 'processing' | (typeof DOCUMENT_SCAN_STATUSES)[number];
 export type DocumentUploadStatus = 'intent_created' | 'uploaded' | 'rejected';
 
 export class CreateUploadIntentDto {

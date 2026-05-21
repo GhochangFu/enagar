@@ -108,6 +108,23 @@ export class RequeueKbArticleDto {
   slug!: string;
 }
 
+export class CreateBrandingAssetUploadIntentDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  kind!: string;
+
+  @IsString()
+  mime_type!: string;
+
+  @IsString()
+  size_bytes!: string;
+
+  @IsString()
+  original_name!: string;
+}
+
 export class UpsertBrandingAssetDto {
   @IsString()
   code!: string;

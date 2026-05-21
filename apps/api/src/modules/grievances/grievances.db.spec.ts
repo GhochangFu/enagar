@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { TenantsService } from '../tenants/tenants.service';
 
 import { seedMinimalTenantGrievanceCatalogue } from './grievance-catalogue.seed';
@@ -37,7 +38,12 @@ describeDb('Phase 4 grievance persistence', () => {
   } satisfies AuthenticatedPrincipal;
 
   const catalogue = new GrievanceCatalogueService(prisma);
-  const svc = new GrievancesService(prisma, new TenantsService(), catalogue);
+  const svc = new GrievancesService(
+    prisma,
+    new TenantsService(),
+    catalogue,
+    new ObjectStorageService(),
+  );
 
   beforeAll(async () => {
     await prisma.tenant.create({
@@ -185,12 +191,30 @@ describeDb('Phase 4 grievance persistence', () => {
       grievance_priority: 'medium',
     });
     const attachment = await svc.registerCitizenAttachment(citizenPrincipal, grv.id, {
-      storage_key: `${tenantCode}/grievances/demo/photo.jpg`,
+      storage_key: `tenants/${tenantCode.toLowerCase()}/grievances/demo/photo.jpg`,
       content_type: 'image/jpeg',
     });
     expect(attachment.content_type).toBe('image/jpeg');
     const detail = await svc.getById(citizenPrincipal, grv.id);
     expect(detail.grievance.attachments ?? []).toHaveLength(1);
+  });
+
+  it('rejects attachment register when storage is enabled but object is missing', async () => {
+    const storage = new ObjectStorageService();
+    jest.spyOn(storage, 'isEnabled').mockReturnValue(true);
+    jest.spyOn(storage, 'headObject').mockResolvedValue(null);
+    const strictSvc = new GrievancesService(prisma, new TenantsService(), catalogue, storage);
+    const grv = await strictSvc.create(citizenPrincipal, {
+      category: 'trade',
+      description: 'Missing object',
+      grievance_priority: 'low',
+    });
+    await expect(
+      strictSvc.registerCitizenAttachment(citizenPrincipal, grv.id, {
+        storage_key: `tenants/${tenantCode.toLowerCase()}/grievances/evidence/missing.jpg`,
+        content_type: 'image/jpeg',
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('Sprint 4.3 citizen reopen restores triage; stale resolved_at rejects reopen', async () => {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-scope';
@@ -103,6 +103,30 @@ export class GrievancesController {
       dto,
       readScopeFromHeader(municipalityTenantCode),
     );
+  }
+
+  @Get(':id/attachments/:attachmentId/blob')
+  @ApiOperation({ summary: 'Grievance evidence blob for citizen inline preview' })
+  getAttachmentBlob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.grievances
+      .getCitizenAttachmentBlob(
+        principal,
+        id,
+        attachmentId,
+        readScopeFromHeader(municipalityTenantCode),
+      )
+      .then(
+        ({ buffer, contentType }) =>
+          new StreamableFile(buffer, {
+            type: contentType,
+            disposition: 'inline',
+          }),
+      );
   }
 
   @Get(':id')

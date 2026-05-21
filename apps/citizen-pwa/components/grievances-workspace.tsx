@@ -20,6 +20,7 @@ import { grievanceCreateWriteScope, grievanceRowTenantScope } from '../lib/griev
 import { authHeaders, readApiError } from '../lib/workspace-http';
 
 import { GrievanceEvidenceField } from './grievance-evidence-field';
+import { GrievanceEvidencePreviewGrid } from './grievance-evidence-preview';
 import { GrievanceLocationMap } from './grievance-location-map';
 
 type LanguageCode = Locale;
@@ -1388,17 +1389,18 @@ export function GrievancesWorkspace({
                 {slaChip}
               </p>
             )}
-            {Array.isArray(g.attachments) && g.attachments.length > 0 ? (
-              <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                <p className="font-semibold text-slate-800">Evidence files (storage keys)</p>
-                <ul className="mt-2 space-y-1 font-mono text-xs text-slate-600">
-                  {g.attachments.map((a) => (
-                    <li key={a.id}>
-                      {a.content_type} · {a.storage_key}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {token && Array.isArray(g.attachments) && g.attachments.length > 0 ? (
+              <GrievanceEvidencePreviewGrid
+                apiBaseUrl={apiBaseUrl}
+                token={token}
+                grievanceId={g.id}
+                tenantScopeCode={grievanceRowTenantScope({
+                  workspaceTenantCode: tenantScopeCode,
+                  grievanceTenantId: g.tenant_id,
+                  hubCatalogue: hubMunicipalityCatalogue,
+                })}
+                attachments={g.attachments}
+              />
             ) : null}
           </div>
         </div>

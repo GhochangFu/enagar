@@ -2,6 +2,8 @@ import { createBlankFormSchemaDraft } from '@enagar/forms';
 import { createLinearWorkflowDraft } from '@enagar/workflow';
 import { NotFoundException } from '@nestjs/common';
 
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
+
 import { AdminTenantService } from './admin-tenant.service';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -225,7 +227,7 @@ describe('AdminTenantService', () => {
       payment: { count: jest.fn().mockResolvedValue(5) },
     });
 
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const dash = await service.getDashboard(staffPrincipal);
 
     expect(dash.tenant_id).toBe(tenantId);
@@ -261,7 +263,7 @@ describe('AdminTenantService', () => {
       tenantService: { findFirst, update },
     });
 
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.patchService(staffPrincipal, 'svc-1', {
       is_active: false,
       name: { en: 'Birth certificate' },
@@ -291,7 +293,7 @@ describe('AdminTenantService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     await expect(
       service.patchService(staffPrincipal, 'missing', { is_active: true }),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -313,7 +315,7 @@ describe('AdminTenantService', () => {
       serviceFormVersion: { findFirst: jest.fn().mockResolvedValue(null) },
       workflow: { findFirst: jest.fn().mockResolvedValue(null) },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const designer = await service.getServiceDesigner(staffPrincipal, 'svc-1');
 
     expect(designer.starter_form_schema.service_code).toBe('pet-licence');
@@ -334,7 +336,7 @@ describe('AdminTenantService', () => {
         }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     await expect(
       service.saveFormDraft(staffPrincipal, 'svc-1', {
@@ -357,7 +359,7 @@ describe('AdminTenantService', () => {
         }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     await expect(
       service.saveWorkflowDraft(staffPrincipal, 'svc-1', {
@@ -402,7 +404,7 @@ describe('AdminTenantService', () => {
       },
     });
 
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.patchServiceConfig(staffPrincipal, 'svc-1', {
       fee_rule: { type: 'fixed', amount_paise: 2500, currency: 'INR' },
       required_documents: [
@@ -436,7 +438,7 @@ describe('AdminTenantService', () => {
         update: jest.fn(),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     await expect(
       service.patchServiceConfig(staffPrincipal, 'svc-1', {
@@ -463,7 +465,7 @@ describe('AdminTenantService', () => {
         }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     const row = await service.upsertAddressMaster(staffPrincipal, {
       borough_code: 'borough-vii',
@@ -506,7 +508,7 @@ describe('AdminTenantService', () => {
         }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.upsertTariff(staffPrincipal, {
       code: 'water-domestic-v1',
       category: 'water',
@@ -560,7 +562,7 @@ describe('AdminTenantService', () => {
         }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.patchSettings(staffPrincipal, {
       branding: { theme_color: '#0f766e' },
       feature_flags: { kb_cms: true },
@@ -590,7 +592,7 @@ describe('AdminTenantService', () => {
       updatedAt: new Date('2026-05-16T09:00:00.000Z'),
     });
     const prisma = mockPrisma({ tenantBanner: { upsert } });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     const row = await service.upsertBanner(staffPrincipal, {
       code: 'maintenance-notice',
@@ -615,7 +617,7 @@ describe('AdminTenantService', () => {
     const prisma = mockPrisma({
       notificationTemplate: { upsert: jest.fn() },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
 
     await expect(
       service.upsertNotificationTemplate(staffPrincipal, {
@@ -658,7 +660,7 @@ describe('AdminTenantService', () => {
         create: jest.fn().mockResolvedValue({ id: 'job-1' }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.upsertKbArticle(staffPrincipal, {
       slug: 'birth-certificate-help',
       title: { en: 'Birth certificate help' },
@@ -705,7 +707,7 @@ describe('AdminTenantService', () => {
         create: jest.fn().mockResolvedValue({ id: 'user-role-1' }),
       },
     });
-    const service = new AdminTenantService(prisma);
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
     const row = await service.upsertStaff(staffPrincipal, {
       keycloak_user_id: '10000000-0000-4000-8000-000000000201',
       username: 'kmc-clerk',

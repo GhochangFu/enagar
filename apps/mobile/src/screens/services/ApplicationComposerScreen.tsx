@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { createApplicationDraft, submitDraft } from '../../api/applicationApi';
-import { finalizeDraftDocumentsMobile } from '../../api/documentsApi';
+import { finalizeDraftDocumentsMobile, type MobilePendingFile } from '../../api/documentsApi';
 import { fetchTenantService } from '../../api/servicesCatalogApi';
 import { sessionApiRoot, useSession } from '../../context/SessionContext';
 import { DynamicFormFields } from '../../forms/DynamicFormFields';
@@ -35,6 +35,7 @@ export function ApplicationComposerScreen() {
   const [values, setValues] = useState<FormSubmission>(() =>
     defaultFormValuesForService(serviceCode),
   );
+  const [pendingFiles, setPendingFiles] = useState<Record<string, MobilePendingFile>>({});
   const [busy, setBusy] = useState(false);
   const [errorLine, setErrorLine] = useState<string | null>(null);
 
@@ -113,6 +114,7 @@ export function ApplicationComposerScreen() {
         draft.id,
         schema,
         values,
+        pendingFiles,
       );
 
       if (!docsOk) {
@@ -166,7 +168,24 @@ export function ApplicationComposerScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {plan ? <DynamicFormFields nodes={plan.nodes} onChange={setField} values={values} /> : null}
+        {plan ? (
+          <DynamicFormFields
+            nodes={plan.nodes}
+            onChange={setField}
+            values={values}
+            onFilePick={(fieldId, pending) => {
+              setPendingFiles((current) => {
+                const next = { ...current };
+                if (pending) {
+                  next[fieldId] = pending;
+                } else {
+                  delete next[fieldId];
+                }
+                return next;
+              });
+            }}
+          />
+        ) : null}
 
         {errorLine ? (
           <Text style={[styles.err, busy ? styles.status : null]}>{errorLine}</Text>

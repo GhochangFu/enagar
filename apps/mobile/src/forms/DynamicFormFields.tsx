@@ -1,5 +1,8 @@
 import type { FileSubmission, FormRenderNode, FormSubmissionValue } from '@enagar/forms';
+import * as DocumentPicker from 'expo-document-picker';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import type { MobilePendingFile } from '../api/documentsApi';
 
 function isFileSubmission(value: FormSubmissionValue | undefined): value is FileSubmission {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'name' in value);
@@ -9,16 +12,23 @@ type Props = {
   nodes: FormRenderNode[];
   values: Record<string, FormSubmissionValue | undefined>;
   onChange: (fieldId: string, value: FormSubmissionValue | undefined) => void;
+  onFilePick?: (fieldId: string, file: MobilePendingFile | null) => void;
 };
 
 /** Maps `@enagar/forms` render-plan nodes to RN inputs (`platform: 'native'`). */
-export function DynamicFormFields({ nodes, values, onChange }: Props) {
+export function DynamicFormFields({ nodes, values, onChange, onFilePick }: Props) {
   return (
     <View style={styles.stack}>
       {nodes
         .filter((node) => node.visible)
         .map((node) => (
-          <FormNode key={node.id} node={node} onChange={onChange} value={values[node.id]} />
+          <FormNode
+            key={node.id}
+            node={node}
+            onChange={onChange}
+            onFilePick={onFilePick}
+            value={values[node.id]}
+          />
         ))}
     </View>
   );
@@ -28,10 +38,12 @@ function FormNode({
   node,
   value,
   onChange,
+  onFilePick,
 }: {
   node: FormRenderNode;
   value: FormSubmissionValue | undefined;
   onChange: (fieldId: string, value: FormSubmissionValue | undefined) => void;
+  onFilePick?: (fieldId: string, file: MobilePendingFile | null) => void;
 }) {
   if (node.widget === 'section') {
     return (
@@ -167,26 +179,60 @@ function FormNode({
   }
 
   if (node.widget === 'file-picker') {
+    const maxMb = node.max_size_mb ?? 10;
     return (
       <View style={styles.field}>
         <Text style={styles.label}>
           {node.label}
           <Text style={styles.req}>{suffix}</Text>
         </Text>
-        <TextInput
-          placeholder="filename.pdf"
-          style={styles.input}
-          onChangeText={(text) => {
-            const payload: FileSubmission = {
-              name: text.trim() ? text.trim() : `${node.id}.pdf`,
-              mime_type: 'application/pdf',
-              size_mb: 1,
-            };
-            onChange(node.id, payload);
+        <Pressable
+          style={styles.fileBtn}
+          onPress={() => {
+            void (async () => {
+              const result = await DocumentPicker.getDocumentAsync({
+                copyToCacheDirectory: true,
+                type: node.accept?.length
+                  ? node.accept
+                  : ['application/pdf', 'image/jpeg', 'image/png'],
+              });
+              if (result.canceled || !result.assets?.[0]) {
+                onChange(node.id, undefined);
+                onFilePick?.(node.id, null);
+                return;
+              }
+              const asset = result.assets[0];
+              const sizeMb = Math.max(0.01, (asset.size ?? 0) / (1024 * 1024));
+              if (sizeMb > maxMb) {
+                onChange(node.id, undefined);
+                onFilePick?.(node.id, null);
+                return;
+              }
+              const mime = asset.mimeType ?? 'application/octet-stream';
+              const payload: FileSubmission = {
+                name: asset.name,
+                mime_type: mime,
+                size_mb: sizeMb,
+              };
+              onChange(node.id, payload);
+              onFilePick?.(node.id, {
+                uri: asset.uri,
+                name: asset.name,
+                mime_type: mime,
+                size_mb: sizeMb,
+              });
+            })();
           }}
-          value={isFileSubmission(value) ? value.name : ''}
-        />
-        <Text style={styles.mini}>Simulated file metadata (matches PWA dev flow).</Text>
+        >
+          <Text style={styles.fileBtnText}>Choose file</Text>
+        </Pressable>
+        {isFileSubmission(value) ? (
+          <Text style={styles.mini}>
+            Selected: {value.name} ({value.size_mb.toFixed(2)} MB)
+          </Text>
+        ) : (
+          <Text style={styles.mini}>Max {maxMb} MB</Text>
+        )}
       </View>
     );
   }
@@ -247,4 +293,13 @@ const styles = StyleSheet.create({
   choiceLabel: { fontSize: 15, color: '#334155' },
   choiceLabelSelected: { fontWeight: '700', color: '#0F4C75' },
   mini: { marginTop: 6, fontSize: 11, color: '#94A3B8' },
+  fileBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#0F4C75',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  fileBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
 });

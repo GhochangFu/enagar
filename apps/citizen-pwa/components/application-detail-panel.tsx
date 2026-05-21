@@ -289,8 +289,31 @@ export function ApplicationDetailPanel({
         <div className="mt-2 space-y-2">
           {application.documents.map((document) => (
             <div className="rounded-2xl bg-slate-50 p-3 text-sm" key={document.id}>
-              <strong>{document.document_code}</strong> - {document.scan_status}
-              <p className="break-all text-slate-600">{document.object_key}</p>
+              <strong>{document.document_code}</strong> — {document.scan_status}
+              <p className="break-all text-slate-600">
+                {document.original_name ?? document.object_key}
+              </p>
+              {token && document.scan_status === 'clean' && (
+                <button
+                  className="mt-2 rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-white"
+                  onClick={() =>
+                    void (async () => {
+                      const res = await fetch(
+                        `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`,
+                        { headers: authHeaders(token, false, tenantScopeCode) },
+                      );
+                      if (!res.ok) {
+                        return;
+                      }
+                      const payload = (await res.json()) as { download_url: string };
+                      window.open(payload.download_url, '_blank', 'noopener,noreferrer');
+                    })()
+                  }
+                  type="button"
+                >
+                  Download
+                </button>
+              )}
             </div>
           ))}
           {application.documents.length === 0 && (

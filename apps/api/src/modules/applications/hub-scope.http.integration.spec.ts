@@ -14,7 +14,11 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-scope';
+import { PrismaService } from '../../common/database/prisma.service';
+import { DocumentScanQueueService } from '../../common/document-scan/document-scan.queue';
 import { DocumentsModule } from '../documents/documents.module';
+import { createMockApplicationDocumentPrisma } from '../documents/testing/mock-application-document-prisma';
+import { createMockDocumentScanQueue } from '../documents/testing/mock-document-scan-queue';
 import { HoldingsModule } from '../holdings/holdings.module';
 import { ServicesModule } from '../services/services.module';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
@@ -132,6 +136,10 @@ describe('Hub scope HTTP smoke (Sprint 2.1)', () => {
     })
       .overrideProvider(APPLICATION_STORE)
       .useValue(store)
+      .overrideProvider(PrismaService)
+      .useValue(createMockApplicationDocumentPrisma())
+      .overrideProvider(DocumentScanQueueService)
+      .useValue(createMockDocumentScanQueue())
       .compile();
 
     app = moduleRef.createNestApplication();

@@ -46,6 +46,7 @@ import {
   UpsertBookableAssetDto,
   UpsertBookableAvailabilityDto,
   UpsertBookingReservationDto,
+  CreateBrandingAssetUploadIntentDto,
   UpsertBrandingAssetDto,
   UpsertKbArticleDto,
   UpsertNotificationTemplateDto,
@@ -106,6 +107,24 @@ export class AdminTenantController {
     @Param('docketNo') docketNo: string,
   ) {
     return this.adminTenant.getDeskApplication(principal, docketNo);
+  }
+
+  @Get('desk/applications/:applicationId/documents/:documentId/blob')
+  @ApiOperation({ summary: 'Tenant Desk application document blob for inline preview' })
+  getDeskApplicationDocumentBlob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    return this.adminTenant
+      .getDeskApplicationDocumentBlob(principal, applicationId, documentId)
+      .then(
+        ({ buffer, contentType, fileName }) =>
+          new StreamableFile(buffer, {
+            type: contentType,
+            disposition: `inline; filename="${fileName.replace(/"/g, '')}"`,
+          }),
+      );
   }
 
   @Post('desk/applications/:applicationId/transitions')
@@ -504,6 +523,15 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'List tenant-scoped logo/hero branding assets' })
   listBrandingAssets(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.listBrandingAssets(principal);
+  }
+
+  @Post('branding-assets/upload-intent')
+  @ApiOperation({ summary: 'Presigned upload target for tenant logo/hero branding asset' })
+  createBrandingAssetUploadIntent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: CreateBrandingAssetUploadIntentDto,
+  ) {
+    return this.adminTenant.createBrandingAssetUploadIntent(principal, dto);
   }
 
   @Patch('branding-assets')

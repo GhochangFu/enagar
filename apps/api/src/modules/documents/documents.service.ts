@@ -1,37 +1,53 @@
 import { randomUUID } from 'node:crypto';
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import {
   isCitizenSelfServicePrincipal,
   principalIsCitizenPortal,
 } from '../../common/auth/citizen-scope';
+import { PrismaService } from '../../common/database/prisma.service';
+import {
+  allowsClientScanSimulation,
+  maxUploadIntentsPerApplicationPerHour,
+} from '../../common/document-scan/document-scan.config';
+import { DocumentScanQueueService } from '../../common/document-scan/document-scan.queue';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { ApplicationsService } from '../applications/applications.service';
+
+import {
+  mapApplicationDocumentRow,
+  toApplicationDocumentResponse,
+  toDocumentResponse,
+  type StoredApplicationDocument,
+} from './application-document.mapper';
 
 import type {
   CreateUploadIntentDto,
   DocumentDownloadResponse,
   DocumentResponse,
-  DocumentScanStatus,
   UpdateScanResultDto,
   UploadIntentResponse,
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-import type { ApplicationDocumentResponse, ApplicationReadScope } from '../applications/dto';
-
-interface StoredDocument extends DocumentResponse {
-  tenant_id: string;
-  citizen_subject: string;
-}
+import type { ApplicationReadScope } from '../applications/dto';
 
 const uploadTtlMs = 15 * 60 * 1000;
 const downloadTtlMs = 5 * 60 * 1000;
 
 @Injectable()
 export class DocumentsService {
-  private readonly documents = new Map<string, StoredDocument>();
-
-  constructor(private readonly applications: ApplicationsService) {}
+  constructor(
+    private readonly applications: ApplicationsService,
+    private readonly objectStorage: ObjectStorageService,
+    private readonly prisma: PrismaService,
+    private readonly documentScanQueue: DocumentScanQueueService,
+  ) {}
 
   async createUploadIntent(
     principal: AuthenticatedPrincipal,
@@ -47,6 +63,21 @@ export class DocumentsService {
       dto.application_id,
       readScope,
     );
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentIntentCount = await this.prisma.applicationDocument.count({
+      where: {
+        applicationId: dto.application_id,
+        createdAt: { gte: oneHourAgo },
+      },
+    });
+    const limit = maxUploadIntentsPerApplicationPerHour();
+    if (recentIntentCount >= limit) {
+      throw new BadRequestException(
+        `Too many document upload attempts for this application (max ${limit} per hour)`,
+      );
+    }
+
     const municipalTenantCode =
       application.tenant_code?.trim() || principal.tenantCode || principal.tenantId;
     const id = randomUUID();
@@ -57,34 +88,76 @@ export class DocumentsService {
       id,
       dto.original_name,
     );
-    const document: StoredDocument = {
-      id,
-      tenant_id: application.tenant_id,
-      citizen_subject: principal.subject,
-      application_id: dto.application_id,
-      document_code: dto.document_code,
-      original_name: dto.original_name,
-      mime_type: dto.mime_type,
-      size_mb: dto.size_mb,
-      object_key: objectKey,
-      upload_status: 'intent_created',
-      scan_status: 'pending',
-      created_at: createdAt.toISOString(),
-    };
 
-    this.documents.set(id, document);
-    await this.applications.attachDocument(
-      principal,
-      application.id,
-      toApplicationDocument(document),
-      readScope,
+    const row = await this.prisma.applicationDocument.create({
+      data: {
+        id,
+        tenantId: application.tenant_id,
+        applicationId: dto.application_id,
+        documentCode: dto.document_code,
+        originalName: dto.original_name,
+        mimeType: dto.mime_type,
+        sizeMb: dto.size_mb,
+        objectKey,
+        uploadStatus: 'intent_created',
+        scanStatus: 'pending',
+      },
+    });
+
+    const document = mapApplicationDocumentRow(row, principal.subject);
+    await this.syncApplicationDocument(principal, document, readScope);
+
+    const upload = await this.objectStorage.presignUpload(
+      objectKey,
+      dto.mime_type,
+      uploadTtlMs,
+      createdAt,
     );
-
     return {
       ...toDocumentResponse(document),
-      upload_url: this.signedUrl('upload', objectKey, createdAt, uploadTtlMs),
-      upload_expires_at: new Date(createdAt.getTime() + uploadTtlMs).toISOString(),
+      upload_url: upload.url,
+      upload_expires_at: upload.expires_at,
     };
+  }
+
+  async confirmUpload(
+    principal: AuthenticatedPrincipal,
+    documentId: string,
+    readScope?: ApplicationReadScope,
+  ): Promise<DocumentResponse> {
+    const document = await this.getOwnedDocument(principal, documentId, readScope);
+    if (document.upload_status === 'rejected') {
+      throw new BadRequestException('Document upload was rejected');
+    }
+
+    if (this.objectStorage.isEnabled()) {
+      const head = await this.objectStorage.headObject(document.object_key);
+      if (!head || head.content_length <= 0) {
+        throw new BadRequestException('Uploaded object not found in storage');
+      }
+    }
+
+    if (document.upload_status === 'uploaded' && document.scan_status !== 'pending') {
+      return toDocumentResponse(document);
+    }
+
+    const row = await this.prisma.applicationDocument.update({
+      where: { id: documentId },
+      data: { uploadStatus: 'uploaded' },
+    });
+    const updated = mapApplicationDocumentRow(row, principal.subject);
+    await this.syncApplicationDocument(principal, updated, readScope);
+    await this.documentScanQueue.enqueueScan(documentId);
+    return toDocumentResponse(updated);
+  }
+
+  async getDocument(
+    principal: AuthenticatedPrincipal,
+    documentId: string,
+    readScope?: ApplicationReadScope,
+  ): Promise<DocumentResponse> {
+    const document = await this.getOwnedDocument(principal, documentId, readScope);
+    return toDocumentResponse(document);
   }
 
   async updateScanResult(
@@ -93,20 +166,24 @@ export class DocumentsService {
     dto: UpdateScanResultDto,
     readScope?: ApplicationReadScope,
   ): Promise<DocumentResponse> {
+    if (!allowsClientScanSimulation()) {
+      throw new ForbiddenException(
+        'Document scan results are applied by the scan worker; client scan simulation is disabled',
+      );
+    }
     const document = await this.getOwnedDocument(principal, documentId, readScope);
-    const updated: StoredDocument = {
-      ...document,
-      upload_status: dto.scan_status === 'failed' ? 'rejected' : 'uploaded',
-      scan_status: dto.scan_status,
-    };
-
-    this.documents.set(documentId, updated);
-    await this.applications.attachDocument(
-      principal,
-      updated.application_id,
-      toApplicationDocument(updated),
-      readScope,
-    );
+    const row = await this.prisma.applicationDocument.update({
+      where: { id: documentId },
+      data: {
+        uploadStatus: dto.scan_status === 'failed' ? 'rejected' : 'uploaded',
+        scanStatus: dto.scan_status,
+        scanProvider: dto.scan_provider ?? null,
+        scanSignature: dto.scan_signature ?? null,
+        scanCompletedAt: new Date(),
+      },
+    });
+    const updated = mapApplicationDocumentRow(row, document.citizen_subject);
+    await this.syncApplicationDocument(principal, updated, readScope);
     return toDocumentResponse(updated);
   }
 
@@ -119,35 +196,85 @@ export class DocumentsService {
     if (document.scan_status !== 'clean') {
       throw new BadRequestException('Document is not scan-clean');
     }
+    if (document.upload_status !== 'uploaded') {
+      throw new BadRequestException('Document upload is not complete');
+    }
+
+    if (this.objectStorage.isEnabled()) {
+      const head = await this.objectStorage.headObject(document.object_key);
+      if (!head || head.content_length <= 0) {
+        throw new BadRequestException('Document object not found in storage');
+      }
+    }
 
     const now = new Date();
+    const download = await this.objectStorage.presignDownload(
+      document.object_key,
+      downloadTtlMs,
+      now,
+    );
     return {
       id: document.id,
       object_key: document.object_key,
-      download_url: this.signedUrl('download', document.object_key, now, downloadTtlMs),
-      download_expires_at: new Date(now.getTime() + downloadTtlMs).toISOString(),
+      download_url: download.url,
+      download_expires_at: download.expires_at,
     };
+  }
+
+  async listForApplication(
+    tenantId: string,
+    applicationId: string,
+    citizenSubject: string,
+  ): Promise<StoredApplicationDocument[]> {
+    const rows = await this.prisma.applicationDocument.findMany({
+      where: { tenantId, applicationId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((row) => mapApplicationDocumentRow(row, citizenSubject));
   }
 
   private async getOwnedDocument(
     principal: AuthenticatedPrincipal,
     documentId: string,
     readScope?: ApplicationReadScope,
-  ): Promise<StoredDocument> {
-    const document = this.documents.get(documentId);
-    if (!document || document.citizen_subject !== principal.subject) {
+  ): Promise<StoredApplicationDocument> {
+    const row = await this.prisma.applicationDocument.findUnique({
+      where: { id: documentId },
+    });
+    if (!row) {
       throw new NotFoundException('Document not found');
     }
 
-    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
-      await this.applications.getOwnedApplication(principal, document.application_id, readScope);
-      return document;
-    }
+    const application = await this.applications.getOwnedApplication(
+      principal,
+      row.applicationId,
+      readScope,
+    );
 
-    if (document.tenant_id !== principal.tenantId) {
+    if (application.citizen_subject !== principal.subject) {
       throw new NotFoundException('Document not found');
     }
-    return document;
+
+    if (!principalIsCitizenPortal(principal) || !isCitizenSelfServicePrincipal(principal)) {
+      if (row.tenantId !== principal.tenantId) {
+        throw new NotFoundException('Document not found');
+      }
+    }
+
+    return mapApplicationDocumentRow(row, application.citizen_subject);
+  }
+
+  private async syncApplicationDocument(
+    principal: AuthenticatedPrincipal,
+    document: StoredApplicationDocument,
+    readScope?: ApplicationReadScope,
+  ): Promise<void> {
+    await this.applications.attachDocument(
+      principal,
+      document.application_id,
+      toApplicationDocumentResponse(document),
+      readScope,
+    );
   }
 
   private createObjectKey(
@@ -160,43 +287,4 @@ export class DocumentsService {
     const safeName = originalName.toLowerCase().replace(/[^a-z0-9.]+/g, '-');
     return `tenants/${tenantCode}/applications/${applicationId}/documents/${documentId}/${safeName}`;
   }
-
-  private signedUrl(
-    action: 'upload' | 'download',
-    objectKey: string,
-    now: Date,
-    ttlMs: number,
-  ): string {
-    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
-    return `minio://enagar-local/${objectKey}?action=${action}&expires_at=${encodeURIComponent(expiresAt)}`;
-  }
-}
-
-function toDocumentResponse(document: StoredDocument): DocumentResponse {
-  return {
-    id: document.id,
-    application_id: document.application_id,
-    document_code: document.document_code,
-    original_name: document.original_name,
-    mime_type: document.mime_type,
-    size_mb: document.size_mb,
-    object_key: document.object_key,
-    upload_status: document.upload_status,
-    scan_status: document.scan_status as DocumentScanStatus,
-    created_at: document.created_at,
-  };
-}
-
-function toApplicationDocument(document: StoredDocument): ApplicationDocumentResponse {
-  return {
-    id: document.id,
-    document_code: document.document_code,
-    original_name: document.original_name,
-    mime_type: document.mime_type,
-    size_mb: document.size_mb,
-    upload_status: document.upload_status,
-    scan_status: document.scan_status,
-    object_key: document.object_key,
-    created_at: document.created_at,
-  };
 }

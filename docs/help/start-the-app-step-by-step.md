@@ -76,6 +76,14 @@ The first time can take several minutes while images download.
 - Docker Desktop should show the **eNagarSeba** compose stack as **running**.
 - Or run: `docker compose -f infrastructure/docker-compose.yml ps` (with the same `--env-file infrastructure/.env` if your team uses that).
 
+### Optional — real file uploads (MinIO, Sprint 6.25+)
+
+To store application/grievance files in MinIO instead of stub URLs:
+
+1. In `infrastructure/.env`, set `OBJECT_STORAGE_DISABLED=false` (see `.env.example` for other `OBJECT_STORAGE_*` keys).
+2. From repo root: `pnpm infra:minio-cors` (creates bucket `enagar-local` if missing).
+3. Restart the API after changing env. Programme runbook: [`object-storage-upload-programme.md`](../runbooks/object-storage-upload-programme.md).
+
 ---
 
 ## Step 6 — Create database tables and seed basic data

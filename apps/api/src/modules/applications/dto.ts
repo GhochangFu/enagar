@@ -55,7 +55,7 @@ export interface ApplicationDocumentResponse {
   mime_type: string;
   size_mb: number;
   upload_status: 'intent_created' | 'uploaded' | 'rejected';
-  scan_status: 'pending' | 'clean' | 'infected' | 'failed';
+  scan_status: 'pending' | 'processing' | 'clean' | 'infected' | 'failed';
   object_key: string;
   created_at: string;
 }

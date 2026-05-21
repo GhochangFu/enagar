@@ -8,6 +8,12 @@ import {
   type FormSubmission,
   type FormSubmissionValue,
 } from '@enagar/forms';
+import {
+  allowsClientScanSimulationFromEnv,
+  confirmDocumentUpload,
+  putFileToUploadUrl,
+  waitForDocumentScan,
+} from '@enagar/forms/upload';
 import { DynamicFormFields } from '@enagar/forms/web';
 import { t } from '@enagar/i18n';
 import { applyPlatformTheme, applyTenantTheme } from '@enagar/tenant-theme';
@@ -102,6 +108,7 @@ interface HoldingLookupResponse {
 interface UploadIntentResponse {
   id: string;
   object_key: string;
+  upload_url: string;
   scan_status: string;
 }
 
@@ -186,6 +193,7 @@ export default function HomePage(): JSX.Element {
   const [services, setServices] = useState<ServiceSummary[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceSummary | null>(null);
   const [formValues, setFormValues] = useState<FormSubmission>({});
+  const [applicationFileBlobs, setApplicationFileBlobs] = useState<Record<string, File>>({});
   const [holdingLookup, setHoldingLookup] = useState<HoldingLookupResponse | null>(null);
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [payments, setPayments] = useState<PaymentApiResponse[]>([]);
@@ -885,6 +893,7 @@ export default function HomePage(): JSX.Element {
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues(defaultFormValuesForSchema(service.code, service.form_schema));
+    setApplicationFileBlobs({});
     setHoldingLookup(null);
     setApplicationDetail(null);
     setActiveTab('apply');
@@ -960,6 +969,7 @@ export default function HomePage(): JSX.Element {
     setSelectedService(null);
     setHoldingLookup(null);
     setFormValues({});
+    setApplicationFileBlobs({});
     setActiveTab('applications');
     setStatus(`Submitted ${docket}`);
 
@@ -1006,17 +1016,45 @@ export default function HomePage(): JSX.Element {
         return false;
       }
       const intent = (await intentResponse.json()) as UploadIntentResponse;
-      const scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
-        method: 'POST',
-        headers: authHeaders(token, true, workspaceLoadScope()),
-        body: JSON.stringify({
-          scan_status: 'clean',
-          scan_provider: 'pwa-simulated-clamav',
-          scan_signature: `simulated:${intent.object_key}`,
-        }),
-      });
-      if (!scanResponse.ok) {
+      const blob = applicationFileBlobs[field.id];
+      if (blob) {
+        try {
+          await putFileToUploadUrl(intent.upload_url, blob, value.mime_type);
+        } catch {
+          return false;
+        }
+      }
+      try {
+        await confirmDocumentUpload(
+          apiBaseUrl,
+          authHeaders(token, true, workspaceLoadScope()),
+          intent.id,
+        );
+      } catch {
         return false;
+      }
+      if (allowsClientScanSimulationFromEnv()) {
+        const scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
+          method: 'POST',
+          headers: authHeaders(token, true, workspaceLoadScope()),
+          body: JSON.stringify({
+            scan_status: 'clean',
+            scan_provider: 'pwa-simulated-clamav',
+            scan_signature: `simulated:${intent.object_key}`,
+          }),
+        });
+        if (!scanResponse.ok) {
+          return false;
+        }
+      } else {
+        const verdict = await waitForDocumentScan(
+          apiBaseUrl,
+          authHeaders(token, true, workspaceLoadScope()),
+          intent.id,
+        );
+        if (verdict !== 'clean') {
+          return false;
+        }
       }
     }
     return true;
@@ -2137,6 +2175,17 @@ export default function HomePage(): JSX.Element {
                     nodes={renderPlan.nodes}
                     values={formValues}
                     onChange={updateFormValue}
+                    onFileBlob={(fieldId, file) => {
+                      setApplicationFileBlobs((current) => {
+                        const next = { ...current };
+                        if (file) {
+                          next[fieldId] = file;
+                        } else {
+                          delete next[fieldId];
+                        }
+                        return next;
+                      });
+                    }}
                   />
 
                   {selectedService.code === 'prop-tax' && (

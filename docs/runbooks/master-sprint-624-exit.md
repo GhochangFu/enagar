@@ -35,7 +35,7 @@ See [`master-sprint-624-plan.md`](./master-sprint-624-plan.md) § Manual smoke.
 
 ## Phase gate
 
-**Pass** — [`ROADMAP.md`](../../ROADMAP.md) updated: **6.21–6.24** closed; **Phase 7 (Sahayak AI)** is next execution item (sponsor sign-off on charter/DPA still applies per ROADMAP open items).
+**Pass** — [`ROADMAP.md`](../../ROADMAP.md) updated: **6.21–6.24** closed (grievance taxonomy). **Phase 7 (Sahayak AI)** also requires the [**object storage upload programme**](./object-storage-upload-programme.md) (**6.25–6.30**) to exit before KB `.docx` ingest; sponsor charter/DPA still applies per ROADMAP open items.
 
 ## Sign-off
 

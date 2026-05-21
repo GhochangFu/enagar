@@ -1,5 +1,6 @@
 'use client';
 
+import { putFileToUploadUrl } from '@enagar/forms/upload';
 import { Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -283,6 +284,8 @@ export default function OperationsClient(): JSX.Element {
   const [templates, setTemplates] = useState<NotificationTemplateRow[]>([]);
   const [kbArticles, setKbArticles] = useState<KbArticleRow[]>([]);
   const [brandingAssets, setBrandingAssets] = useState<BrandingAssetRow[]>([]);
+  const [brandingUploadBusy, setBrandingUploadBusy] = useState(false);
+  const [brandingUploadError, setBrandingUploadError] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingsPayload>({
     assets: [],
     availability: [],
@@ -870,7 +873,64 @@ export default function OperationsClient(): JSX.Element {
     await upsert('settings', JSON.stringify(payload), 'Settings');
   }
 
+  async function pickAndUploadBrandingFile(file: File): Promise<void> {
+    if (!token) {
+      return;
+    }
+    setBrandingUploadBusy(true);
+    setBrandingUploadError(null);
+    try {
+      const intentRes = await fetch(`${apiBase}/admin/tenant/branding-assets/upload-intent`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: brandingAssetDraft.code,
+          kind: brandingAssetDraft.kind,
+          mime_type: file.type || brandingAssetDraft.mime_type,
+          size_bytes: String(file.size),
+          original_name: file.name,
+        }),
+      });
+      if (!intentRes.ok) {
+        throw new Error(await intentRes.text());
+      }
+      const intent = (await intentRes.json()) as {
+        storage_key: string;
+        upload_url: string;
+        public_url: string;
+        mime_type: string;
+      };
+      await putFileToUploadUrl(intent.upload_url, file, intent.mime_type);
+      setBrandingAssetDraft((draft) => ({
+        ...draft,
+        storage_key: intent.storage_key,
+        public_url: intent.public_url,
+        mime_type: intent.mime_type,
+        size_bytes: String(file.size),
+      }));
+      setBrandingAssetText(
+        pretty({
+          code: brandingAssetDraft.code,
+          kind: brandingAssetDraft.kind,
+          storage_key: intent.storage_key,
+          public_url: intent.public_url,
+        }),
+      );
+    } catch (err: unknown) {
+      setBrandingUploadError(err instanceof Error ? err.message : 'Branding upload failed');
+    } finally {
+      setBrandingUploadBusy(false);
+    }
+  }
+
   async function saveGuidedBrandingAsset(): Promise<void> {
+    if (!brandingAssetDraft.storage_key.trim()) {
+      setBrandingUploadError('Upload a file first (or enter storage_key manually).');
+      return;
+    }
     const payload = {
       code: brandingAssetDraft.code,
       kind: brandingAssetDraft.kind,
@@ -1266,6 +1326,37 @@ export default function OperationsClient(): JSX.Element {
                   />
                 ))}
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="sr-only"
+                    disabled={brandingUploadBusy}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        void pickAndUploadBrandingFile(file);
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                  <span className="inline-flex rounded-lg border border-warm-border bg-surface px-3 py-2 text-sm font-medium text-ink-primary">
+                    {brandingUploadBusy ? 'Uploading…' : 'Upload file to MinIO'}
+                  </span>
+                </label>
+                {brandingAssetDraft.public_url.startsWith('http') ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brandingAssetDraft.public_url}
+                    alt="Branding preview"
+                    className="h-12 max-w-[160px] rounded border border-warm-border object-contain"
+                  />
+                ) : null}
+              </div>
+              {brandingUploadError ? (
+                <p className="text-sm text-red-700">{brandingUploadError}</p>
+              ) : null}
             </GuidedOpsCard>
             <JsonFallbackPanel
               value={brandingAssetText}
