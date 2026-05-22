@@ -17,6 +17,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+h1,
+h2,
+h3 {
+  font-family: var(--platform-heading-font, var(--tenant-font-family)), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
 /* Sprint 6.18: configure surfaces use @enagar/ui Button — legacy .btn-* removed. */
 
 /* Leaflet divIcon pin (default marker PNGs break under Next.js) */

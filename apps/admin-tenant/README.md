@@ -12,6 +12,15 @@ pnpm --filter @enagar/admin-tenant dev
 
 Opens **http://localhost:3002** (matches Keycloak `admin-tenant` redirect URIs in `infrastructure/keycloak/realm-export.json`).
 
+For local sign-in, use **`/login`** → Keycloak. The API (**`pnpm --filter @enagar/api dev`**, port **3001**) must be up before profile/Desk calls succeed.
+
+## UI / typography (2026-05)
+
+- Platform font: **DM Sans** (shared tokens in `@enagar/config`).
+- Shell: **`TenantAdminShell`** — sidebar nav with icons, **Euphoria Infotech** footer, refresh/sign-out icon buttons.
+- Session gate: **`TenantAdminSessionProvider`** reads `sessionStorage`, redirects when unsigned-in, and times out **`GET /admin/tenant/desk/me`** after 12s with a retry banner if the API is down.
+- Plan: **`docs/runbooks/typography-dm-sans-ux-plan.md`**.
+
 ## Configuration
 
 Copy **`apps/admin-tenant/.env.example`** → **`.env.local`** and adjust if your Keycloak/API ports differ.

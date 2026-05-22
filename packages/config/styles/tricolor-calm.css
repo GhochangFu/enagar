@@ -3,6 +3,8 @@
  * Solid colours only; no gradients. Import before @tailwind in app globals.css.
  * Tenant accents override --brand-* via @enagar/tenant-theme at runtime.
  */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap');
+
 :root {
   --canvas-rgb: 250 247 244;
   --surface-rgb: 255 255 255;
@@ -26,5 +28,6 @@
   --brand-fg-rgb: 255 255 255;
   --brand-muted-rgb: 255 240 230;
   --brand-surface-rgb: 255 248 244;
-  --tenant-font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --tenant-font-family: 'DM Sans', system-ui, sans-serif;
+  --platform-heading-font: 'DM Sans', system-ui, sans-serif;
 }

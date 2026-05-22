@@ -5,7 +5,7 @@
 > **Scope of v0.1.** Tokens, iconography, multi-tenant theming model, component inventory, and **textual wireframes** for the six critical citizen flows. Pixel-level Figma artefacts are intentionally out of scope — we are an open-source government project and wireframes need to survive copy-paste, version control, and code review.
 
 > **Status:** Sprint 0.2 deliverable. Implemented incrementally from Phase 2 onwards under `@enagar/ui` (web) and `@enagar/ui-native` (RN).  
-> **Phase UX (Sprints 6.14–6.19):** Sponsor-confirmed revamp — **Tricolor Calm** platform pastels + tenant palette derivation — see [`docs/runbooks/phase-ux-revamp-plan.md`](./runbooks/phase-ux-revamp-plan.md). Typography locked to **Plus Jakarta Sans** + **Noto** (bn/hi); Inter removed from theme default in 6.14.
+> **Phase UX (Sprints 6.14–6.19):** Sponsor-confirmed revamp — **Tricolor Calm** platform pastels + tenant palette derivation — see [`docs/runbooks/phase-ux-revamp-plan.md`](./runbooks/phase-ux-revamp-plan.md). Typography locked to **DM Sans** (Option 2 — GovTech) + **Noto** (bn/hi) across Citizen PWA, Tenant Admin, and State Admin; see [`docs/runbooks/typography-dm-sans-ux-plan.md`](./runbooks/typography-dm-sans-ux-plan.md).
 
 ---
 
@@ -94,9 +94,10 @@ Runtime: `applyPlatformTheme()` sets hub/auth brand to **`#BF4A0A`** (`PLATFORM_
 ### 2.2 Typography
 
 ```
-Plus Jakarta Sans     →  default Latin (en, transliterated bn/hi where unsupported)
+DM Sans               →  default Latin (en) — body and headings (unified stack)
 Noto Sans Bengali     →  bn (system fallback first, Noto next)
 Noto Sans Devanagari  →  hi
+Plus Jakarta Sans     →  deprecated (replaced by DM Sans, 2026-05)
 Inter                 →  deprecated as default (removed in 6.14); legacy docs only
 ```
 
@@ -113,7 +114,7 @@ Inter                 →  deprecated as default (removed in 6.14); legacy docs 
 
 > **Bengali / Hindi sizing.** Devanagari and Bengali scripts have larger optical x-heights. We bump `line-height` by 4 px (`+0.25rem`) when the active locale is `bn` or `hi`. The shared Tailwind preset will expose `font-bn` / `font-hi` utility classes wired to those families.
 
-**Citizen PWA rendering (Sprint 6.16 + B+ Pro palette).** `apps/citizen-pwa/app/globals.css` imports platform tokens; body uses `var(--tenant-font-family)` with **Noto** fallbacks; headings use **Plus Jakarta Sans**. Auth/hub use **warm white canvas** + white cards; **burnt orange** primary and **forest/sage** secondary accents. Grievance list/detail surfaces use semantic chips:
+**Citizen PWA rendering (Sprint 6.16 + B+ Pro palette).** `apps/citizen-pwa/app/globals.css` imports platform tokens; body and headings use **DM Sans** via `var(--tenant-font-family)` / `var(--platform-heading-font)` with **Noto** fallbacks. Hub/workspace use `CitizenPwaHeader` / `CitizenPwaFooter` (preview: [`docs/design-previews/citizen-pwa-shell-preview.html`](./design-previews/citizen-pwa-shell-preview.html)). Buttons use `@enagar/ui` **font-medium** labels with optional **16px icon + label**. Auth/hub use **warm white canvas** + white cards; **burnt orange** primary and **forest/sage** secondary accents. Grievance list/detail surfaces use semantic chips:
 
 | Field    | Values (examples)              | Chip tone                       |
 | -------- | ------------------------------ | ------------------------------- |

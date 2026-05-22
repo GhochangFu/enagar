@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Icon } from '@enagar/ui';
+import { Button, Icon, OperatorAppFooter, OperatorSidebarBrand } from '@enagar/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
@@ -43,26 +43,30 @@ export function TenantAdminShell({ children }: { children: ReactNode }): JSX.Ele
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
-        <div className="flex items-center gap-3 border-b border-warm-border px-4 py-4">
+        <div className="border-b border-warm-border px-3 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <OperatorSidebarBrand
+              collapsed={collapsed}
+              portalLabel="Tenant Admin"
+              subtitle="ULB operator console"
+            />
+            <button
+              type="button"
+              className="hidden shrink-0 rounded-lg border border-warm-border p-2 text-ink-secondary hover:bg-mint-band lg:inline-flex"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              <Icon name="chevron-right" size={16} className={collapsed ? '' : 'rotate-180'} />
+            </button>
+          </div>
           {!collapsed ? (
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-forest">Operator</p>
-              <p className="truncate font-mono text-sm font-semibold text-ink-primary">
-                {tenantCode ?? (loadingMe ? '…' : 'Tenant')}
-              </p>
-            </div>
+            <p className="mt-2 truncate rounded-xl bg-mint-band px-2.5 py-1.5 font-mono text-xs font-medium text-forest">
+              {tenantCode ?? (loadingMe ? '…' : 'Tenant')}
+            </p>
           ) : null}
-          <button
-            type="button"
-            className="hidden rounded-lg border border-warm-border p-2 text-ink-secondary hover:bg-mint-band lg:inline-flex"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            <Icon name="chevron-right" size={16} className={collapsed ? '' : 'rotate-180'} />
-          </button>
         </div>
 
-        <nav className="flex-1 space-y-1 p-3" aria-label="Tenant admin">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Tenant admin">
           {navItems.map((item) => {
             const active = item.match(pathname);
             const baseClass =
@@ -107,32 +111,40 @@ export function TenantAdminShell({ children }: { children: ReactNode }): JSX.Ele
 
         <div className="space-y-2 border-t border-warm-border p-3">
           <Button
+            icon="refresh"
             variant="secondary"
             size="sm"
             className="w-full justify-center"
             onClick={() => void refreshMe()}
           >
-            {!collapsed ? 'Refresh session' : '↻'}
+            {!collapsed ? 'Refresh session' : null}
           </Button>
           <Button
+            icon="log-out"
             variant="ghost"
             size="sm"
             className="w-full justify-center text-ink-secondary"
             onClick={logout}
           >
-            {!collapsed ? 'Sign out' : 'Out'}
+            {!collapsed ? 'Sign out' : null}
           </Button>
         </div>
+        {!collapsed ? <OperatorAppFooter compact /> : null}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-3 border-b border-warm-border bg-surface px-4 py-3 lg:hidden">
-          <Button variant="secondary" size="sm" onClick={() => setMobileOpen(true)}>
+          <Button icon="grid" variant="secondary" size="sm" onClick={() => setMobileOpen(true)}>
             Menu
           </Button>
-          <p className="truncate font-mono text-sm text-ink-primary">{tenantCode ?? 'Desk'}</p>
+          <p className="truncate font-mono text-sm font-medium text-ink-primary">
+            {tenantCode ?? 'Desk'}
+          </p>
         </div>
-        <main className="flex-1 overflow-x-auto px-4 py-8 md:px-8">{children}</main>
+        <main className="flex flex-1 flex-col overflow-x-auto">
+          <div className="flex-1 px-4 py-6 md:px-8 md:py-6">{children}</div>
+          <OperatorAppFooter />
+        </main>
       </div>
     </div>
   );

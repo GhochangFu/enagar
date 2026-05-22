@@ -24,7 +24,7 @@ export function RecordListPanel({
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
         {onNew ? (
-          <Button type="button" size="sm" variant="secondary" onClick={onNew}>
+          <Button icon="file-plus" type="button" size="sm" variant="secondary" onClick={onNew}>
             {newLabel}
           </Button>
         ) : null}

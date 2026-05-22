@@ -158,11 +158,14 @@ Only if you seeded Keycloak dummy operators (**Step 7**) and want the ULB admin 
 pnpm --filter @enagar/admin-tenant dev
 ```
 
-- Tenant Admin: **`http://localhost:3002`**
+- Tenant Admin: **`http://localhost:3002`** — open **`/login`** if you are not signed in (do not rely on `/dashboard` alone).
 - Env template: **`apps/admin-tenant/.env.example`** → **`.env.local`**
 - Exit checklists/plans: **`docs/runbooks/master-sprint-61-exit.md`** … **`docs/runbooks/master-sprint-612-exit.md`**, **`docs/runbooks/master-sprint-613-exit.md`** (Operator Desk — closed **2026-05-18**)
+- **Typography / operator chrome (2026-05):** **DM Sans**, icon+label buttons, sidebar shell + Euphoria footer — see **`docs/runbooks/typography-dm-sans-ux-plan.md`** and preview **`docs/design-previews/citizen-pwa-shell-preview.html`**.
 
 Sign-in uses Keycloak (**not** dev OTP). Prefer a dummy **`municipality_admin`** user for smoke tests if **`tenant_admin`** MFA is not enrolled yet — see **`docs/runbooks/keycloak.md`**.
+
+**Stuck on “Checking session…”?** Ensure **`pnpm --filter @enagar/api dev`** is running on port **3001**, complete Keycloak sign-in, then refresh. If the dev server shows missing `/_next/static` chunks, stop it, delete **`apps/admin-tenant/.next`**, and restart **`pnpm --filter @enagar/admin-tenant dev`**.
 
 **Sprint 6.13 (closed):** clerks (`kmc-tenant-clerk-dummy`, `kmc-municipality-clerk-dummy`) sign in to the **same** Tenant Admin URL and use **Desk** (`/dashboard/desk`) for application and grievance processing. Municipality admins use Desk plus Dashboard/Masters/Operations. Manual smoke checklist: **`docs/runbooks/master-sprint-613-exit.md`** § Manual smoke.
 
@@ -182,8 +185,9 @@ Only if you seeded Keycloak dummy operators and need the state-level Phase 6 UI:
 pnpm --filter @enagar/admin-state dev
 ```
 
-- State Admin: **`http://localhost:3003`** (Sprint **6.19** — teal platform theme, executive dashboard chrome)
+- State Admin: **`http://localhost:3003`** (sidebar shell, **DM Sans**, operator footer — aligned with Tenant Admin chrome; plan **`docs/runbooks/typography-dm-sans-ux-plan.md`**)
 - Env template: **`apps/admin-state/.env.example`** → **`.env.local`**
+- API on port **3001** must be running before dashboard data loads.
 - Exit checklists/plans: **`docs/runbooks/master-sprint-65-exit.md`**, **`docs/runbooks/master-sprint-66-exit.md`**, **`docs/runbooks/master-sprint-69-exit.md`**, **`docs/runbooks/master-sprint-610-exit.md`**, **`docs/runbooks/master-sprint-612-exit.md`**
 - Sprint 6.9 smoke: filter audit logs, export audit CSV, and click a tenant row for the detail drill-down panel.
 - Sprint 6.10 smoke covers analytics v2 date ranges/deltas and public transparency aggregate outputs.

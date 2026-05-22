@@ -2,6 +2,8 @@
 
 import { Badge, Button, Card, Icon, type IconName } from '@enagar/ui';
 
+import { serviceCategoryIcon } from '../lib/service-icons';
+
 import type { PaymentApiResponse, ServiceSummary, PwaLocaleCode } from '../lib/workspace-types';
 import type { JSX, ReactNode } from 'react';
 
@@ -62,10 +64,10 @@ export function WorkspaceHeader({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={onBackToHub} variant="secondary">
+            <Button icon="home" onClick={onBackToHub} size="sm" variant="secondary">
               Back to hub
             </Button>
-            <Button onClick={onRefresh} variant="ghost">
+            <Button icon="refresh" onClick={onRefresh} size="sm" variant="ghost">
               Refresh
             </Button>
           </div>
@@ -116,7 +118,7 @@ export function WorkspaceNavigation<T extends string>({
           return (
             <button
               aria-current={active ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
                 active
                   ? 'bg-brand text-brand-fg shadow-sm'
                   : 'text-ink-secondary hover:bg-brand-muted hover:text-brand'
@@ -186,14 +188,24 @@ export function WorkspaceServiceCard({
   onApply: (service: ServiceSummary) => void;
   service: ServiceSummary;
 }): JSX.Element {
+  const categoryIcon = serviceCategoryIcon(service.category_code);
+
   return (
     <Card className="flex h-full flex-col bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <Badge tone="brand">{service.category_code}</Badge>
-          <h3 className="mt-3 text-xl font-black leading-tight text-ink-primary">
-            {service.name[language] ?? service.name.en}
-          </h3>
+        <div className="flex min-w-0 gap-3">
+          <div
+            aria-hidden
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-muted text-brand"
+          >
+            <Icon name={categoryIcon} size={20} />
+          </div>
+          <div className="min-w-0">
+            <Badge tone="brand">{service.category_code}</Badge>
+            <h3 className="mt-2 text-xl font-bold leading-tight text-ink-primary">
+              {service.name[language] ?? service.name.en}
+            </h3>
+          </div>
         </div>
         {service.popular ? <Badge tone="warning">Popular</Badge> : null}
       </div>
@@ -209,7 +221,7 @@ export function WorkspaceServiceCard({
         <WorkspaceInfo label="Docs" value={String(service.required_documents.length)} />
         <WorkspaceInfo label="DigiLocker" value={service.pushes_to_digilocker ? 'Yes' : 'No'} />
       </dl>
-      <Button className="mt-5 w-full" onClick={() => onApply(service)}>
+      <Button className="mt-5 w-full" icon="file-plus" onClick={() => onApply(service)}>
         Apply
       </Button>
     </Card>

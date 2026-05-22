@@ -17,6 +17,7 @@ import {
 import { DynamicFormFields } from '@enagar/forms/web';
 import { t } from '@enagar/i18n';
 import { applyPlatformTheme, applyTenantTheme } from '@enagar/tenant-theme';
+import { Button, Icon } from '@enagar/ui';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -39,6 +40,7 @@ import {
   PinnedMunicipalityCard,
   type HubNavItem,
 } from '../components/citizen-hub-components';
+import { CitizenPwaChrome } from '../components/citizen-site-shell';
 import {
   PaymentAttemptCard,
   ShortcutFilterBanner,
@@ -1324,15 +1326,10 @@ export default function HomePage(): JSX.Element {
     return true;
   }
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-10">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
-          {t('app.badge', language)}
-        </span>
-        <span className="text-sm text-slate-500">{status}</span>
-      </header>
+  const showSiteChrome = step === 'hub' || step === 'workspace';
 
+  const stepContent = (
+    <>
       {step === 'splash' && (
         <SplashStep language={language} onContinue={() => setStep('language')} status={status} />
       )}
@@ -1390,7 +1387,7 @@ export default function HomePage(): JSX.Element {
       )}
 
       {step === 'hub' && (
-        <section className="relative isolate -mx-2 space-y-6 overflow-hidden rounded-[2rem] border border-warm-border bg-canvas p-4 shadow-sm md:-mx-4 md:p-6">
+        <section className="relative isolate -mx-2 space-y-6 overflow-hidden rounded-[2rem] border border-warm-border bg-canvas p-4 pt-5 shadow-sm md:-mx-4 md:p-6 md:pt-6">
           <div
             aria-hidden
             className="absolute inset-x-4 top-0 h-1 rounded-full bg-peach-accent md:inset-x-6"
@@ -1406,13 +1403,14 @@ export default function HomePage(): JSX.Element {
                 municipality when you need another service, while your saved shortcuts stay ready.
               </p>
             </div>
-            <button
-              className="rounded-2xl border border-warm-border bg-surface px-4 py-2 text-sm font-semibold text-ink-primary"
+            <Button
+              icon="refresh"
               onClick={() => void refreshHubData()}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               Refresh hub
-            </button>
+            </Button>
           </div>
 
           {!hubDashboard && (
@@ -2020,17 +2018,25 @@ export default function HomePage(): JSX.Element {
 
           {hubTab === 'grievances' && (
             <section className="rounded-[2rem] border border-warm-border bg-white/95 p-6 shadow-sm">
-              <div className="mb-5 rounded-3xl border border-warm-border bg-surface p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">
-                  Grievance desk
-                </p>
-                <h3 className="mt-2 text-2xl font-black text-ink-primary">
-                  Track civic complaints across municipalities
-                </h3>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-secondary">
-                  Review current grievances, identify urgency by status and priority color, or
-                  choose a municipality before filing a new complaint.
-                </p>
+              <div className="mb-5 flex gap-3 rounded-3xl border border-warm-border bg-mint-band p-5">
+                <div
+                  aria-hidden
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-forest"
+                >
+                  <Icon name="megaphone" size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                    Grievance desk
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-ink-primary">
+                    Track civic complaints across municipalities
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-secondary">
+                    Review current grievances, identify urgency by status and priority color, or
+                    choose a municipality before filing a new complaint.
+                  </p>
+                </div>
               </div>
               <GrievancesWorkspace
                 apiBaseUrl={apiBaseUrl}
@@ -2355,20 +2361,37 @@ export default function HomePage(): JSX.Element {
           )}
         </section>
       )}
+    </>
+  );
+
+  if (showSiteChrome) {
+    return (
+      <>
+        <CitizenPwaChrome language={language} status={status}>
+          {stepContent}
+        </CitizenPwaChrome>
+        {token ? <PwaWebPushRegister token={token} /> : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {stepContent}
       {token ? <PwaWebPushRegister token={token} /> : null}
-    </main>
+    </>
   );
 }
 
 function citizenWorkspaceHubTabs(language: PwaLocaleCode): readonly HubNavItem<HubTab>[] {
   return [
     { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'shortcuts', label: 'Shortcuts', icon: 'check' },
-    { id: 'services', label: 'Services', icon: 'building' },
-    { id: 'apply', label: 'Apply', icon: 'chevron-right' },
+    { id: 'shortcuts', label: 'Shortcuts', icon: 'grid' },
+    { id: 'services', label: 'Services', icon: 'clipboard-list' },
+    { id: 'apply', label: 'Apply', icon: 'file-text' },
     { id: 'applications', label: 'Applications', icon: 'inbox' },
-    { id: 'payments', label: 'Payments', icon: 'check' },
-    { id: 'grievances', label: t('grievance.nav', language), icon: 'alert' },
+    { id: 'payments', label: 'Payments', icon: 'credit-card' },
+    { id: 'grievances', label: t('grievance.nav', language), icon: 'megaphone' },
   ];
 }
 
@@ -2377,10 +2400,10 @@ function municipalityWorkspaceTabs(
 ): readonly WorkspaceNavItem<WorkspaceTab>[] {
   return [
     { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'services', label: 'Services', icon: 'building' },
-    { id: 'apply', label: 'Apply', icon: 'chevron-right' },
+    { id: 'services', label: 'Services', icon: 'clipboard-list' },
+    { id: 'apply', label: 'Apply', icon: 'file-text' },
     { id: 'applications', label: 'Applications', icon: 'inbox' },
-    { id: 'payments', label: 'Payments', icon: 'check' },
-    { id: 'grievances', label: t('grievance.nav', language), icon: 'alert' },
+    { id: 'payments', label: 'Payments', icon: 'credit-card' },
+    { id: 'grievances', label: t('grievance.nav', language), icon: 'megaphone' },
   ];
 }

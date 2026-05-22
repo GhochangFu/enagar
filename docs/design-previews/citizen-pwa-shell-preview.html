@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eNagarSeba — PWA header &amp; footer preview (DM Sans)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --canvas: #faf7f4;
+        --surface: #fff;
+        --brand: #bf4a0a;
+        --brand-muted: #fff0e6;
+        --forest: #4a6b47;
+        --mint: #e8f0e7;
+        --border: #e8ddd6;
+        --ink: #2b211f;
+        --ink-2: #5c4a47;
+        --ink-3: #7a6561;
+        --peach: #ffcdaa;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'DM Sans', system-ui, sans-serif;
+        background: var(--canvas);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      .shell {
+        max-width: 72rem;
+        margin: 0 auto;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      /* —— Header —— */
+      .site-header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 1px 0 rgba(74, 107, 71, 0.08);
+      }
+      .site-header__accent {
+        height: 4px;
+        background: linear-gradient(90deg, var(--peach) 0%, var(--brand) 55%, var(--forest) 100%);
+      }
+      .site-header__inner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+      }
+      .brand-lockup {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+      }
+      .brand-mark {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 1rem;
+        background: var(--brand-muted);
+        color: var(--brand);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 1.125rem;
+        letter-spacing: -0.04em;
+        border: 1px solid rgba(191, 74, 10, 0.15);
+      }
+      .brand-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+      }
+      .brand-tagline {
+        margin: 0.2rem 0 0;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--forest);
+      }
+      .header-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .pill {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        background: var(--mint);
+        color: var(--forest);
+      }
+      .pill--lang {
+        background: var(--brand-muted);
+        color: var(--brand);
+      }
+      .status-chip {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--ink-3);
+        max-width: 14rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* —— Main mock —— */
+      .main {
+        flex: 1;
+        padding: 1.5rem;
+      }
+      .preview-note {
+        font-size: 0.75rem;
+        color: var(--ink-3);
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        border: 1px dashed var(--border);
+        border-radius: 1rem;
+      }
+      .hub-panel {
+        border: 1px solid var(--border);
+        border-radius: 2rem;
+        background: var(--canvas);
+        padding: 1.25rem;
+      }
+      .hub-panel h2 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .nav-mock {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.25rem;
+        margin-top: 1rem;
+        padding: 0.5rem;
+        background: #fff;
+        border-radius: 1.6rem;
+        border: 1px solid var(--border);
+      }
+      .nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.5rem 0.25rem;
+        border: none;
+        border-radius: 1rem;
+        background: transparent;
+        font-family: inherit;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: var(--ink-2);
+        cursor: default;
+      }
+      .nav-item.active {
+        background: var(--brand);
+        color: #fff;
+        font-weight: 500;
+      }
+      .nav-item svg {
+        width: 18px;
+        height: 18px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-top: 1.25rem;
+      }
+      .service-card {
+        background: #fff;
+        border-radius: 1.25rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border);
+      }
+      .service-card__head {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+      }
+      .service-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.75rem;
+        background: var(--brand-muted);
+        color: var(--brand);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .service-card h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 700;
+      }
+      .service-card p {
+        margin: 0.75rem 0 0;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: var(--ink-2);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 1rem;
+        background: var(--brand);
+        color: #fff;
+        font-family: inherit;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: default;
+      }
+      .btn svg {
+        width: 16px;
+        height: 16px;
+      }
+      .grievance-banner {
+        margin-top: 1rem;
+        padding: 1rem 1.25rem;
+        border-radius: 1.25rem;
+        background: var(--mint);
+        border: 1px solid var(--border);
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+      }
+      .grievance-banner h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 700;
+      }
+      .grievance-banner p {
+        margin: 0.35rem 0 0;
+        font-size: 0.8125rem;
+        color: var(--ink-2);
+      }
+      /* —— Footer —— */
+      .site-footer {
+        margin-top: auto;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+      }
+      .site-footer__forest {
+        height: 3px;
+        background: var(--forest);
+      }
+      .site-footer__grid {
+        display: grid;
+        gap: 1.5rem;
+        padding: 1.75rem 1.5rem 1rem;
+      }
+      @media (min-width: 640px) {
+        .site-footer__grid {
+          grid-template-columns: 1.4fr 1fr 1fr;
+        }
+      }
+      .footer-heading {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--forest);
+        margin: 0 0 0.5rem;
+      }
+      .footer-text {
+        margin: 0;
+        font-size: 0.8125rem;
+        line-height: 1.55;
+        color: var(--ink-2);
+        font-weight: 400;
+      }
+      .footer-links {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .footer-links a {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--brand);
+        text-decoration: none;
+        padding: 0.2rem 0;
+      }
+      .footer-bottom {
+        border-top: 1px solid var(--border);
+        padding: 1rem 1.5rem 1.25rem;
+        text-align: center;
+      }
+      .footer-bottom p {
+        margin: 0.25rem 0;
+        font-size: 0.75rem;
+        color: var(--ink-3);
+        font-weight: 400;
+      }
+      .footer-credit {
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header" aria-label="Site header preview">
+        <div class="site-header__accent" aria-hidden="true"></div>
+        <div class="site-header__inner">
+          <div class="brand-lockup">
+            <div class="brand-mark" aria-hidden="true">eN</div>
+            <div>
+              <h1 class="brand-title">eNagarSeba</h1>
+              <p class="brand-tagline">West Bengal municipal services — citizen portal</p>
+            </div>
+          </div>
+          <div class="header-meta">
+            <span class="pill">Citizen PWA</span>
+            <span class="pill pill--lang">EN</span>
+            <span class="status-chip">Ready — hub loaded</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main">
+        <p class="preview-note">
+          <strong>Preview only</strong> — Option 2 (DM Sans), lighter icon+label buttons, and chrome
+          below will be implemented in <code>citizen-site-shell.tsx</code> after you approve this
+          layout.
+        </p>
+
+        <section class="hub-panel" aria-label="Hub content mock">
+          <p
+            style="
+              margin: 0;
+              font-size: 0.75rem;
+              font-weight: 600;
+              text-transform: uppercase;
+              color: var(--forest);
+            "
+          >
+            Citizen hub
+          </p>
+          <h2>Track services across municipalities</h2>
+
+          <nav class="nav-mock" aria-label="Navigation mock">
+            <button type="button" class="nav-item active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 11.5 12 4l9 7.5" />
+                <path d="M5 10.5V20h14v-9.5" />
+              </svg>
+              Home
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+              Shortcuts
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+                />
+                <rect x="8" y="2" width="8" height="4" rx="1" />
+              </svg>
+              Services
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Apply
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+              Applications
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="1" y="4" width="22" height="16" rx="2" />
+                <line x1="1" y1="10" x2="23" y2="10" />
+              </svg>
+              Payments
+            </button>
+            <button type="button" class="nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m3 11 18-5v12L3 13v-2z" />
+                <path d="M11 13v8" />
+              </svg>
+              Grievances
+            </button>
+          </nav>
+
+          <div class="grievance-banner">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4a6b47"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path d="m3 11 18-5v12L3 13v-2z" />
+              <path d="M11 13v8" />
+            </svg>
+            <div>
+              <h3>Grievance desk</h3>
+              <p>Track civic complaints across municipalities — status and priority at a glance.</p>
+            </div>
+          </div>
+
+          <div class="cards">
+            <article class="service-card">
+              <div class="service-card__head">
+                <div class="service-icon" aria-hidden="true">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                </div>
+                <div>
+                  <span
+                    style="
+                      font-size: 0.65rem;
+                      font-weight: 600;
+                      text-transform: uppercase;
+                      color: var(--brand);
+                    "
+                    >certificates</span
+                  >
+                  <h3>Birth certificate</h3>
+                </div>
+              </div>
+              <p>Apply for a municipal birth certificate with document upload and SLA tracking.</p>
+              <button type="button" class="btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                Apply
+              </button>
+            </article>
+            <article class="service-card">
+              <div class="service-card__head">
+                <div class="service-icon" aria-hidden="true">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="1" y="4" width="22" height="16" rx="2" />
+                    <line x1="1" y1="10" x2="23" y2="10" />
+                  </svg>
+                </div>
+                <div>
+                  <span
+                    style="
+                      font-size: 0.65rem;
+                      font-weight: 600;
+                      text-transform: uppercase;
+                      color: var(--brand);
+                    "
+                    >tax-property</span
+                  >
+                  <h3>Property tax</h3>
+                </div>
+              </div>
+              <p>Pay or reconcile holding-linked property tax for your ward.</p>
+              <button type="button" class="btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                Apply
+              </button>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer" aria-label="Site footer preview">
+        <div class="site-footer__forest" aria-hidden="true"></div>
+        <div class="site-footer__grid">
+          <div>
+            <p class="footer-heading">Platform</p>
+            <p class="footer-text">
+              <strong>eNagarSeba</strong> connects citizens with Urban Local Bodies across West
+              Bengal — services, applications, payments, and grievances in one progressive web app.
+            </p>
+          </div>
+          <div>
+            <p class="footer-heading">Help</p>
+            <ul class="footer-links">
+              <li><a href="#">Citizen help centre</a></li>
+              <li><a href="#">Privacy &amp; data use</a></li>
+              <li><a href="#">Accessibility statement</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="footer-heading">Developed by</p>
+            <p class="footer-text">
+              Created by <strong>Euphoria Infotech India Limited</strong> for the Government of West
+              Bengal municipal digital programme.
+            </p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2026 Government of West Bengal · eNagarSeba Citizen PWA</p>
+          <p class="footer-credit">
+            Engineering &amp; experience design — Euphoria Infotech India Limited
+          </p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

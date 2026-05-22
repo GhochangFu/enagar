@@ -7,6 +7,7 @@ export function StateLoginActions(): JSX.Element {
     <>
       <Button
         className="mt-6 w-full"
+        icon="user"
         type="button"
         onClick={() => {
           window.location.assign('/api/admin-auth/start');
@@ -16,6 +17,7 @@ export function StateLoginActions(): JSX.Element {
       </Button>
       <Button
         className="mt-3 w-full"
+        icon="log-out"
         type="button"
         variant="secondary"
         onClick={() => {

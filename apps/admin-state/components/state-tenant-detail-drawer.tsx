@@ -97,10 +97,10 @@ export function StateTenantDetailDrawer({
             </Button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="secondary" onClick={onEdit}>
+            <Button icon="file-text" type="button" size="sm" variant="secondary" onClick={onEdit}>
               Edit in wizard
             </Button>
-            <Button type="button" size="sm" onClick={onImpersonate}>
+            <Button icon="user" type="button" size="sm" onClick={onImpersonate}>
               Impersonate
             </Button>
           </div>

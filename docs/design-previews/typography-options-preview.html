@@ -1,0 +1,1368 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eNagarSeba — typography options (Citizen · Tenant · State)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Nunito+Sans:ital,opsz,wght@0,6..12,400;0,6..12,600;0,6..12,700;1,6..12,400&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Sora:wght@500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: #f5f0eb;
+        color: #2b211f;
+        line-height: 1.45;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.85rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.35rem;
+      }
+      .sub {
+        color: #5c4a47;
+        margin: 0 0 1.25rem;
+        max-width: 62ch;
+        font-size: 0.95rem;
+      }
+      .toc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+      }
+      .toc a {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-decoration: none;
+        color: #7a3a12;
+        background: #fff;
+        border: 1px solid #e8ddd6;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+      }
+      .toc a:hover {
+        background: #fff8f4;
+      }
+      .current-box {
+        background: #fff;
+        border: 1px solid #e8ddd6;
+        border-radius: 14px;
+        padding: 1rem 1.2rem;
+        margin-bottom: 2rem;
+        font-size: 0.88rem;
+      }
+      .current-box code {
+        font-size: 0.8rem;
+        background: #faf7f4;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+      }
+      .option {
+        margin-bottom: 3rem;
+        scroll-margin-top: 1rem;
+      }
+      .option-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.5rem 1rem;
+        margin-bottom: 0.75rem;
+      }
+      .option-header h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .tag {
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+      }
+      .tag.baseline {
+        background: #e8f0e8;
+        color: #2d4a2a;
+      }
+      .tag.pick {
+        background: #bf4a0a;
+        color: #fff;
+      }
+      .tag.alt {
+        background: #fff3e8;
+        color: #7a3a12;
+      }
+      .meta {
+        font-size: 0.82rem;
+        color: #5c4a47;
+        margin: 0 0 1rem;
+        max-width: 70ch;
+      }
+      .meta strong {
+        color: #2b211f;
+      }
+      .triple {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.85rem;
+      }
+      @media (max-width: 900px) {
+        .triple {
+          grid-template-columns: 1fr;
+        }
+      }
+      .surface {
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(43, 33, 31, 0.1);
+        background: #faf7f4;
+      }
+      .surface-label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        padding: 0.45rem 0.75rem;
+        background: rgba(43, 33, 31, 0.06);
+        color: #7a6561;
+      }
+      .surface-body {
+        padding: 1rem 1.1rem 1.15rem;
+        background: #faf7f4;
+      }
+      .surface-body.admin {
+        background: #fff;
+      }
+      .surface-body.state {
+        background: linear-gradient(180deg, #e8f4ef 0%, #fff 42%);
+      }
+      .display {
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        margin: 0 0 0.35rem;
+        color: #2b211f;
+      }
+      .body-sample {
+        font-size: 0.9rem;
+        color: #5c4a47;
+        margin: 0 0 0.85rem;
+        line-height: 1.55;
+      }
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+      .btn-primary,
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        padding: 0.5rem 0.9rem;
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 0.8125rem;
+        letter-spacing: 0.02em;
+        line-height: 1.2;
+        cursor: default;
+        font-family: inherit;
+      }
+      .btn-primary {
+        border: none;
+        background: #bf4a0a;
+        color: #fff;
+      }
+      .btn-secondary {
+        border: 1px solid #e8ddd6;
+        background: #fff;
+        color: #2b211f;
+      }
+      .btn-icon {
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .btn-label {
+        font-weight: 500;
+      }
+      [class*='opt-'] .btn-primary,
+      [class*='opt-'] .btn-secondary {
+        font-family: var(--body);
+        font-weight: 500;
+      }
+      .kpi {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+        padding: 0.55rem;
+        border-radius: 10px;
+        background: #e8f0e7;
+        margin-bottom: 0.65rem;
+      }
+      .kpi div {
+        text-align: center;
+        font-size: 0.68rem;
+        color: #4a6b47;
+      }
+      .kpi strong {
+        display: block;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #2b211f;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 0.75rem 0.85rem 0.75rem 1rem;
+        border: 1px solid #e8ddd6;
+        position: relative;
+        font-size: 0.8rem;
+      }
+      .card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        border-radius: 12px 0 0 12px;
+        background: #9cb898;
+      }
+      .card strong {
+        display: block;
+        font-size: 0.85rem;
+        margin-bottom: 0.15rem;
+      }
+      .desk-title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem;
+        color: #2b211f;
+      }
+      .desk-sub {
+        font-size: 0.75rem;
+        color: #5c4a47;
+        margin: 0 0 0.65rem;
+      }
+      .table-mock {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.72rem;
+      }
+      .table-mock th {
+        text-align: left;
+        font-weight: 700;
+        color: #5c4a47;
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid #e8ddd6;
+      }
+      .table-mock td {
+        padding: 0.4rem;
+        border-bottom: 1px solid #f5f0eb;
+        font-variant-numeric: tabular-nums;
+      }
+      .state-hero {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f4c75;
+        margin: 0 0 0.2rem;
+      }
+      .state-kpi {
+        font-size: 0.72rem;
+        color: #5c4a47;
+      }
+      .scripts {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed rgba(43, 33, 31, 0.15);
+      }
+      @media (max-width: 640px) {
+        .scripts {
+          grid-template-columns: 1fr;
+        }
+      }
+      .script-cell {
+        background: #fff;
+        border-radius: 10px;
+        padding: 0.55rem 0.65rem;
+        border: 1px solid #e8ddd6;
+      }
+      .script-cell span {
+        display: block;
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #7a6561;
+        margin-bottom: 0.25rem;
+      }
+      .script-cell p {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+      .compare-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        background: #fff;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #e8ddd6;
+        margin-bottom: 2.5rem;
+      }
+      .compare-table th,
+      .compare-table td {
+        padding: 0.55rem 0.65rem;
+        text-align: left;
+        border-bottom: 1px solid #f5f0eb;
+      }
+      .compare-table th {
+        background: #faf7f4;
+        font-weight: 700;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #7a6561;
+      }
+      .howto {
+        font-size: 0.85rem;
+        color: #5c4a47;
+        background: #fff8f4;
+        border: 1px solid #ffd4b8;
+        border-radius: 12px;
+        padding: 1rem 1.15rem;
+        margin-top: 2rem;
+      }
+      .howto code {
+        font-size: 0.8rem;
+        background: #fff;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+      }
+
+      /* ——— Per-option font scopes ——— */
+      .opt-baseline {
+        --heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+        --body: 'Plus Jakarta Sans', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-baseline .display,
+      .opt-baseline .option-header h2,
+      .opt-baseline .kpi strong,
+      .opt-baseline .card strong,
+      .opt-baseline .desk-title,
+      .opt-baseline .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-baseline .body-sample,
+      .opt-baseline .table-mock,
+      .opt-baseline .desk-sub,
+      .opt-baseline .state-kpi,
+      .opt-baseline .kpi div {
+        font-family: var(--body);
+      }
+      .opt-baseline .script-en {
+        font-family: var(--body);
+      }
+      .opt-baseline .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-baseline .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-civic {
+        --heading: 'Source Serif 4', Georgia, serif;
+        --body: 'Source Sans 3', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-civic .display,
+      .opt-civic .option-header h2,
+      .opt-civic .kpi strong,
+      .opt-civic .card strong,
+      .opt-civic .desk-title,
+      .opt-civic .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-civic .body-sample,
+      .opt-civic .table-mock,
+      .opt-civic .desk-sub,
+      .opt-civic .state-kpi,
+      .opt-civic .kpi div {
+        font-family: var(--body);
+      }
+      .opt-civic .script-en {
+        font-family: var(--body);
+      }
+      .opt-civic .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-civic .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-govtech {
+        --heading: 'DM Sans', system-ui, sans-serif;
+        --body: 'DM Sans', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-govtech .display,
+      .opt-govtech .option-header h2,
+      .opt-govtech .kpi strong,
+      .opt-govtech .card strong,
+      .opt-govtech .desk-title,
+      .opt-govtech .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-govtech .body-sample,
+      .opt-govtech .table-mock,
+      .opt-govtech .desk-sub,
+      .opt-govtech .state-kpi,
+      .opt-govtech .kpi div {
+        font-family: var(--body);
+      }
+      .opt-govtech .script-en {
+        font-family: var(--body);
+      }
+      .opt-govtech .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-govtech .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-warm {
+        --heading: 'Outfit', system-ui, sans-serif;
+        --body: 'Nunito Sans', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-warm .display,
+      .opt-warm .option-header h2,
+      .opt-warm .kpi strong,
+      .opt-warm .card strong,
+      .opt-warm .desk-title,
+      .opt-warm .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-warm .body-sample,
+      .opt-warm .table-mock,
+      .opt-warm .desk-sub,
+      .opt-warm .state-kpi,
+      .opt-warm .kpi div {
+        font-family: var(--body);
+      }
+      .opt-warm .script-en {
+        font-family: var(--body);
+      }
+      .opt-warm .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-warm .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-plex {
+        --heading: 'IBM Plex Sans', system-ui, sans-serif;
+        --body: 'IBM Plex Sans', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'IBM Plex Sans Devanagari', 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-plex .display,
+      .opt-plex .option-header h2,
+      .opt-plex .kpi strong,
+      .opt-plex .card strong,
+      .opt-plex .desk-title,
+      .opt-plex .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-plex .body-sample,
+      .opt-plex .table-mock,
+      .opt-plex .desk-sub,
+      .opt-plex .state-kpi,
+      .opt-plex .kpi div {
+        font-family: var(--body);
+      }
+      .opt-plex .script-en {
+        font-family: var(--body);
+      }
+      .opt-plex .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-plex .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-modern {
+        --heading: 'Sora', system-ui, sans-serif;
+        --body: 'Manrope', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-modern .display,
+      .opt-modern .option-header h2,
+      .opt-modern .kpi strong,
+      .opt-modern .card strong,
+      .opt-modern .desk-title,
+      .opt-modern .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-modern .body-sample,
+      .opt-modern .table-mock,
+      .opt-modern .desk-sub,
+      .opt-modern .state-kpi,
+      .opt-modern .kpi div {
+        font-family: var(--body);
+      }
+      .opt-modern .script-en {
+        font-family: var(--body);
+      }
+      .opt-modern .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-modern .script-hi {
+        font-family: var(--hi);
+      }
+
+      .opt-editorial {
+        --heading: 'Fraunces', Georgia, serif;
+        --body: 'Public Sans', system-ui, sans-serif;
+        --bn: 'Noto Sans Bengali', sans-serif;
+        --hi: 'Noto Sans Devanagari', sans-serif;
+      }
+      .opt-editorial .display,
+      .opt-editorial .option-header h2,
+      .opt-editorial .kpi strong,
+      .opt-editorial .card strong,
+      .opt-editorial .desk-title,
+      .opt-editorial .state-hero {
+        font-family: var(--heading);
+      }
+      .opt-editorial .body-sample,
+      .opt-editorial .table-mock,
+      .opt-editorial .desk-sub,
+      .opt-editorial .state-kpi,
+      .opt-editorial .kpi div {
+        font-family: var(--body);
+      }
+      .opt-editorial .script-en {
+        font-family: var(--body);
+      }
+      .opt-editorial .script-bn {
+        font-family: var(--bn);
+      }
+      .opt-editorial .script-hi {
+        font-family: var(--hi);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Typography options — eNagarSeba</h1>
+      <p class="sub">
+        Compare font pairings on the same Warm Coral (Tricolor Calm) tokens used in Citizen PWA
+        (:3000), Tenant Admin (:3002), and State Admin (:3003). Bengali and Hindi always use
+        dedicated Noto (or Plex Devanagari) — only Latin display/body pairs change. Buttons use the
+        <strong>body</strong> stack at <strong>500</strong> weight with Lucide-style icon + label
+        (not heading weight).
+      </p>
+
+      <nav class="toc" aria-label="Jump to option">
+        <a href="#baseline">0 · Current</a>
+        <a href="#civic">1 · Civic serif</a>
+        <a href="#govtech">2 · GovTech sans</a>
+        <a href="#warm">3 · Warm rounded</a>
+        <a href="#plex">4 · IBM Plex</a>
+        <a href="#modern">5 · Manrope + Sora</a>
+        <a href="#editorial">6 · Public + Fraunces</a>
+      </nav>
+
+      <div class="current-box">
+        <strong>Today in repo</strong> (<code>tricolor-calm.css</code> +
+        <code>citizen-pwa/globals.css</code>):<br />
+        Body / tenant: <code>--tenant-font-family: Plus Jakarta Sans</code> · Headings (PWA only):
+        <code>Plus Jakarta Sans</code> · bn: <code>Noto Sans Bengali</code> · hi:
+        <code>Noto Sans Devanagari</code> · Admin portals: single stack via
+        <code>var(--tenant-font-family)</code> (no separate heading font).
+      </div>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Display / headings</th>
+            <th>Body / UI</th>
+            <th>Best for</th>
+            <th>Trade-off</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>0 · Current</strong></td>
+            <td>Plus Jakarta Sans</td>
+            <td>Plus Jakarta Sans</td>
+            <td>Already shipped; matches palette preview</td>
+            <td>Common in SaaS; less “government” gravitas on State</td>
+          </tr>
+          <tr>
+            <td><strong>1 · Civic serif</strong></td>
+            <td>Source Serif 4</td>
+            <td>Source Sans 3</td>
+            <td>Trust, notices, formal services copy</td>
+            <td>Serif headings need careful button/label weight</td>
+          </tr>
+          <tr>
+            <td><strong>2 · GovTech sans</strong></td>
+            <td>DM Sans (700)</td>
+            <td>DM Sans (400–500)</td>
+            <td>One family, clean desk tables & forms</td>
+            <td>Less personality on citizen marketing moments</td>
+          </tr>
+          <tr>
+            <td><strong>3 · Warm rounded</strong></td>
+            <td>Outfit</td>
+            <td>Nunito Sans</td>
+            <td>Citizen empathy, low-literacy friendly</td>
+            <td>Can feel “app-like” vs institutional on State</td>
+          </tr>
+          <tr>
+            <td><strong>4 · IBM Plex</strong></td>
+            <td>IBM Plex Sans</td>
+            <td>IBM Plex Sans</td>
+            <td>Enterprise/gov standard; excellent UI clarity</td>
+            <td>Neutral; Hindi can use Plex Devanagari for harmony</td>
+          </tr>
+          <tr>
+            <td><strong>5 · Manrope + Sora</strong></td>
+            <td>Sora</td>
+            <td>Manrope</td>
+            <td>Distinct modern India govtech brand</td>
+            <td>Most departure from current; test bn/hi line heights</td>
+          </tr>
+          <tr>
+            <td><strong>6 · Public + Fraunces</strong></td>
+            <td>Fraunces</td>
+            <td>Public Sans</td>
+            <td>State dashboard presence; USWDS-adjacent</td>
+            <td>Serif only on State/Citizen heroes — tune admin density</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Reusable mock block template duplicated per option via classes -->
+
+      <section class="option opt-baseline" id="baseline">
+        <div class="option-header">
+          <h2>0 · Current baseline</h2>
+          <span class="tag baseline">In production</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> Plus Jakarta Sans (headings + body) · Noto bn/hi unchanged. Same
+          as <a href="citizen-pwa-palette-preview.html">palette preview</a>.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-civic" id="civic">
+        <div class="option-header">
+          <h2>1 · Civic clarity (serif + sans)</h2>
+          <span class="tag alt">Option</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> Source Serif 4 · Source Sans 3 · Noto bn/hi. Feels like a
+          government notice board — strong for long-form service descriptions.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong> Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-govtech" id="govtech">
+        <div class="option-header">
+          <h2>2 · GovTech modern (DM Sans)</h2>
+          <span class="tag pick">Recommended for ops</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> DM Sans only (weight 700/800 titles, 400–500 body). Single stack
+          simplifies Tenant + State; very readable in dense tables.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-warm" id="warm">
+        <div class="option-header">
+          <h2>3 · Warm citizen (Outfit + Nunito Sans)</h2>
+          <span class="tag alt">Option</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> Outfit headings · Nunito Sans body. Softer, approachable —
+          aligns with B+ Pro “warm” palette; good for OTP onboarding and hub CTAs.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-plex" id="plex">
+        <div class="option-header">
+          <h2>4 · IBM Plex (institutional)</h2>
+          <span class="tag alt">Option</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> IBM Plex Sans · Plex Sans Devanagari for hi (optional) · Noto
+          Bengali. Used by many public-sector design systems; neutral and highly legible at 14px.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-modern" id="modern">
+        <div class="option-header">
+          <h2>5 · Distinct govtech (Sora + Manrope)</h2>
+          <span class="tag alt">Option</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> Sora display · Manrope UI. More brand-forward; geometric
+          headlines with humanist body — test on small Android screens.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="option opt-editorial" id="editorial">
+        <div class="option-header">
+          <h2>6 · Editorial state (Fraunces + Public Sans)</h2>
+          <span class="tag pick">Recommended for State</span>
+        </div>
+        <p class="meta">
+          <strong>Pairing:</strong> Fraunces headings · Public Sans body (similar spirit to Public
+          Sans / government web guidelines). Strong State hero; use sans-only in dense desk grids if
+          serif feels heavy.
+        </p>
+        <div class="triple">
+          <div class="surface">
+            <div class="surface-label">Citizen PWA · hub</div>
+            <div class="surface-body">
+              <p class="display">Your municipal services</p>
+              <p class="body-sample">
+                File applications, pay fees, and track grievances across pinned ULBs — one hub for
+                West Bengal citizens.
+              </p>
+              <div class="kpi">
+                <div><strong>12</strong>Applications</div>
+                <div><strong>3</strong>Grievances</div>
+                <div><strong>76</strong>Services</div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 11v6" />
+                    <path d="M9 14h6" />
+                  </svg>
+                  <span class="btn-label">Apply for service</span>
+                </button>
+                <button type="button" class="btn-secondary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+                    <path d="M12 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  <span class="btn-label">File grievance</span>
+                </button>
+              </div>
+              <div class="card">
+                <strong>Birth certificate · KMC</strong>
+                Submitted · Pending verification
+              </div>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">Tenant Admin · desk</div>
+            <div class="surface-body admin">
+              <p class="desk-title">Application inbox</p>
+              <p class="desk-sub">Queue: My role · KMC</p>
+              <table class="table-mock">
+                <thead>
+                  <tr>
+                    <th>Docket</th>
+                    <th>Service</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>WBM/KMC/birth-cert/2026/00006</td>
+                    <td>Birth certificate</td>
+                    <td>Document verification</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface">
+            <div class="surface-label">State Admin · dashboard</div>
+            <div class="surface-body state">
+              <p class="state-hero">West Bengal — tenant directory</p>
+              <p class="state-kpi">8 active ULBs · Audit log · Impersonation (audited)</p>
+            </div>
+          </div>
+        </div>
+        <div class="scripts">
+          <div class="script-cell script-en">
+            <span>English</span>
+            <p>Pay property tax online before 31 March.</p>
+          </div>
+          <div class="script-cell script-bn">
+            <span>বাংলা</span>
+            <p>অনলাইনে সম্পত্তি কর পরিশোধ করুন।</p>
+          </div>
+          <div class="script-cell script-hi">
+            <span>हिन्दी</span>
+            <p>संपत्ति कर ऑनलाइन जमा करें।</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="howto">
+        <strong>How to view</strong> — from repo root:
+        <code>npx serve docs/design-previews -p 8788</code>
+        then open
+        <code>http://localhost:8788/typography-options-preview.html</code>
+        (or double-click the file). Compare at 100% zoom and on a phone width (~390px).<br /><br />
+        <strong>Button spec in this preview:</strong> 13px / weight 500 / 0.02em letter-spacing ·
+        16px icon · 6px gap · primary filled + secondary outline (matches target for
+        <code>@enagar/ui</code> Button refresh).<br /><br />
+        <strong>Implementation note:</strong> One shared Latin pairing should live in
+        <code>packages/config/styles/tricolor-calm.css</code> (<code>--tenant-font-family</code> +
+        new <code>--platform-heading-font</code>). Citizen PWA already splits heading vs body in
+        <code>globals.css</code>; Tenant/State can adopt the same split in a UX sprint.
+      </div>
+    </div>
+  </body>
+</html>

@@ -19,7 +19,7 @@ function isConfigurePath(pathname: string): boolean {
 
 export function ConfigureRouteGuard({ children }: { children: ReactNode }): JSX.Element {
   const pathname = usePathname();
-  const { me, loadingMe } = useTenantAdminSession();
+  const { me, loadingMe, meError } = useTenantAdminSession();
 
   if (!isConfigurePath(pathname)) {
     return <>{children}</>;
@@ -27,8 +27,11 @@ export function ConfigureRouteGuard({ children }: { children: ReactNode }): JSX.
 
   if (loadingMe || !me) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center px-6">
-        <p className="text-sm text-ink-secondary">Checking access…</p>
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 px-6 text-center">
+        <p className="text-sm font-medium text-ink-primary">
+          {loadingMe ? 'Loading operator profile…' : 'Operator profile unavailable'}
+        </p>
+        {meError ? <p className="max-w-md text-xs text-ink-muted">{meError}</p> : null}
       </div>
     );
   }

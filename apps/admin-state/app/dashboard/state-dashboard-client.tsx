@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, PageHeader } from '@enagar/ui';
+import { Button, OperatorAppFooter, PageHeader } from '@enagar/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -22,6 +22,7 @@ import {
   STATE_OAUTH_STORAGE_KEY,
   type StateOAuthBundle,
 } from '../../lib/oauth/session-storage-keys';
+import { type StateAdminTabId } from '../../lib/state-admin-nav';
 import {
   EMPTY_INTEGRATION_DRAFT,
   EMPTY_LIBRARY_DRAFT,
@@ -103,22 +104,7 @@ type AuditCoverage = {
   missing_actions: string[];
 };
 
-type DashboardTab =
-  | 'overview'
-  | 'tenants'
-  | 'library'
-  | 'grievanceLibrary'
-  | 'integrations'
-  | 'security';
-
-const TABS: Array<{ id: DashboardTab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'tenants', label: 'Municipalities' },
-  { id: 'library', label: 'Service library' },
-  { id: 'grievanceLibrary', label: 'Grievance library' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'security', label: 'Audit & access' },
-];
+type DashboardTab = StateAdminTabId;
 
 async function readApiError(response: Response): Promise<string> {
   const text = await response.text();
@@ -501,7 +487,11 @@ export function StateDashboardClient(): JSX.Element {
   }
 
   return (
-    <StateAdminShell onRefresh={() => void refresh()}>
+    <StateAdminShell
+      activeTab={activeTab}
+      onRefresh={() => void refresh()}
+      onSelectTab={setActiveTab}
+    >
       <StateDashboardTheme />
       {drawerTenant ? (
         <StateTenantDetailDrawer
@@ -520,7 +510,7 @@ export function StateDashboardClient(): JSX.Element {
         />
       ) : null}
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-6">
         <PageHeader
           tenantBar
           eyebrow="West Bengal · State operations"
@@ -528,23 +518,9 @@ export function StateDashboardClient(): JSX.Element {
           subtitle="Statewide KPIs, municipality onboarding, global service templates, and audited cross-tenant controls."
         />
 
-        <p className="rounded-2xl border border-cyan-200/60 bg-cyan-50/50 px-4 py-3 text-sm text-ink-secondary shadow-sm">
+        <p className="rounded-2xl border border-warm-border bg-brand-muted/40 px-4 py-3 text-sm font-medium text-ink-secondary shadow-sm">
           {status}
         </p>
-
-        <nav className="flex flex-wrap gap-2" aria-label="Dashboard sections">
-          {TABS.map((tab) => (
-            <Button
-              key={tab.id}
-              type="button"
-              size="sm"
-              variant={activeTab === tab.id ? 'primary' : 'secondary'}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </nav>
 
         {activeTab === 'overview' ? (
           <div className="space-y-6">
@@ -634,7 +610,7 @@ export function StateDashboardClient(): JSX.Element {
                     onChange={(event) => setImpersonationReason(event.target.value)}
                   />
                 </label>
-                <Button type="button" onClick={() => void impersonate()}>
+                <Button icon="user" type="button" onClick={() => void impersonate()}>
                   Create 15-minute token
                 </Button>
               </div>
@@ -649,6 +625,7 @@ export function StateDashboardClient(): JSX.Element {
                   </p>
                 </div>
                 <Button
+                  icon="receipt"
                   type="button"
                   size="sm"
                   variant="secondary"
@@ -723,6 +700,7 @@ export function StateDashboardClient(): JSX.Element {
             </article>
           </section>
         ) : null}
+        <OperatorAppFooter />
       </main>
     </StateAdminShell>
   );

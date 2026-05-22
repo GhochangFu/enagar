@@ -15,3 +15,10 @@ body {
   font-family: var(--tenant-font-family);
   -webkit-font-smoothing: antialiased;
 }
+
+h1,
+h2,
+h3 {
+  font-family: var(--platform-heading-font, var(--tenant-font-family)), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}

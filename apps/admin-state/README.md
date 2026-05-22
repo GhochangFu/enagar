@@ -30,7 +30,9 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 ## Phase UX — Sprint 6.19 (closed)
 
 - Platform **teal** accent via `applyStateAdminTheme()` (`#0E7490`) — distinct from tenant Warm Coral.
-- Login, `StateAdminShell`, dashboard guided forms, KPI strip, tenant drawer.
+- Login, **`StateAdminShell`** (sidebar + icon nav, shared **`OperatorAppFooter`**), dashboard guided forms, KPI strip, tenant drawer.
+- Typography: **DM Sans** across operator surfaces; icon+label **`@enagar/ui`** buttons on primary actions.
+- Plan / previews: **`docs/runbooks/typography-dm-sans-ux-plan.md`**, **`docs/design-previews/citizen-pwa-shell-preview.html`** (citizen chrome reference).
 - Exit: `docs/runbooks/master-sprint-619-exit.md`
 - **Next programme gate:** Citizen mobile PWA parity — `docs/runbooks/master-sprint-620-plan.md`
 

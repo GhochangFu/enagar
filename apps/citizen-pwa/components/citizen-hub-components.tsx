@@ -42,7 +42,7 @@ export function CitizenHubNavigation<T extends string>({
           return (
             <button
               aria-current={active ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
                 active
                   ? 'bg-brand text-brand-fg shadow-sm'
                   : 'text-ink-secondary hover:bg-brand-muted hover:text-brand'

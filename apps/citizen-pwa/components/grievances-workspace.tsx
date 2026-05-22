@@ -10,6 +10,7 @@ import {
   type GrievanceCatalogueResponse,
 } from '@enagar/grievance-catalogue';
 import { t, type Locale } from '@enagar/i18n';
+import { Button } from '@enagar/ui';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -921,9 +922,9 @@ export function GrievancesWorkspace({
               value={registerName}
             />
           </label>
-          <button className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white" type="submit">
+          <Button className="w-full" icon="user" type="submit">
             {t('grievance.registerCta', language)}
-          </button>
+          </Button>
         </form>
       </section>
     );
@@ -1258,15 +1259,17 @@ export function GrievancesWorkspace({
             ) : null}
           </fieldset>
 
-          <button
-            className="w-full rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:opacity-60"
-            type="submit"
+          <Button
+            className="w-full"
             disabled={submittingGrievance}
+            icon="megaphone"
+            loading={submittingGrievance}
+            type="submit"
           >
             {submittingGrievance
               ? t('grievance.submitting', language)
               : t('grievance.submit', language)}
-          </button>
+          </Button>
         </form>
       </section>
     );
@@ -1534,20 +1537,12 @@ export function GrievancesWorkspace({
           <p className="mt-1 max-w-2xl text-sm text-slate-600">{t('grievance.intro', language)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800"
-            onClick={() => void reloadList()}
-            type="button"
-          >
+          <Button onClick={() => void reloadList()} size="sm" variant="secondary">
             {loadingList ? '…' : t('grievance.refresh', language)}
-          </button>
-          <button
-            className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-            onClick={beginFileNewFlow}
-            type="button"
-          >
+          </Button>
+          <Button icon="megaphone" onClick={beginFileNewFlow} size="sm">
             {t('grievance.fileNew', language)}
-          </button>
+          </Button>
         </div>
       </div>
 

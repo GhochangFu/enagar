@@ -9,9 +9,9 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        bn: ['"Noto Sans Bengali"', '"Plus Jakarta Sans"', 'sans-serif'],
-        hi: ['"Noto Sans Devanagari"', '"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+        bn: ['"Noto Sans Bengali"', '"DM Sans"', 'sans-serif'],
+        hi: ['"Noto Sans Devanagari"', '"DM Sans"', 'sans-serif'],
       },
       colors: {
         canvas: 'rgb(var(--canvas-rgb) / <alpha-value>)',

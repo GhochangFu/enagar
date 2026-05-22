@@ -23,7 +23,7 @@ export function CitizenAuthFrame({
   status: string;
 }): JSX.Element {
   return (
-    <section className="relative isolate -mx-6 -my-10 flex min-h-screen items-center overflow-hidden bg-canvas px-6 py-10">
+    <section className="relative isolate flex min-h-screen items-center overflow-hidden bg-canvas px-6 py-6 md:py-8">
       <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-peach-accent" />
       <div className="mx-auto grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[1fr_0.85fr]">
         <div className="space-y-5">
