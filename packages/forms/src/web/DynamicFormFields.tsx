@@ -87,18 +87,23 @@ function FormNode({
   if (node.widget === 'choice-list' || node.widget === 'select') {
     return (
       <FieldRow>
-        <FieldLabel required={required}>{node.label}</FieldLabel>
-        <HelpText>{node.help_text}</HelpText>
-        <ChoiceGrid>
-          {(node.options ?? []).map((opt) => (
-            <ChoicePill
-              key={opt.value}
-              label={opt.label}
-              selected={String(value ?? '') === opt.value}
-              onSelect={() => onChange(node.id, opt.value)}
-            />
-          ))}
-        </ChoiceGrid>
+        <fieldset className="m-0 min-w-0 border-0 p-0">
+          <legend className="mb-1 block w-full max-w-none px-0 text-sm font-medium text-slate-700">
+            {node.label}
+            {required ? <span className="text-red-600"> *</span> : null}
+          </legend>
+          <HelpText>{node.help_text}</HelpText>
+          <ChoiceGrid>
+            {(node.options ?? []).map((opt) => (
+              <ChoicePill
+                key={opt.value}
+                label={opt.label}
+                selected={String(value ?? '') === opt.value}
+                onSelect={() => onChange(node.id, opt.value)}
+              />
+            ))}
+          </ChoiceGrid>
+        </fieldset>
       </FieldRow>
     );
   }
@@ -109,48 +114,61 @@ function FormNode({
       : [];
     return (
       <FieldRow>
-        <FieldLabel required={required}>{node.label}</FieldLabel>
-        <HelpText>{node.help_text}</HelpText>
-        <ChoiceGrid>
-          {(node.options ?? []).map((opt) => {
-            const selected = arr.includes(opt.value);
-            return (
-              <ChoicePill
-                key={opt.value}
-                label={opt.label}
-                selected={selected}
-                onSelect={() => {
-                  const next = selected ? arr.filter((v) => v !== opt.value) : [...arr, opt.value];
-                  onChange(node.id, next.length ? next : undefined);
-                }}
-              />
-            );
-          })}
-        </ChoiceGrid>
+        <fieldset className="m-0 min-w-0 border-0 p-0">
+          <legend className="mb-1 block w-full max-w-none px-0 text-sm font-medium text-slate-700">
+            {node.label}
+            {required ? <span className="text-red-600"> *</span> : null}
+          </legend>
+          <HelpText>{node.help_text}</HelpText>
+          <ChoiceGrid>
+            {(node.options ?? []).map((opt) => {
+              const selected = arr.includes(opt.value);
+              return (
+                <ChoicePill
+                  key={opt.value}
+                  label={opt.label}
+                  selected={selected}
+                  onSelect={() => {
+                    const next = selected
+                      ? arr.filter((v) => v !== opt.value)
+                      : [...arr, opt.value];
+                    onChange(node.id, next.length ? next : undefined);
+                  }}
+                />
+              );
+            })}
+          </ChoiceGrid>
+        </fieldset>
       </FieldRow>
     );
   }
 
   if (node.widget === 'textarea') {
     return (
-      <label className="block">
-        <FieldLabel required={required}>{node.label}</FieldLabel>
+      <div className="block">
+        <FieldLabel htmlFor={node.id} required={required}>
+          {node.label}
+        </FieldLabel>
         <HelpText>{node.help_text}</HelpText>
         <TextAreaField
+          id={node.id}
           onChange={(e) => onChange(node.id, e.target.value)}
           placeholder={node.help_text ?? node.label}
           value={typeof value === 'string' ? value : ''}
         />
-      </label>
+      </div>
     );
   }
 
   if (node.widget === 'number-input') {
     return (
-      <label className="block">
-        <FieldLabel required={required}>{node.label}</FieldLabel>
+      <div className="block">
+        <FieldLabel htmlFor={node.id} required={required}>
+          {node.label}
+        </FieldLabel>
         <HelpText>{node.help_text}</HelpText>
         <NumberField
+          id={node.id}
           onChange={(e) => {
             const v = e.target.value;
             if (v === '') {
@@ -162,34 +180,39 @@ function FormNode({
           }}
           value={typeof value === 'number' ? String(value) : ''}
         />
-      </label>
+      </div>
     );
   }
 
   if (node.widget === 'date-input') {
     return (
-      <label className="block">
-        <FieldLabel required={required}>{node.label}</FieldLabel>
+      <div className="block">
+        <FieldLabel htmlFor={node.id} required={required}>
+          {node.label}
+        </FieldLabel>
         <HelpText>{node.help_text}</HelpText>
         <DateField
+          id={node.id}
           onChange={(e) => onChange(node.id, e.target.value)}
           value={typeof value === 'string' ? value : ''}
         />
-      </label>
+      </div>
     );
   }
 
   if (node.widget === 'file-picker') {
     const acceptHint = node.accept?.length ? ` (${node.accept.join(', ')})` : '';
     const maxMb = node.max_size_mb ?? 10;
+    const inputId = `${node.id}-file`;
     return (
-      <label className="block">
-        <FieldLabel required={required}>
+      <div className="block">
+        <FieldLabel htmlFor={inputId} required={required}>
           {node.label}
           {acceptHint ? <span className="font-normal text-slate-500">{acceptHint}</span> : null}
         </FieldLabel>
         <HelpText>{node.help_text}</HelpText>
         <input
+          id={inputId}
           type="file"
           accept={fileAcceptAttribute(node.accept)}
           className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-800 hover:file:bg-slate-200"
@@ -219,18 +242,21 @@ function FormNode({
         ) : (
           <p className="mt-1 text-[11px] text-slate-400">Max {maxMb} MB per file.</p>
         )}
-      </label>
+      </div>
     );
   }
 
   return (
-    <label className="block">
-      <FieldLabel required={required}>{node.label}</FieldLabel>
+    <div className="block">
+      <FieldLabel htmlFor={node.id} required={required}>
+        {node.label}
+      </FieldLabel>
       <HelpText>{node.help_text}</HelpText>
       <TextField
+        id={node.id}
         onChange={(e) => onChange(node.id, e.target.value)}
         value={typeof value === 'string' ? value : ''}
       />
-    </label>
+    </div>
   );
 }

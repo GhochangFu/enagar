@@ -229,6 +229,7 @@ export default function HomePage(): JSX.Element {
   const [detailFeeServices, setDetailFeeServices] = useState<ServiceSummary[]>([]);
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -898,11 +899,13 @@ export default function HomePage(): JSX.Element {
     setApplicationFileBlobs({});
     setHoldingLookup(null);
     setApplicationDetail(null);
+    setApplyError(null);
     setActiveTab('apply');
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
 
   function updateFormValue(fieldId: string, value: FormSubmissionValue | undefined): void {
+    setApplyError(null);
     setFormValues((current) => ({ ...current, [fieldId]: value }));
   }
 
@@ -927,22 +930,36 @@ export default function HomePage(): JSX.Element {
       return;
     }
 
+    setApplyError(null);
+
     const validation = validateSubmission(selectedSchema, formValues);
     if (!validation.ok) {
+      const message = validation.issues.map((issue) => issue.message).join(' · ') || 'Invalid form';
+      setApplyError(message);
       setStatus(`Fix form issues: ${validation.issues[0]?.message ?? 'invalid form'}`);
       return;
     }
 
     setStatus('Creating draft application...');
-    const draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
-      method: 'POST',
-      headers: authHeaders(token, true, workspaceLoadScope()),
-      body: JSON.stringify({
-        service_code: selectedService.code,
-        form_data: formValues,
-      }),
-    });
+    let draftResponse: Response;
+    try {
+      draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
+        method: 'POST',
+        headers: authHeaders(token, true, workspaceLoadScope()),
+        body: JSON.stringify({
+          service_code: selectedService.code,
+          form_data: formValues,
+        }),
+      });
+    } catch {
+      const message = 'Could not reach the API while creating your draft.';
+      setApplyError(message);
+      setStatus(message);
+      return;
+    }
     if (!draftResponse.ok) {
+      const message = await readApiError(draftResponse);
+      setApplyError(message);
       setStatus('Draft creation failed.');
       return;
     }
@@ -950,16 +967,27 @@ export default function HomePage(): JSX.Element {
     const draft = (await draftResponse.json()) as ApplicationDetail;
     setStatus('Uploading and scanning documents before submission...');
     const documentsReady = await createDocumentIntents(draft, selectedSchema);
-    if (!documentsReady) {
+    if (!documentsReady.ok) {
+      setApplyError(documentsReady.error);
       setStatus('Document upload failed. Submit after all required documents are ready.');
       return;
     }
 
-    const submitResponse = await fetch(`${apiBaseUrl}/applications/${draft.id}/submit`, {
-      method: 'POST',
-      headers: authHeaders(token, false, workspaceLoadScope()),
-    });
+    let submitResponse: Response;
+    try {
+      submitResponse = await fetch(`${apiBaseUrl}/applications/${draft.id}/submit`, {
+        method: 'POST',
+        headers: authHeaders(token, false, workspaceLoadScope()),
+      });
+    } catch {
+      const message = 'Could not reach the API while submitting your application.';
+      setApplyError(message);
+      setStatus('Application submission failed after document upload.');
+      return;
+    }
     if (!submitResponse.ok) {
+      const message = await readApiError(submitResponse);
+      setApplyError(message);
       setStatus('Application submission failed after document upload.');
       return;
     }
@@ -972,6 +1000,7 @@ export default function HomePage(): JSX.Element {
     setHoldingLookup(null);
     setFormValues({});
     setApplicationFileBlobs({});
+    setApplyError(null);
     setActiveTab('applications');
     setStatus(`Submitted ${docket}`);
 
@@ -992,9 +1021,9 @@ export default function HomePage(): JSX.Element {
   async function createDocumentIntents(
     application: ApplicationDetail,
     schema: EnagarFormSchema,
-  ): Promise<boolean> {
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     if (!token) {
-      return false;
+      return { ok: false, error: 'Your session expired. Sign in again and retry.' };
     }
 
     const fileFields = schema.fields.filter((field) => field.type === 'file');
@@ -1003,28 +1032,50 @@ export default function HomePage(): JSX.Element {
       if (!value?.name) {
         continue;
       }
-      const intentResponse = await fetch(`${apiBaseUrl}/documents/upload-intent`, {
-        method: 'POST',
-        headers: authHeaders(token, true, workspaceLoadScope()),
-        body: JSON.stringify({
-          application_id: application.id,
-          document_code: field.id,
-          original_name: value.name,
-          mime_type: value.mime_type,
-          size_mb: value.size_mb,
-        }),
-      });
+      let intentResponse: Response;
+      try {
+        intentResponse = await fetch(`${apiBaseUrl}/documents/upload-intent`, {
+          method: 'POST',
+          headers: authHeaders(token, true, workspaceLoadScope()),
+          body: JSON.stringify({
+            application_id: application.id,
+            document_code: field.id,
+            original_name: value.name,
+            mime_type: value.mime_type,
+            size_mb: value.size_mb,
+          }),
+        });
+      } catch {
+        return {
+          ok: false,
+          error: `Could not reach the API for document "${field.id}".`,
+        };
+      }
       if (!intentResponse.ok) {
-        return false;
+        return {
+          ok: false,
+          error: `${field.id}: ${await readApiError(intentResponse)}`,
+        };
       }
       const intent = (await intentResponse.json()) as UploadIntentResponse;
       const blob = applicationFileBlobs[field.id];
       if (blob) {
         try {
           await putFileToUploadUrl(intent.upload_url, blob, value.mime_type);
-        } catch {
-          return false;
+        } catch (error) {
+          return {
+            ok: false,
+            error:
+              error instanceof Error
+                ? `${field.id}: ${error.message}`
+                : `Upload to storage failed for "${field.id}".`,
+          };
         }
+      } else {
+        return {
+          ok: false,
+          error: `Missing file data for "${field.id}". Choose the file again and submit.`,
+        };
       }
       try {
         await confirmDocumentUpload(
@@ -1032,34 +1083,64 @@ export default function HomePage(): JSX.Element {
           authHeaders(token, true, workspaceLoadScope()),
           intent.id,
         );
-      } catch {
-        return false;
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error
+              ? `${field.id}: ${error.message}`
+              : `Could not confirm upload for "${field.id}".`,
+        };
       }
       if (allowsClientScanSimulationFromEnv()) {
-        const scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
-          method: 'POST',
-          headers: authHeaders(token, true, workspaceLoadScope()),
-          body: JSON.stringify({
-            scan_status: 'clean',
-            scan_provider: 'pwa-simulated-clamav',
-            scan_signature: `simulated:${intent.object_key}`,
-          }),
-        });
+        let scanResponse: Response;
+        try {
+          scanResponse = await fetch(`${apiBaseUrl}/documents/${intent.id}/scan-result`, {
+            method: 'POST',
+            headers: authHeaders(token, true, workspaceLoadScope()),
+            body: JSON.stringify({
+              scan_status: 'clean',
+              scan_provider: 'pwa-simulated-clamav',
+              scan_signature: `simulated:${intent.object_key}`,
+            }),
+          });
+        } catch {
+          return {
+            ok: false,
+            error: `Document scan simulation failed for "${field.id}".`,
+          };
+        }
         if (!scanResponse.ok) {
-          return false;
+          return {
+            ok: false,
+            error: `${field.id} scan: ${await readApiError(scanResponse)}`,
+          };
         }
       } else {
-        const verdict = await waitForDocumentScan(
-          apiBaseUrl,
-          authHeaders(token, true, workspaceLoadScope()),
-          intent.id,
-        );
-        if (verdict !== 'clean') {
-          return false;
+        try {
+          const verdict = await waitForDocumentScan(
+            apiBaseUrl,
+            authHeaders(token, true, workspaceLoadScope()),
+            intent.id,
+          );
+          if (verdict !== 'clean') {
+            return {
+              ok: false,
+              error: `Document "${field.id}" scan finished as ${verdict}. Remove the file and try again, or start the document scan worker locally.`,
+            };
+          }
+        } catch (error) {
+          return {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : `Document scan timed out for "${field.id}". Start the scan worker or enable client scan simulation for local dev.`,
+          };
         }
       }
     }
-    return true;
+    return { ok: true };
   }
 
   async function openApplication(docketNo: string, tenantScopeHint?: string | null): Promise<void> {
@@ -2176,6 +2257,16 @@ export default function HomePage(): JSX.Element {
                     <h3 className="text-2xl font-bold">{selectedSchema.title[language]}</h3>
                     <p className="mt-1 text-slate-600">{selectedService.description[language]}</p>
                   </div>
+
+                  {applyError ? (
+                    <div
+                      className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                      role="alert"
+                    >
+                      <p className="font-semibold">Could not submit this application</p>
+                      <p className="mt-1 whitespace-pre-wrap">{applyError}</p>
+                    </div>
+                  ) : null}
 
                   <DynamicFormFields
                     nodes={renderPlan.nodes}

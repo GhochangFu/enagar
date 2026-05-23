@@ -12,17 +12,27 @@ type RowProps = {
 };
 
 export function FieldRow({ children, className = '' }: RowProps): JSX.Element {
-  return <div className={`block ${className}`.trim()}>{children}</div>;
+  return <div className={`block min-w-0 ${className}`.trim()}>{children}</div>;
 }
 
 type LabelProps = {
   children: ReactNode;
   required?: boolean;
+  htmlFor?: string;
 };
 
-export function FieldLabel({ children, required }: LabelProps): JSX.Element {
+export function FieldLabel({ children, required, htmlFor }: LabelProps): JSX.Element {
+  const className = 'text-sm font-medium text-slate-700';
+  if (htmlFor) {
+    return (
+      <label className={className} htmlFor={htmlFor}>
+        {children}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </label>
+    );
+  }
   return (
-    <span className="text-sm font-medium text-slate-700">
+    <span className={className}>
       {children}
       {required ? <span className="text-red-600"> *</span> : null}
     </span>
@@ -112,5 +122,5 @@ export function ChoicePill({
 }
 
 export function ChoiceGrid({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="mt-2 grid gap-2 sm:grid-cols-2">{children}</div>;
+  return <div className="mt-2 grid w-full gap-2 sm:grid-cols-2">{children}</div>;
 }

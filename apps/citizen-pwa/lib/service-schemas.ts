@@ -5,14 +5,39 @@ export function defaultFormValuesForService(serviceCode: string): FormSubmission
   if (serviceCode === 'birth-cert') {
     return {
       applicant_name: 'Citizen Test',
+      mobile: '9876543210',
       child_name: 'Child Test',
-      applicant_dob: '1990-05-15',
+      date_of_birth: '2020-06-15',
+      relationship: 'parent',
+    };
+  }
+  if (serviceCode === 'trade-licence') {
+    return {
+      applicant_name: 'Citizen Test',
+      business_name: 'Test Business LLP',
+      trade_type: 'retail',
     };
   }
   if (serviceCode === 'prop-tax') {
     return {
       holding_number: 'KMC-064-PARK-12B',
       payer_type: 'owner',
+    };
+  }
+  if (serviceCode === 'community-hall') {
+    return {
+      applicant_name: 'Citizen Test',
+      event_date: '2026-12-15',
+      guest_count: 50,
+      event_details: 'Community hall booking smoke test event details for local dev.',
+    };
+  }
+  if (serviceCode === 'rti') {
+    return {
+      applicant_name: 'Citizen Test',
+      information_requested:
+        'Please provide municipal records related to this RTI smoke test application for local development validation.',
+      bpl_applicant: 'no',
     };
   }
   return {};
