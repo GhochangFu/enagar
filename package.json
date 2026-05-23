@@ -12,6 +12,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --concurrency=20",
+    "dev:portals": "turbo run dev --filter=@enagar/api --filter=@enagar/citizen-pwa --filter=@enagar/admin-tenant --filter=@enagar/admin-state",
     "lint": "turbo run lint -- --max-warnings=0",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",

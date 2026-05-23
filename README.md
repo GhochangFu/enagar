@@ -182,6 +182,7 @@ After `pnpm install`, every app and package is wired up:
 ```bash
 pnpm install                              # install all workspace deps
 pnpm dev                                  # run every dev server in parallel (turbo)
+pnpm dev:portals                          # API + citizen PWA + tenant + state admin only
 pnpm --filter @enagar/api dev             # just the NestJS API → http://localhost:3001
 pnpm --filter @enagar/citizen-pwa dev     # just the citizen PWA → http://localhost:3000
 pnpm --filter @enagar/admin-tenant dev    # Tenant Admin portal → http://localhost:3002

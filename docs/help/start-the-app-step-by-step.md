@@ -248,6 +248,23 @@ pnpm dev
 
 That starts multiple apps via Turbo (can be noisy; filtering two packages as above is clearer for beginners).
 
+### All four web portals (API + PWA + both admins)
+
+After **Step 5–6** (Docker up, migrate, seed), one terminal runs every citizen/operator web app:
+
+```bash
+pnpm dev:portals
+```
+
+| App          | URL                          |
+| ------------ | ---------------------------- |
+| Citizen PWA  | http://localhost:3000        |
+| API          | http://localhost:3001/health |
+| Tenant Admin | http://localhost:3002/login  |
+| State Admin  | http://localhost:3003        |
+
+Optional Keycloak dummy users (**Step 7**) before using the admin portals. Stop with **Ctrl+C**.
+
 ---
 
 ## Useful URLs (after everything is up)
