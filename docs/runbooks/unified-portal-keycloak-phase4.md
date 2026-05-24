@@ -60,7 +60,9 @@ services:
   keycloak:
     environment:
       KC_HOSTNAME: https://enagarauth.demosites.co.in
+      KC_HOSTNAME_STRICT_HTTPS: 'true'
       KC_PROXY: edge
+      KC_PROXY_HEADERS: xforwarded
 ```
 
 Template: [`infrastructure/docker-compose.keycloak-demo.override.example.yml`](../../infrastructure/docker-compose.keycloak-demo.override.example.yml)

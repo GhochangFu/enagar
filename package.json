@@ -29,6 +29,8 @@
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rimraf node_modules .turbo",
     "infra:up": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env up -d",
+    "infra:up:demo": "docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.override.yml --env-file infrastructure/.env up -d",
+    "infra:demo:keycloak": "docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.override.yml --env-file infrastructure/.env up -d --force-recreate keycloak",
     "infra:up:offline": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env --profile offline-llm up -d",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env --profile offline-llm down",
     "infra:logs": "docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env logs -f",

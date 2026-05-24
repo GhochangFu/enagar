@@ -14,23 +14,23 @@ export async function GET(request: NextRequest): Promise<Response> {
   const search = request.nextUrl.searchParams;
   const error = search.get('error');
   const code = search.get('code');
+  const { keycloakIssuer, keycloakClientId, adminAppOrigin, apiBaseUrl } = publicEnv();
+  const loginUrl = (queryError: string) =>
+    new URL(`/login?error=${encodeURIComponent(queryError)}`, adminAppOrigin);
 
   if (error) {
-    return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(error)}`, request.nextUrl.origin),
-    );
+    return NextResponse.redirect(loginUrl(error));
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=missing_code', request.nextUrl.origin));
+    return NextResponse.redirect(loginUrl('missing_code'));
   }
 
   const verifier = request.cookies.get('admin_pkce_verifier')?.value;
   if (!verifier) {
-    return NextResponse.redirect(new URL('/login?error=pkce_missing', request.nextUrl.origin));
+    return NextResponse.redirect(loginUrl('pkce_missing'));
   }
 
-  const { keycloakIssuer, keycloakClientId, adminAppOrigin, apiBaseUrl } = publicEnv();
   const redirectUri = `${adminAppOrigin}/auth/callback`;
 
   const tokenRes = await fetch(
@@ -50,9 +50,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const raw = (await tokenRes.json()) as TokenJson;
   if (!tokenRes.ok || !raw.access_token || typeof raw.expires_in !== 'number') {
-    return NextResponse.redirect(
-      new URL('/login?error=token_exchange_failed', request.nextUrl.origin),
-    );
+    return NextResponse.redirect(loginUrl('token_exchange_failed'));
   }
 
   const expiresAt = Math.floor(Date.now() / 1000) + raw.expires_in;

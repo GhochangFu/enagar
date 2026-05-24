@@ -173,8 +173,21 @@ pnpm infra:up
 
 ```powershell
 Copy-Item infrastructure\docker-compose.unified-portal-demo.override.example.yml infrastructure\docker-compose.override.yml
-docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env up -d keycloak
+pnpm infra:demo:keycloak
+docker exec enagar-keycloak printenv | findstr KC_HOSTNAME
 ```
+
+`pnpm infra:up` alone does **not** load `docker-compose.override.yml` on all Docker installs — use `infra:up:demo` / `infra:demo:keycloak` on the VM.
+
+Expected after recreate:
+
+```text
+KC_HOSTNAME=https://enagarauth.demosites.co.in
+KC_HOSTNAME_STRICT_HTTPS=true
+KC_PROXY=edge
+```
+
+If `KC_HOSTNAME` is missing, the override file is wrong or not merged — do not continue until it appears.
 
 Details: [unified-portal-keycloak-phase4.md](./unified-portal-keycloak-phase4.md)
 
@@ -216,6 +229,48 @@ pnpm infra:up
 pnpm infra:seed-keycloak-users
 ```
 
+### 6b. Keycloak HTTPS behind Caddy (fix “form is not secure”)
+
+If the browser warns **“The information you’re about to submit is not secure”** and the URL shows **`http://enagarauth.demosites.co.in/...`**, Keycloak is not seeing HTTPS from Caddy.
+
+**On the VM:**
+
+1. **`infrastructure\docker-compose.override.yml`** (create from `docker-compose.unified-portal-demo.override.example.yml`):
+
+```yaml
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://enagarauth.demosites.co.in
+      KC_HOSTNAME_STRICT_HTTPS: 'true'
+      KC_PROXY: edge
+      KC_PROXY_HEADERS: xforwarded
+```
+
+Use the full `https://` prefix on `KC_HOSTNAME` — not hostname only.
+
+2. **Caddyfile** — `enagarauth` block must forward proxy headers (see `infrastructure/ingress/Caddyfile.demosites`).
+
+3. Restart (must load override — verify with `printenv`):
+
+```powershell
+cd c:\projects\enagar
+pnpm infra:demo:keycloak
+docker exec enagar-keycloak printenv | findstr KC_
+# Stop Caddy (Ctrl+C), then:
+caddy run --config c:\projects\enagar\Caddyfile
+```
+
+4. Verify issuer is HTTPS (from laptop):
+
+```powershell
+curl https://enagarauth.demosites.co.in/realms/enagar/.well-known/openid-configuration
+```
+
+Look for `"issuer":"https://enagarauth.demosites.co.in/realms/enagar"` (not `http://`).
+
+5. Retry tenant/state login in a **new private/incognito** window.
+
 ---
 
 ## Step 7 — Production builds
@@ -223,12 +278,32 @@ pnpm infra:seed-keycloak-users
 Required for **tenant/state OAuth** through `https://enagarauth.demosites.co.in`.  
 **Optional for first pass** if apps stay on `pnpm dev` and you only test hub + citizen + API routing.
 
+**Use Node 20 LTS** on the VM (`node -v` → `v20.x`). Node 24 often breaks ESLint native modules during `next build`.
+
 ```powershell
 cd c:\projects\enagar
+$env:NODE_OPTIONS = "--max-old-space-size=4096"
 pnpm build:portal-demo
 ```
 
 Then use `pnpm --filter @enagar/... start` instead of `dev` (Step 8b).
+
+### If build fails with `Cannot find native binding` / `unrs-resolver`
+
+This is an **ESLint tooling** issue on the VM, not missing `@enagar/ui`. Dev (`pnpm dev`) can work while prod build fails.
+
+**Fix A — clean reinstall (try first):**
+
+```powershell
+cd c:\projects\enagar
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+pnpm install
+pnpm build:portal-demo
+```
+
+**Fix B — skip Step 7 for now:** keep `pnpm dev:portals`, do Caddy (Steps 9–10), return to builds later.
+
+**Fix C — repo update:** recent `next.config.mjs` sets `eslint.ignoreDuringBuilds: true` (lint still runs in CI). After `git pull`, retry `pnpm build:portal-demo`.
 
 ---
 
@@ -339,15 +414,19 @@ Sign-off: [unified-portal-option-a-exit.md](./unified-portal-option-a-exit.md)
 
 ## Troubleshooting
 
-| Problem                     | What to try                                                                 |
-| --------------------------- | --------------------------------------------------------------------------- |
-| **502 Bad Gateway**         | App not on expected port — confirm `pnpm dev:portals` or `start` is running |
-| **Redirect URI mismatch**   | Realm needs `https://enagartenant.demosites.co.in/*` — see Step 6           |
-| **CORS error**              | `CORS_ORIGIN` in `infrastructure\.env`; restart API                         |
-| **Staff login loops**       | Keycloak `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                 |
-| **Certificate error**       | Cert paths in Caddyfile under `c:\projects\enagar\certs\`                   |
-| **Citizen upload fails**    | `OBJECT_STORAGE_DISABLED=true` + scan simulation — Phase 5 runbook          |
-| **Works on VM, not laptop** | Expected for `127.0.0.1` MinIO — use stub storage profile                   |
+| Problem                     | What to try                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| **502 Bad Gateway**         | App not on expected port — confirm `pnpm dev:portals` or `start` is running   |
+| **Redirect URI mismatch**   | Realm needs `https://enagartenant.demosites.co.in/*` — see Step 6             |
+| **CORS error**              | `CORS_ORIGIN` in `infrastructure\.env`; restart API                           |
+| **Staff login loops**       | Keycloak `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                   |
+| **Login form “not secure”** | Keycloak posting to `http://enagarauth...` — see Step 6b below                |
+| **Callback → localhost**    | Caddy must send `Host {host}` to apps — update Caddyfile `proxy_headers`      |
+| **token_exchange_failed**   | VM hosts file for `enagarauth` + tenant/state `.env.local` HTTPS URLs         |
+| **Certificate error**       | Cert paths in Caddyfile under `c:\projects\enagar\certs\`                     |
+| **Citizen upload fails**    | `OBJECT_STORAGE_DISABLED=true` + scan simulation — Phase 5 runbook            |
+| **Works on VM, not laptop** | Expected for `127.0.0.1` MinIO — use stub storage profile                     |
+| **Build: native binding**   | ESLint `unrs-resolver` on VM — Step 7; Node 20; or skip build, use `pnpm dev` |
 
 ---
 

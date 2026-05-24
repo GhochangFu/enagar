@@ -13,18 +13,21 @@ type TokenJson = {
 export async function GET(request: NextRequest): Promise<Response> {
   const error = request.nextUrl.searchParams.get('error');
   const code = request.nextUrl.searchParams.get('code');
+  const { keycloakIssuer, keycloakClientId, stateAppOrigin, apiBaseUrl } = publicEnv();
+  const loginUrl = (queryError: string) =>
+    new URL(`/login?error=${encodeURIComponent(queryError)}`, stateAppOrigin);
+
   if (error) {
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error)}`, request.url));
+    return NextResponse.redirect(loginUrl(error));
   }
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=missing_code', request.url));
+    return NextResponse.redirect(loginUrl('missing_code'));
   }
   const verifier = request.cookies.get('state_pkce_verifier')?.value;
   if (!verifier) {
-    return NextResponse.redirect(new URL('/login?error=pkce_missing', request.url));
+    return NextResponse.redirect(loginUrl('pkce_missing'));
   }
 
-  const { keycloakIssuer, keycloakClientId, stateAppOrigin, apiBaseUrl } = publicEnv();
   const tokenRes = await fetch(
     `${keycloakIssuer.replace(/\/$/, '')}/protocol/openid-connect/token`,
     {
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   );
   const raw = (await tokenRes.json()) as TokenJson;
   if (!tokenRes.ok || !raw.access_token || typeof raw.expires_in !== 'number') {
-    return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
+    return NextResponse.redirect(loginUrl('token_exchange_failed'));
   }
 
   const serialized = JSON.stringify({

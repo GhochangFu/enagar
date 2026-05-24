@@ -4,6 +4,10 @@ import './load-infra-env.mjs';
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  eslint: {
+    // Lint runs in CI (`pnpm lint`); skip during VM/prod build if native ESLint resolver is missing.
+    ignoreDuringBuilds: true,
+  },
   env: {
     NEXT_PUBLIC_ALLOW_CLIENT_SCAN_SIMULATION:
       process.env.NEXT_PUBLIC_ALLOW_CLIENT_SCAN_SIMULATION ?? 'false',

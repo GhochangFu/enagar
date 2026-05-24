@@ -27,27 +27,44 @@ enagar.demosites.co.in {
 	encode gzip
 }
 
+(proxy_headers) {
+	header_up Host {host}
+	header_up X-Forwarded-Host {host}
+	header_up X-Forwarded-Proto {scheme}
+	header_up X-Forwarded-For {remote_host}
+}
+
 enagarcitizen.demosites.co.in {
 	import tls_demo
-	reverse_proxy localhost:3000
+	reverse_proxy localhost:3000 {
+		import proxy_headers
+	}
 }
 
 enagartenant.demosites.co.in {
 	import tls_demo
-	reverse_proxy localhost:3002
+	reverse_proxy localhost:3002 {
+		import proxy_headers
+	}
 }
 
 enagarstate.demosites.co.in {
 	import tls_demo
-	reverse_proxy localhost:3003
+	reverse_proxy localhost:3003 {
+		import proxy_headers
+	}
 }
 
 enagarapi.demosites.co.in {
 	import tls_demo
-	reverse_proxy localhost:3001
+	reverse_proxy localhost:3001 {
+		import proxy_headers
+	}
 }
 
 enagarauth.demosites.co.in {
 	import tls_demo
-	reverse_proxy localhost:8080
+	reverse_proxy localhost:8080 {
+		import proxy_headers
+	}
 }
