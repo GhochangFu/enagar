@@ -15,6 +15,7 @@ import {
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveMinioCorsOrigins } from '../unified-portal/cors-origins.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const envPath = resolve(scriptDir, '..', '.env');
@@ -77,6 +78,7 @@ if (!bucketExists) {
 }
 
 try {
+  const allowedOrigins = resolveMinioCorsOrigins(process.env);
   await client.send(
     new PutBucketCorsCommand({
       Bucket: bucket,
@@ -85,12 +87,7 @@ try {
           {
             AllowedHeaders: ['*'],
             AllowedMethods: ['GET', 'PUT', 'HEAD'],
-            AllowedOrigins: [
-              'http://localhost:3000',
-              'http://localhost:3002',
-              'http://localhost:3003',
-              'http://localhost:8081',
-            ],
+            AllowedOrigins: allowedOrigins,
             ExposeHeaders: ['ETag'],
             MaxAgeSeconds: 3600,
           },
@@ -99,7 +96,7 @@ try {
     }),
   );
   // eslint-disable-next-line no-console
-  console.log(`Bucket-level CORS configured on "${bucket}".`);
+  console.log(`Bucket-level CORS configured on "${bucket}" for: ${allowedOrigins.join(', ')}`);
 } catch (error) {
   const code =
     error && typeof error === 'object' && 'Code' in error ? String(error.Code) : '';

@@ -1,0 +1,13 @@
+{
+  "hubOrigin": "https://enagar.demosites.co.in",
+  "citizenOrigin": "https://enagarcitizen.demosites.co.in",
+  "tenantOrigin": "https://enagartenant.demosites.co.in",
+  "stateOrigin": "https://enagarstate.demosites.co.in",
+  "apiBaseUrl": "https://enagarapi.demosites.co.in/api",
+  "keycloakIssuerUrl": "https://enagarauth.demosites.co.in/realms/enagar",
+  "corsOrigins": [
+    "https://enagarcitizen.demosites.co.in",
+    "https://enagartenant.demosites.co.in",
+    "https://enagarstate.demosites.co.in"
+  ]
+}

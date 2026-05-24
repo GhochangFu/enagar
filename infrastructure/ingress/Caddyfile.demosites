@@ -1,0 +1,53 @@
+# eNagarSeba — demo/staging on single Azure Windows VM
+# Copy to VM (e.g. C:\enagar\Caddyfile) and adjust cert + hub paths.
+# TLS: existing wildcard *.demosites.co.in (not auto Let's Encrypt).
+#
+# Prereqs on VM:
+#   - Docker infra (Keycloak :8080, MinIO internal, etc.)
+#   - Apps on localhost: 3000 citizen, 3001 api, 3002 tenant, 3003 state
+#   - Azure NSG + Windows Firewall: inbound 443 only (80 optional redirect)
+#
+# Run: caddy run --config C:\enagar\Caddyfile
+# Docs: docs/runbooks/unified-portal-vm-setup-beginner.md
+#
+# Optional HSTS (enable when state policy requires):
+# header {
+#   Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# }
+
+(tls_demo) {
+	tls C:\enagar\certs\demosites.co.in.pem C:\enagar\certs\demosites.co.in.key
+}
+
+enagar.demosites.co.in {
+	import tls_demo
+	# Repo path: infrastructure/portal-hub — copy to VM or clone repo
+	root * C:\enagar\portal-hub
+	file_server
+	encode gzip
+}
+
+enagarcitizen.demosites.co.in {
+	import tls_demo
+	reverse_proxy localhost:3000
+}
+
+enagartenant.demosites.co.in {
+	import tls_demo
+	reverse_proxy localhost:3002
+}
+
+enagarstate.demosites.co.in {
+	import tls_demo
+	reverse_proxy localhost:3003
+}
+
+enagarapi.demosites.co.in {
+	import tls_demo
+	reverse_proxy localhost:3001
+}
+
+enagarauth.demosites.co.in {
+	import tls_demo
+	reverse_proxy localhost:8080
+}

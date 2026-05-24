@@ -1,0 +1,18 @@
+# Unified Portal Option A — demo VM docker-compose overrides
+#
+# Copy to infrastructure/docker-compose.override.yml on the VM (git-ignored).
+# Combines Keycloak hostname (Phase 4) + MinIO browser CORS (Phase 5).
+#
+# After editing: docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env up -d keycloak minio
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://enagarauth.demosites.co.in
+      KC_PROXY: edge
+
+  minio:
+    environment:
+      # Browser PUT from HTTPS portal subdomains (MinIO stays on 127.0.0.1 — not in Caddy).
+      MINIO_API_CORS_ALLOW_ORIGIN: >-
+        https://enagarcitizen.demosites.co.in,https://enagartenant.demosites.co.in,https://enagarstate.demosites.co.in

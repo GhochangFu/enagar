@@ -254,7 +254,11 @@ After **Step 5–6** (Docker up, migrate, seed), one terminal runs every citizen
 
 ```bash
 pnpm dev:portals
+```
 
+Equivalent (explicit filters):
+
+```bash
 pnpm --filter @enagar/api --filter @enagar/citizen-pwa --filter @enagar/admin-tenant --filter @enagar/admin-state --parallel dev
 ```
 
@@ -263,22 +267,44 @@ pnpm --filter @enagar/api --filter @enagar/citizen-pwa --filter @enagar/admin-te
 | Citizen PWA  | [http://localhost:3000](http://localhost:3000)               |
 | API          | [http://localhost:3001/health](http://localhost:3001/health) |
 | Tenant Admin | [http://localhost:3002/login](http://localhost:3002/login)   |
-| State Admin  | [http://localhost:3003](http://localhost:3003)               |
+| State Admin  | [http://localhost:3003/login](http://localhost:3003/login)   |
 
 Optional Keycloak dummy users (**Step 7**) before using the admin portals. Stop with **Ctrl+C**.
+
+**No reverse proxy required** for daily dev — open the URLs above directly.
+
+### (Optional) Portal hub — one landing page for all three portals
+
+The static hub (`infrastructure/portal-hub/`) is **optional**. It mimics the demo VM landing page but links to **localhost** ports when served locally.
+
+1. Start apps: `pnpm dev:portals` (see table above).
+2. In a **second** terminal:
+
+```bash
+pnpm dev:hub
+```
+
+3. Open [http://localhost:5500](http://localhost:5500) and click **Citizen**, **Municipal staff**, or **State administration**.
+
+Hub links match `dev:portals` ports (`3000`, `3002/login`, `3003/login`). More detail: [`infrastructure/portal-hub/README.md`](../../infrastructure/portal-hub/README.md) and [`docs/runbooks/unified-portal-local-dev-phase6.md`](../runbooks/unified-portal-local-dev-phase6.md).
+
+**Production / demo URLs (`*.demosites.co.in`)** are **build-time only** — set in `.env.production.local` before `next build`, not at runtime. See [`docs/runbooks/unified-portal-env-matrix.md`](../runbooks/unified-portal-env-matrix.md). Local `pnpm dev` keeps localhost defaults.
+
+**Advanced (optional):** pre-prod smoke with `*.enagar.local` hosts — [`unified-portal-local-dev-phase6.md`](../runbooks/unified-portal-local-dev-phase6.md) §3.
 
 ---
 
 ## Useful URLs (after everything is up)
 
-| What               | Address                                                      |
-| ------------------ | ------------------------------------------------------------ |
-| Citizen PWA        | [http://localhost:3000](http://localhost:3000)               |
-| Tenant Admin       | [http://localhost:3002](http://localhost:3002)               |
-| State Admin        | [http://localhost:3003](http://localhost:3003)               |
-| API health         | [http://localhost:3001/health](http://localhost:3001/health) |
-| API docs (Swagger) | [http://localhost:3001/docs](http://localhost:3001/docs)     |
-| Keycloak console   | [http://localhost:8080](http://localhost:8080)               |
+| What                  | Address                                                             |
+| --------------------- | ------------------------------------------------------------------- |
+| Portal hub (optional) | [http://localhost:5500](http://localhost:5500) — run `pnpm dev:hub` |
+| Citizen PWA           | [http://localhost:3000](http://localhost:3000)                      |
+| Tenant Admin          | [http://localhost:3002/login](http://localhost:3002/login)          |
+| State Admin           | [http://localhost:3003/login](http://localhost:3003/login)          |
+| API health            | [http://localhost:3001/health](http://localhost:3001/health)        |
+| API docs (Swagger)    | [http://localhost:3001/docs](http://localhost:3001/docs)            |
+| Keycloak console      | [http://localhost:8080](http://localhost:8080)                      |
 
 **Master Sprint 5.4:** PWA installability (manifest + `/sw.js`) and query deep links (`?grievance=`, `?application=`) — see `[docs/runbooks/master-sprint-54-exit.md](../runbooks/master-sprint-54-exit.md)`. Optional web push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` on the PWA; Expo mobile registers push tokens after sign-in when running on a physical device.
 

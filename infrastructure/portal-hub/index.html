@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="eNagarSeba — choose your portal: citizens, municipal staff, or state administration."
+    />
+    <title>eNagarSeba — Portal hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./config.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#portals">Skip to portal choices</a>
+
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="tricolor-bar" aria-hidden="true">
+          <span class="tricolor-bar__seg tricolor-bar__seg--peach"></span>
+          <span class="tricolor-bar__seg tricolor-bar__seg--mint"></span>
+          <span class="tricolor-bar__seg tricolor-bar__seg--coral"></span>
+        </div>
+        <div class="site-header__inner">
+          <div class="brand-lockup">
+            <div class="brand-mark" aria-hidden="true">eN</div>
+            <div>
+              <p class="brand-title">eNagarSeba</p>
+              <p class="brand-tagline">West Bengal municipal digital services</p>
+            </div>
+          </div>
+          <span class="env-pill" id="env-pill" aria-live="polite">Demo</span>
+        </div>
+      </header>
+
+      <main class="hub-stage" id="main-content">
+        <div class="maintenance-banner" id="maintenance-banner">
+          <div class="maintenance-banner__inner" data-severity="info">
+            <p class="maintenance-banner__title">Scheduled maintenance</p>
+            <p class="maintenance-banner__message"></p>
+          </div>
+        </div>
+
+        <div class="hero-art" aria-hidden="true">
+          <span class="hero-art__orb hero-art__orb--peach"></span>
+          <span class="hero-art__orb hero-art__orb--mint"></span>
+          <span class="hero-art__orb hero-art__orb--coral"></span>
+          <span class="hero-art__block hero-art__block--sage"></span>
+        </div>
+
+        <div class="hub-stage__content">
+          <header class="hub-intro" aria-labelledby="hero-title">
+            <h1 class="hub-intro__title" id="hero-title">Your portal, one tap away</h1>
+            <p class="hub-intro__lead">
+              Citizens, municipal staff, and state administrators each sign in on a dedicated secure
+              site. Pick the card that matches your role.
+            </p>
+            <ul class="hub-intro__chips" aria-label="Portal types">
+              <li class="hub-intro__chip hub-intro__chip--peach">Citizens</li>
+              <li class="hub-intro__chip hub-intro__chip--mint">Municipal staff</li>
+              <li class="hub-intro__chip hub-intro__chip--blue">State admin</li>
+            </ul>
+          </header>
+
+          <section class="portals-section" aria-labelledby="portals-heading">
+            <h2 class="visually-hidden" id="portals-heading">Portal entry points</h2>
+            <ul class="portal-grid" id="portals">
+              <li>
+                <article class="portal-card portal-card--citizen">
+                  <a
+                    class="portal-card__link"
+                    data-portal-link="citizen"
+                    href="#"
+                    aria-describedby="portal-citizen-desc"
+                  >
+                    <div class="portal-card__banner">
+                      <span class="portal-card__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="8" r="4" />
+                          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round" />
+                        </svg>
+                      </span>
+                    </div>
+                    <div class="portal-card__body">
+                      <h3 class="portal-card__title">Citizen services</h3>
+                      <p class="portal-card__desc" id="portal-citizen-desc">
+                        OTP sign-in, pin your ULB, apply for services, track grievances.
+                      </p>
+                      <span class="portal-card__cta">
+                        Open citizen portal
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M5 12h14M13 6l6 6-6 6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </a>
+                </article>
+              </li>
+
+              <li>
+                <article class="portal-card portal-card--tenant">
+                  <a
+                    class="portal-card__link"
+                    data-portal-link="tenant"
+                    href="#"
+                    aria-describedby="portal-tenant-desc"
+                  >
+                    <div class="portal-card__banner">
+                      <span class="portal-card__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path
+                            d="M3 21h18M5 21V7l7-4 7 4v14"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                          <path
+                            d="M9 21v-6h6v6M9 10h.01M15 10h.01M9 14h.01M15 14h.01"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                    <div class="portal-card__body">
+                      <h3 class="portal-card__title">Municipal staff</h3>
+                      <p class="portal-card__desc" id="portal-tenant-desc">
+                        Operator desk, service configuration, and ULB administration.
+                      </p>
+                      <span class="portal-card__cta">
+                        Staff sign-in
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M5 12h14M13 6l6 6-6 6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </a>
+                </article>
+              </li>
+
+              <li>
+                <article class="portal-card portal-card--state">
+                  <a
+                    class="portal-card__link"
+                    data-portal-link="state"
+                    href="#"
+                    aria-describedby="portal-state-desc"
+                  >
+                    <div class="portal-card__banner">
+                      <span class="portal-card__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path
+                            d="M4 20h16M6 20V10l6-3 6 3v10"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                          <path d="M10 20v-4h4v4M10 12h4" stroke-linecap="round" />
+                        </svg>
+                      </span>
+                    </div>
+                    <div class="portal-card__body">
+                      <h3 class="portal-card__title">State administration</h3>
+                      <p class="portal-card__desc" id="portal-state-desc">
+                        Tenant onboarding, grievance libraries, cross-ULB oversight.
+                      </p>
+                      <span class="portal-card__cta">
+                        State admin sign-in
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M5 12h14M13 6l6 6-6 6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </a>
+                </article>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="site-footer__inner">
+          <div class="site-footer__tricolor" aria-hidden="true">
+            <span class="tricolor-bar__seg tricolor-bar__seg--peach"></span>
+            <span class="tricolor-bar__seg tricolor-bar__seg--mint"></span>
+            <span class="tricolor-bar__seg tricolor-bar__seg--coral"></span>
+          </div>
+          <p class="site-footer__meta">
+            Demo staging · DoUD&amp;MA, Government of West Bengal · Use your ULB-issued portal for
+            official services.
+          </p>
+        </div>
+      </footer>
+    </div>
+
+    <script src="./main.js"></script>
+  </body>
+</html>

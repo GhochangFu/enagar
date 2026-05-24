@@ -95,10 +95,11 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost:3002/*"],
-      "webOrigins": ["http://localhost:3002"],
+      "redirectUris": ["http://localhost:3002/*", "https://enagartenant.demosites.co.in/*"],
+      "webOrigins": ["http://localhost:3002", "https://enagartenant.demosites.co.in"],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3002/login##https://enagartenant.demosites.co.in/login"
       },
       "defaultClientScopes": ["web-origins", "profile", "email", "roles", "tenant-claims"]
     },
@@ -110,10 +111,11 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:3003/*"],
-      "webOrigins": ["http://localhost:3003"],
+      "redirectUris": ["http://localhost:3003/*", "https://enagarstate.demosites.co.in/*"],
+      "webOrigins": ["http://localhost:3003", "https://enagarstate.demosites.co.in"],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3003/login##https://enagarstate.demosites.co.in/login"
       },
       "defaultClientScopes": ["web-origins", "profile", "email", "roles", "tenant-claims"]
     },

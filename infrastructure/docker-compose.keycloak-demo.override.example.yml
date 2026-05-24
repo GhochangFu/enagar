@@ -1,0 +1,15 @@
+# Copy to infrastructure/docker-compose.override.yml on the demo VM (git-ignored).
+# Enables Keycloak to issue tokens with issuer https://enagarauth.demosites.co.in
+# when staff reach Keycloak through Caddy on port 443.
+#
+# Usage on VM:
+#   copy docker-compose.keycloak-demo.override.example.yml docker-compose.override.yml
+#   docker compose up -d keycloak
+#
+# See: docs/runbooks/unified-portal-keycloak-phase4.md
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://enagarauth.demosites.co.in
+      KC_PROXY: edge

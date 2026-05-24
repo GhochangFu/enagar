@@ -64,8 +64,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # Browser PUT from citizen PWA / admin portals (Sprint 6.25). Restart MinIO after changing.
-      MINIO_API_CORS_ALLOW_ORIGIN: >-
-        http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:8081
+      # Override on demo VM — see infrastructure/.env.production.example and unified-portal-cors-phase5.md
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:8081}
     command: server /data --console-address ":9001"
     ports:
       - "${MINIO_API_PORT}:9000"

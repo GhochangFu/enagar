@@ -171,9 +171,8 @@ export function TenantAdminSessionProvider({
   }, [bootState, refreshMe, token]);
 
   const logout = useCallback(() => {
-    clearStoredAuth();
-    onUnauthorized();
-  }, [onUnauthorized]);
+    window.location.assign('/api/admin-auth/logout');
+  }, []);
 
   return (
     <SessionGate bootState={bootState}>

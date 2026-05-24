@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "title": "Scheduled maintenance",
+  "message": "Some portals may be briefly unavailable while we apply updates.",
+  "severity": "info"
+}
