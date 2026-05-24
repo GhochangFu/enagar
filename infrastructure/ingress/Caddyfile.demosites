@@ -7,7 +7,7 @@
 #   - Apps on localhost: 3000 citizen, 3001 api, 3002 tenant, 3003 state
 #   - Azure NSG + Windows Firewall: inbound 443 only (80 optional redirect)
 #
-# Run: caddy run --config C:\enagar\Caddyfile
+# Run: caddy run --config c:\projects\enagar\Caddyfile
 # Docs: docs/runbooks/unified-portal-vm-setup-beginner.md
 #
 # Optional HSTS (enable when state policy requires):
@@ -21,7 +21,7 @@
 
 enagar.demosites.co.in {
 	import tls_demo
-	# Repo path: infrastructure/portal-hub — copy to VM or clone repo
+	# VM: c:\projects\enagar\infrastructure\portal-hub (see unified-portal-vm-setup-beginner.md)
 	root * C:\enagar\portal-hub
 	file_server
 	encode gzip

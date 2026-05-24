@@ -1,9 +1,51 @@
 # Unified Portal on demosites.co.in — VM setup (beginner guide)
 
-**Read this on your Azure Windows VM.** Do each step in order.  
-**Repo work is already done on your laptop** — you pull from GitHub and follow this guide once.
-
+**Read this on your Azure Windows VM.**  
 **When finished:** run the [exit checklist](./unified-portal-option-a-exit.md) and [manual QA script](./unified-portal-manual-qa.md).
+
+---
+
+## Paths on this VM (confirmed)
+
+| What                      | Path                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| **Repo (already cloned)** | `c:\projects\enagar`                                                                |
+| **TLS certs**             | e.g. `c:\projects\enagar\certs\` (create if needed)                                 |
+| **Caddy config**          | e.g. `c:\projects\enagar\Caddyfile`                                                 |
+| **Portal hub**            | `c:\projects\enagar\infrastructure\portal-hub` (serve from repo — no copy required) |
+
+Set a variable in every PowerShell session:
+
+```powershell
+$Repo = 'c:\projects\enagar'
+cd $Repo
+```
+
+---
+
+## Already on the VM? (typical case)
+
+If **yesterday you already**:
+
+- cloned the repo to `c:\projects\enagar`
+- ran `pnpm infra:up`, migrate, seed
+- started apps with **`pnpm dev`** / **`pnpm dev:portals`** on localhost `:3000–3003` and API `:3001`
+
+…then you are **not starting from zero**. Unified portal cutover adds **HTTPS in front** of what you already have.
+
+| Step      | Action                                                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **1**     | **Do** — `git pull` + `pnpm install` (gets portal hub, Caddy template, env examples)                                               |
+| **2**     | **Merge** — add demo `CORS_ORIGIN`, Keycloak public URLs into existing `infrastructure\.env` (do **not** delete working passwords) |
+| **3–4**   | **Skip** — if Docker, DB, and seed already OK                                                                                      |
+| **5**     | **Skip or run** — MinIO CORS only if using real object storage                                                                     |
+| **6**     | **Do** — Keycloak docker override + realm demo URIs                                                                                |
+| **7**     | **Do later** — prod builds (required for staff OAuth via `enagarauth`; optional for first routing smoke)                           |
+| **8**     | **Keep running** — leave `pnpm dev:portals` as-is; Caddy proxies to the same ports                                                 |
+| **9–10**  | **Do** — point Caddy at hub + install/start Caddy                                                                                  |
+| **11–12** | **Do** — firewall + browser smoke from your laptop                                                                                 |
+
+**First HTTPS test:** pull → merge env → Keycloak override → Caddy → open `https://enagar.demosites.co.in` while apps still run in dev mode.
 
 ---
 
@@ -11,16 +53,16 @@
 
 Six public websites on one VM, all using HTTPS:
 
-| Address                                 | What it is                                        |
-| --------------------------------------- | ------------------------------------------------- |
-| `https://enagar.demosites.co.in`        | Portal hub (static landing page)                  |
-| `https://enagarcitizen.demosites.co.in` | Citizen app                                       |
-| `https://enagartenant.demosites.co.in`  | Tenant Admin (staff)                              |
-| `https://enagarstate.demosites.co.in`   | State Admin (staff)                               |
-| `https://enagarapi.demosites.co.in`     | API                                               |
-| `https://enagarauth.demosites.co.in`    | Keycloak login (staff only — not linked from hub) |
+| Address                                 | What it is                         |
+| --------------------------------------- | ---------------------------------- |
+| `https://enagar.demosites.co.in`        | Portal hub (static landing page)   |
+| `https://enagarcitizen.demosites.co.in` | Citizen app → `localhost:3000`     |
+| `https://enagartenant.demosites.co.in`  | Tenant Admin → `localhost:3002`    |
+| `https://enagarstate.demosites.co.in`   | State Admin → `localhost:3003`     |
+| `https://enagarapi.demosites.co.in`     | API → `localhost:3001`             |
+| `https://enagarauth.demosites.co.in`    | Keycloak → Docker `localhost:8080` |
 
-**Caddy** listens on port **443** and forwards traffic to apps running on **localhost** inside the VM. Visitors never open ports 3000–3003 directly.
+**Caddy** listens on **443** and forwards to **localhost**. Your apps keep the same ports — no ingress inside Node.
 
 ---
 
@@ -28,99 +70,109 @@ Six public websites on one VM, all using HTTPS:
 
 ### On the VM you need
 
-| Tool               | Why                                                                       |
-| ------------------ | ------------------------------------------------------------------------- |
-| **Git**            | Pull the project                                                          |
-| **Node.js 20**     | Run API and web apps                                                      |
-| **pnpm 9+**        | `npm install -g pnpm@9`                                                   |
-| **Docker Desktop** | Postgres, Keycloak, Redis, MinIO                                          |
-| **Caddy**          | HTTPS reverse proxy ([caddyserver.com](https://caddyserver.com/download)) |
+| Tool                  | Status on typical VM                                                              |
+| --------------------- | --------------------------------------------------------------------------------- |
+| Git, Node 20, pnpm 9+ | Already installed if dev works                                                    |
+| Docker Desktop        | Already running if infra works                                                    |
+| **Caddy**             | Install if not yet — [caddyserver.com/download](https://caddyserver.com/download) |
 
-### You already need (outside the VM)
+### Outside the VM
 
-- **DNS:** six A records pointing to the VM public IP (see table above).
-- **TLS certificate:** wildcard `*.demosites.co.in` files (`.pem` + `.key`) copied to the VM, e.g. `C:\enagar\certs\`.
-- **Azure NSG:** inbound **443** allowed; **8080, 3000–3003** not open to the internet.
+- **DNS:** six A records → VM public IP
+- **TLS:** wildcard `*.demosites.co.in` `.pem` + `.key` on the VM
+- **Azure NSG:** inbound **443** only; block **8080**, **3000–3003** from internet
 
-### Folder layout (suggested)
+### Folder layout (this VM)
 
 ```
-C:\enagar\
-  certs\                    ← TLS certificate files
-  portal-hub\               ← copy from repo infrastructure/portal-hub
-  MunicipalServices\        ← git clone of the repo
-  Caddyfile                 ← copy from repo infrastructure/ingress/Caddyfile.demosites
+c:\projects\enagar\                 ← repo (existing)
+  infrastructure\
+    portal-hub\                     ← hub static files (in repo)
+    ingress\Caddyfile.demosites     ← template to copy
+  certs\                            ← create: demosites.co.in.pem + .key
+  Caddyfile                         ← copy from ingress template
+  infrastructure\.env               ← existing — merge demo settings
 ```
 
 ---
 
 ## Step 1 — Pull the latest code
 
-Open **PowerShell** on the VM:
+```powershell
+cd c:\projects\enagar
+git pull
+pnpm install
+```
+
+**Fresh VM only** (skip if repo already at `c:\projects\enagar`):
 
 ```powershell
-cd C:\enagar
-git clone <your-repo-url> MunicipalServices
-# Or, if already cloned:
-cd C:\enagar\MunicipalServices
-git pull
+git clone <your-repo-url> c:\projects\enagar
+cd c:\projects\enagar
 pnpm install
 ```
 
 ---
 
-## Step 2 — Create environment files
+## Step 2 — Environment files
 
-Copy the **production example** files and edit passwords.
+### 2a. Docker + API — **merge** into existing `infrastructure\.env`
 
-### 2a. Docker + API (`infrastructure/.env`)
+**Do not overwrite** a working `.env`. Open it and add or update:
+
+```env
+CORS_ORIGIN=https://enagarcitizen.demosites.co.in,https://enagartenant.demosites.co.in,https://enagarstate.demosites.co.in
+ALLOW_CLIENT_SCAN_SIMULATION=true
+KEYCLOAK_ISSUER_URL=https://enagarauth.demosites.co.in/realms/enagar
+KEYCLOAK_TOKEN_ENDPOINT=https://enagarauth.demosites.co.in/realms/enagar/protocol/openid-connect/token
+KEYCLOAK_LOGOUT_ENDPOINT=https://enagarauth.demosites.co.in/realms/enagar/protocol/openid-connect/logout
+MINIO_API_CORS_ALLOW_ORIGIN=https://enagarcitizen.demosites.co.in,https://enagartenant.demosites.co.in,https://enagarstate.demosites.co.in
+```
+
+**External demo (recommended):** avoid browser→MinIO PUT until storage proxy exists:
+
+```env
+OBJECT_STORAGE_DISABLED=true
+```
+
+Reference template: `infrastructure\.env.production.example`  
+Details: [unified-portal-cors-phase5.md](./unified-portal-cors-phase5.md)
+
+**Restart the API** after saving `.env`.
+
+**New VM only** — no existing `.env`:
 
 ```powershell
-cd C:\enagar\MunicipalServices
 Copy-Item infrastructure\.env.production.example infrastructure\.env
 notepad infrastructure\.env
 ```
 
-Change every `CHANGE_ME_ON_VM` to strong passwords. Keep:
-
-- `CORS_ORIGIN` — three HTTPS portal origins (already in the example file)
-- `ALLOW_CLIENT_SCAN_SIMULATION=true`
-- Keycloak URLs pointing at `https://enagarauth.demosites.co.in`
-- For **external demo without MinIO browser PUT**, you may set `OBJECT_STORAGE_DISABLED=true` (see [unified-portal-cors-phase5.md](./unified-portal-cors-phase5.md))
-
-### 2b. App build env (before `next build`)
+### 2b. App build env (before `next build` — Step 7)
 
 ```powershell
+cd c:\projects\enagar
 Copy-Item apps\citizen-pwa\.env.production.example apps\citizen-pwa\.env.production.local
 Copy-Item apps\admin-tenant\.env.production.example apps\admin-tenant\.env.production.local
 Copy-Item apps\admin-state\.env.production.example apps\admin-state\.env.production.local
 ```
 
-No edits needed if the example files already list `demosites.co.in` URLs.
+Skip until you move off `pnpm dev` for staff HTTPS login.
 
 ---
 
-## Step 3 — Start Docker (database, Keycloak, MinIO)
+## Step 3 — Docker (database, Keycloak, MinIO)
 
-From repo root:
+**Skip if** `pnpm infra:up` already ran and containers are healthy.
 
 ```powershell
+cd c:\projects\enagar
 pnpm infra:up
 ```
 
-Wait until containers are healthy in Docker Desktop.
-
 ### Keycloak hostname (required for staff login through HTTPS)
-
-Copy the demo override file:
 
 ```powershell
 Copy-Item infrastructure\docker-compose.unified-portal-demo.override.example.yml infrastructure\docker-compose.override.yml
-```
-
-Then restart Keycloak:
-
-```powershell
 docker compose -f infrastructure/docker-compose.yml --env-file infrastructure/.env up -d keycloak
 ```
 
@@ -130,6 +182,8 @@ Details: [unified-portal-keycloak-phase4.md](./unified-portal-keycloak-phase4.md
 
 ## Step 4 — Database setup
 
+**Skip if** migrate + seed already done.
+
 ```powershell
 pnpm --filter @enagar/api prisma:migrate:deploy
 pnpm db:seed
@@ -138,23 +192,23 @@ pnpm infra:seed-keycloak-users
 
 ---
 
-## Step 5 — MinIO CORS (if using real object storage)
+## Step 5 — MinIO CORS
 
-Skip if `OBJECT_STORAGE_DISABLED=true`.
+**Skip if** `OBJECT_STORAGE_DISABLED=true`.
 
 ```powershell
 pnpm infra:minio-cors
 ```
 
-See [unified-portal-cors-phase5.md](./unified-portal-cors-phase5.md).
-
 ---
 
-## Step 6 — Apply Keycloak realm (staff redirect URIs)
+## Step 6 — Keycloak realm (staff redirect URIs)
 
-The repo already includes demo URIs in `infrastructure/keycloak/realm-export.json`.
+Demo URIs are in `infrastructure/keycloak/realm-export.json`.
 
-**Fresh import** (destroys Keycloak data):
+**Prefer (keeps DB data):** after Caddy is up, patch `admin-tenant` / `admin-state` clients in Admin Console.
+
+**Fresh import** (wipes Keycloak + Postgres volumes):
 
 ```powershell
 pnpm infra:reset
@@ -162,118 +216,121 @@ pnpm infra:up
 pnpm infra:seed-keycloak-users
 ```
 
-**Or** patch clients in Keycloak Admin Console (`https://enagarauth.demosites.co.in` after Caddy is up).
-
 ---
 
-## Step 7 — Build the web apps
+## Step 7 — Production builds
 
-Production builds embed the public URLs. From repo root:
+Required for **tenant/state OAuth** through `https://enagarauth.demosites.co.in`.  
+**Optional for first pass** if apps stay on `pnpm dev` and you only test hub + citizen + API routing.
 
 ```powershell
+cd c:\projects\enagar
 pnpm build:portal-demo
 ```
 
-Or build individually:
-
-```powershell
-pnpm --filter @enagar/citizen-pwa build
-pnpm --filter @enagar/admin-tenant build
-pnpm --filter @enagar/admin-state build
-pnpm --filter @enagar/api build
-```
-
-**Interim option:** use `pnpm dev:portals` to test routing before builds — staff OAuth through HTTPS still needs production builds.
+Then use `pnpm --filter @enagar/... start` instead of `dev` (Step 8b).
 
 ---
 
-## Step 8 — Start the apps
+## Step 8 — Run the apps
 
-Open **separate PowerShell windows** (or use a process manager later):
+### 8a. Already running (your current setup)
+
+If **`pnpm dev:portals`** (or separate `dev` terminals) is up on `:3000–3003` / `:3001`:
+
+- **Leave it running** — proceed to Step 9 (Caddy).
+- Quick check: `curl http://localhost:3001/health`
+
+### 8b. After production builds (Step 7)
 
 ```powershell
-# Window 1 — API
+# Separate windows — or use a process manager
 pnpm --filter @enagar/api start
-
-# Window 2 — Citizen
 pnpm --filter @enagar/citizen-pwa start
-
-# Window 3 — Tenant Admin
 pnpm --filter @enagar/admin-tenant start
-
-# Window 4 — State Admin
 pnpm --filter @enagar/admin-state start
 ```
 
-Quick check on the VM itself:
-
-```powershell
-curl http://localhost:3001/health
-```
+| App          | localhost |
+| ------------ | --------- |
+| Citizen      | `:3000`   |
+| API          | `:3001`   |
+| Tenant Admin | `:3002`   |
+| State Admin  | `:3003`   |
 
 ---
 
-## Step 9 — Deploy the portal hub
+## Step 9 — Portal hub
 
-Copy static files (no build step):
+Hub files live in the repo. **No copy required** if Caddy points at:
 
-```powershell
-Copy-Item -Recurse -Force infrastructure\portal-hub C:\enagar\portal-hub
+```text
+c:\projects\enagar\infrastructure\portal-hub
 ```
 
-When served through Caddy at `enagar.demosites.co.in`, hub links automatically point to the HTTPS subdomains.
+Optional copy elsewhere:
+
+```powershell
+Copy-Item -Recurse -Force infrastructure\portal-hub c:\projects\enagar\deploy\portal-hub
+```
+
+On `enagar.demosites.co.in`, hub links auto-target the HTTPS subdomains.
+
+Local preview on VM (optional): `pnpm dev:hub` → `http://localhost:5500`
 
 ---
 
 ## Step 10 — Install and run Caddy
 
-1. Download Caddy for Windows and add it to your PATH.
-2. Copy the config:
+1. Install Caddy for Windows (PATH).
+2. Copy and edit config:
 
 ```powershell
-Copy-Item infrastructure\ingress\Caddyfile.demosites C:\enagar\Caddyfile
-notepad C:\enagar\Caddyfile
+cd c:\projects\enagar
+Copy-Item infrastructure\ingress\Caddyfile.demosites C:\projects\enagar\Caddyfile
+notepad c:\projects\enagar\Caddyfile
 ```
 
-3. Fix paths if needed:
-   - Certificate paths under `(tls_demo)`
-   - Hub folder: `root * C:\enagar\portal-hub`
+3. Set paths in the Caddyfile:
 
-4. Run Caddy:
+| Setting  | Example for this VM                                   |
+| -------- | ----------------------------------------------------- |
+| TLS cert | `c:\projects\enagar\certs\demosites.co.in.pem`        |
+| TLS key  | `c:\projects\enagar\certs\demosites.co.in.key`        |
+| Hub root | `root * c:\projects\enagar\infrastructure\portal-hub` |
+
+4. Run (apps + Docker must still be up):
 
 ```powershell
-caddy run --config C:\enagar\Caddyfile
+caddy run --config c:\projects\enagar\Caddyfile
 ```
 
-For production, install Caddy as a Windows service pointing at the same config.
+Install as a Windows service when ready for always-on demo.
 
 ---
 
 ## Step 11 — Lock down the firewall
 
-**Azure NSG:** allow **443** (and optional **80** redirect). Remove public rules for **8080**, **3000–3003**.
+**Azure NSG:** allow **443**; remove public **8080**, **3000–3003**.
 
-**Windows Firewall:** same rules.
-
-Test **from your laptop** (not the VM):
+Test **from your laptop**:
 
 ```powershell
 curl -I https://enagarapi.demosites.co.in/health
-# Should return 200
-
 curl -I http://<vm-public-ip>:3000
-# Should fail or timeout
 ```
+
+First should succeed; second should fail or timeout.
 
 ---
 
 ## Step 12 — Smoke test in the browser
 
-1. Open `https://enagar.demosites.co.in` — three portal cards.
-2. Click **Citizen** → OTP login (disable `DEV_AUTH_ENABLED` on demo; use real OTP or re-enable dev OTP only for internal test).
-3. Click **Municipal staff** → Keycloak → Tenant Desk.
-4. Click **State administration** → Keycloak → grievance library.
-5. Logout on tenant and state — should return to `/login` on the same subdomain.
+1. `https://enagar.demosites.co.in` — three portal cards
+2. **Citizen** → OTP login
+3. **Municipal staff** → Keycloak → Desk
+4. **State** → Keycloak → grievance library
+5. Logout on tenant/state → `/login` on same subdomain
 
 Full script: [unified-portal-manual-qa.md](./unified-portal-manual-qa.md)  
 Sign-off: [unified-portal-option-a-exit.md](./unified-portal-option-a-exit.md)
@@ -282,24 +339,25 @@ Sign-off: [unified-portal-option-a-exit.md](./unified-portal-option-a-exit.md)
 
 ## Troubleshooting
 
-| Problem                              | What to try                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| **502 Bad Gateway** from Caddy       | App not running on the expected localhost port — restart that app                  |
-| **Redirect URI mismatch** (Keycloak) | Realm URIs must include `https://enagartenant.demosites.co.in/*` — re-import realm |
-| **CORS error** in browser console    | Check `CORS_ORIGIN` in `infrastructure/.env`; restart API                          |
-| **Staff login loops**                | Keycloak needs `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                  |
-| **Certificate error**                | Check `.pem`/`.key` paths in Caddyfile                                             |
-| **Citizen upload fails**             | Use `OBJECT_STORAGE_DISABLED=true` + scan simulation for demo; see Phase 5 runbook |
-| **Only works on VM, not laptop**     | Expected for `127.0.0.1` MinIO URLs — use stub storage profile                     |
+| Problem                     | What to try                                                                 |
+| --------------------------- | --------------------------------------------------------------------------- |
+| **502 Bad Gateway**         | App not on expected port — confirm `pnpm dev:portals` or `start` is running |
+| **Redirect URI mismatch**   | Realm needs `https://enagartenant.demosites.co.in/*` — see Step 6           |
+| **CORS error**              | `CORS_ORIGIN` in `infrastructure\.env`; restart API                         |
+| **Staff login loops**       | Keycloak `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                 |
+| **Certificate error**       | Cert paths in Caddyfile under `c:\projects\enagar\certs\`                   |
+| **Citizen upload fails**    | `OBJECT_STORAGE_DISABLED=true` + scan simulation — Phase 5 runbook          |
+| **Works on VM, not laptop** | Expected for `127.0.0.1` MinIO — use stub storage profile                   |
 
 ---
 
 ## Related docs
 
-| Doc                                                                      | Purpose                |
-| ------------------------------------------------------------------------ | ---------------------- |
-| [unified-portal-env-matrix.md](./unified-portal-env-matrix.md)           | All env variables      |
-| [unified-portal-keycloak-phase4.md](./unified-portal-keycloak-phase4.md) | Staff OAuth            |
-| [unified-portal-cors-phase5.md](./unified-portal-cors-phase5.md)         | API + MinIO CORS       |
-| [unified-portal-security-review.md](./unified-portal-security-review.md) | TLS, cookies, CSP      |
-| [unified-portal-option-a-plan.md](./unified-portal-option-a-plan.md)     | Full architecture plan |
+| Doc                                                                        | Purpose                   |
+| -------------------------------------------------------------------------- | ------------------------- |
+| [unified-portal-env-matrix.md](./unified-portal-env-matrix.md)             | All env variables         |
+| [unified-portal-keycloak-phase4.md](./unified-portal-keycloak-phase4.md)   | Staff OAuth               |
+| [unified-portal-cors-phase5.md](./unified-portal-cors-phase5.md)           | API + MinIO CORS          |
+| [unified-portal-local-dev-phase6.md](./unified-portal-local-dev-phase6.md) | Laptop dev (hub optional) |
+| [unified-portal-security-review.md](./unified-portal-security-review.md)   | TLS, cookies, CSP         |
+| [unified-portal-option-a-plan.md](./unified-portal-option-a-plan.md)       | Full architecture plan    |

@@ -22,6 +22,9 @@ describe('Unified Portal Option A — Phase 7 verification package', () => {
       join(repoRoot, 'docs/runbooks/unified-portal-vm-setup-beginner.md'),
       'utf8',
     );
+    expect(guide).toContain('c:\\projects\\enagar');
+    expect(guide).toContain('Already on the VM');
+    expect(guide).toContain('pnpm dev:portals');
     expect(guide).toContain('pnpm infra:up');
     expect(guide).toContain('pnpm build:portal-demo');
     expect(guide).toContain('Caddyfile');
