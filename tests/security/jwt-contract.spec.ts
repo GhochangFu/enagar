@@ -33,6 +33,7 @@ describe('Sprint 1.2 API JWT tenant-binding contract', () => {
 
   it('verifies Keycloak JWT issuer and API audience', () => {
     expect(verifierSource).toContain('KEYCLOAK_ISSUER_URL');
+    expect(verifierSource).toContain('KEYCLOAK_JWKS_URL');
     expect(verifierSource).toContain('KEYCLOAK_API_AUDIENCE');
     expect(verifierSource).toContain('issuer: this.issuer');
     expect(verifierSource).toContain('jwtAudienceOption');

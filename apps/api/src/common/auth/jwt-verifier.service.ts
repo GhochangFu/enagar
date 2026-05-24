@@ -35,7 +35,10 @@ export class JwtVerifierService {
     this.devJwtSecret = new TextEncoder().encode(
       this.config.get<string>('DEV_JWT_SECRET') ?? 'enagarseba-dev-only-secret-change-me',
     );
-    this.jwks = createRemoteJWKSet(new URL(`${this.issuer}/protocol/openid-connect/certs`), {
+    const jwksUrl =
+      this.config.get<string>('KEYCLOAK_JWKS_URL')?.trim() ||
+      `${this.issuer.replace(/\/$/, '')}/protocol/openid-connect/certs`;
+    this.jwks = createRemoteJWKSet(new URL(jwksUrl), {
       cacheMaxAge: 5 * 60 * 1000,
     });
   }
