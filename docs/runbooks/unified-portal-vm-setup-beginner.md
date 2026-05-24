@@ -414,19 +414,20 @@ Sign-off: [unified-portal-option-a-exit.md](./unified-portal-option-a-exit.md)
 
 ## Troubleshooting
 
-| Problem                     | What to try                                                                   |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| **502 Bad Gateway**         | App not on expected port — confirm `pnpm dev:portals` or `start` is running   |
-| **Redirect URI mismatch**   | Realm needs `https://enagartenant.demosites.co.in/*` — see Step 6             |
-| **CORS error**              | `CORS_ORIGIN` in `infrastructure\.env`; restart API                           |
-| **Staff login loops**       | Keycloak `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                   |
-| **Login form “not secure”** | Keycloak posting to `http://enagarauth...` — see Step 6b below                |
-| **Callback → localhost**    | Caddy must send `Host {host}` to apps — update Caddyfile `proxy_headers`      |
-| **token_exchange_failed**   | VM hosts file for `enagarauth` + tenant/state `.env.local` HTTPS URLs         |
-| **Certificate error**       | Cert paths in Caddyfile under `c:\projects\enagar\certs\`                     |
-| **Citizen upload fails**    | `OBJECT_STORAGE_DISABLED=true` + scan simulation — Phase 5 runbook            |
-| **Works on VM, not laptop** | Expected for `127.0.0.1` MinIO — use stub storage profile                     |
-| **Build: native binding**   | ESLint `unrs-resolver` on VM — Step 7; Node 20; or skip build, use `pnpm dev` |
+| Problem                     | What to try                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| **502 Bad Gateway**         | App not on expected port — confirm `pnpm dev:portals` or `start` is running              |
+| **Redirect URI mismatch**   | Realm needs `https://enagartenant.demosites.co.in/*` — see Step 6                        |
+| **CORS error**              | `CORS_ORIGIN` in `infrastructure\.env`; restart API                                      |
+| **Staff login loops**       | Keycloak `KC_HOSTNAME` + `KC_PROXY=edge` in docker override                              |
+| **Login form “not secure”** | Keycloak posting to `http://enagarauth...` — see Step 6b below                           |
+| **Callback → localhost**    | Caddy must send `Host {host}` to apps — update Caddyfile `proxy_headers`                 |
+| **token_exchange_failed**   | VM hosts file for `enagarauth` + tenant/state `.env.local` HTTPS URLs                    |
+| **Callback HTTP 500**       | `KEYCLOAK_INTERNAL_ISSUER_URL=http://localhost:8080/realms/enagar` in staff `.env.local` |
+| **Certificate error**       | Cert paths in Caddyfile under `c:\projects\enagar\certs\`                                |
+| **Citizen upload fails**    | `OBJECT_STORAGE_DISABLED=true` + scan simulation — Phase 5 runbook                       |
+| **Works on VM, not laptop** | Expected for `127.0.0.1` MinIO — use stub storage profile                                |
+| **Build: native binding**   | ESLint `unrs-resolver` on VM — Step 7; Node 20; or skip build, use `pnpm dev`            |
 
 ---
 

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { publicEnv } from '../../../lib/env/public-env';
+import { keycloakTokenEndpoint } from '../../../lib/env/server-keycloak-env';
 import { STATE_OAUTH_STORAGE_KEY } from '../../../lib/oauth/session-storage-keys';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ type TokenJson = {
 export async function GET(request: NextRequest): Promise<Response> {
   const error = request.nextUrl.searchParams.get('error');
   const code = request.nextUrl.searchParams.get('code');
-  const { keycloakIssuer, keycloakClientId, stateAppOrigin, apiBaseUrl } = publicEnv();
+  const { keycloakClientId, stateAppOrigin, apiBaseUrl } = publicEnv();
   const loginUrl = (queryError: string) =>
     new URL(`/login?error=${encodeURIComponent(queryError)}`, stateAppOrigin);
 
@@ -28,9 +29,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.redirect(loginUrl('pkce_missing'));
   }
 
-  const tokenRes = await fetch(
-    `${keycloakIssuer.replace(/\/$/, '')}/protocol/openid-connect/token`,
-    {
+  let tokenRes: Response;
+  try {
+    tokenRes = await fetch(keycloakTokenEndpoint(), {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -40,9 +41,18 @@ export async function GET(request: NextRequest): Promise<Response> {
         code,
         code_verifier: verifier,
       }),
-    },
-  );
-  const raw = (await tokenRes.json()) as TokenJson;
+    });
+  } catch {
+    return NextResponse.redirect(loginUrl('token_exchange_failed'));
+  }
+
+  let raw: TokenJson;
+  try {
+    raw = (await tokenRes.json()) as TokenJson;
+  } catch {
+    return NextResponse.redirect(loginUrl('token_exchange_failed'));
+  }
+
   if (!tokenRes.ok || !raw.access_token || typeof raw.expires_in !== 'number') {
     return NextResponse.redirect(loginUrl('token_exchange_failed'));
   }
