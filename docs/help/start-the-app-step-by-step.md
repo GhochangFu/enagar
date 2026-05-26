@@ -314,6 +314,32 @@ Exact Keycloak admin user/password come from `**infrastructure/.env`\*\*.
 
 ---
 
+## Phase 7 — Sahayak AI (local or VM)
+
+**Engineering sprints 7.1–7.4 are closed.** To run chat locally:
+
+1. Ensure **Step 5–6** (Docker + migrate + seed) completed — seed enables `chatbot.dpa_signed` on operational ULBs.
+2. **Third terminal** — RAG indexer:
+
+   ```bash
+   pnpm rag:dev
+   ```
+
+3. Index KB (once):
+
+   ```bash
+   curl -X POST http://127.0.0.1:8100/index/tenant-all
+   ```
+
+4. In `infrastructure/.env`, set `RAG_INDEXER_URL=http://127.0.0.1:8100` and either `OPENAI_API_KEY` (with `LLM_PROVIDER=openai`) or Ollama (`pnpm infra:up:offline`, `LLM_PROVIDER=ollama`). Restart API.
+5. Citizen PWA → sign in → pin a ULB → **Sahayak** floating button (bottom-right) → accept consent → chat.
+
+**Smoke:** `node scripts/smoke-phase-7-vm-pilot.mjs`
+
+**Demo VM (HTTPS):** [`docs/runbooks/phase-7-vm-pilot-plan.md`](../runbooks/phase-7-vm-pilot-plan.md) and [`unified-portal-vm-setup-beginner.md`](../runbooks/unified-portal-vm-setup-beginner.md) Step **8c**. **Prometheus cost dashboard is deferred.**
+
+---
+
 ## Stop the stack when you are done
 
 - Stop **API / PWA**: press `**Ctrl+C`\*\* in each terminal.

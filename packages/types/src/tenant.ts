@@ -11,6 +11,8 @@ export interface TenantConfig {
     enabled?: boolean;
     /** Override of the global LLM_PROVIDER for this tenant (ADR-0008). */
     provider?: 'openai' | 'gemini' | 'ollama';
+    /** Secondary provider when primary transport fails (Sprint 7.3). */
+    fallback_provider?: 'openai' | 'gemini' | 'ollama';
     /** Provider-side model id. Falls back to the env-level default. */
     model?: string;
     /** Required by the runtime guard before any provider call is made. */

@@ -35,6 +35,10 @@ model Tenant {
   bookableAssets           BookableAsset[]
   bookingReservations      BookingReservation[]
   stateAuditLogs           StateAuditLog[]
+  chatbotAuditLogs         ChatbotAuditLog[]
+  chatbotSessions          ChatbotSession[]
+  chatbotConsents          ChatbotConsent[]
+  chatbotFeedback          ChatbotFeedback[]
   impersonationTokens      ImpersonationToken[]
   staffInvites             StaffInvite[]
   applicationComments      ApplicationComment[]
@@ -127,6 +131,9 @@ model Citizen {
   notifications      Notification[]
   pushDevices        CitizenPushDevice[]
   applications       Application[]
+  chatbotSessions    ChatbotSession[]
+  chatbotConsents    ChatbotConsent[]
+  chatbotFeedback    ChatbotFeedback[]
   deposits           Deposit[]
   challans           Challan[]
   grievances         Grievance[]
@@ -410,6 +417,91 @@ model StateAuditLog {
   @@index([targetTenantId, createdAt])
   @@index([action, createdAt])
   @@map("state_audit_logs")
+}
+
+model ChatbotAuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId      String   @default(dbgenerated("gen_random_uuid()")) @map("request_id") @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  citizenId      String?  @map("citizen_id") @db.Uuid
+  sessionId      String   @map("session_id") @db.VarChar(64)
+  provider       String   @db.VarChar(20)
+  model          String   @db.VarChar(80)
+  inputTokens    Int?     @map("input_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  latencyMs      Int      @map("latency_ms")
+  redactionCount Int      @default(0) @map("redaction_count")
+  queryHash      String   @map("query_hash") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, sessionId, createdAt(sort: Desc)])
+  @@map("chatbot_audit_logs")
+}
+
+model ChatbotSession {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String           @map("tenant_id") @db.Uuid
+  citizenId  String?          @map("citizen_id") @db.Uuid
+  sessionKey String           @map("session_key") @db.VarChar(64)
+  language   String           @default("en") @db.VarChar(5)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  citizen    Citizen?         @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  messages   ChatbotMessage[]
+
+  @@unique([tenantId, sessionKey])
+  @@index([tenantId, citizenId, updatedAt(sort: Desc)])
+  @@map("chatbot_sessions")
+}
+
+model ChatbotMessage {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String         @map("session_id") @db.Uuid
+  role      String         @db.VarChar(20)
+  content   String
+  citations Json           @default(dbgenerated("'[]'::jsonb"))
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  session   ChatbotSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  feedback             ChatbotFeedback[]
+
+  @@index([sessionId, createdAt])
+  @@map("chatbot_messages")
+}
+
+model ChatbotConsent {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  citizenId          String   @map("citizen_id") @db.Uuid
+  mode               String   @db.VarChar(20)
+  disclosureVersion  String   @default("2026-05") @map("disclosure_version") @db.VarChar(20)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  citizen            Citizen  @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, citizenId])
+  @@index([tenantId, updatedAt(sort: Desc)])
+  @@map("chatbot_consents")
+}
+
+model ChatbotFeedback {
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String          @map("tenant_id") @db.Uuid
+  sessionKey           String          @map("session_key") @db.VarChar(64)
+  citizenId            String?         @map("citizen_id") @db.Uuid
+  rating               Int
+  assistantMessageId   String?         @map("assistant_message_id") @db.Uuid
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant               Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  citizen              Citizen?        @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  assistantMessage     ChatbotMessage? @relation(fields: [assistantMessageId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sessionKey, createdAt(sort: Desc)])
+  @@map("chatbot_feedback")
 }
 
 model ImpersonationToken {

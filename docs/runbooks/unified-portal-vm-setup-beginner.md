@@ -42,6 +42,7 @@ If **yesterday you already**:
 | **6**     | **Do** — Keycloak docker override + realm demo URIs                                                                                |
 | **7**     | **Do later** — prod builds (required for staff OAuth via `enagarauth`; optional for first routing smoke)                           |
 | **8**     | **Keep running** — leave `pnpm dev:portals` as-is; Caddy proxies to the same ports                                                 |
+| **8c**    | **Do** — Sahayak RAG indexer + index KB ([`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md))                                 |
 | **9–10**  | **Do** — point Caddy at hub + install/start Caddy                                                                                  |
 | **11–12** | **Do** — firewall + browser smoke from your laptop                                                                                 |
 
@@ -333,6 +334,31 @@ pnpm --filter @enagar/admin-state start
 | API          | `:3001`   |
 | Tenant Admin | `:3002`   |
 | State Admin  | `:3003`   |
+
+### 8c. Sahayak AI (Phase 7 VM pilot)
+
+**Guide:** [`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md) · exit [`phase-7-vm-pilot-exit.md`](./phase-7-vm-pilot-exit.md)
+
+1. Merge Sahayak vars from `infrastructure\.env.production.example` into `infrastructure\.env` (`RAG_INDEXER_URL`, `QDRANT_URL`, and **either** `OPENAI_API_KEY` **or** Ollama offline profile).
+2. Confirm Qdrant: `docker ps` → `enagar-qdrant`.
+3. **New PowerShell window** — RAG indexer:
+
+   ```powershell
+   cd c:\projects\enagar
+   pnpm rag:dev
+   ```
+
+4. Index knowledge base (once per deploy or after KB changes):
+
+   ```powershell
+   curl -X POST http://127.0.0.1:8100/index/tenant-all
+   ```
+
+5. Restart API after `.env` changes.
+6. Smoke: `node scripts/smoke-phase-7-vm-pilot.mjs`
+7. Browser: citizen HTTPS → **Sahayak** FAB (bottom-right) → consent → ask a question.
+
+**Optional on-prem LLM:** `pnpm infra:up:offline` + `pnpm infra:pull-llm` + `LLM_PROVIDER=ollama` in `.env`.
 
 ---
 

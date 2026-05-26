@@ -379,6 +379,33 @@ export function CitizenHubScreen() {
           </MobilePanel>
         )}
 
+        {hubTab === 'sahayak' && (
+          <MobilePanel>
+            <Text style={mobileTypography.section}>Sahayak AI</Text>
+            <Text style={[mobileTypography.body, { marginTop: 8 }]}>
+              Multilingual help for services and grievances. PII is redacted before any external LLM
+              call.
+            </Text>
+            <View style={{ marginTop: 14 }}>
+              <MobilePrimaryButton
+                label="Open Sahayak"
+                onPress={() => {
+                  const code = preferences?.pinned_tenant_codes?.[0];
+                  const catalogue = code ? tenantByCode.get(code) : null;
+                  if (!catalogue) {
+                    setStatusLine('Pin a municipality first, then open Sahayak.');
+                    return;
+                  }
+                  navigation.navigate('SahayakChat', {
+                    tenantCode: catalogue.code,
+                    tenantName: catalogue.name,
+                  });
+                }}
+              />
+            </View>
+          </MobilePanel>
+        )}
+
         <Pressable
           accessibilityRole="button"
           onPress={() => void onSignOut()}

@@ -52,6 +52,7 @@ import {
 } from '../components/citizen-workspace-components';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
+import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { TenantBanners } from '../components/tenant-banners';
 import { defaultFormValuesForSchema } from '../lib/service-schemas';
 import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
@@ -2452,6 +2453,28 @@ export default function HomePage(): JSX.Element {
           )}
         </section>
       )}
+
+      {(step === 'hub' || step === 'workspace') && token ? (
+        <SahayakFloatingAssistant
+          apiBaseUrl={apiBaseUrl}
+          language={language}
+          tenantCode={
+            selectedTenant?.code ??
+            (citizenPreferences?.pinned_tenant_codes?.[0]
+              ? (tenants.find((t) => t.code === citizenPreferences.pinned_tenant_codes[0])?.code ??
+                null)
+              : null)
+          }
+          tenantName={
+            selectedTenant?.name ??
+            (citizenPreferences?.pinned_tenant_codes?.[0]
+              ? (tenants.find((t) => t.code === citizenPreferences.pinned_tenant_codes[0])?.name ??
+                null)
+              : null)
+          }
+          token={token}
+        />
+      ) : null}
     </>
   );
 

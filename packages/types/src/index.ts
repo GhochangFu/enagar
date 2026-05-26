@@ -5,3 +5,4 @@
 
 export * from './tenant.js';
 export * from './llm.js';
+export * from './chatbot.js';

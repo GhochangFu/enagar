@@ -164,6 +164,27 @@ export function WorkspaceScreen() {
             </View>
           </MobilePanel>
         )}
+
+        {tab === 'sahayak' && (
+          <MobilePanel>
+            <Text style={mobileTypography.section}>Sahayak</Text>
+            <Text style={[mobileTypography.body, { marginTop: 8 }]}>
+              Ask about {tenant.code} services in English, Bengali, or Hindi.
+            </Text>
+            <View style={{ marginTop: 14 }}>
+              <MobilePrimaryButton
+                brandHex={brandHex}
+                label="Chat with Sahayak"
+                onPress={() =>
+                  navigation.navigate('SahayakChat', {
+                    tenantCode: tenant.code,
+                    tenantName: tenant.name,
+                  })
+                }
+              />
+            </View>
+          </MobilePanel>
+        )}
       </ScrollView>
     </View>
   );

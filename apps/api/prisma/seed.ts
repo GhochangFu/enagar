@@ -9,6 +9,7 @@ import {
   seedGlobalGrievanceCatalogue,
   seedTenantGrievanceCatalogue,
 } from '../src/modules/grievances/grievance-catalogue.seed';
+import { seedSahayakServiceHelpArticles } from '../src/modules/kb/sahayak-service-help.seed';
 import {
   globalServices,
   resolveEffectiveServices,
@@ -381,37 +382,6 @@ const notificationTemplateSeeds = [
   },
 ];
 
-const kbArticleSeeds = [
-  {
-    tenant_code: 'KMC',
-    slug: 'birth-certificate-help',
-    title: {
-      en: 'Birth certificate help',
-      bn: 'Birth certificate help',
-      hi: 'Birth certificate help',
-    },
-    body: {
-      en: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
-      bn: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
-      hi: 'Use this article to explain birth certificate prerequisites, fees, and expected SLA.',
-    },
-    tags: ['certificates', 'birth'],
-    status: 'published',
-  },
-  {
-    tenant_code: 'HMC',
-    slug: 'water-tariff-help',
-    title: { en: 'Water tariff help', bn: 'Water tariff help', hi: 'Water tariff help' },
-    body: {
-      en: 'Use this article to explain water tariff slabs and payment expectations.',
-      bn: 'Use this article to explain water tariff slabs and payment expectations.',
-      hi: 'Use this article to explain water tariff slabs and payment expectations.',
-    },
-    tags: ['water', 'tariff'],
-    status: 'draft',
-  },
-];
-
 const staffSeeds = [
   {
     tenant_code: 'KMC',
@@ -658,32 +628,6 @@ async function seedTenantOperations(prisma: PrismaClient): Promise<void> {
     });
   }
 
-  for (const seed of kbArticleSeeds) {
-    const tenant = tenantByCode.get(seed.tenant_code);
-    if (!tenant) {
-      continue;
-    }
-    await prisma.kbArticle.upsert({
-      where: { tenantId_slug: { tenantId: tenant.id, slug: seed.slug } },
-      create: {
-        tenantId: tenant.id,
-        slug: seed.slug,
-        title: seed.title,
-        body: seed.body,
-        tags: seed.tags,
-        status: seed.status,
-        publishedAt: seed.status === 'published' ? new Date() : null,
-      },
-      update: {
-        title: seed.title,
-        body: seed.body,
-        tags: seed.tags,
-        status: seed.status,
-        publishedAt: seed.status === 'published' ? new Date() : null,
-      },
-    });
-  }
-
   for (const seed of staffSeeds) {
     const tenant = tenantByCode.get(seed.tenant_code);
     if (!tenant) {
@@ -912,6 +856,30 @@ async function seedStateAdminPortal(prisma: PrismaClient): Promise<void> {
   });
 }
 
+async function seedChatbotTenantConfig(prisma: PrismaClient): Promise<void> {
+  const rows = await prisma.tenant.findMany({
+    where: { code: { not: CITIZEN_PORTAL_TENANT_CODE } },
+    select: { id: true, config: true },
+  });
+  const provider = (process.env.LLM_PROVIDER ?? 'openai') as 'openai' | 'gemini' | 'ollama';
+  for (const row of rows) {
+    const existing = (row.config ?? {}) as Record<string, unknown>;
+    await prisma.tenant.update({
+      where: { id: row.id },
+      data: {
+        config: {
+          ...existing,
+          chatbot: {
+            enabled: true,
+            dpa_signed: true,
+            provider,
+          },
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+}
+
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? defaultDatabaseUrl;
   const prisma = new PrismaClient({
@@ -963,6 +931,10 @@ async function main(): Promise<void> {
     }
     await seedServiceCatalogue(prisma);
     console.info('Seeded service catalogue for operational tenants');
+    const kbCount = await seedSahayakServiceHelpArticles(prisma);
+    console.info(`Seeded ${kbCount} Sahayak service-help KB articles (all ULBs)`);
+    await seedChatbotTenantConfig(prisma);
+    console.info('Seeded Sahayak chatbot config (dpa_signed) for operational ULBs');
     await seedAddressAndTariffMasters(prisma);
     console.info('Seeded address and tariff masters for smoke tenants');
     await seedTenantOperations(prisma);

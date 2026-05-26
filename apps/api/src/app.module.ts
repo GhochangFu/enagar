@@ -13,6 +13,7 @@ import { AdminStateModule } from './modules/admin-state/admin-state.module';
 import { AdminTenantModule } from './modules/admin-tenant/admin-tenant.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { FinanceModule } from './modules/finance/finance.module';
@@ -59,6 +60,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     ObjectStorageModule,
     DocumentScanModule,
     AuthModule,
+    ChatbotModule,
     AdminStateModule,
     AdminTenantModule,
     ApplicationsModule,

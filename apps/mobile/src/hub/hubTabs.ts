@@ -8,7 +8,8 @@ export type CitizenHubTabId =
   | 'apply'
   | 'applications'
   | 'payments'
-  | 'grievances';
+  | 'grievances'
+  | 'sahayak';
 
 export type HubTabEntry<T extends string = CitizenHubTabId> = {
   id: T;
@@ -25,6 +26,7 @@ export function citizenHubTabs(locale: Locale): readonly HubTabEntry[] {
     { id: 'applications', label: 'Applications' },
     { id: 'payments', label: 'Payments' },
     { id: 'grievances', label: t('grievance.nav', locale) },
+    { id: 'sahayak', label: 'Sahayak' },
   ];
 }
 
@@ -34,7 +36,8 @@ export type WorkspaceTabId =
   | 'apply'
   | 'applications'
   | 'payments'
-  | 'grievances';
+  | 'grievances'
+  | 'sahayak';
 
 export function municipalityWorkspaceTabs(locale: Locale): readonly HubTabEntry<WorkspaceTabId>[] {
   return [
@@ -44,5 +47,6 @@ export function municipalityWorkspaceTabs(locale: Locale): readonly HubTabEntry<
     { id: 'applications', label: 'Applications' },
     { id: 'payments', label: 'Payments' },
     { id: 'grievances', label: t('grievance.nav', locale) },
+    { id: 'sahayak', label: 'Sahayak' },
   ];
 }

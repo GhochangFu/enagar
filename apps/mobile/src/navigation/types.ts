@@ -19,6 +19,7 @@ export type CitizenRootStackParamList = {
   ApplicationList: undefined;
   ApplicationDetail: { docketNo: string };
   PaymentList: undefined;
+  SahayakChat: { tenantCode: string; tenantName?: string };
 };
 
 /**

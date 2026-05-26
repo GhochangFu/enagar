@@ -38,6 +38,9 @@
     "infra:seed-keycloak-users": "node infrastructure/scripts/seed-keycloak-dummy-users.mjs",
     "infra:minio-cors": "pnpm --filter @enagar/api exec node ../../infrastructure/scripts/configure-minio-cors.mjs",
     "infra:pull-llm": "docker exec enagar-ollama ollama pull llama3.1:8b",
+    "rag:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File services/rag-indexer/run-indexer.ps1",
+    "rag:dev:reload": "powershell -NoProfile -ExecutionPolicy Bypass -File services/rag-indexer/run-indexer.ps1 -Reload",
+    "smoke:phase7-vm": "node scripts/smoke-phase-7-vm-pilot.mjs",
     "prepare": "husky"
   },
   "pnpm": {

@@ -64,6 +64,20 @@ Mark **Pass / Fail** for each row. Note the browser and date in the sign-off tab
 
 ---
 
+## G. Sahayak AI (Phase 7 VM pilot)
+
+**Runbook:** [`phase-7-vm-pilot-exit.md`](./phase-7-vm-pilot-exit.md) · **Prometheus dashboard:** not required.
+
+| ID       | Steps                                                      | Pass condition                                      |
+| -------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| **G-01** | `node scripts/smoke-phase-7-vm-pilot.mjs` on VM            | Script exits 0                                      |
+| **G-02** | Citizen HTTPS → pin KMC → **Sahayak** FAB → accept consent | Drawer chat loads                                   |
+| **G-03** | Ask: `How do I apply for a birth certificate?`             | Streamed answer + citations                         |
+| **G-04** | Ask: `How many grievances have I filed under KMC?`         | Numeric answer if citizen profile linked            |
+| **G-05** | KB-only consent path → repeat a simple FAQ question        | Reply without external LLM (deterministic KB block) |
+
+---
+
 ## F. Repo CI (run on laptop before VM cutover)
 
 | Check              | Command                                             |

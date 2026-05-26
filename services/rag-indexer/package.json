@@ -5,11 +5,11 @@
   "description": "Workspace bridge for the Python rag-indexer service. Real code lives under src/ and tests/; Poetry is the build tool.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "dev": "echo 'Use Poetry: cd services/rag-indexer && poetry run uvicorn enagar_rag_indexer.main:app --reload --port 8000'",
+    "dev": "echo 'Use Poetry: cd services/rag-indexer && poetry run uvicorn enagar_rag_indexer.main:app --reload --port 8100'",
     "build": "echo 'Python service — built via Docker (see Phase-7 Dockerfile).'",
-    "lint": "echo 'Run: poetry run ruff check src tests'",
-    "typecheck": "echo 'Run: poetry run mypy src'",
-    "test": "echo 'Run: poetry run pytest'",
+    "lint": "poetry run ruff check src tests",
+    "typecheck": "poetry run mypy src",
+    "test": "poetry run pytest",
     "clean": "echo 'noop'"
   }
 }

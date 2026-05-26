@@ -15,6 +15,7 @@ import { ApplicationComposerScreen } from '../screens/services/ApplicationCompos
 import { ServiceCatalogScreen } from '../screens/services/ServiceCatalogScreen';
 import { TenantPickerScreen } from '../screens/TenantPickerScreen';
 import { WorkspaceScreen } from '../screens/WorkspaceScreen';
+import { SahayakChatScreen } from '../screens/sahayak/SahayakChatScreen';
 import { GrievanceComposerScreen } from '../screens/grievances/GrievanceComposerScreen';
 import { GrievanceDetailScreen } from '../screens/grievances/GrievanceDetailScreen';
 import { GrievanceListScreen } from '../screens/grievances/GrievanceListScreen';
@@ -41,6 +42,7 @@ export function CitizenNavigator(): JSX.Element {
       <Stack.Screen name="ApplicationList" component={ApplicationListScreen} />
       <Stack.Screen name="ApplicationDetail" component={ApplicationDetailScreen} />
       <Stack.Screen name="PaymentList" component={PaymentListScreen} />
+      <Stack.Screen name="SahayakChat" component={SahayakChatScreen} />
     </Stack.Navigator>
   );
 }

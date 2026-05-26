@@ -1453,7 +1453,7 @@ Production-grade RAG chatbot grounded in each tenant's actual KB + the citizen's
   - Never invent fees / SLAs (numeric fact-check against services table).
   - Sanitise prompt-injection attempts.
 - Per-tenant `tenants.config.chatbot` settings: provider override, model override, monthly token budget, DPA-signed flag (runtime guard).
-- Per-tenant cost telemetry: `llm_tokens_total{tenant,provider,direction}` Prometheus counter; daily aggregation; 80 %-of-budget alert.
+- Per-tenant cost telemetry: `llm_tokens_total{tenant,provider,direction}` Prometheus counter; daily aggregation; 80 %-of-budget alert. **Deferred (2026-05)** — not required for VM pilot; see [`phase-7-vm-pilot-plan.md`](docs/runbooks/phase-7-vm-pilot-plan.md).
 - Per-response thumbs-up / thumbs-down feedback → reviewer queue.
 - Session history (per citizen, 30-day retention).
 - Citizen-facing **consent screen** on first chatbot session: "Your queries are processed by OpenAI / Google after PII redaction. You may opt out and use KB-search-only mode."
@@ -1469,7 +1469,7 @@ Production-grade RAG chatbot grounded in each tenant's actual KB + the citizen's
 6. System prompt template per `ARCHITECTURE.md` §4.
 7. Mobile + PWA chat UI with consent screen, suggestions, voice-input placeholder, image-attach placeholder.
 8. Feedback loop: thumbs ↔ analytics dashboard.
-9. Per-tenant cost dashboard panel in State Super-Admin.
+9. Per-tenant cost dashboard panel in State Super-Admin. **Deferred** — VM pilot uses [`phase-7-vm-pilot-exit.md`](docs/runbooks/phase-7-vm-pilot-exit.md) without Prometheus.
 10. Provider-failover behaviour: if active provider returns 5xx three times in 60 s, automatically fail over to the configured secondary and alert.
 11. Cost / latency benchmark with realistic 50-tenant-day fixture; document P50 / P95 first-token and end-to-end times for each provider.
 
@@ -1501,7 +1501,7 @@ Production-grade RAG chatbot grounded in each tenant's actual KB + the citizen's
 - Adversarial prompt-injection test suite passes 100 %.
 - Adversarial PII-redaction fixture suite (25+ cases) passes 100 %.
 - Citizen with an in-flight Birth Cert application sees personalised response: "Your application WBM/KMC/BC/2026/00342 is currently in Document Verification."
-- Cost dashboard correctly attributes ₹ to tenant + provider; budget alert fires at 80 %.
+- Cost dashboard correctly attributes ₹ to tenant + provider; budget alert fires at 80 %. _(Deferred with Prometheus.)_
 - Provider failover validated under chaos test (kill primary, verify secondary takes over within 5 s).
 
 ### Suggested Sprint Slice
