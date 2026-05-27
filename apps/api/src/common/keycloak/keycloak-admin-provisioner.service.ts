@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export type ProvisionTenantAdminInput = {
@@ -65,11 +65,17 @@ export class KeycloakAdminProvisionerService {
     };
   }
 
+  /**
+   * Server-side Admin API calls must use loopback HTTP on the VM (see KEYCLOAK_JWKS_URL).
+   * Public KEYCLOAK_ISSUER_URL is for browser OAuth and JWT `iss` validation only.
+   */
   private resolveKeycloakBaseUrl(): string {
+    const explicitBase = this.config.get<string>('KEYCLOAK_BASE')?.trim();
+    if (explicitBase) {
+      return explicitBase.replace(/\/$/, '');
+    }
     const issuer =
-      this.config.get<string>('KEYCLOAK_ISSUER_URL') ??
-      this.config.get<string>('KEYCLOAK_BASE') ??
-      'http://127.0.0.1:8080/realms/enagar';
+      this.config.get<string>('KEYCLOAK_ISSUER_URL') ?? 'http://127.0.0.1:8080/realms/enagar';
     const trimmed = issuer.replace(/\/$/, '');
     const realmsIdx = trimmed.indexOf('/realms/');
     return realmsIdx >= 0 ? trimmed.slice(0, realmsIdx) : trimmed;
@@ -86,13 +92,20 @@ export class KeycloakAdminProvisionerService {
       username,
       password,
     });
-    const response = await fetch(`${baseUrl}/realms/master/protocol/openid-connect/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/realms/master/protocol/openid-connect/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    } catch (error) {
+      throw this.keycloakFetchError('admin token', baseUrl, error);
+    }
     if (!response.ok) {
-      throw new Error(`Keycloak admin token failed: HTTP ${response.status}`);
+      throw new ServiceUnavailableException(
+        `Keycloak admin token failed: HTTP ${response.status} (${baseUrl})`,
+      );
     }
     const json = (await response.json()) as { access_token?: string };
     if (!json.access_token) {
@@ -109,14 +122,30 @@ export class KeycloakAdminProvisionerService {
     path: string,
     body?: unknown,
   ): Promise<Response> {
-    return fetch(`${baseUrl}/admin/realms/${realm}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(body ? { 'content-type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    try {
+      return await fetch(`${baseUrl}/admin/realms/${realm}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(body ? { 'content-type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (error) {
+      throw this.keycloakFetchError(`${method} ${path}`, baseUrl, error);
+    }
+  }
+
+  private keycloakFetchError(
+    operation: string,
+    baseUrl: string,
+    error: unknown,
+  ): ServiceUnavailableException {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.logger.error(`Keycloak ${operation} failed via ${baseUrl}: ${detail}`);
+    return new ServiceUnavailableException(
+      `Keycloak admin API unreachable during ${operation} (${baseUrl}): ${detail}`,
+    );
   }
 
   private async ensureUserProfileAttributes(

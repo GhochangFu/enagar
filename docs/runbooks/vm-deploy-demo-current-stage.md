@@ -122,7 +122,9 @@ KEYCLOAK_ADMIN_PASSWORD=<your-vm-secret>
 KEYCLOAK_REALM=enagar
 ```
 
-`KEYCLOAK_ISSUER_URL` or `KEYCLOAK_BASE` must reach Keycloak (loopback `http://127.0.0.1:8080` is fine for Admin API from the API container/host).
+Set **`KEYCLOAK_BASE=http://127.0.0.1:8080`** for server-side Admin API calls during onboarding (tenant admin provisioner). Keep **`KEYCLOAK_ISSUER_URL`** as the public HTTPS issuer for browser OAuth and JWT `iss` validation. **`KEYCLOAK_JWKS_URL`** should also use loopback HTTP.
+
+**Do not** rely on `NODE_EXTRA_CA_CERTS` inside `infrastructure\.env` — Node reads that variable at process start, before Nest loads `.env`.
 
 ### 2.4 — EN-3: optional RAG on activate
 
@@ -346,21 +348,22 @@ Incognito window:
 
 ## Part 8 — Troubleshooting
 
-| Symptom                              | Likely cause                       | Fix                                                                          |
-| ------------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm verify:en3` not found          | EN-3 not pushed                    | Part 0 — commit/push EN-3 batch                                              |
-| New ULB not in citizen picker        | `GET /api/tenants` still seed-only | Deploy EN-3 `tenants.service.ts`; restart API                                |
-| Tenant admin login loop              | MFA required                       | `ENAGAR_DEMO_VM_MFA_BYPASS=true` + API restart                               |
-| State API 401 after Keycloak login   | State admin MFA not enrolled       | Part 4.2 — enroll TOTP                                                       |
-| Keycloak error on sign out           | Missing `/logout` URI              | Part 4.1                                                                     |
-| Wizard error `adoptedServicePreview` | Old State build                    | Pull latest + restart `admin-state`                                          |
-| New ULB form shows Barrackpore       | Old `EMPTY_TENANT_DRAFT`           | Pull EN-3 UI fix                                                             |
-| ~15 categories but ~6 services       | Expected                           | Only **published** globals per selected categories                           |
-| Activate OK but 0 tenant services    | Wizard payload missing categories  | Pull EN-3 fix; `tenantDraftToPayload()` must send `service_category_codes`   |
-| Citizen service API invalid schema   | Old invalid onboarding stub        | Pull EN-3 fix + restart API; new ULB or manual form repair for existing rows |
-| Grievance adopt `must be kebab-case` | Underscore global seed codes       | Skip those categories in wizard; fix seed in a later batch                   |
-| Re-onboard still broken citizen form | Published v1 already exists        | New ULB code for clean test, or Tenant Admin form publish / DB fix           |
-| Sign-out lands on `/login` only      | Old admin build                    | Rebuild/restart tenant + state apps                                          |
+| Symptom                                | Likely cause                        | Fix                                                                                                    |
+| -------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `pnpm verify:en3` not found            | EN-3 not pushed                     | Part 0 — commit/push EN-3 batch                                                                        |
+| New ULB not in citizen picker          | `GET /api/tenants` still seed-only  | Deploy EN-3 `tenants.service.ts`; restart API                                                          |
+| Tenant admin login loop                | MFA required                        | `ENAGAR_DEMO_VM_MFA_BYPASS=true` + API restart                                                         |
+| State API 401 after Keycloak login     | State admin MFA not enrolled        | Part 4.2 — enroll TOTP                                                                                 |
+| Keycloak error on sign out             | Missing `/logout` URI               | Part 4.1                                                                                               |
+| Wizard error `adoptedServicePreview`   | Old State build                     | Pull latest + restart `admin-state`                                                                    |
+| New ULB form shows Barrackpore         | Old `EMPTY_TENANT_DRAFT`            | Pull EN-3 UI fix                                                                                       |
+| ~15 categories but ~6 services         | Expected                            | Only **published** globals per selected categories                                                     |
+| Activate OK but 0 tenant services      | Wizard payload missing categories   | Pull EN-3 fix; `tenantDraftToPayload()` must send `service_category_codes`                             |
+| Onboarding 500 / Internal server error | Keycloak Admin API via HTTPS issuer | Add `KEYCLOAK_BASE=http://127.0.0.1:8080`; restart API; check log for `Keycloak admin API unreachable` |
+| Citizen service API invalid schema     | Old invalid onboarding stub         | Pull EN-3 fix + restart API; new ULB or manual form repair for existing rows                           |
+| Grievance adopt `must be kebab-case`   | Underscore global seed codes        | Skip those categories in wizard; fix seed in a later batch                                             |
+| Re-onboard still broken citizen form   | Published v1 already exists         | New ULB code for clean test, or Tenant Admin form publish / DB fix                                     |
+| Sign-out lands on `/login` only        | Old admin build                     | Rebuild/restart tenant + state apps                                                                    |
 
 ---
 
