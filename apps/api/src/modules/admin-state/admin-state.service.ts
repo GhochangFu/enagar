@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  createBlankFormSchemaDraft,
+  validateFormSchema,
+  type EnagarFormSchema,
+} from '@enagar/forms';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SignJWT } from 'jose';
 
@@ -157,19 +162,6 @@ export type AuditCoverageMatrix = {
   required_actions: string[];
   missing_actions: string[];
 };
-
-const ONBOARDING_STUB_FORM_SCHEMA = {
-  version: 1,
-  fields: [
-    {
-      id: 'applicant_name',
-      type: 'text',
-      label: { en: 'Applicant name', bn: 'আবেদনকারীর নাম', hi: 'आवेदक का नाम' },
-      required: true,
-      max_length: 120,
-    },
-  ],
-} as const;
 
 export type OnboardingCatalogueResponse = {
   service_categories: Array<{
@@ -981,13 +973,40 @@ export class AdminStateService {
         },
         update: { isActive: true, globalServiceId: global.id },
       });
-      await this.ensurePublishedOnboardingForm(tenantId, tenantService.id, global.formSchema);
+      await this.ensurePublishedOnboardingForm(
+        tenantId,
+        tenantService.id,
+        global.code,
+        global.name,
+        global.formSchema,
+      );
     }
+  }
+
+  private resolveOnboardingFormSchema(
+    serviceCode: string,
+    serviceName: Prisma.JsonValue,
+    globalFormSchema: Prisma.JsonValue,
+  ): EnagarFormSchema {
+    if (
+      globalFormSchema &&
+      typeof globalFormSchema === 'object' &&
+      !Array.isArray(globalFormSchema) &&
+      Object.keys(globalFormSchema as object).length > 0
+    ) {
+      const candidate = globalFormSchema as unknown as EnagarFormSchema;
+      if (validateFormSchema(candidate).ok) {
+        return candidate;
+      }
+    }
+    return createBlankFormSchemaDraft(serviceCode, labelFromJson(serviceName));
   }
 
   private async ensurePublishedOnboardingForm(
     tenantId: string,
     serviceId: string,
+    serviceCode: string,
+    serviceName: Prisma.JsonValue,
     globalFormSchema: Prisma.JsonValue,
   ): Promise<void> {
     const existing = await this.prisma.serviceFormVersion.findFirst({
@@ -997,13 +1016,7 @@ export class AdminStateService {
       return;
     }
 
-    const schema =
-      globalFormSchema &&
-      typeof globalFormSchema === 'object' &&
-      !Array.isArray(globalFormSchema) &&
-      Object.keys(globalFormSchema as object).length > 0
-        ? globalFormSchema
-        : ONBOARDING_STUB_FORM_SCHEMA;
+    const schema = this.resolveOnboardingFormSchema(serviceCode, serviceName, globalFormSchema);
 
     const latest = await this.prisma.serviceFormVersion.aggregate({
       where: { tenantId, serviceId },
@@ -1016,7 +1029,7 @@ export class AdminStateService {
         tenantId,
         serviceId,
         version,
-        formSchema: schema as Prisma.InputJsonValue,
+        formSchema: schema as unknown as Prisma.InputJsonValue,
         uiSchema: {} as Prisma.InputJsonValue,
         status: 'published',
         publishedAt: new Date(),
@@ -1418,4 +1431,17 @@ function requiredAuditActions(): string[] {
     'staff_invite.disable',
     'staff.role_map',
   ];
+}
+
+function labelFromJson(value: Prisma.JsonValue): { en: string; bn: string; hi: string } {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const map = value as Record<string, unknown>;
+    const en = typeof map.en === 'string' && map.en.trim() ? map.en : 'Service';
+    return {
+      en,
+      bn: typeof map.bn === 'string' && map.bn.trim() ? map.bn : en,
+      hi: typeof map.hi === 'string' && map.hi.trim() ? map.hi : en,
+    };
+  }
+  return { en: 'Service', bn: 'Service', hi: 'Service' };
 }

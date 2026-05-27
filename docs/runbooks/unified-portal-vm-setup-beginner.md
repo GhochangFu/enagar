@@ -124,11 +124,16 @@ pnpm install
 ```env
 CORS_ORIGIN=https://enagarcitizen.demosites.co.in,https://enagartenant.demosites.co.in,https://enagarstate.demosites.co.in
 ALLOW_CLIENT_SCAN_SIMULATION=true
+DEV_AUTH_ENABLED=false
 KEYCLOAK_ISSUER_URL=https://enagarauth.demosites.co.in/realms/enagar
 KEYCLOAK_JWKS_URL=http://127.0.0.1:8080/realms/enagar/protocol/openid-connect/certs
 KEYCLOAK_TOKEN_ENDPOINT=https://enagarauth.demosites.co.in/realms/enagar/protocol/openid-connect/token
 KEYCLOAK_LOGOUT_ENDPOINT=https://enagarauth.demosites.co.in/realms/enagar/protocol/openid-connect/logout
 MINIO_API_CORS_ALLOW_ORIGIN=https://enagarcitizen.demosites.co.in,https://enagartenant.demosites.co.in,https://enagarstate.demosites.co.in
+# EN-3: wizard-provisioned {ulb}-tenant-admin login without TOTP (demo VM only)
+ENAGAR_DEMO_VM_MFA_BYPASS=true
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=<your-vm-secret>
 ```
 
 **External demo (recommended):** avoid browser→MinIO PUT until storage proxy exists:

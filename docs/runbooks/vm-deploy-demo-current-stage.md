@@ -13,6 +13,7 @@ This is the **single** runbook for everything you built after the last `origin/m
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A — Portal logout** | Tenant/State sign-out → `/logout` → **Home** → `https://enagar.demosites.co.in`                                                                                     |
 | **B — EN-3**          | State multi-step onboarding wizard, live citizen tenant catalogue, Keycloak `tenant_admin` on activate, demo MFA bypass for `{ulb}-tenant-admin`, `pnpm verify:en3` |
+| **B.1 — EN-3 fixes**  | Wizard sends catalogue + tenant-admin fields; onboarding publishes **valid** form v1 (global schema or blank draft) so citizen services load                        |
 
 ---
 
@@ -48,16 +49,18 @@ git push origin main
 
 On the VM (or laptop), after `git pull`, these paths **must** exist. If any are missing, stop — commit EN-3 on the dev machine first.
 
-| Path                                                                 | Purpose                                            |
-| -------------------------------------------------------------------- | -------------------------------------------------- |
-| `apps/admin-state/components/tenant-onboarding-wizard.tsx`           | Multi-step State onboarding UI                     |
-| `docs/runbooks/state-tenant-onboarding.md`                           | EN-3 operator notes                                |
-| `scripts/verify-en3-state-onboarding.mjs`                            | Automated smoke                                    |
-| `package.json` → script `"verify:en3"`                               | Runs the smoke script                              |
-| `apps/api/src/modules/tenants/tenants.service.ts`                    | `GET /api/tenants` from Postgres (not seed-only)   |
-| `apps/api/src/common/keycloak/keycloak-admin-provisioner.service.ts` | Creates `{code}-tenant-admin` on activate          |
-| `apps/api/src/common/auth/jwt-verifier.service.ts`                   | `ENAGAR_DEMO_VM_MFA_BYPASS` for demo tenant admins |
-| `infrastructure/.env.production.example`                             | Documents `ENAGAR_DEMO_VM_MFA_BYPASS=true`         |
+| Path                                                                 | Purpose                                                        |
+| -------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `apps/admin-state/components/tenant-onboarding-wizard.tsx`           | Multi-step State onboarding UI                                 |
+| `docs/runbooks/state-tenant-onboarding.md`                           | EN-3 operator notes                                            |
+| `scripts/verify-en3-state-onboarding.mjs`                            | Automated smoke                                                |
+| `package.json` → script `"verify:en3"`                               | Runs the smoke script                                          |
+| `apps/api/src/modules/tenants/tenants.service.ts`                    | `GET /api/tenants` from Postgres (not seed-only)               |
+| `apps/api/src/common/keycloak/keycloak-admin-provisioner.service.ts` | Creates `{code}-tenant-admin` on activate                      |
+| `apps/api/src/common/auth/jwt-verifier.service.ts`                   | `ENAGAR_DEMO_VM_MFA_BYPASS` for demo tenant admins             |
+| `apps/admin-state/lib/state-dashboard-forms.ts`                      | `tenantDraftToPayload()` sends catalogue + tenant-admin fields |
+| `apps/api/src/modules/admin-state/admin-state.service.ts`            | Valid onboarding form v1 via `@enagar/forms` (no invalid stub) |
+| `infrastructure/.env.production.example`                             | Documents `ENAGAR_DEMO_VM_MFA_BYPASS=true`                     |
 
 Quick check on VM:
 
@@ -244,13 +247,15 @@ Use a **private/incognito** window.
    - **Re-onboard** — click an existing ULB in the list (e.g. KMC, BPMC); wizard pre-fills categories and `{code}-tenant-admin`.
 3. Complete steps (typical flow):
 
-   | Step             | Fill                                                                                                                                     |
-   | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-   | **Profile**      | Code `BLYM`, name _Bally Municipality_, district, wards, theme, languages                                                                |
-   | **Catalogues**   | Select service + grievance **categories** (many categories ≠ many services — preview shows **published** global services only, often ~6) |
-   | **Tenant admin** | Username `blym-tenant-admin`, email, temporary password `DummyDev_2026!ChangeMe` (or your policy)                                        |
-   | **Review**       | Confirm adoption preview                                                                                                                 |
-   | **Activate**     | Sets status **active**; API provisions Keycloak user + adopts services                                                                   |
+   | Step             | Fill                                                                                                                                                                            |
+   | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | **Profile**      | Code `BLYM`, name _Bally Municipality_, district, wards, theme, languages                                                                                                       |
+   | **Catalogues**   | Tick **service categories** (required for adoption). Optional grievance categories — see **grievance note** below. Preview shows **published** global services only (often ~6). |
+   | **Tenant admin** | Username `blym-tenant-admin`, email, temporary password `DummyDev_2026!ChangeMe` (or your policy)                                                                               |
+   | **Review**       | Confirm adoption preview                                                                                                                                                        |
+   | **Activate**     | Sets status **active**; API adopts services, publishes form v1, provisions Keycloak user                                                                                        |
+
+   **Grievance note:** adopt validates **kebab-case** codes. Seeded globals with underscores (e.g. `street_lighting`) fail until seed is fixed — for pilot smoke, service categories alone are enough; skip failing grievance rows or use only kebab-case catalogue codes.
 
 4. Success: municipality appears in tenant list; audit log shows `tenant.upsert`.
 
@@ -300,7 +305,7 @@ curl -s https://enagarapi.demosites.co.in/api/tenants | ConvertFrom-Json | Selec
 
 **Pass:** active onboarded ULBs listed; **WBPORTAL** not in picker list.
 
-4. Open a **published** service under BLYM — citizen sees services only when tenant has **published** `service_form_versions` (EN-4 will improve global form copy; today some globals may use stub forms).
+4. Open a **published** service under BLYM — apply form loads (minimal blank draft if global `form_schema` is empty). **Fail:** API `GET /api/services/tenants/{code}` returns _Published form schema is invalid_ → pull EN-3 fix batch and **restart API**; for ULBs onboarded before the fix, re-onboard does not replace bad forms (use a new code or manual repair).
 
 ### 6.5 — Automated EN-3 smoke
 
@@ -341,17 +346,21 @@ Incognito window:
 
 ## Part 8 — Troubleshooting
 
-| Symptom                              | Likely cause                       | Fix                                                |
-| ------------------------------------ | ---------------------------------- | -------------------------------------------------- |
-| `pnpm verify:en3` not found          | EN-3 not pushed                    | Part 0 — commit/push EN-3 batch                    |
-| New ULB not in citizen picker        | `GET /api/tenants` still seed-only | Deploy EN-3 `tenants.service.ts`; restart API      |
-| Tenant admin login loop              | MFA required                       | `ENAGAR_DEMO_VM_MFA_BYPASS=true` + API restart     |
-| State API 401 after Keycloak login   | State admin MFA not enrolled       | Part 4.2 — enroll TOTP                             |
-| Keycloak error on sign out           | Missing `/logout` URI              | Part 4.1                                           |
-| Wizard error `adoptedServicePreview` | Old State build                    | Pull latest + restart `admin-state`                |
-| New ULB form shows Barrackpore       | Old `EMPTY_TENANT_DRAFT`           | Pull EN-3 UI fix                                   |
-| ~15 categories but ~6 services       | Expected                           | Only **published** globals per selected categories |
-| Sign-out lands on `/login` only      | Old admin build                    | Rebuild/restart tenant + state apps                |
+| Symptom                              | Likely cause                       | Fix                                                                          |
+| ------------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm verify:en3` not found          | EN-3 not pushed                    | Part 0 — commit/push EN-3 batch                                              |
+| New ULB not in citizen picker        | `GET /api/tenants` still seed-only | Deploy EN-3 `tenants.service.ts`; restart API                                |
+| Tenant admin login loop              | MFA required                       | `ENAGAR_DEMO_VM_MFA_BYPASS=true` + API restart                               |
+| State API 401 after Keycloak login   | State admin MFA not enrolled       | Part 4.2 — enroll TOTP                                                       |
+| Keycloak error on sign out           | Missing `/logout` URI              | Part 4.1                                                                     |
+| Wizard error `adoptedServicePreview` | Old State build                    | Pull latest + restart `admin-state`                                          |
+| New ULB form shows Barrackpore       | Old `EMPTY_TENANT_DRAFT`           | Pull EN-3 UI fix                                                             |
+| ~15 categories but ~6 services       | Expected                           | Only **published** globals per selected categories                           |
+| Activate OK but 0 tenant services    | Wizard payload missing categories  | Pull EN-3 fix; `tenantDraftToPayload()` must send `service_category_codes`   |
+| Citizen service API invalid schema   | Old invalid onboarding stub        | Pull EN-3 fix + restart API; new ULB or manual form repair for existing rows |
+| Grievance adopt `must be kebab-case` | Underscore global seed codes       | Skip those categories in wizard; fix seed in a later batch                   |
+| Re-onboard still broken citizen form | Published v1 already exists        | New ULB code for clean test, or Tenant Admin form publish / DB fix           |
+| Sign-out lands on `/login` only      | Old admin build                    | Rebuild/restart tenant + state apps                                          |
 
 ---
 

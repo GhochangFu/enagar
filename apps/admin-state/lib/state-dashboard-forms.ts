@@ -96,8 +96,12 @@ export function tenantDraftToPayload(draft: TenantDraft): Record<string, unknown
     .map((value) => value.trim())
     .filter(Boolean);
 
+  const code = draft.code.trim().toUpperCase();
+  const slug = code.toLowerCase();
+  const tenantAdminUsername = draft.tenant_admin_username.trim() || `${slug}-tenant-admin`;
+
   return {
-    code: draft.code.trim().toUpperCase(),
+    code,
     name: draft.name.trim(),
     district: draft.district.trim(),
     ward_count: draft.ward_count ? Number(draft.ward_count) : undefined,
@@ -106,6 +110,14 @@ export function tenantDraftToPayload(draft: TenantDraft): Record<string, unknown
     languages_enabled: languages.length ? languages : ['en'],
     status: draft.status,
     inherit_default_services: draft.inherit_default_services === 'true',
+    service_category_codes: draft.service_category_codes,
+    grievance_category_codes: draft.grievance_category_codes,
+    tenant_admin_username: tenantAdminUsername,
+    tenant_admin_email:
+      draft.tenant_admin_email.trim() || `${tenantAdminUsername}@tenant.enagar.local`,
+    tenant_admin_password: draft.tenant_admin_password.trim() || undefined,
+    tenant_admin_first_name: draft.tenant_admin_first_name.trim() || 'Tenant',
+    tenant_admin_last_name: draft.tenant_admin_last_name.trim() || 'Administrator',
     config: {
       default_language: draft.default_language,
       support_email: draft.support_email,
