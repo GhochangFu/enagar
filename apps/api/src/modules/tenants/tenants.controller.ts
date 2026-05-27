@@ -15,12 +15,12 @@ export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
   @Get()
-  list(): TenantSummary[] {
+  list(): Promise<TenantSummary[]> {
     return this.tenants.list();
   }
 
   @Get(':id/config')
-  getConfig(@Param('id') id: string): TenantConfigResponse {
+  getConfig(@Param('id') id: string): Promise<TenantConfigResponse> {
     return this.tenants.getConfig(id);
   }
 

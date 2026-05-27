@@ -34,6 +34,36 @@ export class UpsertTenantDto {
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  service_category_codes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  grievance_category_codes?: string[];
+
+  @IsOptional()
+  @IsString()
+  tenant_admin_username?: string;
+
+  @IsOptional()
+  @IsString()
+  tenant_admin_email?: string;
+
+  @IsOptional()
+  @IsString()
+  tenant_admin_password?: string;
+
+  @IsOptional()
+  @IsString()
+  tenant_admin_first_name?: string;
+
+  @IsOptional()
+  @IsString()
+  tenant_admin_last_name?: string;
 }
 
 export class CreateImpersonationTokenDto {

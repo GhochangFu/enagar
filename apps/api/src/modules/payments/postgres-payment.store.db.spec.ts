@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { PostgresApplicationStore } from '../applications/postgres-application.store';
+import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { STUB_GATEWAY_DEBIT_ACCOUNT_CODE } from './payment-financial.constants';
 import { PostgresPaymentStore } from './postgres-payment.store';
@@ -19,7 +21,10 @@ function idempotencyExpiry(): Date {
 describeDb('PostgresPaymentStore DB integration', () => {
   const prisma = new PrismaService();
   const applicationStore = new PostgresApplicationStore(prisma);
-  const paymentStore = new PostgresPaymentStore(prisma);
+  const paymentStore = new PostgresPaymentStore(prisma, {
+    list: async () =>
+      tenantSeeds.filter((t) => t.is_active && t.code !== CITIZEN_PORTAL_TENANT_CODE),
+  } as TenantsService);
   const tenantId = randomUUID();
   const categoryCode = `phase-31a-pay-${Date.now()}`;
   const tenantCode = `P${Date.now().toString().slice(-8)}`;

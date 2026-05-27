@@ -1,6 +1,19 @@
+import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../tenants/tenant.seed';
+import { TenantsService } from '../tenants/tenants.service';
+
 import { PostgresPaymentStore } from './postgres-payment.store';
 
 import type { PrismaService } from '../../common/database/prisma.service';
+
+function mockTenantsService(): TenantsService {
+  return {
+    list: jest
+      .fn()
+      .mockResolvedValue(
+        tenantSeeds.filter((t) => t.is_active && t.code !== CITIZEN_PORTAL_TENANT_CODE),
+      ),
+  } as unknown as TenantsService;
+}
 
 describe('PostgresPaymentStore', () => {
   it('creates a pending payment and idempotency key in one transaction', async () => {
@@ -26,9 +39,12 @@ describe('PostgresPaymentStore', () => {
         paymentIdempotencyKey: { create: idempotencyCreate },
       }),
     );
-    const store = new PostgresPaymentStore({
-      $transaction: transaction,
-    } as unknown as PrismaService);
+    const store = new PostgresPaymentStore(
+      {
+        $transaction: transaction,
+      } as unknown as PrismaService,
+      mockTenantsService(),
+    );
 
     const payment = await store.createPendingPayment({
       id: 'payment-id',
@@ -76,11 +92,14 @@ describe('PostgresPaymentStore', () => {
       requestFingerprint: 'f'.repeat(64),
       paymentId: 'payment-id',
     });
-    const store = new PostgresPaymentStore({
-      paymentIdempotencyKey: {
-        findUnique,
-      },
-    } as unknown as PrismaService);
+    const store = new PostgresPaymentStore(
+      {
+        paymentIdempotencyKey: {
+          findUnique,
+        },
+      } as unknown as PrismaService,
+      mockTenantsService(),
+    );
 
     const record = await store.findIdempotencyRecord(
       {
@@ -114,11 +133,14 @@ describe('PostgresPaymentStore', () => {
 
   it('scopes idempotency lookup with idempotencyTenantId when provided', async () => {
     const findUnique = jest.fn().mockResolvedValue(null);
-    const store = new PostgresPaymentStore({
-      paymentIdempotencyKey: {
-        findUnique,
-      },
-    } as unknown as PrismaService);
+    const store = new PostgresPaymentStore(
+      {
+        paymentIdempotencyKey: {
+          findUnique,
+        },
+      } as unknown as PrismaService,
+      mockTenantsService(),
+    );
 
     const municipalTenantId = '11111111-1111-4111-8111-111111111111';
 

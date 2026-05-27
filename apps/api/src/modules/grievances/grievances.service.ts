@@ -234,7 +234,7 @@ export class GrievancesService {
 
     const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityScopeFromHeader,
     );
 
@@ -339,7 +339,7 @@ export class GrievancesService {
 
     const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityScopeFromHeader,
     );
     return this.catalogue.getActiveCatalogue(tenantId, tenantCode);
@@ -360,13 +360,14 @@ export class GrievancesService {
     }
 
     if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const catalogue = await this.tenants.list();
       const scoped = readScope?.municipalityTenantCode?.trim();
       const where: Prisma.GrievanceWhereInput = {
         citizen: { keycloakSubject: principal.subject },
       };
 
       if (scoped) {
-        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped);
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped, catalogue);
         if (!tid) {
           throw new BadRequestException('Invalid tenant scope');
         }
@@ -410,6 +411,7 @@ export class GrievancesService {
     }
 
     if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const catalogue = await this.tenants.list();
       const scoped = readScope?.municipalityTenantCode?.trim();
       const where: Prisma.GrievanceWhereInput = {
         ...this.grievanceIdentifierWhere(grievanceId),
@@ -417,7 +419,7 @@ export class GrievancesService {
       };
 
       if (scoped) {
-        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped);
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scoped, catalogue);
         if (!tid) {
           throw new BadRequestException('Invalid tenant scope');
         }
@@ -751,7 +753,7 @@ export class GrievancesService {
 
     const { tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityScopeFromHeader,
     );
 

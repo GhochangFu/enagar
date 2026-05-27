@@ -256,9 +256,11 @@ export function StateDashboardClient(): JSX.Element {
   }
 
   function newTenant(): void {
+    setActiveTab('tenants');
     setSelectedTenantCode(null);
     setTenantDraft(EMPTY_TENANT_DRAFT);
     setTenantJson(JSON.stringify(tenantDraftToPayload(EMPTY_TENANT_DRAFT), null, 2));
+    setStatus('New municipality — complete the onboarding wizard and activate.');
   }
 
   function selectLibraryForEdit(code: string): void {
@@ -307,7 +309,14 @@ export function StateDashboardClient(): JSX.Element {
 
   async function saveTenantGuided(): Promise<void> {
     try {
-      const payload = tenantDraftToPayload(tenantDraft);
+      const activating = !selectedTenantCode;
+      const payload = tenantDraftToPayload({
+        ...tenantDraft,
+        status: activating ? 'active' : tenantDraft.status,
+        tenant_admin_username:
+          tenantDraft.tenant_admin_username.trim() ||
+          `${tenantDraft.code.trim().toLowerCase()}-tenant-admin`,
+      });
       setTenantJson(JSON.stringify(payload, null, 2));
       setStatus('Saving municipality...');
       await api<TenantRow>('/admin/state/tenants', {
@@ -549,6 +558,7 @@ export function StateDashboardClient(): JSX.Element {
             onSaveGuided={() => void saveTenantGuided()}
             onSaveJson={() => void saveTenantFromJson()}
             onOpenDetail={(code) => void openTenantDetail(code)}
+            fetchOnboardingCatalogue={() => api('/admin/state/onboarding/catalogue')}
           />
         ) : null}
 

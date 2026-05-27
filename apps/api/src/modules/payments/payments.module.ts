@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../common/database/database.module';
 import { ApplicationsModule } from '../applications/applications.module';
 import { ServicesModule } from '../services/services.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 import { InMemoryPaymentStore } from './in-memory-payment.store';
 import { PAYMENT_STORE } from './payment-store';
@@ -14,7 +15,7 @@ import { ReceiptVerificationService } from './receipt-verification.service';
 import { StubPaymentGateway } from './stub-payment.gateway';
 
 @Module({
-  imports: [ApplicationsModule, DatabaseModule, ServicesModule],
+  imports: [ApplicationsModule, DatabaseModule, ServicesModule, TenantsModule],
   controllers: [PaymentsController, PublicReceiptsController],
   providers: [
     InMemoryPaymentStore,

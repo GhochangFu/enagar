@@ -7,6 +7,7 @@ import { pickLabel } from '../lib/state-dashboard-forms';
 import { FormField, FormSelect, GuidedFormCard } from './guided-form-primitives';
 import { JsonFallbackPanel } from './json-fallback-panel';
 import { RecordListItem, RecordListPanel } from './record-list-panel';
+import { TenantOnboardingWizard } from './tenant-onboarding-wizard';
 
 import type { IntegrationDraft, LibraryDraft, TenantDraft } from '../lib/state-dashboard-forms';
 
@@ -49,6 +50,7 @@ export function StateTenantSection({
   onSaveGuided,
   onSaveJson,
   onOpenDetail,
+  fetchOnboardingCatalogue,
 }: {
   tenants: TenantRow[];
   selectedCode: string | null;
@@ -61,6 +63,11 @@ export function StateTenantSection({
   onSaveGuided: () => void;
   onSaveJson: () => void;
   onOpenDetail: (code: string) => void;
+  fetchOnboardingCatalogue: () => Promise<{
+    service_categories: Array<{ code: string; name: unknown; published_service_count?: number }>;
+    grievance_categories: Array<{ code: string; name: unknown }>;
+    published_service_total: number;
+  }>;
 }): JSX.Element {
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.15fr)]">
@@ -79,76 +86,86 @@ export function StateTenantSection({
       </RecordListPanel>
 
       <div className="space-y-4">
-        <GuidedFormCard
-          eyebrow="Tenant onboarding"
-          title={selectedCode ? `Edit · ${selectedCode}` : 'New municipality'}
-          saveLabel="Save municipality"
-          onSave={onSaveGuided}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField
-              label="Code"
-              value={draft.code}
-              onChange={(v) => onDraftChange({ ...draft, code: v.toUpperCase() })}
-            />
-            <FormField
-              label="Name"
-              value={draft.name}
-              onChange={(v) => onDraftChange({ ...draft, name: v })}
-            />
-            <FormField
-              label="District"
-              value={draft.district}
-              onChange={(v) => onDraftChange({ ...draft, district: v })}
-            />
-            <FormField
-              label="Ward count"
-              type="number"
-              value={draft.ward_count}
-              onChange={(v) => onDraftChange({ ...draft, ward_count: v })}
-            />
-            <FormField
-              label="Theme colour"
-              value={draft.theme_color}
-              onChange={(v) => onDraftChange({ ...draft, theme_color: v })}
-              hint="Hex e.g. #0E7490"
-            />
-            <FormField
-              label="Languages"
-              value={draft.languages_enabled}
-              onChange={(v) => onDraftChange({ ...draft, languages_enabled: v })}
-              hint="Comma-separated: en, bn"
-            />
-            <FormSelect
-              label="Status"
-              value={draft.status}
-              onChange={(v) => onDraftChange({ ...draft, status: v })}
-              options={[
-                { value: 'active', label: 'Active' },
-                { value: 'inactive', label: 'Inactive' },
-              ]}
-            />
-            <FormSelect
-              label="Inherit default services"
-              value={draft.inherit_default_services}
-              onChange={(v) => onDraftChange({ ...draft, inherit_default_services: v })}
-              options={[
-                { value: 'true', label: 'Yes' },
-                { value: 'false', label: 'No' },
-              ]}
-            />
-            <FormField
-              label="Default language"
-              value={draft.default_language}
-              onChange={(v) => onDraftChange({ ...draft, default_language: v })}
-            />
-            <FormField
-              label="Support email"
-              value={draft.support_email}
-              onChange={(v) => onDraftChange({ ...draft, support_email: v })}
-            />
-          </div>
-        </GuidedFormCard>
+        {!selectedCode ? (
+          <TenantOnboardingWizard
+            draft={draft}
+            onDraftChange={onDraftChange}
+            onSave={onSaveGuided}
+            fetchCatalogue={fetchOnboardingCatalogue}
+          />
+        ) : null}
+        {selectedCode ? (
+          <GuidedFormCard
+            eyebrow="Tenant onboarding"
+            title={selectedCode ? `Edit · ${selectedCode}` : 'New municipality'}
+            saveLabel="Save municipality"
+            onSave={onSaveGuided}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                label="Code"
+                value={draft.code}
+                onChange={(v) => onDraftChange({ ...draft, code: v.toUpperCase() })}
+              />
+              <FormField
+                label="Name"
+                value={draft.name}
+                onChange={(v) => onDraftChange({ ...draft, name: v })}
+              />
+              <FormField
+                label="District"
+                value={draft.district}
+                onChange={(v) => onDraftChange({ ...draft, district: v })}
+              />
+              <FormField
+                label="Ward count"
+                type="number"
+                value={draft.ward_count}
+                onChange={(v) => onDraftChange({ ...draft, ward_count: v })}
+              />
+              <FormField
+                label="Theme colour"
+                value={draft.theme_color}
+                onChange={(v) => onDraftChange({ ...draft, theme_color: v })}
+                hint="Hex e.g. #0E7490"
+              />
+              <FormField
+                label="Languages"
+                value={draft.languages_enabled}
+                onChange={(v) => onDraftChange({ ...draft, languages_enabled: v })}
+                hint="Comma-separated: en, bn"
+              />
+              <FormSelect
+                label="Status"
+                value={draft.status}
+                onChange={(v) => onDraftChange({ ...draft, status: v })}
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
+              <FormSelect
+                label="Inherit default services"
+                value={draft.inherit_default_services}
+                onChange={(v) => onDraftChange({ ...draft, inherit_default_services: v })}
+                options={[
+                  { value: 'true', label: 'Yes' },
+                  { value: 'false', label: 'No' },
+                ]}
+              />
+              <FormField
+                label="Default language"
+                value={draft.default_language}
+                onChange={(v) => onDraftChange({ ...draft, default_language: v })}
+              />
+              <FormField
+                label="Support email"
+                value={draft.support_email}
+                onChange={(v) => onDraftChange({ ...draft, support_email: v })}
+              />
+            </div>
+          </GuidedFormCard>
+        ) : null}
 
         <article className="rounded-2xl border border-warm-border bg-surface p-4 shadow-sm">
           <p className="text-sm font-semibold text-ink-primary">Directory quick view</p>

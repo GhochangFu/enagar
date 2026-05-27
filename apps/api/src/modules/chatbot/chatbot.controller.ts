@@ -66,12 +66,12 @@ export class ChatbotController {
   @ApiHeader({ name: CITIZEN_MUNICIPALITY_SCOPE_HEADER, required: false })
   @Post('feedback')
   @ApiOperation({ summary: 'Thumbs up/down on a Sahayak reply' })
-  postFeedback(
+  async postFeedback(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: ChatbotFeedbackDto,
     @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityHeader: string | undefined,
   ): Promise<ChatbotFeedbackResponse> {
-    const { tenantId } = this.chatbot.resolveWriteScope(principal, municipalityHeader);
+    const { tenantId } = await this.chatbot.resolveWriteScope(principal, municipalityHeader);
     return this.feedback.record({
       tenantId,
       citizenSubject: principal.subject,

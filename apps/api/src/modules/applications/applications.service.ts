@@ -89,7 +89,7 @@ export class ApplicationsService {
   ): Promise<ApplicationResponse> {
     const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityScopeFromHeader,
     );
     const service = await this.services.getTenantService(tenantCode, dto.service_code);

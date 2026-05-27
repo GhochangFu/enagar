@@ -47,6 +47,12 @@ export class AdminStateController {
     return this.adminState.getAnalyticsV2(principal, { from, to });
   }
 
+  @Get('onboarding/catalogue')
+  @ApiOperation({ summary: 'Service and grievance categories for State onboarding wizard' })
+  getOnboardingCatalogue(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminState.getOnboardingCatalogue(principal);
+  }
+
   @Get('tenants')
   @ApiOperation({ summary: 'List tenants with state-wide counts' })
   listTenants(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

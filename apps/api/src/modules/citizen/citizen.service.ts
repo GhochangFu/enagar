@@ -81,7 +81,7 @@ export class CitizenService {
 
     const nextPins =
       dto.pinned_tenant_codes !== undefined
-        ? this.normalizePinnedTenantCodes(dto.pinned_tenant_codes)
+        ? await this.normalizePinnedTenantCodes(dto.pinned_tenant_codes)
         : [...profile.pinned_tenant_codes];
 
     const nextServices =
@@ -141,7 +141,7 @@ export class CitizenService {
     theme_color: string;
     ward_count: number;
   }> {
-    const tenant = this.tenants.getConfig(dto.tenant_code);
+    const tenant = await this.tenants.getConfig(dto.tenant_code);
     const profile = await this.getOrCreateProfile(principal);
 
     if (!tenant.is_active) {
@@ -266,7 +266,7 @@ export class CitizenService {
   }
 
   /** Maps each incoming code (post-DTO uniqueness) onto an operational municipality from `GET /tenants`. */
-  private normalizePinnedTenantCodes(rawCodes: string[]): string[] {
+  private async normalizePinnedTenantCodes(rawCodes: string[]): Promise<string[]> {
     if (!rawCodes.length) {
       throw new BadRequestException('At least one pinned municipality is required');
     }
@@ -278,7 +278,7 @@ export class CitizenService {
     const ordered: string[] = [];
 
     for (const raw of rawCodes) {
-      const canonical = this.resolveOperationalTenantCode(raw.trim());
+      const canonical = await this.resolveOperationalTenantCode(raw.trim());
       const key = canonical.toLowerCase();
 
       if (seen.has(key)) {
@@ -299,7 +299,7 @@ export class CitizenService {
     const ordered: PinnedServicePreference[] = [];
 
     for (const row of entries) {
-      const tenantCode = this.resolveOperationalTenantCode(row.tenant_code.trim());
+      const tenantCode = await this.resolveOperationalTenantCode(row.tenant_code.trim());
       const summary = await this.catalogue.getTenantService(tenantCode, row.service_code.trim());
       const pairKey = `${tenantCode.toLowerCase()}:${summary.code.toLowerCase()}`;
       if (seenPairKeys.has(pairKey)) {
@@ -312,10 +312,9 @@ export class CitizenService {
     return ordered;
   }
 
-  private resolveOperationalTenantCode(raw: string): string {
-    const match = this.tenants
-      .list()
-      .find((tenant) => tenant.code.toLowerCase() === raw.toLowerCase());
+  private async resolveOperationalTenantCode(raw: string): Promise<string> {
+    const catalogue = await this.tenants.list();
+    const match = catalogue.find((tenant) => tenant.code.toLowerCase() === raw.toLowerCase());
 
     if (!match) {
       throw new BadRequestException(`Unknown or inactive municipality: ${raw}`);

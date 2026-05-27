@@ -13,6 +13,7 @@ import {
   resolveMunicipalityTenantIdFromScopeCode,
 } from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
+import { TenantsService } from '../tenants/tenants.service';
 
 import { STUB_GATEWAY_DEBIT_ACCOUNT_CODE } from './payment-financial.constants';
 import {
@@ -60,7 +61,10 @@ function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
  */
 @Injectable()
 export class PostgresPaymentStore implements PaymentStore {
-  constructor(@Inject(PrismaService) private readonly db: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly db: PrismaService,
+    private readonly tenants: TenantsService,
+  ) {}
 
   async findIdempotencyRecord(
     principal: AuthenticatedPrincipal,
@@ -138,6 +142,7 @@ export class PostgresPaymentStore implements PaymentStore {
     principal: AuthenticatedPrincipal,
     readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse[]> {
+    const catalogue = await this.tenants.list();
     const scopedCode = readScope?.municipalityTenantCode?.trim();
     const where: { citizenSubject: string; tenantId?: string } = {
       citizenSubject: principal.subject,
@@ -145,7 +150,7 @@ export class PostgresPaymentStore implements PaymentStore {
 
     if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
       if (scopedCode) {
-        const tid = resolveMunicipalityTenantIdFromScopeCode(scopedCode);
+        const tid = resolveMunicipalityTenantIdFromScopeCode(scopedCode, catalogue);
         if (!tid) {
           throw new BadRequestException('Invalid tenant scope');
         }
@@ -177,12 +182,14 @@ export class PostgresPaymentStore implements PaymentStore {
     if (!payment) {
       return null;
     }
+    const catalogue = await this.tenants.list();
     const dto = this.toPaymentResponse(payment);
     if (
       !citizenHubRowAccessibleByTenant(
         principal,
         { tenant_id: dto.tenant_id, citizen_subject: dto.citizen_subject },
         readScope,
+        catalogue,
       )
     ) {
       return null;
@@ -196,6 +203,7 @@ export class PostgresPaymentStore implements PaymentStore {
     gatewayOrderId: string,
     ctx: SettlementLedgerContext,
   ): Promise<LedgerSettlementDto> {
+    const catalogue = await this.tenants.list();
     const result = await this.db.$transaction(async (tx) => {
       const paymentOwned = await tx.payment.findUnique({
         where: { id: paymentId },
@@ -210,6 +218,7 @@ export class PostgresPaymentStore implements PaymentStore {
             citizen_subject: paymentOwned.citizenSubject,
           },
           undefined,
+          catalogue,
         )
       ) {
         throw new NotFoundException('Payment not found');

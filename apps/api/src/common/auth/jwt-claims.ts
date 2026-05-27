@@ -2,6 +2,7 @@ import type { TenantId } from '@enagar/types';
 
 export interface EnagarJwtClaims {
   sub: string;
+  preferred_username?: string;
   iss: string;
   aud?: string | string[];
   exp: number;

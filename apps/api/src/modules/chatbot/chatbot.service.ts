@@ -50,27 +50,31 @@ export class ChatbotService {
     private readonly consent: ChatbotConsentService,
   ) {}
 
-  resolveWriteScope(
+  async resolveWriteScope(
     principal: AuthenticatedPrincipal,
     municipalityHeader?: string,
-  ): { tenantId: string; tenantCode: string } {
-    return resolveCitizenMunicipalityForWrite(principal, this.tenants.list(), municipalityHeader);
+  ): Promise<{ tenantId: string; tenantCode: string }> {
+    return resolveCitizenMunicipalityForWrite(
+      principal,
+      await this.tenants.list(),
+      municipalityHeader,
+    );
   }
 
-  getConsentForPrincipal(principal: AuthenticatedPrincipal, municipalityHeader?: string) {
-    const { tenantId } = this.resolveWriteScope(principal, municipalityHeader);
+  async getConsentForPrincipal(principal: AuthenticatedPrincipal, municipalityHeader?: string) {
+    const { tenantId } = await this.resolveWriteScope(principal, municipalityHeader);
     return this.consent.getConsent({
       tenantId,
       citizenSubject: principal.subject,
     });
   }
 
-  recordConsentForPrincipal(
+  async recordConsentForPrincipal(
     principal: AuthenticatedPrincipal,
     dto: { mode: 'llm' | 'kb_only'; accepted: boolean },
     municipalityHeader?: string,
   ) {
-    const { tenantId } = this.resolveWriteScope(principal, municipalityHeader);
+    const { tenantId } = await this.resolveWriteScope(principal, municipalityHeader);
     return this.consent.recordConsent({
       tenantId,
       citizenSubject: principal.subject,
@@ -87,7 +91,7 @@ export class ChatbotService {
     const sanitized = assertChatbotInputAllowed(dto.message);
     const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityHeader,
     );
 
@@ -251,7 +255,7 @@ export class ChatbotService {
   ): Promise<ChatbotHistoryResponse> {
     const { tenantId } = resolveCitizenMunicipalityForWrite(
       principal,
-      this.tenants.list(),
+      await this.tenants.list(),
       municipalityHeader,
     );
 

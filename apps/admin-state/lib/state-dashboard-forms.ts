@@ -9,6 +9,13 @@ export type TenantDraft = {
   inherit_default_services: string;
   default_language: string;
   support_email: string;
+  service_category_codes: string[];
+  grievance_category_codes: string[];
+  tenant_admin_username: string;
+  tenant_admin_email: string;
+  tenant_admin_password: string;
+  tenant_admin_first_name: string;
+  tenant_admin_last_name: string;
 };
 
 export type LibraryDraft = {
@@ -34,16 +41,23 @@ export type IntegrationDraft = {
 };
 
 export const EMPTY_TENANT_DRAFT: TenantDraft = {
-  code: 'NBM',
-  name: 'New Barrackpore Municipality',
-  district: 'North 24 Pgs',
-  ward_count: '20',
+  code: '',
+  name: '',
+  district: '',
+  ward_count: '',
   theme_color: '#0E7490',
   languages_enabled: 'en, bn',
   status: 'active',
-  inherit_default_services: 'true',
+  inherit_default_services: 'false',
   default_language: 'bn',
-  support_email: 'support@example.gov.in',
+  support_email: '',
+  service_category_codes: [],
+  grievance_category_codes: [],
+  tenant_admin_username: '',
+  tenant_admin_email: '',
+  tenant_admin_password: 'DummyDev_2026!ChangeMe',
+  tenant_admin_first_name: 'Tenant',
+  tenant_admin_last_name: 'Administrator',
 };
 
 export const EMPTY_LIBRARY_DRAFT: LibraryDraft = {
@@ -140,6 +154,13 @@ export function tenantRowToDraft(row: {
     inherit_default_services: 'true',
     default_language: 'bn',
     support_email: 'support@example.gov.in',
+    service_category_codes: [],
+    grievance_category_codes: [],
+    tenant_admin_username: '',
+    tenant_admin_email: '',
+    tenant_admin_password: '',
+    tenant_admin_first_name: 'Tenant',
+    tenant_admin_last_name: 'Administrator',
   };
 }
 

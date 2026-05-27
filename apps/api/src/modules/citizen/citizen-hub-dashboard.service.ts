@@ -52,7 +52,8 @@ export class CitizenHubDashboardService {
     const paymentCounts = countByTenantId(paymentRows);
     const grievanceCounts = countByTenantId(grievanceRows);
 
-    const municipalities = this.tenants.list().map((tenant) => ({
+    const tenantCatalogue = await this.tenants.list();
+    const municipalities = tenantCatalogue.map((tenant) => ({
       tenant_id: tenant.id,
       tenant_code: tenant.code,
       theme_color: tenant.theme_color,

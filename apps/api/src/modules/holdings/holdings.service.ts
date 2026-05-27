@@ -18,12 +18,12 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 export class HoldingsService {
   constructor(private readonly tenants: TenantsService) {}
 
-  lookup(
+  async lookup(
     principal: AuthenticatedPrincipal,
     holdingNumber: string,
     municipalityScopeHeader?: string,
-  ): HoldingLookupResponse {
-    const tenantCode = this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
+  ): Promise<HoldingLookupResponse> {
+    const tenantCode = await this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
     const normalized = normalizeHolding(holdingNumber);
     const holding = holdingSeeds.find(
       (candidate) =>
@@ -34,12 +34,12 @@ export class HoldingsService {
     return this.withAudit(holdingNumber, holding);
   }
 
-  search(
+  async search(
     principal: AuthenticatedPrincipal,
     query: string,
     municipalityScopeHeader?: string,
-  ): HoldingResponse[] {
-    const tenantCode = this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
+  ): Promise<HoldingResponse[]> {
+    const tenantCode = await this.resolveWorkspacesTenantCode(principal, municipalityScopeHeader);
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 3) {
       throw new BadRequestException('Search query must be at least 3 characters');
@@ -73,17 +73,17 @@ export class HoldingsService {
     };
   }
 
-  private resolveWorkspacesTenantCode(
+  private async resolveWorkspacesTenantCode(
     principal: AuthenticatedPrincipal,
     municipalityScopeHeader?: string,
-  ): string {
+  ): Promise<string> {
     if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
       if (!municipalityScopeHeader?.trim()) {
         throw new BadRequestException(
           `Portal citizen requests require ${CITIZEN_MUNICIPALITY_SCOPE_HEADER} header for holdings`,
         );
       }
-      return assertActiveMunicipalityTenantCode(municipalityScopeHeader, this.tenants.list());
+      return assertActiveMunicipalityTenantCode(municipalityScopeHeader, await this.tenants.list());
     }
     return this.requireTenantCode(principal);
   }

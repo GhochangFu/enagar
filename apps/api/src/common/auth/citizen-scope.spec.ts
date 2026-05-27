@@ -128,7 +128,10 @@ describe('citizen-scope', () => {
   });
 
   describe('resolveCitizenMunicipalityForWrite', () => {
-    const catalogue = new TenantsService().list();
+    let catalogue: Awaited<ReturnType<TenantsService['list']>>;
+    beforeAll(async () => {
+      catalogue = await new TenantsService().list();
+    });
 
     const kmcPrincipal: AuthenticatedPrincipal = {
       subject: 'k',

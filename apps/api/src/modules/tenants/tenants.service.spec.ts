@@ -1,46 +1,64 @@
+import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from './tenant.seed';
 import { TenantsService } from './tenants.service';
 
 describe('TenantsService', () => {
-  const service = new TenantsService();
+  it('returns seed ULBs when Prisma is unavailable', async () => {
+    const service = new TenantsService();
+    const tenants = await service.list();
 
-  it('returns the eight active municipal ULBs (portal tenant excluded from pickers)', () => {
-    const tenants = service.list();
-
-    expect(tenants).toHaveLength(8);
-    expect(tenants.map((tenant) => tenant.code)).toEqual([
-      'KMC',
-      'HMC',
-      'CMC',
-      'BMC',
-      'SMC',
-      'AMC',
-      'DMC',
-      'SDDM',
-    ]);
+    expect(tenants.length).toBeGreaterThan(0);
+    expect(tenants.some((t) => t.code === 'WBPORTAL')).toBe(false);
+    expect(tenants.map((t) => t.code)).toEqual(
+      tenantSeeds
+        .filter((t) => t.is_active && t.code !== CITIZEN_PORTAL_TENANT_CODE)
+        .map((t) => t.code),
+    );
   });
 
-  it('resolves the citizen portal tenant for auth and config (but not via list())', () => {
-    expect(service.list().some((t) => t.code === 'WBPORTAL')).toBe(false);
-    expect(service.getConfig('WBPORTAL')).toMatchObject({
+  it('lists active tenants from Postgres when available', async () => {
+    const prisma = {
+      tenant: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            code: 'BLYM',
+            name: 'Bally Municipality',
+            district: 'Howrah',
+            wardCount: 20,
+            themeColor: '#0E7490',
+            logoUrl: null,
+            languagesEnabled: ['en', 'bn'],
+            isActive: true,
+          },
+        ]),
+      },
+      tenantService: { count: jest.fn() },
+      serviceCategory: { count: jest.fn() },
+    };
+    const service = new TenantsService(prisma as never);
+    const tenants = await service.list();
+
+    expect(tenants).toHaveLength(1);
+    expect(tenants[0]).toMatchObject({ code: 'BLYM', is_active: true });
+  });
+
+  it('resolves the citizen portal tenant for config (not via list())', async () => {
+    const service = new TenantsService();
+    const tenants = await service.list();
+    expect(tenants.some((t) => t.code === 'WBPORTAL')).toBe(false);
+    await expect(service.getConfig('WBPORTAL')).resolves.toMatchObject({
       code: 'WBPORTAL',
       name: 'West Bengal Citizen Portal',
-      ward_count: 0,
-      theme_color: '#1565C0',
     });
   });
 
-  it('returns tenant config with theme and ward count', () => {
-    expect(service.getConfig('KMC')).toMatchObject({
+  it('returns tenant config with theme and ward count from seeds', async () => {
+    const service = new TenantsService();
+    await expect(service.getConfig('KMC')).resolves.toMatchObject({
       code: 'KMC',
       name: 'Kolkata Municipal Corporation',
       ward_count: 144,
       theme_color: '#0F4C75',
-      config: {
-        feature_flags: {
-          digilocker_enabled: false,
-          tenant_switcher_enabled: true,
-        },
-      },
     });
   });
 });

@@ -21,18 +21,77 @@ export type TenantPublicBanner = {
   ends_at: string | null;
 };
 
+type LanguageCode = 'en' | 'bn' | 'hi';
+
 @Injectable()
 export class TenantsService {
   constructor(private readonly prisma?: PrismaService) {}
 
   /** Active ULBs for pickers / workspace; excludes the statewide citizen portal tenant. */
-  list(): TenantSummary[] {
-    return tenantSeeds.filter(
-      (tenant) => tenant.is_active && tenant.code !== CITIZEN_PORTAL_TENANT_CODE,
-    );
+  async list(): Promise<TenantSummary[]> {
+    if (!this.prisma) {
+      return this.listFromSeeds();
+    }
+    try {
+      const rows = await this.prisma.tenant.findMany({
+        where: { isActive: true },
+        orderBy: { code: 'asc' },
+      });
+      const operational = rows
+        .filter((row) => row.code.toUpperCase() !== CITIZEN_PORTAL_TENANT_CODE)
+        .map((row) => this.toTenantSummary(row));
+      if (operational.length > 0) {
+        return operational;
+      }
+    } catch {
+      /* fall through to seeds when DB unavailable in tests */
+    }
+    return this.listFromSeeds();
   }
 
-  getConfig(idOrCode: string): TenantConfigResponse {
+  async getConfig(idOrCode: string): Promise<TenantConfigResponse> {
+    if (this.prisma) {
+      try {
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            idOrCode,
+          );
+        const row = await this.prisma.tenant.findFirst({
+          where: {
+            OR: [
+              ...(isUuid ? [{ id: idOrCode }] : []),
+              { code: { equals: idOrCode, mode: 'insensitive' } },
+            ],
+          },
+        });
+        if (row) {
+          const summary = this.toTenantSummary(row);
+          const serviceCount = await this.prisma.tenantService.count({
+            where: { tenantId: row.id, isActive: true },
+          });
+          const categoryCount = await this.prisma.serviceCategory.count({
+            where: { isActive: true },
+          });
+          return {
+            ...summary,
+            config: {
+              default_language: 'en',
+              service_summary: {
+                total_services: serviceCount,
+                categories: categoryCount,
+              },
+              feature_flags: {
+                digilocker_enabled: false,
+                tenant_switcher_enabled: true,
+              },
+            },
+          };
+        }
+      } catch {
+        /* seed fallback */
+      }
+    }
+
     const tenant = tenantSeeds.find(
       (candidate) =>
         candidate.id === idOrCode || candidate.code.toLowerCase() === idOrCode.toLowerCase(),
@@ -60,7 +119,7 @@ export class TenantsService {
 
   async listActiveBanners(idOrCode: string): Promise<TenantPublicBanner[]> {
     if (!this.prisma) {
-      this.getConfig(idOrCode);
+      await this.getConfig(idOrCode);
       return [];
     }
 
@@ -85,9 +144,10 @@ export class TenantsService {
         tenantId: tenant.id,
         isActive: true,
         OR: [{ startsAt: null }, { startsAt: { lte: now } }],
-        AND: [{ OR: [{ endsAt: null }, { endsAt: { gt: now } }] }],
+        AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
       },
-      orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     });
 
     return rows.map((row) => ({
@@ -99,5 +159,38 @@ export class TenantsService {
       starts_at: row.startsAt?.toISOString() ?? null,
       ends_at: row.endsAt?.toISOString() ?? null,
     }));
+  }
+
+  private listFromSeeds(): TenantSummary[] {
+    return tenantSeeds.filter(
+      (tenant) => tenant.is_active && tenant.code !== CITIZEN_PORTAL_TENANT_CODE,
+    );
+  }
+
+  private toTenantSummary(row: {
+    id: string;
+    code: string;
+    name: string;
+    district: string | null;
+    wardCount: number | null;
+    themeColor: string | null;
+    logoUrl: string | null;
+    languagesEnabled: Prisma.JsonValue;
+    isActive: boolean;
+  }): TenantSummary {
+    const languages = Array.isArray(row.languagesEnabled)
+      ? (row.languagesEnabled as LanguageCode[])
+      : (['en'] as LanguageCode[]);
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      district: row.district ?? '',
+      ward_count: row.wardCount ?? 0,
+      theme_color: row.themeColor ?? '#0E7490',
+      logo_url: row.logoUrl,
+      languages_enabled: languages,
+      is_active: row.isActive,
+    };
   }
 }

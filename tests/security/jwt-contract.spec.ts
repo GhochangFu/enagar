@@ -75,6 +75,7 @@ describe('Sprint 1.2 API JWT tenant-binding contract', () => {
     expect(verifierSource).toContain("value === 'otp' || value === 'totp' || value === 'mfa'");
     expect(verifierSource).toContain('acrLevel >= 2');
     expect(verifierSource).toContain('allowsLocalDummyAdminMfaBypass');
+    expect(verifierSource).toContain('ENAGAR_DEMO_VM_MFA_BYPASS');
     expect(verifierSource).toContain("process.env.NODE_ENV === 'production'");
     expect(verifierSource).toContain('Admin role requires MFA');
   });

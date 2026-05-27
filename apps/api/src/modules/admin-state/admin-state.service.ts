@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SignJWT } from 'jose';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { KeycloakAdminProvisionerService } from '../../common/keycloak/keycloak-admin-provisioner.service';
 import { globalServices } from '../services/service-catalogue.seed';
 
+import { AdminStateGrievanceLibraryService } from './admin-state-grievance-library.service';
 import {
   assertHexColor,
   assertImpersonationReason,
@@ -156,9 +158,77 @@ export type AuditCoverageMatrix = {
   missing_actions: string[];
 };
 
+const ONBOARDING_STUB_FORM_SCHEMA = {
+  version: 1,
+  fields: [
+    {
+      id: 'applicant_name',
+      type: 'text',
+      label: { en: 'Applicant name', bn: 'আবেদনকারীর নাম', hi: 'आवेदक का नाम' },
+      required: true,
+      max_length: 120,
+    },
+  ],
+} as const;
+
+export type OnboardingCatalogueResponse = {
+  service_categories: Array<{
+    code: string;
+    name: Prisma.JsonValue;
+    published_service_count: number;
+  }>;
+  grievance_categories: Array<{ code: string; name: Prisma.JsonValue }>;
+  published_service_total: number;
+};
+
 @Injectable()
 export class AdminStateService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminStateService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly keycloakProvisioner: KeycloakAdminProvisionerService,
+    private readonly grievanceLibrary: AdminStateGrievanceLibraryService,
+  ) {}
+
+  async getOnboardingCatalogue(
+    principal: AuthenticatedPrincipal,
+  ): Promise<OnboardingCatalogueResponse> {
+    assertStateAdmin(principal);
+    const [serviceCategories, grievanceCategories, publishedGlobals] = await Promise.all([
+      this.prisma.serviceCategory.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      }),
+      this.prisma.globalGrievanceCategory.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      }),
+      this.prisma.globalService.findMany({
+        where: { lifecycleStatus: 'published', isActive: true },
+        select: { code: true, category: { select: { code: true } } },
+      }),
+    ]);
+
+    const publishedByCategory = new Map<string, number>();
+    for (const row of publishedGlobals) {
+      const code = row.category.code;
+      publishedByCategory.set(code, (publishedByCategory.get(code) ?? 0) + 1);
+    }
+
+    return {
+      service_categories: serviceCategories.map((row) => ({
+        code: row.code,
+        name: row.name,
+        published_service_count: publishedByCategory.get(row.code) ?? 0,
+      })),
+      grievance_categories: grievanceCategories.map((row) => ({
+        code: row.code,
+        name: row.name,
+      })),
+      published_service_total: publishedGlobals.length,
+    };
+  }
 
   async getAnalytics(principal: AuthenticatedPrincipal): Promise<StateAnalytics> {
     assertStateAdmin(principal);
@@ -333,11 +403,48 @@ export class AdminStateService {
       update: {},
     });
 
-    if (dto.inherit_default_services !== false) {
+    const serviceCategories = dto.service_category_codes
+      ?.map((code) => code.trim())
+      .filter(Boolean);
+    const grievanceCategories = dto.grievance_category_codes
+      ?.map((code) => code.trim())
+      .filter(Boolean);
+
+    if (serviceCategories?.length) {
+      await this.adoptPublishedServicesByCategories(tenant.id, serviceCategories);
+    } else if (dto.inherit_default_services !== false) {
       await this.inheritDefaultServices(tenant.id);
     }
+
+    if (grievanceCategories?.length && isActive) {
+      await this.grievanceLibrary.adoptForTenant(principal, tenant.code, {
+        category_codes: grievanceCategories,
+      });
+    }
+
+    let tenantAdminProvision: { username: string } | undefined;
+    if (isActive && dto.tenant_admin_username?.trim()) {
+      const provisioned = await this.keycloakProvisioner.provisionTenantAdmin({
+        tenantId: tenant.id,
+        tenantCode: tenant.code,
+        username: dto.tenant_admin_username.trim(),
+        email: dto.tenant_admin_email,
+        firstName: dto.tenant_admin_first_name,
+        lastName: dto.tenant_admin_last_name,
+        temporaryPassword: dto.tenant_admin_password,
+      });
+      tenantAdminProvision = { username: provisioned.username };
+    }
+
+    if (isActive) {
+      void this.triggerTenantRagIndex(tenant.code);
+    }
+
     await this.audit(principal, 'tenant.upsert', tenant.id, tenant.code, {
       inherit_default_services: dto.inherit_default_services !== false,
+      service_category_codes: serviceCategories ?? [],
+      grievance_category_codes: grievanceCategories ?? [],
+      tenant_admin: tenantAdminProvision?.username ?? null,
     });
     return {
       id: tenant.id,
@@ -773,6 +880,109 @@ export class AdminStateService {
       payment_amount_paise: paymentSum._sum.amountPaise ?? 0,
       sla_breached_grievances: breached,
     };
+  }
+
+  private async adoptPublishedServicesByCategories(
+    tenantId: string,
+    categoryCodes: string[],
+  ): Promise<void> {
+    const normalized = Array.from(new Set(categoryCodes.map((code) => code.trim().toLowerCase())));
+    const categories = await this.prisma.serviceCategory.findMany({
+      where: { code: { in: normalized }, isActive: true },
+    });
+    const categoryIds = categories.map((row) => row.id);
+    if (!categoryIds.length) {
+      return;
+    }
+
+    const globals = await this.prisma.globalService.findMany({
+      where: {
+        lifecycleStatus: 'published',
+        isActive: true,
+        categoryId: { in: categoryIds },
+      },
+      include: { category: true },
+    });
+
+    for (const global of globals) {
+      const revenueHeadId = global.revenueHeadId;
+      const tenantService = await this.prisma.tenantService.upsert({
+        where: { tenantId_code: { tenantId, code: global.code } },
+        create: {
+          tenantId,
+          code: global.code,
+          globalServiceId: global.id,
+          categoryId: global.categoryId,
+          revenueHeadId,
+          name: global.name as Prisma.InputJsonValue,
+          description: global.description as Prisma.InputJsonValue,
+          isActive: true,
+          effectiveFeeConfig: global.feeConfig as Prisma.InputJsonValue,
+          effectiveSlaDays: global.defaultSlaDays,
+          requiredDocuments: global.requiredDocuments as Prisma.InputJsonValue,
+        },
+        update: { isActive: true, globalServiceId: global.id },
+      });
+      await this.ensurePublishedOnboardingForm(tenantId, tenantService.id, global.formSchema);
+    }
+  }
+
+  private async ensurePublishedOnboardingForm(
+    tenantId: string,
+    serviceId: string,
+    globalFormSchema: Prisma.JsonValue,
+  ): Promise<void> {
+    const existing = await this.prisma.serviceFormVersion.findFirst({
+      where: { tenantId, serviceId, status: 'published' },
+    });
+    if (existing) {
+      return;
+    }
+
+    const schema =
+      globalFormSchema &&
+      typeof globalFormSchema === 'object' &&
+      !Array.isArray(globalFormSchema) &&
+      Object.keys(globalFormSchema as object).length > 0
+        ? globalFormSchema
+        : ONBOARDING_STUB_FORM_SCHEMA;
+
+    const latest = await this.prisma.serviceFormVersion.aggregate({
+      where: { tenantId, serviceId },
+      _max: { version: true },
+    });
+    const version = (latest._max.version ?? 0) + 1;
+
+    await this.prisma.serviceFormVersion.create({
+      data: {
+        tenantId,
+        serviceId,
+        version,
+        formSchema: schema as Prisma.InputJsonValue,
+        uiSchema: {} as Prisma.InputJsonValue,
+        status: 'published',
+        publishedAt: new Date(),
+      },
+    });
+  }
+
+  private async triggerTenantRagIndex(tenantCode: string): Promise<void> {
+    const base = process.env.RAG_INDEXER_URL?.replace(/\/$/, '');
+    if (!base) {
+      return;
+    }
+    try {
+      const response = await fetch(`${base}/index/tenant/${encodeURIComponent(tenantCode)}`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        this.logger.warn(`RAG index for ${tenantCode} returned HTTP ${response.status}`);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `RAG index for ${tenantCode} failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   private async inheritDefaultServices(tenantId: string): Promise<void> {

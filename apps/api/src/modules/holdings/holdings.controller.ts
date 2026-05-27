@@ -26,7 +26,7 @@ export class HoldingsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Query('q') query: string,
     @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
-  ): HoldingResponse[] {
+  ): Promise<HoldingResponse[]> {
     return this.holdings.search(principal, query ?? '', municipalityTenantCode);
   }
 
@@ -35,7 +35,7 @@ export class HoldingsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('holdingNumber') holdingNumber: string,
     @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
-  ): HoldingLookupResponse {
+  ): Promise<HoldingLookupResponse> {
     return this.holdings.lookup(principal, holdingNumber, municipalityTenantCode);
   }
 }

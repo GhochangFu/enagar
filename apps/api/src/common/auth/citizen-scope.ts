@@ -54,9 +54,12 @@ export function assertActiveMunicipalityTenantCode(
 }
 
 /** Maps an active ULB code to its tenant id for hub scoping (payments store, grievance queries). */
-export function resolveMunicipalityTenantIdFromScopeCode(scopeCode: string): string | undefined {
+export function resolveMunicipalityTenantIdFromScopeCode(
+  scopeCode: string,
+  catalogue: TenantSummary[] = tenantSeeds,
+): string | undefined {
   const needle = scopeCode.trim().toUpperCase();
-  const entry = tenantSeeds.find(
+  const entry = catalogue.find(
     (tenant) =>
       tenant.is_active &&
       tenant.code !== CITIZEN_PORTAL_TENANT_CODE &&
@@ -82,7 +85,7 @@ export function resolveCitizenMunicipalityForWrite(
       );
     }
     const tenantCode = assertActiveMunicipalityTenantCode(raw, catalogue);
-    const tenantId = resolveMunicipalityTenantIdFromScopeCode(tenantCode);
+    const tenantId = resolveMunicipalityTenantIdFromScopeCode(tenantCode, catalogue);
     if (!tenantId) {
       throw new BadRequestException('Invalid tenant scope');
     }
@@ -102,6 +105,7 @@ export function citizenHubRowAccessibleByTenant(
   principal: AuthenticatedPrincipal,
   row: { tenant_id: string; citizen_subject: string },
   readScope?: ApplicationReadScope,
+  catalogue: TenantSummary[] = tenantSeeds,
 ): boolean {
   if (row.citizen_subject !== principal.subject) {
     return false;
@@ -110,7 +114,7 @@ export function citizenHubRowAccessibleByTenant(
   if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
     const scoped = readScope?.municipalityTenantCode?.trim();
     if (scoped) {
-      const tenantId = resolveMunicipalityTenantIdFromScopeCode(scoped);
+      const tenantId = resolveMunicipalityTenantIdFromScopeCode(scoped, catalogue);
       return tenantId ? row.tenant_id === tenantId : false;
     }
     return true;
