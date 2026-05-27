@@ -2,11 +2,36 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Iterator
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 import psycopg
 from psycopg.rows import dict_row
+
+logger = logging.getLogger(__name__)
+
+# Prisma supports DATABASE_URL query parameters that libpq (and therefore
+# psycopg) rejects — most notably `?schema=public`, which is set by the project's
+# canonical infrastructure/.env. Strip these so the indexer can consume the same
+# DATABASE_URL the Node/Prisma side uses, unchanged.
+_PRISMA_ONLY_QUERY_PARAMS = frozenset({"schema", "pgbouncer", "connection_limit"})
+
+
+def _sanitize_database_url(url: str) -> str:
+    parts = urlsplit(url)
+    if not parts.query:
+        return url
+    filtered = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key not in _PRISMA_ONLY_QUERY_PARAMS
+    ]
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(filtered), parts.fragment),
+    )
 
 
 @dataclass(frozen=True)
@@ -50,7 +75,7 @@ class ServiceSnapshotRow:
 
 @contextmanager
 def connect(database_url: str) -> Iterator[psycopg.Connection[Any]]:
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(_sanitize_database_url(database_url), row_factory=dict_row) as conn:
         yield conn
 
 
@@ -59,7 +84,8 @@ def ping(database_url: str) -> bool:
         with connect(database_url) as conn:
             conn.execute("SELECT 1")
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("Postgres ping failed: %s", exc)
         return False
 
 

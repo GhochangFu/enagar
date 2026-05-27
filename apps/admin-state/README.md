@@ -43,6 +43,10 @@ scope. Local dummy users come from `pnpm infra:seed-keycloak-users`; enroll MFA 
 - `docs/runbooks/master-sprint-610-exit.md`
 - `docs/runbooks/master-sprint-612-exit.md`
 
+## Follow-up backlog
+
+- **EN-4** — Global form templates, onboarding auto-publish v1 tenant forms, and citizen visibility chain: [`docs/backlog/EN-4-global-form-templates-onboarding.md`](../../docs/backlog/EN-4-global-form-templates-onboarding.md) (follows EN-3).
+
 ## Explicit Non-Goals
 
 - No live Keycloak user provisioning from the onboarding wizard.

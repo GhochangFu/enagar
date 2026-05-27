@@ -99,7 +99,7 @@
       "webOrigins": ["http://localhost:3002", "https://enagartenant.demosites.co.in"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3002/login##https://enagartenant.demosites.co.in/login"
+        "post.logout.redirect.uris": "http://localhost:3002/logout##http://localhost:3002/login##https://enagartenant.demosites.co.in/logout##https://enagartenant.demosites.co.in/login"
       },
       "defaultClientScopes": ["web-origins", "profile", "email", "roles", "tenant-claims"]
     },
@@ -115,7 +115,7 @@
       "webOrigins": ["http://localhost:3003", "https://enagarstate.demosites.co.in"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3003/login##https://enagarstate.demosites.co.in/login"
+        "post.logout.redirect.uris": "http://localhost:3003/logout##http://localhost:3003/login##https://enagarstate.demosites.co.in/logout##https://enagarstate.demosites.co.in/login"
       },
       "defaultClientScopes": ["web-origins", "profile", "email", "roles", "tenant-claims"]
     },

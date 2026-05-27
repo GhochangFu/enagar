@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<Response> {
   const { keycloakIssuer, keycloakClientId, adminAppOrigin } = publicEnv();
-  const postLogout = `${adminAppOrigin.replace(/\/$/, '')}/login`;
+  const postLogout = `${adminAppOrigin.replace(/\/$/, '')}/logout`;
   const logoutUrl = new URL(`${keycloakIssuer.replace(/\/$/, '')}/protocol/openid-connect/logout`);
   logoutUrl.searchParams.set('client_id', keycloakClientId);
   logoutUrl.searchParams.set('post_logout_redirect_uri', postLogout);
