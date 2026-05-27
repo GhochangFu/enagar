@@ -134,6 +134,15 @@ export function libraryDraftToPayload(draft: LibraryDraft): Record<string, unkno
   };
 }
 
+export type TenantOnboardingContext = {
+  code: string;
+  service_category_codes: string[];
+  grievance_category_codes: string[];
+  tenant_admin_username: string;
+  default_language: string;
+  support_email: string;
+};
+
 export function tenantRowToDraft(row: {
   code: string;
   name: string;
@@ -143,6 +152,7 @@ export function tenantRowToDraft(row: {
   languages_enabled: string[];
   is_active: boolean;
 }): TenantDraft {
+  const slug = row.code.trim().toLowerCase();
   return {
     code: row.code,
     name: row.name,
@@ -151,16 +161,35 @@ export function tenantRowToDraft(row: {
     theme_color: row.theme_color ?? '#0E7490',
     languages_enabled: row.languages_enabled.join(', '),
     status: row.is_active ? 'active' : 'inactive',
-    inherit_default_services: 'true',
+    inherit_default_services: 'false',
     default_language: 'bn',
-    support_email: 'support@example.gov.in',
+    support_email: `support@${slug}.example.gov.in`,
     service_category_codes: [],
     grievance_category_codes: [],
-    tenant_admin_username: '',
-    tenant_admin_email: '',
-    tenant_admin_password: '',
+    tenant_admin_username: `${slug}-tenant-admin`,
+    tenant_admin_email: `${slug}-tenant-admin@tenant.enagar.local`,
+    tenant_admin_password: 'DummyDev_2026!ChangeMe',
     tenant_admin_first_name: 'Tenant',
     tenant_admin_last_name: 'Administrator',
+  };
+}
+
+/** Merges directory row + API onboarding context for re-onboard wizard. */
+export function tenantDraftForReonboard(
+  row: Parameters<typeof tenantRowToDraft>[0],
+  context: TenantOnboardingContext,
+): TenantDraft {
+  const base = tenantRowToDraft(row);
+  const hasServiceCategories = context.service_category_codes.length > 0;
+  return {
+    ...base,
+    service_category_codes: context.service_category_codes,
+    grievance_category_codes: context.grievance_category_codes,
+    tenant_admin_username: context.tenant_admin_username,
+    tenant_admin_email: `${context.tenant_admin_username}@tenant.enagar.local`,
+    default_language: context.default_language || base.default_language,
+    support_email: context.support_email || base.support_email,
+    inherit_default_services: hasServiceCategories ? 'false' : base.inherit_default_services,
   };
 }
 

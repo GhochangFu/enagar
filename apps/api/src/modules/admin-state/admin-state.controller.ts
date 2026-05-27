@@ -59,6 +59,15 @@ export class AdminStateController {
     return this.adminState.listTenants(principal);
   }
 
+  @Get('tenants/:code/onboarding-context')
+  @ApiOperation({ summary: 'Onboarding wizard context for an existing municipality (re-onboard)' })
+  getTenantOnboardingContext(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.adminState.getTenantOnboardingContext(principal, code);
+  }
+
   @Get('tenants/:code')
   @ApiOperation({ summary: 'Tenant detail, health counts, warnings, and recent audit events' })
   getTenantDetail(

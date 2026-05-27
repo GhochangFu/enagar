@@ -4,10 +4,12 @@
 
 ## Wizard flow
 
-1. **Profile** — ULB code, name, district, wards, theme, languages.
-2. **Catalogues** — adopt **published** global services by service category; optional grievance categories.
+Use for **New municipality** (blank draft) or **Re-onboard** (click an existing ULB in the list — loads `GET /api/admin/state/tenants/{code}/onboarding-context`).
+
+1. **Profile** — ULB code, name, district, wards, theme, languages (code is read-only on re-onboard).
+2. **Catalogues** — adopt **published** global services by service category; optional grievance categories (pre-selected from current DB where possible).
 3. **Tenant admin** — Keycloak `tenant_admin` (`{code}-tenant-admin`) and temporary password.
-4. **Review / Activate** — `PATCH /api/admin/state/tenants` with `status: active`.
+4. **Review** — **Activate municipality** (new) or **Apply onboarding** (existing).
 
 ## On activate (automatic)
 

@@ -42,6 +42,7 @@ export function FormField({
   type = 'text',
   placeholder,
   hint,
+  readOnly = false,
 }: {
   label: string;
   value: string;
@@ -49,13 +50,15 @@ export function FormField({
   type?: 'text' | 'number';
   placeholder?: string;
   hint?: string;
+  readOnly?: boolean;
 }): JSX.Element {
   return (
     <label className="block text-xs font-semibold uppercase tracking-wide text-ink-secondary">
       {label}
       <input
         type={type}
-        className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm font-normal normal-case tracking-normal text-ink-primary focus:border-platform-accent focus:outline-none focus:ring-2 focus:ring-platform-accent/20"
+        readOnly={readOnly}
+        className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm font-normal normal-case tracking-normal text-ink-primary focus:border-platform-accent focus:outline-none focus:ring-2 focus:ring-platform-accent/20 read-only:cursor-not-allowed read-only:opacity-70"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

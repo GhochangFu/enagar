@@ -557,6 +557,64 @@ export class AdminStateService {
     );
   }
 
+  async getTenantOnboardingContext(
+    principal: AuthenticatedPrincipal,
+    code: string,
+  ): Promise<{
+    code: string;
+    service_category_codes: string[];
+    grievance_category_codes: string[];
+    tenant_admin_username: string;
+    default_language: string;
+    support_email: string;
+  }> {
+    assertStateAdmin(principal);
+    assertTenantCode(code);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { code },
+      select: {
+        code: true,
+        config: true,
+        services: {
+          where: { isActive: true },
+          select: { category: { select: { code: true } } },
+        },
+        grievanceCategories: {
+          where: { isActive: true },
+          select: { code: true },
+          orderBy: { code: 'asc' },
+        },
+      },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const serviceCategoryCodes = Array.from(
+      new Set(tenant.services.map((row) => row.category.code).filter(Boolean)),
+    ).sort();
+    const grievanceCategoryCodes = tenant.grievanceCategories.map((row) => row.code);
+
+    const config =
+      tenant.config && typeof tenant.config === 'object' && !Array.isArray(tenant.config)
+        ? (tenant.config as Record<string, unknown>)
+        : {};
+
+    const slug = tenant.code.trim().toLowerCase();
+    return {
+      code: tenant.code,
+      service_category_codes: serviceCategoryCodes,
+      grievance_category_codes: grievanceCategoryCodes,
+      tenant_admin_username: `${slug}-tenant-admin`,
+      default_language:
+        typeof config.default_language === 'string' ? config.default_language : 'bn',
+      support_email:
+        typeof config.support_email === 'string'
+          ? config.support_email
+          : `support@${slug}.example.gov.in`,
+    };
+  }
+
   async getTenantDetail(
     principal: AuthenticatedPrincipal,
     code: string,

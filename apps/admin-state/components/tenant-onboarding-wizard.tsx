@@ -34,13 +34,22 @@ export function TenantOnboardingWizard({
   onDraftChange,
   onSave,
   fetchCatalogue,
+  mode = 'new',
+  municipalityCode,
 }: {
   draft: TenantDraft;
   onDraftChange: (draft: TenantDraft) => void;
   onSave: () => void;
   fetchCatalogue: () => Promise<OnboardingCatalogue>;
+  mode?: 'new' | 'reonboard';
+  municipalityCode?: string | null;
 }): JSX.Element {
+  const isReonboard = mode === 'reonboard';
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    setStep(0);
+  }, [municipalityCode, mode]);
   const [catalogue, setCatalogue] = useState<OnboardingCatalogue | null>(null);
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
 
@@ -113,7 +122,16 @@ export function TenantOnboardingWizard({
           <p className="text-xs font-semibold uppercase tracking-wide text-platform-accent">
             Tenant onboarding
           </p>
-          <h2 className="text-lg font-semibold text-ink-primary">New municipality wizard</h2>
+          <h2 className="text-lg font-semibold text-ink-primary">
+            {isReonboard
+              ? `Re-onboard · ${municipalityCode ?? draft.code}`
+              : 'New municipality wizard'}
+          </h2>
+          {isReonboard ? (
+            <p className="mt-1 text-xs text-ink-secondary">
+              Update catalogues, reprovision tenant admin, and refresh published services.
+            </p>
+          ) : null}
           <p className="mt-1 text-xs text-ink-secondary">
             Step {step + 1} of {STEPS.length}: {STEPS[step]}
           </p>
@@ -142,7 +160,11 @@ export function TenantOnboardingWizard({
               onSave();
             }}
           >
-            {step < STEPS.length - 1 ? 'Next' : 'Activate municipality'}
+            {step < STEPS.length - 1
+              ? 'Next'
+              : isReonboard
+                ? 'Apply onboarding'
+                : 'Activate municipality'}
           </Button>
         </div>
       </div>
@@ -152,8 +174,9 @@ export function TenantOnboardingWizard({
           <FormField
             label="Code"
             value={draft.code}
+            readOnly={isReonboard}
             onChange={(v) => onDraftChange({ ...draft, code: v.toUpperCase() })}
-            hint="e.g. BLYM"
+            hint={isReonboard ? 'Code cannot change on re-onboard' : 'e.g. BLYM'}
           />
           <FormField
             label="Name"
@@ -196,6 +219,17 @@ export function TenantOnboardingWizard({
             value={draft.support_email}
             onChange={(v) => onDraftChange({ ...draft, support_email: v })}
           />
+          {isReonboard ? (
+            <FormSelect
+              label="Status"
+              value={draft.status}
+              onChange={(v) => onDraftChange({ ...draft, status: v })}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -295,7 +329,7 @@ export function TenantOnboardingWizard({
         <div className="space-y-3 text-sm text-ink-secondary">
           <p>
             <strong className="text-ink-primary">{draft.name}</strong> ({draft.code}) will be set to{' '}
-            <strong className="text-ink-primary">active</strong>. Keycloak user{' '}
+            <strong className="text-ink-primary">{draft.status}</strong>. Keycloak user{' '}
             <code className="rounded bg-canvas px-1 font-mono text-xs">
               {draft.tenant_admin_username || `${draft.code.toLowerCase()}-tenant-admin`}
             </code>{' '}

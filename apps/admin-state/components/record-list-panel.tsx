@@ -77,7 +77,7 @@ export function RecordListItem({
             {meta ? <p className="mt-1 text-[11px] text-ink-secondary">{meta}</p> : null}
           </div>
           <span className="shrink-0 text-xs font-semibold text-platform-accent">
-            {selected ? 'Editing' : 'Edit'}
+            {selected ? 'Re-onboarding' : 'Re-onboard'}
           </span>
         </div>
       </button>

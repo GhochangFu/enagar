@@ -236,10 +236,12 @@ curl -s -o NUL -w "api %{http_code}`n" https://enagarapi.demosites.co.in/health
 
 Use a **private/incognito** window.
 
-### 6.1 — State Admin wizard
+### 6.1 — State Admin wizard (new or existing ULB)
 
 1. Open `https://enagarstate.demosites.co.in/login` → sign in as **state_admin** (with MFA enrolled).
-2. Tab **Tenants** → **New municipality** (wizard opens; draft must be **blank**, not pre-filled Barrackpore).
+2. Tab **Tenants**:
+   - **New municipality** — blank wizard for a new code.
+   - **Re-onboard** — click an existing ULB in the list (e.g. KMC, BPMC); wizard pre-fills categories and `{code}-tenant-admin`.
 3. Complete steps (typical flow):
 
    | Step             | Fill                                                                                                                                     |

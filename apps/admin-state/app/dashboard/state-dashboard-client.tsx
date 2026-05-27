@@ -31,8 +31,10 @@ import {
   integrationRowToDraft,
   libraryDraftToPayload,
   libraryRowToDraft,
+  tenantDraftForReonboard,
   tenantDraftToPayload,
   tenantRowToDraft,
+  type TenantOnboardingContext,
   type IntegrationDraft,
   type LibraryDraft,
   type TenantDraft,
@@ -245,14 +247,31 @@ export function StateDashboardClient(): JSX.Element {
     void refresh();
   }, [refresh]);
 
-  function selectTenantForEdit(code: string): void {
+  async function selectTenantForEdit(code: string): Promise<void> {
     const row = tenants.find((item) => item.code === code);
     if (!row) return;
-    const draft = tenantRowToDraft(row);
-    setSelectedTenantCode(code);
-    setTenantDraft(draft);
-    setTenantJson(JSON.stringify(tenantDraftToPayload(draft), null, 2));
     setActiveTab('tenants');
+    setStatus(`Loading re-onboard context for ${code}…`);
+    try {
+      const context = await api<TenantOnboardingContext>(
+        `/admin/state/tenants/${encodeURIComponent(code)}/onboarding-context`,
+      );
+      const draft = tenantDraftForReonboard(row, context);
+      setSelectedTenantCode(code);
+      setTenantDraft(draft);
+      setTenantJson(JSON.stringify(tenantDraftToPayload(draft), null, 2));
+      setStatus(`Re-onboard ${code} — update catalogues, tenant admin, and services.`);
+    } catch (error) {
+      const draft = tenantRowToDraft(row);
+      setSelectedTenantCode(code);
+      setTenantDraft(draft);
+      setTenantJson(JSON.stringify(tenantDraftToPayload(draft), null, 2));
+      setStatus(
+        error instanceof Error
+          ? `${error.message} (showing basic profile only)`
+          : 'Failed to load onboarding context',
+      );
+    }
   }
 
   function newTenant(): void {
@@ -309,16 +328,23 @@ export function StateDashboardClient(): JSX.Element {
 
   async function saveTenantGuided(): Promise<void> {
     try {
-      const activating = !selectedTenantCode;
       const payload = tenantDraftToPayload({
         ...tenantDraft,
-        status: activating ? 'active' : tenantDraft.status,
+        status: selectedTenantCode ? tenantDraft.status : 'active',
+        inherit_default_services:
+          tenantDraft.service_category_codes.length > 0
+            ? 'false'
+            : tenantDraft.inherit_default_services,
         tenant_admin_username:
           tenantDraft.tenant_admin_username.trim() ||
           `${tenantDraft.code.trim().toLowerCase()}-tenant-admin`,
       });
       setTenantJson(JSON.stringify(payload, null, 2));
-      setStatus('Saving municipality...');
+      setStatus(
+        selectedTenantCode
+          ? `Applying onboarding for ${tenantDraft.code}…`
+          : 'Activating municipality…',
+      );
       await api<TenantRow>('/admin/state/tenants', {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -508,7 +534,7 @@ export function StateDashboardClient(): JSX.Element {
           api={api}
           onClose={() => setDrawerTenant(null)}
           onEdit={() => {
-            selectTenantForEdit(drawerTenant.code);
+            void selectTenantForEdit(drawerTenant.code);
             setDrawerTenant(null);
           }}
           onImpersonate={() => {
@@ -551,7 +577,7 @@ export function StateDashboardClient(): JSX.Element {
             selectedCode={selectedTenantCode}
             draft={tenantDraft}
             tenantJson={tenantJson}
-            onSelectTenant={selectTenantForEdit}
+            onSelectTenant={(code) => void selectTenantForEdit(code)}
             onNewTenant={newTenant}
             onDraftChange={setTenantDraft}
             onTenantJsonChange={setTenantJson}
