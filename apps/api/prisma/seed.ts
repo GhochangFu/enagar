@@ -192,6 +192,24 @@ const priorityServiceFormSchemas = [
       }),
     ],
   },
+  {
+    schema_version: 1,
+    service_code: 'sanitation-grievance',
+    version: 1,
+    title: label('Sanitation Grievance', 'স্যানিটেশন অভিযোগ', 'स्वच्छता शिकायत'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      textarea('grievance_description', 'Describe the issue', 'সমস্যার বিবরণ', 'समस्या का विवरण', {
+        required: true,
+        min_length: 10,
+        max_length: 2000,
+      }),
+    ],
+  },
 ] as const;
 
 const publishedFormSchemaByServiceCode: Map<string, (typeof priorityServiceFormSchemas)[number]> =
@@ -714,6 +732,8 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
       throw new Error(`Missing revenue head seed "${service.revenue_head_code}"`);
     }
 
+    const seededFormSchema = publishedFormSchemaByServiceCode.get(service.code);
+
     const row = await prisma.globalService.upsert({
       where: { code: service.code },
       create: {
@@ -727,6 +747,9 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
         feeType: service.fee_type,
         feeConfig: service.fee_config as Prisma.InputJsonValue,
         requiredDocuments: service.required_documents as Prisma.InputJsonValue,
+        formSchema: seededFormSchema
+          ? (seededFormSchema as unknown as Prisma.InputJsonValue)
+          : ({} as Prisma.InputJsonValue),
         pushesToDigilocker: service.pushes_to_digilocker,
         isActive: true,
       },
@@ -740,6 +763,9 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
         feeType: service.fee_type,
         feeConfig: service.fee_config as Prisma.InputJsonValue,
         requiredDocuments: service.required_documents as Prisma.InputJsonValue,
+        ...(seededFormSchema
+          ? { formSchema: seededFormSchema as unknown as Prisma.InputJsonValue }
+          : {}),
         pushesToDigilocker: service.pushes_to_digilocker,
         isActive: true,
       },

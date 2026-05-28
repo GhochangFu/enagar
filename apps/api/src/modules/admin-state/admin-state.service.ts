@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  createBlankFormSchemaDraft,
-  validateFormSchema,
-  type EnagarFormSchema,
-} from '@enagar/forms';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SignJWT } from 'jose';
 
@@ -21,6 +16,12 @@ import {
   assertStateAdmin,
   assertTenantCode,
 } from './admin-state.contracts';
+import {
+  classifyOnboardingForm,
+  isUsableFormSchema,
+  resolveOnboardingFormSchema,
+  type OnboardingFormSource,
+} from './tenant-service-onboarding-forms';
 
 import type {
   CreateImpersonationTokenDto,
@@ -136,6 +137,8 @@ export type StateGlobalServiceTemplateRow = {
   tenant_adoptions: number;
   curator_notes: string | null;
   updated_at: string;
+  form_schema: Prisma.JsonValue;
+  has_usable_form_schema: boolean;
 };
 
 export type StateGlobalServicePreview = {
@@ -171,6 +174,11 @@ export type OnboardingCatalogueResponse = {
   }>;
   grievance_categories: Array<{ code: string; name: Prisma.JsonValue }>;
   published_service_total: number;
+  published_services: Array<{
+    code: string;
+    category_code: string;
+    has_usable_form_schema: boolean;
+  }>;
 };
 
 @Injectable()
@@ -198,7 +206,7 @@ export class AdminStateService {
       }),
       this.prisma.globalService.findMany({
         where: { lifecycleStatus: 'published', isActive: true },
-        select: { code: true, category: { select: { code: true } } },
+        select: { code: true, formSchema: true, category: { select: { code: true } } },
       }),
     ]);
 
@@ -219,6 +227,11 @@ export class AdminStateService {
         name: row.name,
       })),
       published_service_total: publishedGlobals.length,
+      published_services: publishedGlobals.map((row) => ({
+        code: row.code,
+        category_code: row.category.code,
+        has_usable_form_schema: isUsableFormSchema(row.formSchema),
+      })),
     };
   }
 
@@ -402,8 +415,15 @@ export class AdminStateService {
       ?.map((code) => code.trim())
       .filter(Boolean);
 
+    let formsFromGlobal = 0;
+    let formsStubbed = 0;
     if (serviceCategories?.length) {
-      await this.adoptPublishedServicesByCategories(tenant.id, serviceCategories);
+      const formCounts = await this.adoptPublishedServicesByCategories(
+        tenant.id,
+        serviceCategories,
+      );
+      formsFromGlobal = formCounts.forms_from_global;
+      formsStubbed = formCounts.forms_stubbed;
     } else if (dto.inherit_default_services !== false) {
       await this.inheritDefaultServices(tenant.id);
     }
@@ -437,6 +457,8 @@ export class AdminStateService {
       service_category_codes: serviceCategories ?? [],
       grievance_category_codes: grievanceCategories ?? [],
       tenant_admin: tenantAdminProvision?.username ?? null,
+      forms_from_global: formsFromGlobal,
+      forms_stubbed: formsStubbed,
     });
     return {
       id: tenant.id,
@@ -935,14 +957,14 @@ export class AdminStateService {
   private async adoptPublishedServicesByCategories(
     tenantId: string,
     categoryCodes: string[],
-  ): Promise<void> {
+  ): Promise<{ forms_from_global: number; forms_stubbed: number }> {
     const normalized = Array.from(new Set(categoryCodes.map((code) => code.trim().toLowerCase())));
     const categories = await this.prisma.serviceCategory.findMany({
       where: { code: { in: normalized }, isActive: true },
     });
     const categoryIds = categories.map((row) => row.id);
     if (!categoryIds.length) {
-      return;
+      return { forms_from_global: 0, forms_stubbed: 0 };
     }
 
     const globals = await this.prisma.globalService.findMany({
@@ -953,6 +975,9 @@ export class AdminStateService {
       },
       include: { category: true },
     });
+
+    let formsFromGlobal = 0;
+    let formsStubbed = 0;
 
     for (const global of globals) {
       const revenueHeadId = global.revenueHeadId;
@@ -973,33 +998,21 @@ export class AdminStateService {
         },
         update: { isActive: true, globalServiceId: global.id },
       });
-      await this.ensurePublishedOnboardingForm(
+      const source = await this.ensurePublishedOnboardingForm(
         tenantId,
         tenantService.id,
         global.code,
         global.name,
         global.formSchema,
       );
-    }
-  }
-
-  private resolveOnboardingFormSchema(
-    serviceCode: string,
-    serviceName: Prisma.JsonValue,
-    globalFormSchema: Prisma.JsonValue,
-  ): EnagarFormSchema {
-    if (
-      globalFormSchema &&
-      typeof globalFormSchema === 'object' &&
-      !Array.isArray(globalFormSchema) &&
-      Object.keys(globalFormSchema as object).length > 0
-    ) {
-      const candidate = globalFormSchema as unknown as EnagarFormSchema;
-      if (validateFormSchema(candidate).ok) {
-        return candidate;
+      if (source === 'global') {
+        formsFromGlobal += 1;
+      } else if (source === 'stub') {
+        formsStubbed += 1;
       }
     }
-    return createBlankFormSchemaDraft(serviceCode, labelFromJson(serviceName));
+
+    return { forms_from_global: formsFromGlobal, forms_stubbed: formsStubbed };
   }
 
   private async ensurePublishedOnboardingForm(
@@ -1008,15 +1021,16 @@ export class AdminStateService {
     serviceCode: string,
     serviceName: Prisma.JsonValue,
     globalFormSchema: Prisma.JsonValue,
-  ): Promise<void> {
+  ): Promise<OnboardingFormSource | null> {
     const existing = await this.prisma.serviceFormVersion.findFirst({
       where: { tenantId, serviceId, status: 'published' },
     });
     if (existing) {
-      return;
+      return null;
     }
 
-    const schema = this.resolveOnboardingFormSchema(serviceCode, serviceName, globalFormSchema);
+    const schema = resolveOnboardingFormSchema(serviceCode, serviceName, globalFormSchema);
+    const source = classifyOnboardingForm(globalFormSchema);
 
     const latest = await this.prisma.serviceFormVersion.aggregate({
       where: { tenantId, serviceId },
@@ -1035,6 +1049,8 @@ export class AdminStateService {
         publishedAt: new Date(),
       },
     });
+
+    return source;
   }
 
   private async triggerTenantRagIndex(tenantCode: string): Promise<void> {
@@ -1161,6 +1177,7 @@ function toGlobalServiceTemplateRow(row: {
   defaultSlaDays: number | null;
   feeConfig: Prisma.JsonValue;
   requiredDocuments: Prisma.JsonValue;
+  formSchema: Prisma.JsonValue;
   lifecycleStatus: string;
   libraryVersion: number;
   curatorNotes: string | null;
@@ -1183,6 +1200,8 @@ function toGlobalServiceTemplateRow(row: {
     tenant_adoptions: row._count.tenantServices,
     curator_notes: row.curatorNotes,
     updated_at: row.updatedAt.toISOString(),
+    form_schema: row.formSchema,
+    has_usable_form_schema: isUsableFormSchema(row.formSchema),
   };
 }
 
@@ -1431,17 +1450,4 @@ function requiredAuditActions(): string[] {
     'staff_invite.disable',
     'staff.role_map',
   ];
-}
-
-function labelFromJson(value: Prisma.JsonValue): { en: string; bn: string; hi: string } {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const map = value as Record<string, unknown>;
-    const en = typeof map.en === 'string' && map.en.trim() ? map.en : 'Service';
-    return {
-      en,
-      bn: typeof map.bn === 'string' && map.bn.trim() ? map.bn : en,
-      hi: typeof map.hi === 'string' && map.hi.trim() ? map.hi : en,
-    };
-  }
-  return { en: 'Service', bn: 'Service', hi: 'Service' };
 }

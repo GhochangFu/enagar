@@ -163,13 +163,18 @@ export class JwtVerifierService {
     return /^([a-z0-9]+-)?(tenant|state)-admin-dummy$/i.test(claims.sub);
   }
 
-  /** Demo VM: password login for wizard-provisioned `{ulb}-tenant-admin` (not *-dummy). */
+  /** Demo VM: password login for wizard-provisioned tenant_admin (not *-dummy). */
   private allowsDemoVmTenantAdminMfaBypass(claims: EnagarJwtClaims, roles: string[]): boolean {
     if (process.env.ENAGAR_DEMO_VM_MFA_BYPASS !== 'true') {
       return false;
     }
     if (!roles.includes('tenant_admin')) {
       return false;
+    }
+    const tenantId = claims.tenant_id ?? claims.tenantId;
+    const tenantCode = claims.tenant_code ?? claims.tenantCode;
+    if (tenantId && tenantCode) {
+      return true;
     }
     const identity = String(claims.preferred_username ?? claims.sub ?? '').trim();
     return /^[a-z0-9]+-tenant-admin$/i.test(identity);

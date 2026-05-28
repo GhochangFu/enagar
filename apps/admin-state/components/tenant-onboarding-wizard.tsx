@@ -17,6 +17,11 @@ type OnboardingCatalogue = {
   service_categories: CatalogueOption[];
   grievance_categories: CatalogueOption[];
   published_service_total: number;
+  published_services: Array<{
+    code: string;
+    category_code: string;
+    has_usable_form_schema: boolean;
+  }>;
 };
 
 const STEPS = ['Profile', 'Catalogues', 'Tenant admin', 'Review'] as const;
@@ -87,6 +92,22 @@ export function TenantOnboardingWizard({
   }, [catalogue, draft.service_category_codes]);
 
   const adoptedServiceTotal = adoptedServicePreview.reduce((sum, row) => sum + row.count, 0);
+
+  const adoptedFormSummary = useMemo(() => {
+    if (!catalogue) {
+      return { total: 0, fromGlobal: 0, stub: 0 };
+    }
+    const selectedCategories = new Set(draft.service_category_codes);
+    const adopted = catalogue.published_services.filter((row) =>
+      selectedCategories.has(row.category_code),
+    );
+    const fromGlobal = adopted.filter((row) => row.has_usable_form_schema).length;
+    return {
+      total: adopted.length,
+      fromGlobal,
+      stub: adopted.length - fromGlobal,
+    };
+  }, [catalogue, draft.service_category_codes]);
 
   function toggleCode(
     field: 'service_category_codes' | 'grievance_category_codes',
@@ -342,6 +363,11 @@ export function TenantOnboardingWizard({
               </li>
             ))}
           </ul>
+          <p>
+            Citizen apply forms on activate: {adoptedFormSummary.total} service(s) —{' '}
+            {adoptedFormSummary.fromGlobal} from global template
+            {adoptedFormSummary.stub > 0 ? `, ${adoptedFormSummary.stub} minimal stub(s)` : ''}.
+          </p>
           <p>
             Grievance categories: {draft.grievance_category_codes.join(', ') || 'none selected'}.
           </p>

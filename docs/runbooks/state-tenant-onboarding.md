@@ -15,6 +15,7 @@ Use for **New municipality** (blank draft) or **Re-onboard** (click an existing 
 
 - Adopts **published** global services for the service categories selected in step 2 (wizard sends `service_category_codes`; omitting them falls back to `inherit_default_services`).
 - Publishes tenant form **v1** per adopted service: uses the global `form_schema` when it passes `@enagar/forms` validation; otherwise a **blank draft** from `createBlankFormSchemaDraft()` (valid minimal apply form — not the old invalid stub).
+- Records audit metadata: `forms_from_global`, `forms_stubbed` (EN-4).
 - Adopts grievance categories when selected (`grievance_category_codes`).
 - Provisions Keycloak `tenant_admin` (`{code}-tenant-admin`) with `tenant_id` / `tenant_code` attributes and the wizard password.
 - Triggers RAG indexer `POST /index/tenant/{code}` when `RAG_INDEXER_URL` is set.
@@ -40,7 +41,7 @@ If catalogues or tenant-admin fields are missing from the payload, activate succ
 | **Re-onboard** skips form repair | If a ULB already has a **published** invalid form from an older deploy, re-onboard does not replace it. Use a **new ULB code** for a clean wizard test, or fix forms in Tenant Admin / DB.                                |
 | **Grievance codes**              | Adopt API requires **kebab-case** codes. Some seeded globals use underscores (e.g. `street_lighting`) and fail adopt until seed is aligned — select only kebab-case rows in the wizard, or skip grievances for the pilot. |
 | **~6 services**                  | Only **published** global services in selected categories appear (expected).                                                                                                                                              |
-| **Minimal apply forms**          | Empty global `form_schema` → blank draft v1 (citizen can apply; rich templates are EN-4).                                                                                                                                 |
+| **Minimal apply forms**          | Empty global `form_schema` → blank draft v1 (citizen can apply; rich templates are EN-4 seed + State library).                                                                                                            |
 
 ## Demo VM env
 

@@ -88,6 +88,8 @@ type GlobalServiceTemplateRow = {
   tenant_adoptions: number;
   default_sla_days: number | null;
   curator_notes: string | null;
+  form_schema: unknown;
+  has_usable_form_schema: boolean;
 };
 
 type IntegrationRow = {

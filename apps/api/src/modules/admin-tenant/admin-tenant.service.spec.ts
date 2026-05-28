@@ -1,6 +1,7 @@
 import { createBlankFormSchemaDraft } from '@enagar/forms';
+import { birthCertificateSchema } from '@enagar/forms/fixtures';
 import { createLinearWorkflowDraft } from '@enagar/workflow';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 
@@ -320,6 +321,101 @@ describe('AdminTenantService', () => {
 
     expect(designer.starter_form_schema.service_code).toBe('pet-licence');
     expect(designer.starter_workflow.code).toBe('pet-licence-workflow-v1');
+    expect(designer.global_form_template).toBeNull();
+  });
+
+  it('resyncFormDraftFromGlobal loads linked global schema into draft', async () => {
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'svc-1',
+        code: 'birth-cert',
+        name: { en: 'Birth Certificate', bn: 'Birth Certificate', hi: 'Birth Certificate' },
+        description: {},
+        isActive: true,
+        effectiveSlaDays: 7,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        globalServiceId: 'global-1',
+        globalService: {
+          code: 'birth-cert',
+          formSchema: birthCertificateSchema,
+        },
+      })
+      .mockResolvedValueOnce({
+        id: 'svc-1',
+        code: 'birth-cert',
+        name: { en: 'Birth Certificate' },
+        description: {},
+        isActive: true,
+        effectiveSlaDays: 7,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+    const create = jest.fn().mockResolvedValue({
+      id: 'form-1',
+      version: 2,
+      status: 'draft',
+      formSchema: birthCertificateSchema,
+      uiSchema: {},
+      publishedAt: null,
+    });
+    const prisma = mockPrisma({
+      tenantService: { findFirst },
+      serviceFormVersion: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { version: 1 } }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create,
+      },
+    });
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
+
+    const result = await service.resyncFormDraftFromGlobal(staffPrincipal, 'svc-1');
+
+    expect(result.global_code).toBe('birth-cert');
+    expect(result.field_count).toBeGreaterThan(0);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'draft',
+          formSchema: birthCertificateSchema,
+        }),
+      }),
+    );
+  });
+
+  it('resyncFormDraftFromGlobal rejects services without a global link', async () => {
+    const prisma = mockPrisma({
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'svc-1',
+          code: 'birth-cert',
+          globalServiceId: null,
+          globalService: null,
+        }),
+      },
+    });
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
+
+    await expect(service.resyncFormDraftFromGlobal(staffPrincipal, 'svc-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('resyncFormDraftFromGlobal rejects empty global templates', async () => {
+    const prisma = mockPrisma({
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'svc-1',
+          code: 'birth-cert',
+          globalServiceId: 'global-1',
+          globalService: { code: 'birth-cert', formSchema: {} },
+        }),
+      },
+    });
+    const service = new AdminTenantService(prisma, new ObjectStorageService());
+
+    await expect(service.resyncFormDraftFromGlobal(staffPrincipal, 'svc-1')).rejects.toThrow(
+      'no usable citizen form',
+    );
   });
 
   it('saveFormDraft validates service_code before persistence', async () => {

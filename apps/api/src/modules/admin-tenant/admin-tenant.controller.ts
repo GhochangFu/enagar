@@ -676,6 +676,17 @@ export class AdminTenantController {
     return this.adminTenant.publishFormDraft(principal, serviceId);
   }
 
+  @Post('services/:serviceId/form-draft/resync-from-global')
+  @ApiOperation({
+    summary: 'Load the linked State global form template into this service form draft',
+  })
+  resyncFormDraftFromGlobal(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceId') serviceId: string,
+  ) {
+    return this.adminTenant.resyncFormDraftFromGlobal(principal, serviceId);
+  }
+
   @Patch('services/:serviceId/workflow-draft')
   @ApiOperation({ summary: 'Create or update the draft workflow definition for a service' })
   saveWorkflowDraft(

@@ -17,6 +17,11 @@ import {
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
+import {
+  countFormInputFields,
+  isUsableFormSchema,
+  resolveOnboardingFormSchema,
+} from '../admin-state/tenant-service-onboarding-forms';
 import { decimalToNumber } from '../documents/application-document.mapper';
 import {
   assertGrievanceTransition,
@@ -211,14 +216,27 @@ export type TenantAdminWorkflowRow = {
   definition: WorkflowDefinition;
 };
 
+export type TenantAdminGlobalFormTemplate = {
+  global_code: string;
+  has_usable_form_schema: boolean;
+  field_count: number;
+};
+
 export type TenantAdminServiceDesigner = {
   service: TenantAdminServiceRow;
   form_draft: TenantAdminFormVersionRow | null;
   form_published: TenantAdminFormVersionRow | null;
   workflow_draft: TenantAdminWorkflowRow | null;
   workflow_published: TenantAdminWorkflowRow | null;
+  global_form_template: TenantAdminGlobalFormTemplate | null;
   starter_form_schema: EnagarFormSchema;
   starter_workflow: WorkflowDefinition;
+};
+
+export type TenantAdminFormResyncFromGlobalResult = {
+  form_draft: TenantAdminFormVersionRow;
+  global_code: string;
+  field_count: number;
 };
 
 export type TenantAdminSettings = {
@@ -1542,6 +1560,19 @@ export class AdminTenantService {
   ): Promise<TenantAdminServiceDesigner> {
     assertTenantPortalStaff(principal);
     const service = await this.getOwnedService(principal, serviceId);
+    const globalLink = await this.prisma.tenantService.findFirst({
+      where: { id: serviceId, tenantId: principal.tenantId },
+      select: {
+        globalService: { select: { code: true, formSchema: true } },
+      },
+    });
+    const globalFormTemplate = globalLink?.globalService
+      ? {
+          global_code: globalLink.globalService.code,
+          has_usable_form_schema: isUsableFormSchema(globalLink.globalService.formSchema),
+          field_count: countFormInputFields(globalLink.globalService.formSchema),
+        }
+      : null;
 
     const [formDraft, formPublished, workflowDraft, workflowPublished] = await Promise.all([
       this.prisma.serviceFormVersion.findFirst({
@@ -1570,8 +1601,45 @@ export class AdminTenantService {
       form_published: formPublished ? toFormVersionRow(formPublished) : null,
       workflow_draft: workflowDraft ? toWorkflowRow(workflowDraft) : null,
       workflow_published: workflowPublished ? toWorkflowRow(workflowPublished) : null,
+      global_form_template: globalFormTemplate,
       starter_form_schema: createBlankFormSchemaDraft(service.code, labelFromJson(service.name)),
       starter_workflow: createLinearWorkflowDraft(service.code),
+    };
+  }
+
+  async resyncFormDraftFromGlobal(
+    principal: AuthenticatedPrincipal,
+    serviceId: string,
+  ): Promise<TenantAdminFormResyncFromGlobalResult> {
+    assertTenantPortalStaff(principal);
+    const row = await this.prisma.tenantService.findFirst({
+      where: { id: serviceId, tenantId: principal.tenantId },
+      include: { globalService: { select: { code: true, formSchema: true } } },
+    });
+    if (!row) {
+      throw new NotFoundException('Service not found for this tenant');
+    }
+    if (!row.globalServiceId || !row.globalService) {
+      throw new BadRequestException('This service is not linked to a State global template');
+    }
+    if (!isUsableFormSchema(row.globalService.formSchema)) {
+      throw new BadRequestException('State global template has no usable citizen form yet');
+    }
+
+    const schema = resolveOnboardingFormSchema(row.code, row.name, row.globalService.formSchema);
+    if (schema.service_code !== row.code) {
+      throw new BadRequestException('Global form schema service_code does not match this service');
+    }
+
+    const formDraft = await this.saveFormDraft(principal, serviceId, {
+      form_schema: schema,
+      ui_schema: {},
+    });
+
+    return {
+      form_draft: formDraft,
+      global_code: row.globalService.code,
+      field_count: countFormInputFields(schema),
     };
   }
 

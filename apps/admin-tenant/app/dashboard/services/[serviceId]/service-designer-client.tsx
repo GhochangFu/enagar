@@ -52,6 +52,11 @@ type ServiceDesignerResponse = {
   } | null;
   starter_form_schema: EnagarFormSchema;
   starter_workflow: WorkflowDefinition;
+  global_form_template: {
+    global_code: string;
+    has_usable_form_schema: boolean;
+    field_count: number;
+  } | null;
 };
 
 type ServiceConfigResponse = {
@@ -666,6 +671,44 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     }
   }
 
+  async function resyncFormFromGlobal(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const template = designer?.global_form_template;
+    if (!template?.has_usable_form_schema) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Load the State global template (${template.global_code}, ${template.field_count} fields) into your form draft? Your published form stays live until you publish this draft.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    const res = await fetch(
+      `${apiBase}/admin/tenant/services/${serviceId}/form-draft/resync-from-global`,
+      { method: 'POST', headers: authHeaders() },
+    );
+    if (redirectIfUnauthorized(res)) {
+      return;
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      setStatus(`State template load failed (${res.status}). ${body.slice(0, 180)}`);
+      return;
+    }
+    const payload = (await res.json()) as {
+      form_draft: { form_schema: unknown };
+      global_code: string;
+      field_count: number;
+    };
+    setFormText(pretty(payload.form_draft.form_schema));
+    setStatus(
+      `State template ${payload.global_code} loaded into draft (${payload.field_count} fields). Review and publish when ready.`,
+    );
+    await loadDesigner();
+  }
+
   async function persistWorkflowDraft(): Promise<boolean> {
     if (!token || !parsedWorkflow.workflow || !parsedWorkflow.validation.ok) {
       setStatus('Workflow definition must be valid before saving.');
@@ -792,6 +835,14 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             title="Form schema draft"
             meta={`Published: ${designer.form_published?.version ?? 'none'} · Draft: ${
               designer.form_draft?.version ?? 'new'
+            }${
+              designer.global_form_template
+                ? ` · State template: ${designer.global_form_template.global_code}${
+                    designer.global_form_template.has_usable_form_schema
+                      ? ` (${designer.global_form_template.field_count} fields)`
+                      : ' (no usable form yet)'
+                  }`
+                : ''
             }`}
             value={formText}
             onChange={setFormText}
@@ -799,6 +850,14 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             issues={parsedForm.validation.issues}
             onSave={() => void saveForm()}
             onPublish={() => void publishForm()}
+            secondaryAction={
+              designer.global_form_template?.has_usable_form_schema
+                ? {
+                    label: 'Load State template',
+                    onClick: () => void resyncFormFromGlobal(),
+                  }
+                : undefined
+            }
           />
           <WorkflowCanvasPanel
             workflow={parsedWorkflow.workflow}
@@ -1590,6 +1649,7 @@ function EditorPanel({
   issues,
   onSave,
   onPublish,
+  secondaryAction,
 }: {
   title: string;
   meta: string;
@@ -1599,6 +1659,7 @@ function EditorPanel({
   issues: Array<{ path: string; message: string }>;
   onSave: () => void;
   onPublish: () => void;
+  secondaryAction?: { label: string; onClick: () => void };
 }): JSX.Element {
   return (
     <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
@@ -1607,7 +1668,12 @@ function EditorPanel({
           <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
           <p className="text-xs text-ink-secondary">{meta}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {secondaryAction ? (
+            <Button type="button" size="sm" variant="secondary" onClick={secondaryAction.onClick}>
+              {secondaryAction.label}
+            </Button>
+          ) : null}
           <Button type="button" size="sm" variant="secondary" onClick={onSave}>
             Save draft
           </Button>

@@ -16,7 +16,6 @@ describe('Master Sprint 6.6 catalogue alignment contract', () => {
   );
   const seed = readRepo('apps/api/prisma/seed.ts');
   const pwaPage = readRepo('apps/citizen-pwa/app/page.tsx');
-  const pwaDefaults = readRepo('apps/citizen-pwa/lib/service-schemas.ts');
   const mobileComposer = readRepo('apps/mobile/src/screens/services/ApplicationComposerScreen.tsx');
   const mobileCatalogueApi = readRepo('apps/mobile/src/api/servicesCatalogApi.ts');
   const mobileDefaults = readRepo('apps/mobile/src/lib/serviceSchemas.ts');
@@ -48,7 +47,9 @@ describe('Master Sprint 6.6 catalogue alignment contract', () => {
   it('keeps PWA apply schema-driven from API catalogue rows, not bundled fixtures', () => {
     expect(pwaPage).toContain('selectedService?.form_schema');
     expect(pwaPage).not.toContain('schemaByServiceCode');
-    expect(pwaDefaults).not.toContain('@enagar/forms/fixtures');
+    expect(pwaPage).not.toContain('defaultFormValuesForSchema');
+    expect(pwaPage).toContain('setFormValues({})');
+    expect(pwaPage).toContain('applyFieldExamplesToRenderPlan');
   });
 
   it('keeps mobile apply schema-driven from API catalogue rows, not bundled fixtures', () => {

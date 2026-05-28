@@ -2,7 +2,7 @@
 
 import { Button } from '@enagar/ui';
 
-import { pickLabel } from '../lib/state-dashboard-forms';
+import { pickLabel, countPreviewFormFields } from '../lib/state-dashboard-forms';
 
 import { FormField, FormSelect, GuidedFormCard } from './guided-form-primitives';
 import { JsonFallbackPanel } from './json-fallback-panel';
@@ -28,6 +28,7 @@ type LibraryRow = {
   library_version: number;
   tenant_adoptions: number;
   default_sla_days: number | null;
+  has_usable_form_schema?: boolean;
 };
 
 type IntegrationRow = {
@@ -67,6 +68,11 @@ export function StateTenantSection({
     service_categories: Array<{ code: string; name: unknown; published_service_count?: number }>;
     grievance_categories: Array<{ code: string; name: unknown }>;
     published_service_total: number;
+    published_services: Array<{
+      code: string;
+      category_code: string;
+      has_usable_form_schema: boolean;
+    }>;
   }>;
 }): JSX.Element {
   return (
@@ -181,7 +187,9 @@ export function StateLibrarySection({
             selected={selectedCode === row.code}
             title={pickLabel(row.name)}
             subtitle={`${row.lifecycle_status} · v${row.library_version}`}
-            meta={`${row.category_code} · ${row.tenant_adoptions} adoptions`}
+            meta={`${row.category_code} · ${row.tenant_adoptions} adoptions · ${
+              row.has_usable_form_schema ? 'template ready' : 'stub on adopt'
+            }`}
             onSelect={() => onSelect(row.code)}
           />
         ))}
@@ -258,6 +266,29 @@ export function StateLibrarySection({
                 label="Curator notes"
                 value={draft.curator_notes}
                 onChange={(v) => onDraftChange({ ...draft, curator_notes: v })}
+              />
+            </div>
+            <div className="sm:col-span-2 rounded-2xl border border-warm-border bg-canvas px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+                Citizen apply form
+              </p>
+              <p className="mt-1 text-sm text-ink-primary">
+                {countPreviewFormFields(draft.form_schema_json) > 0
+                  ? `Template ready — ${countPreviewFormFields(draft.form_schema_json)} input field(s).`
+                  : 'Stub on adopt — onboarding publishes a minimal blank form until you add a template.'}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-ink-primary">
+                Form template (JSON)
+              </label>
+              <textarea
+                className="mt-2 min-h-40 w-full rounded-2xl border border-warm-border bg-surface px-3 py-2 font-mono text-xs text-ink-primary"
+                value={draft.form_schema_json}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, form_schema_json: event.target.value })
+                }
+                spellCheck={false}
               />
             </div>
           </div>

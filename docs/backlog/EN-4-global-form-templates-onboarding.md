@@ -1,7 +1,8 @@
 # EN-4 — Global form templates, onboarding auto-publish, and citizen visibility
 
 **Type:** Follow-up to **EN-3** (State Admin tenant onboarding wizard)  
-**Status:** Backlog — not started  
+**Status:** In progress — see [`docs/runbooks/en4-implementation-plan.md`](../runbooks/en4-implementation-plan.md)  
+**Implementation plan:** [`docs/runbooks/en4-implementation-plan.md`](../runbooks/en4-implementation-plan.md)  
 **Portals:** State Admin (`admin-state`), API (`admin-state` module), Citizen PWA (read-only validation)
 
 ---
@@ -75,7 +76,7 @@ Tenant Admin publishes v2+ → citizens see latest published version
 
 ## Out of scope
 
-- Full WYSIWYG form designer in State Admin (Tenant Admin designer remains the ULB customization tool).
+- Full WYSIWYG form designer in State Admin → **EN-5** ([`EN-5-state-global-form-builder.md`](./EN-5-state-global-form-builder.md)).
 - Auto-migrating all existing ULBs when a state global template changes (preserve tenant overrides; optional manual “re-sync from global” later).
 - Grievance form templates (separate catalogue).
 

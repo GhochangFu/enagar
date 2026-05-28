@@ -29,6 +29,7 @@ export type LibraryDraft = {
   fee_amount_rupees: string;
   lifecycle_status: string;
   curator_notes: string;
+  form_schema_json: string;
 };
 
 export type IntegrationDraft = {
@@ -71,6 +72,7 @@ export const EMPTY_LIBRARY_DRAFT: LibraryDraft = {
   fee_amount_rupees: '500',
   lifecycle_status: 'draft',
   curator_notes: 'Sprint 6.12 smoke template.',
+  form_schema_json: '{}',
 };
 
 export const EMPTY_INTEGRATION_DRAFT: IntegrationDraft = {
@@ -127,8 +129,44 @@ export function tenantDraftToPayload(draft: TenantDraft): Record<string, unknown
   };
 }
 
+export function formSchemaToDraftJson(formSchema: unknown): string {
+  if (!formSchema || typeof formSchema !== 'object' || Array.isArray(formSchema)) {
+    return '{}';
+  }
+  if (Object.keys(formSchema as object).length === 0) {
+    return '{}';
+  }
+  return JSON.stringify(formSchema, null, 2);
+}
+
+export function parseFormSchemaJson(json: string): Record<string, unknown> | undefined {
+  const trimmed = json.trim();
+  if (!trimmed || trimmed === '{}') {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    return Object.keys(parsed).length > 0 ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function countPreviewFormFields(formSchemaJson: string): number {
+  try {
+    const parsed = JSON.parse(formSchemaJson) as { fields?: Array<{ type?: string }> };
+    if (!Array.isArray(parsed.fields)) {
+      return 0;
+    }
+    return parsed.fields.filter((field) => field.type && field.type !== 'section').length;
+  } catch {
+    return 0;
+  }
+}
+
 export function libraryDraftToPayload(draft: LibraryDraft): Record<string, unknown> {
   const amountPaise = Math.round(Number(draft.fee_amount_rupees || '0') * 100);
+  const formSchema = parseFormSchemaJson(draft.form_schema_json);
   return {
     code: draft.code.trim(),
     category_code: draft.category_code.trim(),
@@ -143,6 +181,7 @@ export function libraryDraftToPayload(draft: LibraryDraft): Record<string, unkno
     required_documents: [{ code: 'identity-proof', label: { en: 'Identity proof' } }],
     lifecycle_status: draft.lifecycle_status,
     curator_notes: draft.curator_notes,
+    ...(formSchema ? { form_schema: formSchema } : {}),
   };
 }
 
@@ -212,6 +251,7 @@ export function libraryRowToDraft(row: {
   lifecycle_status: string;
   default_sla_days: number | null;
   curator_notes: string | null;
+  form_schema?: unknown;
 }): LibraryDraft {
   return {
     code: row.code,
@@ -224,6 +264,7 @@ export function libraryRowToDraft(row: {
     fee_amount_rupees: '500',
     lifecycle_status: row.lifecycle_status,
     curator_notes: row.curator_notes ?? '',
+    form_schema_json: formSchemaToDraftJson(row.form_schema),
   };
 }
 

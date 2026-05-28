@@ -54,7 +54,7 @@ import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { TenantBanners } from '../components/tenant-banners';
-import { defaultFormValuesForSchema } from '../lib/service-schemas';
+import { applyFieldExamplesToRenderPlan, fieldExamplesForSchema } from '../lib/form-field-examples';
 import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
 import { resolveTenantFromCatalogue } from '../lib/tenant-catalogue';
 import {
@@ -383,9 +383,14 @@ export default function HomePage(): JSX.Element {
   const feeServicesForDetailPanel =
     step === 'workspace' && selectedTenant ? services : detailFeeServices;
   const selectedSchema = selectedService?.form_schema;
-  const renderPlan = selectedSchema
-    ? createRenderPlan(selectedSchema, { locale: language, platform: 'web' })
-    : null;
+  const renderPlan = useMemo(() => {
+    if (!selectedSchema) {
+      return null;
+    }
+    const plan = createRenderPlan(selectedSchema, { locale: language, platform: 'web' });
+    const examples = fieldExamplesForSchema(selectedSchema.service_code, selectedSchema);
+    return applyFieldExamplesToRenderPlan(plan, examples);
+  }, [language, selectedSchema]);
   const latestApplication = applications[0];
 
   useEffect(() => {
@@ -896,7 +901,7 @@ export default function HomePage(): JSX.Element {
 
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
-    setFormValues(defaultFormValuesForSchema(service.code, service.form_schema));
+    setFormValues({});
     setApplicationFileBlobs({});
     setHoldingLookup(null);
     setApplicationDetail(null);

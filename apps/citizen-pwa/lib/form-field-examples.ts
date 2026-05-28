@@ -1,7 +1,7 @@
-import type { EnagarFormSchema, FormSubmission } from '@enagar/forms';
+import type { EnagarFormSchema, FormRenderPlan } from '@enagar/forms';
 
-/** Dev-friendly defaults only; runtime schemas now come from published API catalogue rows. */
-export function defaultFormValuesForService(serviceCode: string): FormSubmission {
+/** Sample values shown as field help only — never submitted as form data. */
+export function fieldExamplesForService(serviceCode: string): Record<string, string> {
   if (serviceCode === 'birth-cert') {
     return {
       applicant_name: 'Citizen Test',
@@ -28,8 +28,9 @@ export function defaultFormValuesForService(serviceCode: string): FormSubmission
     return {
       applicant_name: 'Citizen Test',
       event_date: '2026-12-15',
-      guest_count: 50,
-      event_details: 'Community hall booking smoke test event details for local dev.',
+      guest_count: '50',
+      event_details:
+        'Community hall booking smoke test event details for local development validation.',
     };
   }
   if (serviceCode === 'rti') {
@@ -43,12 +44,12 @@ export function defaultFormValuesForService(serviceCode: string): FormSubmission
   return {};
 }
 
-/** Keeps dev defaults aligned with the published form schema field ids. */
-export function defaultFormValuesForSchema(
+/** Keeps examples aligned with the published form schema field ids. */
+export function fieldExamplesForSchema(
   serviceCode: string,
   schema: EnagarFormSchema | null | undefined,
-): FormSubmission {
-  const base = defaultFormValuesForService(serviceCode);
+): Record<string, string> {
+  const base = fieldExamplesForService(serviceCode);
   if (!schema?.fields?.length) {
     return base;
   }
@@ -56,4 +57,27 @@ export function defaultFormValuesForSchema(
     schema.fields.filter((field) => field.type !== 'section').map((field) => field.id),
   );
   return Object.fromEntries(Object.entries(base).filter(([key]) => allowed.has(key)));
+}
+
+/** Adds example help text when the schema field has no `help_text` already. */
+export function applyFieldExamplesToRenderPlan(
+  plan: FormRenderPlan,
+  examples: Record<string, string>,
+): FormRenderPlan {
+  if (Object.keys(examples).length === 0) {
+    return plan;
+  }
+  return {
+    ...plan,
+    nodes: plan.nodes.map((node) => {
+      if (node.widget === 'section' || node.help_text) {
+        return node;
+      }
+      const example = examples[node.id];
+      if (!example) {
+        return node;
+      }
+      return { ...node, help_text: `Example: ${example}` };
+    }),
+  };
 }
