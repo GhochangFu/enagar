@@ -26,10 +26,15 @@ describe('Master Sprint 6.7 designer polish contract', () => {
   });
 
   it('adds drag-drop form palette authoring over the existing form schema contract', () => {
-    expect(serviceDesigner).toContain('FORM_FIELD_PALETTE');
-    expect(serviceDesigner).toContain('FIELD_DRAG_MIME');
-    expect(serviceDesigner).toContain('FormVisualBuilder');
-    expect(serviceDesigner).toContain('FieldInspector');
+    const formsPackage = readRepo('packages/forms/package.json');
+    const builderIndex = readRepo('packages/forms/src/builder/index.ts');
+    expect(formsPackage).toContain('"./builder"');
+    expect(builderIndex).toContain('FORM_FIELD_PALETTE');
+    expect(builderIndex).toContain('FormSchemaBuilder');
+    expect(serviceDesigner).toContain('@enagar/forms/builder');
+    expect(serviceDesigner).toContain('FormSchemaBuilder');
+    expect(serviceDesigner).toContain('FormCitizenPreview');
+    expect(serviceDesigner).not.toContain('FORM_FIELD_PALETTE');
     expect(serviceDesigner).toContain('/form-draft');
     expect(serviceDesigner).toContain('/form-draft/publish');
   });
@@ -37,7 +42,6 @@ describe('Master Sprint 6.7 designer polish contract', () => {
   it('keeps citizen preview and validation tied to shared packages', () => {
     expect(serviceDesigner).toContain('validateFormSchema');
     expect(serviceDesigner).toContain('validateWorkflowDefinition');
-    expect(serviceDesigner).toContain('DynamicFormFields');
-    expect(serviceDesigner).toContain("platform: 'web'");
+    expect(serviceDesigner).toContain('FormCitizenPreview');
   });
 });

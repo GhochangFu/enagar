@@ -10,6 +10,7 @@ const config: Config = {
     './lib/**/*.{ts,tsx}',
     '../../packages/ui/src/**/*.{ts,tsx}',
     '../../packages/forms/src/web/**/*.tsx',
+    '../../packages/forms/src/builder/**/*.tsx',
   ],
 };
 

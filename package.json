@@ -43,6 +43,7 @@
     "smoke:phase7-vm": "node scripts/smoke-phase-7-vm-pilot.mjs",
     "verify:en3": "node scripts/verify-en3-state-onboarding.mjs",
     "verify:en4": "node scripts/verify-en4-global-onboarding-forms.mjs",
+    "verify:en5": "node scripts/verify-en5-shared-form-builder.mjs",
     "prepare": "husky"
   },
   "pnpm": {

@@ -55,7 +55,8 @@ describe('EN-4 — global form templates and onboarding forms', () => {
       'utf8',
     );
     expect(sections).toContain('Citizen apply form');
-    expect(sections).toContain('Form template (JSON)');
+    expect(sections).toContain('Edit apply form');
+    expect(sections).not.toContain('Form template (JSON)');
   });
 
   it('tenant admin can resync a linked service form draft from the global template', () => {

@@ -387,10 +387,14 @@ export default function HomePage(): JSX.Element {
     if (!selectedSchema) {
       return null;
     }
-    const plan = createRenderPlan(selectedSchema, { locale: language, platform: 'web' });
+    const plan = createRenderPlan(selectedSchema, {
+      locale: language,
+      platform: 'web',
+      values: formValues,
+    });
     const examples = fieldExamplesForSchema(selectedSchema.service_code, selectedSchema);
     return applyFieldExamplesToRenderPlan(plan, examples);
-  }, [language, selectedSchema]);
+  }, [formValues, language, selectedSchema]);
   const latestApplication = applications[0];
 
   useEffect(() => {

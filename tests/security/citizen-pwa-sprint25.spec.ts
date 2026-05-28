@@ -36,6 +36,7 @@ describe('Sprint 2.5 citizen PWA contract', () => {
     expect(pwaPackage).toContain('@enagar/forms');
     expect(nextConfig).toContain('@enagar/forms');
     expect(pwaPage).toContain('createRenderPlan');
+    expect(pwaPage).toContain('values: formValues');
     expect(pwaPage).toContain('validateSubmission');
     expect(pwaPage).toContain('selectedService?.form_schema');
   });

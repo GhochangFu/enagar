@@ -53,6 +53,8 @@ describe('Master Sprint 6.8 — Phase 6 P1 operator polish contract', () => {
     expect(serviceConfigPanel).toContain('Document checklist');
     expect(serviceConfigPanel).toContain('JSON fallback');
     expect(serviceConfigPanel).toContain('value="slab"');
+    expect(serviceConfigPanel).toContain('slab_set');
+    expect(serviceConfigPanel).toContain('DEFAULT_FEE_SLABS');
     expect(serviceConfigPanel).not.toContain('eval(');
     expect(serviceConfigPanel).not.toContain('new Function');
   });

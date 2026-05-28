@@ -50,8 +50,20 @@ export interface FormOption {
 export interface ShowIfRule {
   field: string;
   equals?: string | number | boolean;
+  equals_any?: Array<string | number | boolean>;
   includes?: string;
   not_empty?: boolean;
+}
+
+export type CrossFieldCompareOp = 'gt_field' | 'gte_field' | 'lt_field' | 'lte_field' | 'eq_field';
+
+export interface CrossFieldRule {
+  id: string;
+  left: string;
+  op: CrossFieldCompareOp;
+  right: string;
+  message?: LocaleMap;
+  when?: ShowIfRule;
 }
 
 export interface BaseFormField {
@@ -113,6 +125,7 @@ export interface EnagarFormSchema {
   title: LocaleMap;
   description?: LocaleMap;
   fields: EnagarFormField[];
+  cross_field_rules?: CrossFieldRule[];
 }
 
 export interface FormValidationIssue {
@@ -166,6 +179,14 @@ export interface JsonSchemaExport {
 const fieldTypeSet = new Set<string>(FORM_FIELD_TYPES);
 const fieldIdPattern = /^[a-z][a-z0-9_]*(?:-[a-z0-9_]+)*$/;
 const serviceCodePattern = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const crossFieldCompareOps = new Set<CrossFieldCompareOp>([
+  'gt_field',
+  'gte_field',
+  'lt_field',
+  'lte_field',
+  'eq_field',
+]);
 
 export function validateFormSchema(schema: EnagarFormSchema): FormValidationResult {
   const issues: FormValidationIssue[] = [];
@@ -209,10 +230,12 @@ export function validateFormSchema(schema: EnagarFormSchema): FormValidationResu
   }
 
   for (const [index, field] of schema.fields.entries()) {
-    if (field.show_if && !ids.has(field.show_if.field)) {
-      issues.push(issue(`fields.${index}.show_if.field`, `unknown field: ${field.show_if.field}`));
+    if (field.show_if) {
+      validateShowIfRule(field.show_if, `fields.${index}.show_if`, ids, issues);
     }
   }
+
+  validateCrossFieldRules(schema, ids, issues);
 
   return result(issues);
 }
@@ -327,11 +350,16 @@ export function validateSubmission(
     validateSubmissionValue(field, value, issues);
   }
 
+  validateCrossFieldSubmission(schema, submission, issues);
+
   return result(issues);
 }
 
 export function isFieldVisible(field: EnagarFormField, values: FormSubmission): boolean {
-  const rule = field.show_if;
+  return matchesShowIfRule(field.show_if, values);
+}
+
+export function matchesShowIfRule(rule: ShowIfRule | undefined, values: FormSubmission): boolean {
   if (!rule) {
     return true;
   }
@@ -342,6 +370,9 @@ export function isFieldVisible(field: EnagarFormField, values: FormSubmission): 
   }
   if (rule.includes !== undefined) {
     return Array.isArray(value) && value.some((item) => item === rule.includes);
+  }
+  if (rule.equals_any !== undefined && rule.equals_any.length > 0) {
+    return rule.equals_any.some((candidate) => value === candidate);
   }
   if (rule.equals !== undefined) {
     return value === rule.equals;
@@ -422,10 +453,12 @@ function toJsonSchemaProperty(
         maximum: field.max,
       });
     case 'date':
-      return {
+      return removeUndefined({
         type: 'string',
         format: 'date',
-      };
+        minimum: field.min_date,
+        maximum: field.max_date,
+      });
     case 'radio':
     case 'select':
       return {
@@ -491,6 +524,10 @@ function validateFieldSpecificShape(
       issues.push(issue(`${path}.max_size_mb`, 'file max_size_mb must be between 1 and 10'));
     }
   }
+
+  if (field.type === 'date') {
+    validateDateBounds(field, path, issues);
+  }
 }
 
 function validateSubmissionValue(
@@ -507,9 +544,7 @@ function validateSubmissionValue(
       validateNumberValue(field, value, issues);
       return;
     case 'date':
-      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        issues.push(issue(field.id, 'date value must be YYYY-MM-DD'));
-      }
+      validateDateValue(field, value, issues);
       return;
     case 'radio':
     case 'select':
@@ -530,6 +565,287 @@ function validateSubmissionValue(
       return;
     case 'section':
       return;
+  }
+}
+
+function validateDateBounds(
+  field: DateFormField,
+  path: string,
+  issues: FormValidationIssue[],
+): void {
+  const minValid = field.min_date === undefined || isIsoDateString(field.min_date);
+  const maxValid = field.max_date === undefined || isIsoDateString(field.max_date);
+
+  if (field.min_date !== undefined && !minValid) {
+    issues.push(issue(`${path}.min_date`, 'min_date must be YYYY-MM-DD'));
+  }
+  if (field.max_date !== undefined && !maxValid) {
+    issues.push(issue(`${path}.max_date`, 'max_date must be YYYY-MM-DD'));
+  }
+  if (
+    minValid &&
+    maxValid &&
+    field.min_date !== undefined &&
+    field.max_date !== undefined &&
+    field.min_date > field.max_date
+  ) {
+    issues.push(issue(`${path}.max_date`, 'max_date must be on or after min_date'));
+  }
+}
+
+function validateDateValue(
+  field: DateFormField,
+  value: FormSubmissionValue | undefined,
+  issues: FormValidationIssue[],
+): void {
+  if (typeof value !== 'string' || !isIsoDateString(value)) {
+    issues.push(issue(field.id, 'date value must be YYYY-MM-DD'));
+    return;
+  }
+  if (!isValidCalendarIsoDate(value)) {
+    issues.push(issue(field.id, 'date value is not a valid calendar date'));
+    return;
+  }
+  if (field.min_date !== undefined && isIsoDateString(field.min_date) && value < field.min_date) {
+    issues.push(issue(field.id, `date must be on or after ${field.min_date}`));
+  }
+  if (field.max_date !== undefined && isIsoDateString(field.max_date) && value > field.max_date) {
+    issues.push(issue(field.id, `date must be on or before ${field.max_date}`));
+  }
+}
+
+function isIsoDateString(value: unknown): value is string {
+  return typeof value === 'string' && isoDatePattern.test(value);
+}
+
+function isValidCalendarIsoDate(value: string): boolean {
+  const [yearText, monthText, dayText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function validateShowIfRule(
+  rule: ShowIfRule,
+  path: string,
+  ids: Set<string>,
+  issues: FormValidationIssue[],
+): void {
+  if (!ids.has(rule.field)) {
+    issues.push(issue(`${path}.field`, `unknown field: ${rule.field}`));
+  }
+  const activeKinds = [
+    rule.not_empty ? 'not_empty' : null,
+    rule.includes !== undefined ? 'includes' : null,
+    rule.equals !== undefined ? 'equals' : null,
+    rule.equals_any !== undefined ? 'equals_any' : null,
+  ].filter(Boolean);
+  if (activeKinds.length !== 1) {
+    issues.push(
+      issue(path, 'show_if must set exactly one of equals, equals_any, includes, or not_empty'),
+    );
+  }
+  if (rule.equals_any !== undefined) {
+    if (!Array.isArray(rule.equals_any) || rule.equals_any.length === 0) {
+      issues.push(issue(`${path}.equals_any`, 'equals_any must be a non-empty array'));
+    }
+  }
+}
+
+function validateCrossFieldRules(
+  schema: EnagarFormSchema,
+  ids: Set<string>,
+  issues: FormValidationIssue[],
+): void {
+  if (schema.cross_field_rules === undefined) {
+    return;
+  }
+  if (!Array.isArray(schema.cross_field_rules)) {
+    issues.push(issue('cross_field_rules', 'cross_field_rules must be an array'));
+    return;
+  }
+
+  const fieldById = new Map(schema.fields.map((field) => [field.id, field]));
+  const ruleIds = new Set<string>();
+
+  for (const [index, rule] of schema.cross_field_rules.entries()) {
+    const path = `cross_field_rules.${index}`;
+    if (!rule || typeof rule !== 'object') {
+      issues.push(issue(path, 'cross-field rule must be an object'));
+      continue;
+    }
+    if (typeof rule.id !== 'string' || !fieldIdPattern.test(rule.id)) {
+      issues.push(issue(`${path}.id`, 'rule id must be lowercase and stable'));
+    } else if (ruleIds.has(rule.id)) {
+      issues.push(issue(`${path}.id`, `duplicate cross-field rule id: ${rule.id}`));
+    } else {
+      ruleIds.add(rule.id);
+    }
+    if (!ids.has(rule.left)) {
+      issues.push(issue(`${path}.left`, `unknown field: ${rule.left}`));
+    }
+    if (!ids.has(rule.right)) {
+      issues.push(issue(`${path}.right`, `unknown field: ${rule.right}`));
+    }
+    if (rule.left === rule.right) {
+      issues.push(issue(`${path}.right`, 'left and right fields must differ'));
+    }
+    if (!crossFieldCompareOps.has(rule.op)) {
+      issues.push(issue(`${path}.op`, 'unsupported cross-field compare op'));
+    }
+    if (rule.message) {
+      validateLocaleMap(rule.message, `${path}.message`, issues);
+    }
+    if (rule.when) {
+      validateShowIfRule(rule.when, `${path}.when`, ids, issues);
+    }
+
+    const leftField = fieldById.get(rule.left);
+    const rightField = fieldById.get(rule.right);
+    if (leftField?.type === 'section' || rightField?.type === 'section') {
+      issues.push(issue(path, 'cross-field rules cannot reference section fields'));
+    }
+    if (leftField && rightField && !isCrossFieldCompareSupported(rule.op, leftField, rightField)) {
+      issues.push(
+        issue(path, `op ${rule.op} is not supported for ${leftField.type} vs ${rightField.type}`),
+      );
+    }
+  }
+}
+
+function validateCrossFieldSubmission(
+  schema: EnagarFormSchema,
+  submission: FormSubmission,
+  issues: FormValidationIssue[],
+): void {
+  if (!schema.cross_field_rules?.length) {
+    return;
+  }
+
+  const fieldById = new Map(schema.fields.map((field) => [field.id, field]));
+
+  for (const rule of schema.cross_field_rules) {
+    if (rule.when && !matchesShowIfRule(rule.when, submission)) {
+      continue;
+    }
+
+    const leftField = fieldById.get(rule.left);
+    const rightField = fieldById.get(rule.right);
+    if (!leftField || !rightField) {
+      continue;
+    }
+    if (!isFieldVisible(leftField, submission) || !isFieldVisible(rightField, submission)) {
+      continue;
+    }
+
+    const leftValue = submission[rule.left];
+    const rightValue = submission[rule.right];
+    if (
+      leftValue === undefined ||
+      rightValue === undefined ||
+      isEmpty(leftValue) ||
+      isEmpty(rightValue)
+    ) {
+      continue;
+    }
+
+    if (evaluateCrossFieldRule(rule, leftField, leftValue, rightField, rightValue)) {
+      continue;
+    }
+
+    issues.push(
+      issue(
+        rule.left,
+        rule.message?.en ?? defaultCrossFieldRuleMessage(rule, leftField, rightField),
+      ),
+    );
+  }
+}
+
+function isCrossFieldCompareSupported(
+  op: CrossFieldCompareOp,
+  leftField: EnagarFormField,
+  rightField: EnagarFormField,
+): boolean {
+  if (leftField.type !== rightField.type) {
+    return false;
+  }
+  if (op === 'eq_field') {
+    return leftField.type === 'date' || leftField.type === 'number' || leftField.type === 'text';
+  }
+  return leftField.type === 'date' || leftField.type === 'number';
+}
+
+function evaluateCrossFieldRule(
+  rule: CrossFieldRule,
+  leftField: EnagarFormField,
+  leftValue: FormSubmissionValue,
+  rightField: EnagarFormField,
+  rightValue: FormSubmissionValue,
+): boolean {
+  const leftComparable = toComparableValue(leftField, leftValue);
+  const rightComparable = toComparableValue(rightField, rightValue);
+  if (leftComparable === null || rightComparable === null) {
+    return true;
+  }
+
+  switch (rule.op) {
+    case 'eq_field':
+      return leftComparable === rightComparable;
+    case 'gt_field':
+      return leftComparable > rightComparable;
+    case 'gte_field':
+      return leftComparable >= rightComparable;
+    case 'lt_field':
+      return leftComparable < rightComparable;
+    case 'lte_field':
+      return leftComparable <= rightComparable;
+  }
+}
+
+function toComparableValue(
+  field: EnagarFormField,
+  value: FormSubmissionValue,
+): string | number | null {
+  if (field.type === 'date') {
+    return typeof value === 'string' && isIsoDateString(value) ? value : null;
+  }
+  if (field.type === 'number') {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+  if (field.type === 'text' || field.type === 'textarea') {
+    return typeof value === 'string' ? value : null;
+  }
+  return null;
+}
+
+function defaultCrossFieldRuleMessage(
+  rule: CrossFieldRule,
+  leftField: EnagarFormField,
+  rightField: EnagarFormField,
+): string {
+  const leftLabel = leftField.label.en;
+  const rightLabel = rightField.label.en;
+  switch (rule.op) {
+    case 'eq_field':
+      return `${leftLabel} must match ${rightLabel}`;
+    case 'gt_field':
+      return `${leftLabel} must be after ${rightLabel}`;
+    case 'gte_field':
+      return `${leftLabel} must be on or after ${rightLabel}`;
+    case 'lt_field':
+      return `${leftLabel} must be before ${rightLabel}`;
+    case 'lte_field':
+      return `${leftLabel} must be on or before ${rightLabel}`;
   }
 }
 

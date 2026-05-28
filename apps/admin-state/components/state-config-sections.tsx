@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@enagar/ui';
+import Link from 'next/link';
 
 import { pickLabel, countPreviewFormFields } from '../lib/state-dashboard-forms';
 
@@ -277,19 +278,18 @@ export function StateLibrarySection({
                   ? `Template ready — ${countPreviewFormFields(draft.form_schema_json)} input field(s).`
                   : 'Stub on adopt — onboarding publishes a minimal blank form until you add a template.'}
               </p>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-ink-primary">
-                Form template (JSON)
-              </label>
-              <textarea
-                className="mt-2 min-h-40 w-full rounded-2xl border border-warm-border bg-surface px-3 py-2 font-mono text-xs text-ink-primary"
-                value={draft.form_schema_json}
-                onChange={(event) =>
-                  onDraftChange({ ...draft, form_schema_json: event.target.value })
-                }
-                spellCheck={false}
-              />
+              {selectedCode ? (
+                <Link
+                  href={`/dashboard/library/${selectedCode}/form`}
+                  className="mt-3 inline-flex rounded-xl border border-platform-accent/30 bg-surface px-3 py-2 text-sm font-medium text-platform-accent hover:bg-mint-band/40"
+                >
+                  Edit apply form
+                </Link>
+              ) : (
+                <p className="mt-2 text-xs text-ink-secondary">
+                  Save the template code first, then open the visual form editor.
+                </p>
+              )}
             </div>
           </div>
         </GuidedFormCard>

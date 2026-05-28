@@ -21,19 +21,19 @@ Update the **Progress tracker** table below as phases complete.
 
 ## Progress tracker
 
-| Phase | Title                         | Status      | Notes                                                                              |
-| ----- | ----------------------------- | ----------- | ---------------------------------------------------------------------------------- |
-| 0     | Local baseline                | Pending     | Run `pnpm db:seed` + dev stack before smoke                                        |
-| 1     | Shared module + seed backfill | Done        | `tenant-service-onboarding-forms.ts`, seed backfill                                |
-| 2     | Global library API            | Done        | `form_schema`, `has_usable_form_schema` on list                                    |
-| 3     | Onboarding audit counts       | Done        | `forms_from_global`, `forms_stubbed` in audit                                      |
-| 4     | State Admin UI                | Done        | JSON editor + citizen apply form indicator                                         |
-| 5     | Wizard hint                   | Done        | Review step form source summary                                                    |
-| 6     | `verify:en4` + tests          | Done        | `pnpm verify:en4`, `en4-global-form-templates.spec.ts`                             |
-| 7     | Citizen manual smoke          | Done        | Manual smokes passed (incl. KONM re-sync path)                                     |
-| 8     | Docs + local sign-off         | In progress | Commit + VM pending                                                                |
-| VM    | Deploy to demosites VM        | Not started | After Phase 8                                                                      |
-| EN-5  | State WYSIWYG form builder    | Planned     | [`en5-state-global-form-builder-plan.md`](./en5-state-global-form-builder-plan.md) |
+| Phase | Title                            | Status      | Notes                                                                                               |
+| ----- | -------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
+| 0     | Local baseline                   | Pending     | Run `pnpm db:seed` + dev stack before smoke                                                         |
+| 1     | Shared module + seed backfill    | Done        | `tenant-service-onboarding-forms.ts`, seed backfill                                                 |
+| 2     | Global library API               | Done        | `form_schema`, `has_usable_form_schema` on list                                                     |
+| 3     | Onboarding audit counts          | Done        | `forms_from_global`, `forms_stubbed` in audit                                                       |
+| 4     | State Admin UI                   | Done        | JSON editor + citizen apply form indicator                                                          |
+| 5     | Wizard hint                      | Done        | Review step form source summary                                                                     |
+| 6     | `verify:en4` + tests             | Done        | `pnpm verify:en4`, `en4-global-form-templates.spec.ts`                                              |
+| 7     | Citizen manual smoke             | Done        | Manual smokes passed (incl. KONM re-sync path)                                                      |
+| 8     | Docs + local sign-off            | In progress | Commit + VM pending                                                                                 |
+| VM    | Deploy to demosites VM           | Not started | After Phase 8                                                                                       |
+| EN-5  | Shared form builder + validation | Planned     | [`en5-state-global-form-builder-plan.md`](./en5-state-global-form-builder-plan.md) — State + Tenant |
 
 ---
 
@@ -219,7 +219,7 @@ See also [`vm-deploy-demo-current-stage.md`](./vm-deploy-demo-current-stage.md).
 
 - Re-onboard / auto-repair of bad published forms
 - Auto-sync tenant forms when global template changes
-- WYSIWYG State form designer → **EN-5** ([`en5-state-global-form-builder-plan.md`](./en5-state-global-form-builder-plan.md))
+- WYSIWYG State form designer → **EN-5** ([`en5-state-global-form-builder-plan.md`](./en5-state-global-form-builder-plan.md)) — shared builder + validation for **State and Tenant**
 - Grievance form templates
 
 ---

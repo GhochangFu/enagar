@@ -1,15 +1,25 @@
 'use client';
 
 import {
-  createRenderPlan,
   validateFormSchema,
   type EnagarFormField,
   type EnagarFormSchema,
   type FormFieldType,
-  type FormOption,
   type FormSubmission,
 } from '@enagar/forms';
-import { DynamicFormFields } from '@enagar/forms/web';
+import {
+  FIELD_DRAG_MIME,
+  CrossFieldRulesPanel,
+  FormCitizenPreview,
+  FormSchemaBuilder,
+  FormSchemaJsonFallback,
+  cloneFormSchema,
+  fieldPaletteItem,
+  localeMap,
+  nextSequence,
+  pretty,
+  slugify,
+} from '@enagar/forms/builder';
 import { Button, PageHeader } from '@enagar/ui';
 import {
   validateWorkflowDefinition,
@@ -74,122 +84,6 @@ type RevenueHeadRow = {
 };
 
 type Values = FormSubmission;
-type LocaleMap = EnagarFormSchema['title'];
-type FormFieldBuilder = {
-  type: FormFieldType;
-  title: string;
-  description: string;
-  build: (sequence: number) => EnagarFormField;
-};
-
-const FORM_FIELD_PALETTE: FormFieldBuilder[] = [
-  {
-    type: 'section',
-    title: 'Section',
-    description: 'Group related inputs.',
-    build: (sequence) => ({
-      id: `section-${sequence}`,
-      type: 'section',
-      label: localeMap(`Section ${sequence}`),
-    }),
-  },
-  {
-    type: 'text',
-    title: 'Text',
-    description: 'Names, IDs, short answers.',
-    build: (sequence) => ({
-      id: `text_field_${sequence}`,
-      type: 'text',
-      label: localeMap(`Text field ${sequence}`),
-      required: true,
-      max_length: 120,
-    }),
-  },
-  {
-    type: 'textarea',
-    title: 'Long Text',
-    description: 'Addresses and explanations.',
-    build: (sequence) => ({
-      id: `long_text_${sequence}`,
-      type: 'textarea',
-      label: localeMap(`Long text ${sequence}`),
-      max_length: 500,
-    }),
-  },
-  {
-    type: 'number',
-    title: 'Number',
-    description: 'Amounts, counts, measurements.',
-    build: (sequence) => ({
-      id: `number_field_${sequence}`,
-      type: 'number',
-      label: localeMap(`Number field ${sequence}`),
-      min: 0,
-    }),
-  },
-  {
-    type: 'date',
-    title: 'Date',
-    description: 'Birth, event, or due dates.',
-    build: (sequence) => ({
-      id: `date_field_${sequence}`,
-      type: 'date',
-      label: localeMap(`Date field ${sequence}`),
-      required: true,
-    }),
-  },
-  {
-    type: 'radio',
-    title: 'Single Choice',
-    description: 'Compact yes/no-style options.',
-    build: (sequence) => ({
-      id: `choice_${sequence}`,
-      type: 'radio',
-      label: localeMap(`Choice ${sequence}`),
-      required: true,
-      options: defaultOptions(),
-    }),
-  },
-  {
-    type: 'select',
-    title: 'Dropdown',
-    description: 'Single selection from a list.',
-    build: (sequence) => ({
-      id: `dropdown_${sequence}`,
-      type: 'select',
-      label: localeMap(`Dropdown ${sequence}`),
-      options: defaultOptions(),
-    }),
-  },
-  {
-    type: 'multiselect',
-    title: 'Multi Select',
-    description: 'Multiple selections from a list.',
-    build: (sequence) => ({
-      id: `multi_select_${sequence}`,
-      type: 'multiselect',
-      label: localeMap(`Multi select ${sequence}`),
-      options: defaultOptions(),
-    }),
-  },
-  {
-    type: 'file',
-    title: 'File Upload',
-    description: 'Document metadata intent.',
-    build: (sequence) => ({
-      id: `document_${sequence}`,
-      type: 'file',
-      label: localeMap(`Document ${sequence}`),
-      required: true,
-      accept: ['application/pdf', 'image/jpeg', 'image/png'],
-      max_size_mb: 5,
-    }),
-  },
-];
-
-const FIELD_DRAG_MIME = 'application/x-enagar-form-field';
-const DEFAULT_STAGE_ROLES = ['tenant_clerk', 'tenant_admin', 'citizen'];
-const DEFAULT_EFFECT_TYPES = ['audit', 'notify', 'sla_timer', 'certificate', 'escalate'];
 
 function pickLabel(json: unknown): string {
   if (json && typeof json === 'object' && !Array.isArray(json)) {
@@ -199,73 +93,8 @@ function pickLabel(json: unknown): string {
   return 'Service';
 }
 
-function pretty(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}
-
-function localeMap(en: string, bn = en, hi = en): LocaleMap {
-  return { en, bn, hi };
-}
-
-function defaultOptions(): FormOption[] {
-  return [
-    { value: 'yes', label: localeMap('Yes') },
-    { value: 'no', label: localeMap('No') },
-  ];
-}
-
-function pickLocaleText(label: LocaleMap | undefined): string {
-  return label?.en || 'Untitled';
-}
-
-function slugify(input: string, fallback: string): string {
-  const slug = input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || fallback;
-}
-
-function nextSequence(fields: EnagarFormField[], type: FormFieldType): number {
-  const prefix = type.replace(/[^a-z0-9]+/g, '_');
-  let sequence = fields.length + 1;
-  while (
-    fields.some(
-      (field) => field.id === `${prefix}_${sequence}` || field.id === `${prefix}-${sequence}`,
-    )
-  ) {
-    sequence += 1;
-  }
-  return sequence;
-}
-
-function fieldPaletteItem(type: FormFieldType): FormFieldBuilder | undefined {
-  return FORM_FIELD_PALETTE.find((item) => item.type === type);
-}
-
-function isChoiceField(
-  field: EnagarFormField,
-): field is Extract<EnagarFormField, { options: FormOption[] }> {
-  return field.type === 'radio' || field.type === 'select' || field.type === 'multiselect';
-}
-
-function fieldSummary(field: EnagarFormField): string {
-  if (field.type === 'section') {
-    return 'Layout section';
-  }
-  if (isChoiceField(field)) {
-    return `${field.options.length} options${field.required ? ' · required' : ''}`;
-  }
-  if (field.type === 'file') {
-    return `${field.accept.join(', ')} · max ${field.max_size_mb} MB`;
-  }
-  return field.required ? 'Required input' : 'Optional input';
-}
-
-function cloneFormSchema(schema: EnagarFormSchema): EnagarFormSchema {
-  return JSON.parse(JSON.stringify(schema)) as EnagarFormSchema;
-}
+const DEFAULT_STAGE_ROLES = ['tenant_clerk', 'tenant_admin', 'citizen'];
+const DEFAULT_EFFECT_TYPES = ['audit', 'notify', 'sla_timer', 'certificate', 'escalate'];
 
 function cloneWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
   return JSON.parse(JSON.stringify(workflow)) as WorkflowDefinition;
@@ -452,13 +281,6 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       return { value: null, valid: false };
     }
   }, [documentsText]);
-
-  const renderPlan = useMemo(() => {
-    if (!parsedForm.schema || !parsedForm.validation.ok) {
-      return null;
-    }
-    return createRenderPlan(parsedForm.schema, { platform: 'web', values });
-  }, [parsedForm, values]);
 
   const workflowNodes = useMemo(
     () => (parsedWorkflow.workflow ? buildWorkflowNodes(parsedWorkflow.workflow) : []),
@@ -820,7 +642,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
-          <FormVisualBuilder
+          <FormSchemaBuilder
             schema={parsedForm.schema}
             valid={parsedForm.validation.ok}
             selectedFieldId={selectedFieldId}
@@ -830,6 +652,16 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             onUpdateField={updateField}
             onReorderField={reorderField}
             onRemoveField={removeField}
+          />
+          <CrossFieldRulesPanel
+            fields={parsedForm.schema?.fields ?? []}
+            rules={parsedForm.schema?.cross_field_rules ?? []}
+            onChange={(rules) =>
+              updateFormSchema((schema) => ({
+                ...schema,
+                cross_field_rules: rules.length > 0 ? rules : undefined,
+              }))
+            }
           />
           <EditorPanel
             title="Form schema draft"
@@ -850,6 +682,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             issues={parsedForm.validation.issues}
             onSave={() => void saveForm()}
             onPublish={() => void publishForm()}
+            jsonMode="collapsed"
             secondaryAction={
               designer.global_form_template?.has_usable_form_schema
                 ? {
@@ -900,285 +733,14 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
           />
         </div>
 
-        <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Citizen preview</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Rendered through <span className="font-mono">@enagar/forms/web</span>.
-          </p>
-          <div className="mt-5 rounded-[2rem] border-8 border-slate-900 bg-slate-50 p-4 shadow-inner">
-            {renderPlan ? (
-              <DynamicFormFields
-                nodes={renderPlan.nodes}
-                values={values}
-                onChange={(fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }))}
-              />
-            ) : (
-              <p className="text-sm text-slate-500">Fix schema issues to see preview.</p>
-            )}
-          </div>
-        </aside>
-      </section>
-    </div>
-  );
-}
-
-function FormVisualBuilder({
-  schema,
-  valid,
-  selectedFieldId,
-  onSelectField,
-  onAddField,
-  onDropField,
-  onUpdateField,
-  onReorderField,
-  onRemoveField,
-}: {
-  schema: EnagarFormSchema | null;
-  valid: boolean;
-  selectedFieldId: string | null;
-  onSelectField: (fieldId: string | null) => void;
-  onAddField: (type: FormFieldType) => void;
-  onDropField: (event: DragEvent<HTMLDivElement>) => void;
-  onUpdateField: (fieldId: string, patch: Partial<EnagarFormField>) => void;
-  onReorderField: (fieldId: string, direction: -1 | 1) => void;
-  onRemoveField: (fieldId: string) => void;
-}): JSX.Element {
-  const selectedField = schema?.fields.find((field) => field.id === selectedFieldId) ?? null;
-
-  return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sprint 6.7A · Drag-drop form palette
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">Visual form builder</h2>
-          <p className="text-xs text-slate-500">
-            Adds and edits fields while preserving the same schema JSON saved by Sprint 6.2.
-          </p>
-        </div>
-        <span
-          className={
-            valid
-              ? 'rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700'
-              : 'rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700'
-          }
-        >
-          {valid ? 'Schema valid' : 'Fix JSON first'}
-        </span>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_300px]">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Field palette
-          </p>
-          <div className="space-y-2">
-            {FORM_FIELD_PALETTE.map((item) => (
-              <button
-                key={item.type}
-                type="button"
-                draggable
-                onClick={() => onAddField(item.type)}
-                onDragStart={(event) => event.dataTransfer.setData(FIELD_DRAG_MIME, item.type)}
-                className="block w-full rounded-lg border border-slate-200 bg-white p-3 text-left text-xs hover:border-[rgb(var(--brand-rgb))]"
-              >
-                <span className="block font-semibold text-slate-900">{item.title}</span>
-                <span className="mt-1 block text-slate-500">{item.description}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={onDropField}
-          className="min-h-72 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3"
-        >
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Draft field order
-          </p>
-          {schema ? (
-            <div className="space-y-2">
-              {schema.fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  className={
-                    selectedFieldId === field.id
-                      ? 'rounded-lg border border-[rgb(var(--brand-rgb))] bg-white p-3 shadow-sm'
-                      : 'rounded-lg border border-slate-200 bg-white p-3'
-                  }
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSelectField(field.id)}
-                    className="block w-full text-left"
-                  >
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {index + 1}. {field.type}
-                    </span>
-                    <span className="mt-1 block font-medium text-slate-900">
-                      {pickLocaleText(field.label)}
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500">{fieldSummary(field)}</span>
-                  </button>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onReorderField(field.id, -1)}
-                      className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600"
-                    >
-                      Up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onReorderField(field.id, 1)}
-                      className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600"
-                    >
-                      Down
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveField(field.id)}
-                      className="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">Fix form JSON before using the visual builder.</p>
-          )}
-        </div>
-        <FieldInspector field={selectedField} onUpdateField={onUpdateField} />
-      </div>
-    </article>
-  );
-}
-
-function FieldInspector({
-  field,
-  onUpdateField,
-}: {
-  field: EnagarFormField | null;
-  onUpdateField: (fieldId: string, patch: Partial<EnagarFormField>) => void;
-}): JSX.Element {
-  if (!field) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-        Select a field to edit labels, help text, required state, and options.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Field inspector
-      </p>
-      <label className="block text-xs font-medium text-slate-600">
-        Field ID
-        <input
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs"
-          value={field.id}
-          onChange={(event) => onUpdateField(field.id, { id: event.target.value })}
+        <FormCitizenPreview
+          schema={parsedForm.schema}
+          valid={parsedForm.validation.ok}
+          values={values}
+          onChange={(fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }))}
+          onValuesChange={setValues}
         />
-      </label>
-      <div className="mt-3 grid gap-2">
-        {(['en', 'bn', 'hi'] as const).map((locale) => (
-          <label key={locale} className="block text-xs font-medium text-slate-600">
-            Label {locale.toUpperCase()}
-            <input
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={field.label[locale]}
-              onChange={(event) =>
-                onUpdateField(field.id, {
-                  label: { ...field.label, [locale]: event.target.value },
-                } as Partial<EnagarFormField>)
-              }
-            />
-          </label>
-        ))}
-      </div>
-      {field.type !== 'section' ? (
-        <label className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-600">
-          <input
-            type="checkbox"
-            checked={field.required === true}
-            onChange={(event) => onUpdateField(field.id, { required: event.target.checked })}
-          />
-          Required
-        </label>
-      ) : null}
-      {'help_text' in field ? (
-        <label className="mt-3 block text-xs font-medium text-slate-600">
-          Help text EN
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-            value={field.help_text?.en ?? ''}
-            onChange={(event) =>
-              onUpdateField(field.id, { help_text: localeMap(event.target.value) })
-            }
-          />
-        </label>
-      ) : null}
-      {isChoiceField(field) ? (
-        <label className="mt-3 block text-xs font-medium text-slate-600">
-          Options (one `value=Label` per line)
-          <textarea
-            className="mt-1 h-28 w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs"
-            value={field.options.map((option) => `${option.value}=${option.label.en}`).join('\n')}
-            onChange={(event) =>
-              onUpdateField(field.id, {
-                options: event.target.value
-                  .split('\n')
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line) => {
-                    const parts = line.split('=');
-                    const value = parts[0] ?? 'option';
-                    const label = parts[1] ?? value;
-                    return { value: slugify(value, 'option'), label: localeMap(label.trim()) };
-                  }),
-              } as Partial<EnagarFormField>)
-            }
-          />
-        </label>
-      ) : null}
-      {field.type === 'file' ? (
-        <div className="mt-3 grid gap-2">
-          <label className="block text-xs font-medium text-slate-600">
-            Accepted MIME types
-            <input
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={field.accept.join(', ')}
-              onChange={(event) =>
-                onUpdateField(field.id, {
-                  accept: event.target.value
-                    .split(',')
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                } as Partial<EnagarFormField>)
-              }
-            />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">
-            Max size MB
-            <input
-              type="number"
-              min={1}
-              max={10}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-              value={field.max_size_mb}
-              onChange={(event) =>
-                onUpdateField(field.id, {
-                  max_size_mb: Number(event.target.value),
-                } as Partial<EnagarFormField>)
-              }
-            />
-          </label>
-        </div>
-      ) : null}
+      </section>
     </div>
   );
 }
@@ -1650,6 +1212,7 @@ function EditorPanel({
   onSave,
   onPublish,
   secondaryAction,
+  jsonMode = 'inline',
 }: {
   title: string;
   meta: string;
@@ -1660,6 +1223,7 @@ function EditorPanel({
   onSave: () => void;
   onPublish: () => void;
   secondaryAction?: { label: string; onClick: () => void };
+  jsonMode?: 'inline' | 'collapsed';
 }): JSX.Element {
   return (
     <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
@@ -1682,25 +1246,38 @@ function EditorPanel({
           </Button>
         </div>
       </div>
-      <textarea
-        className="h-80 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
-        spellCheck={false}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <div className={valid ? 'mt-3 text-xs text-emerald-700' : 'mt-3 text-xs text-red-700'}>
-        {valid ? (
-          <p>Valid.</p>
-        ) : (
-          <ul className="space-y-1">
-            {issues.slice(0, 5).map((issue) => (
-              <li key={`${issue.path}:${issue.message}`}>
-                <span className="font-mono">{issue.path}</span>: {issue.message}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {jsonMode === 'collapsed' ? (
+        <FormSchemaJsonFallback
+          value={value}
+          onChange={onChange}
+          valid={valid}
+          issues={issues}
+          onSave={onSave}
+          saveLabel="Save draft"
+        />
+      ) : (
+        <>
+          <textarea
+            className="h-80 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+            spellCheck={false}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <div className={valid ? 'mt-3 text-xs text-emerald-700' : 'mt-3 text-xs text-red-700'}>
+            {valid ? (
+              <p>Valid.</p>
+            ) : (
+              <ul className="space-y-1">
+                {issues.slice(0, 5).map((issue) => (
+                  <li key={`${issue.path}:${issue.message}`}>
+                    <span className="font-mono">{issue.path}</span>: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
     </article>
   );
 }

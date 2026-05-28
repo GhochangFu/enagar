@@ -49,9 +49,80 @@ function paiseToRupees(value: unknown): string {
   return typeof value === 'number' ? (value / 100).toFixed(2) : '0.00';
 }
 
+function coerceSlab(value: unknown): { upto: number | null; amount_paise: number } | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const upto = value.upto === null ? null : Number(value.upto);
+  const amount_paise = Number(value.amount_paise);
+  if (upto !== null && (!Number.isFinite(upto) || upto <= 0)) {
+    return null;
+  }
+  if (!Number.isFinite(amount_paise) || amount_paise < 0) {
+    return null;
+  }
+  return { upto, amount_paise };
+}
+
+const DEFAULT_FEE_SLABS: Array<{ upto: number | null; amount_paise: number }> = [
+  { upto: 100, amount_paise: 1000 },
+  { upto: null, amount_paise: 2500 },
+];
+
 function coerceFeeRule(value: unknown): FeeRuleDraft {
-  if (value && typeof value === 'object' && 'type' in value) {
-    return value as FeeRuleDraft;
+  if (!isRecord(value) || !('type' in value)) {
+    return { type: 'free', currency: 'INR' };
+  }
+
+  const type = String(value.type);
+  if (type === 'fixed') {
+    return {
+      type: 'fixed',
+      amount_paise: typeof value.amount_paise === 'number' ? value.amount_paise : 0,
+      ...(value.currency === 'INR' ? { currency: 'INR' } : {}),
+    };
+  }
+  if (type === 'slab') {
+    const slabs = Array.isArray(value.slabs)
+      ? value.slabs
+          .map(coerceSlab)
+          .filter((slab): slab is NonNullable<typeof slab> => slab !== null)
+      : [];
+    const slabSet = typeof value.slab_set === 'string' ? value.slab_set : '';
+    const input_key =
+      typeof value.input_key === 'string' && value.input_key.trim()
+        ? value.input_key
+        : slabSet.includes('trade')
+          ? 'trade_type'
+          : 'amount';
+    return {
+      type: 'slab',
+      input_key,
+      slabs: slabs.length > 0 ? slabs : DEFAULT_FEE_SLABS,
+      ...(value.currency === 'INR' ? { currency: 'INR' } : {}),
+    };
+  }
+  if (type === 'computed') {
+    return {
+      type: 'computed',
+      input_key:
+        typeof value.input_key === 'string' && value.input_key.trim()
+          ? value.input_key
+          : 'quantity',
+      base_amount_paise: typeof value.base_amount_paise === 'number' ? value.base_amount_paise : 0,
+      unit_amount_paise: typeof value.unit_amount_paise === 'number' ? value.unit_amount_paise : 0,
+      ...(value.currency === 'INR' ? { currency: 'INR' } : {}),
+    };
+  }
+  if (type === 'external') {
+    return {
+      type: 'external',
+      provider:
+        typeof value.provider === 'string' && value.provider.trim()
+          ? value.provider
+          : 'external-ledger',
+      ...(value.currency === 'INR' ? { currency: 'INR' } : {}),
+    };
   }
   return { type: 'free', currency: 'INR' };
 }
@@ -159,6 +230,10 @@ export function ServiceConfigPanel({
 }): JSX.Element {
   const feeRule = coerceFeeRule(parsedFee.value);
   const documents = coerceDocuments(parsedDocuments.value);
+  const legacySlabSet =
+    isRecord(parsedFee.value) && typeof parsedFee.value.slab_set === 'string'
+      ? parsedFee.value.slab_set
+      : null;
 
   function setFeeRule(next: FeeRuleDraft): void {
     onFeeTextChange(pretty(next));
@@ -236,6 +311,12 @@ export function ServiceConfigPanel({
               <option value="external">External</option>
             </select>
           </label>
+          {legacySlabSet ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Catalogue slab reference <span className="font-mono">{legacySlabSet}</span> —
+              configure fee tiers below, then save to replace the seed placeholder.
+            </p>
+          ) : null}
           <FeeRuleFields feeRule={feeRule} onChange={setFeeRule} />
         </section>
 
@@ -353,14 +434,15 @@ function FeeRuleFields({
     );
   }
   if (feeRule.type === 'slab') {
+    const slabs = feeRule.slabs ?? [];
     return (
       <div className="mt-3 space-y-3">
         <TextInput
           label="Input key"
-          value={feeRule.input_key}
+          value={feeRule.input_key ?? ''}
           onChange={(input_key) => onChange({ ...feeRule, input_key })}
         />
-        {feeRule.slabs.map((slab, index) => (
+        {slabs.map((slab, index) => (
           <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
             <TextInput
               label="Up to (blank = open)"
@@ -368,7 +450,7 @@ function FeeRuleFields({
               onChange={(value) =>
                 onChange({
                   ...feeRule,
-                  slabs: feeRule.slabs.map((item, itemIndex) =>
+                  slabs: slabs.map((item, itemIndex) =>
                     itemIndex === index
                       ? { ...item, upto: value === '' ? null : Number(value) }
                       : item,
@@ -382,7 +464,7 @@ function FeeRuleFields({
               onChange={(value) =>
                 onChange({
                   ...feeRule,
-                  slabs: feeRule.slabs.map((item, itemIndex) =>
+                  slabs: slabs.map((item, itemIndex) =>
                     itemIndex === index ? { ...item, amount_paise: rupeesToPaise(value) } : item,
                   ),
                 })
@@ -393,7 +475,7 @@ function FeeRuleFields({
               onClick={() =>
                 onChange({
                   ...feeRule,
-                  slabs: feeRule.slabs.filter((_, itemIndex) => itemIndex !== index),
+                  slabs: slabs.filter((_, itemIndex) => itemIndex !== index),
                 })
               }
               className="self-end rounded border border-red-200 px-3 py-2 text-xs font-medium text-red-700"
@@ -405,7 +487,7 @@ function FeeRuleFields({
         <button
           type="button"
           onClick={() =>
-            onChange({ ...feeRule, slabs: [...feeRule.slabs, { upto: null, amount_paise: 0 }] })
+            onChange({ ...feeRule, slabs: [...slabs, { upto: null, amount_paise: 0 }] })
           }
           className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
         >

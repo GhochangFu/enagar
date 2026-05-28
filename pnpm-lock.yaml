@@ -53,6 +53,9 @@ importers:
 
   apps/admin-state:
     dependencies:
+      '@enagar/forms':
+        specifier: workspace:^
+        version: link:../../packages/forms
       '@enagar/tenant-theme':
         specifier: workspace:^
         version: link:../../packages/tenant-theme

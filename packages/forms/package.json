@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./fixtures": "./src/fixtures.ts",
     "./upload": "./src/application-document-upload.ts",
-    "./web": "./src/web/DynamicFormFields.tsx"
+    "./web": "./src/web/DynamicFormFields.tsx",
+    "./builder": "./src/builder/index.ts"
   },
   "typesVersions": {
     "*": {
@@ -23,6 +24,9 @@
       ],
       "upload": [
         "src/application-document-upload.ts"
+      ],
+      "builder": [
+        "src/builder/index.ts"
       ],
       "*": [
         "src/index.ts"

@@ -1,70 +1,97 @@
-# EN-5 — State Admin global form builder (WYSIWYG + JSON fallback)
+# EN-5 — Shared form builder (State + Tenant) with validation authoring
 
 **Type:** Follow-up to **EN-4** (global form templates, onboarding publish, tenant re-sync)  
-**Status:** Planned — see [`docs/runbooks/en5-state-global-form-builder-plan.md`](../runbooks/en5-state-global-form-builder-plan.md)  
-**Portals:** State Admin (`admin-state`) only  
-**API:** Reuses existing `PATCH /api/admin/state/global-service-library` (`form_schema`)
+**Status:** In progress (Phases 0–2 done) — see [`docs/runbooks/en5-state-global-form-builder-plan.md`](../runbooks/en5-state-global-form-builder-plan.md)  
+**Portals:** State Admin (`admin-state`) **and** Tenant Admin (`admin-tenant`)  
+**API:** Reuses existing PATCH endpoints (no new routes for v1)
 
 ---
 
 ## Problem
 
-EN-4 lets State curators edit global `form_schema` as **raw JSON** in the Service library panel. That works for engineers and seed parity, but State operators need the same **visual form builder** Tenant Admin already has (Sprint 6.7 palette + inspector + citizen preview), with JSON kept as an **advanced fallback** — not the primary editor.
+EN-4 lets State curators edit global `form_schema` as **raw JSON**. Tenant Admin has a Sprint 6.7 visual palette, but the **field inspector only covers labels, required, options, and file MIME** — most validation (`pattern`, min/max, `show_if`, date bounds) still requires JSON.
+
+Operators need:
+
+1. **State Admin** — WYSIWYG global template editor (JSON as advanced fallback).
+2. **Tenant Admin** — the **same** validation authoring UI when customizing ULB forms.
+3. **Citizen apply** — conditional fields that show/hide live (`show_if`), not only at submit time.
 
 ---
 
 ## Target behaviour
 
 ```text
-State Service library → Edit apply form (WYSIWYG)
-        ↓ save
-global_services.form_schema  (validated EnagarFormSchema)
-        ↓ unchanged EN-4 chain
-Onboarding / tenant re-sync → citizen apply forms
+@enagar/forms/builder  (shared)
+        ├── State Admin  → global_services.form_schema
+        └── Tenant Admin → service_form_versions (draft → publish)
+                ↓
+        validateFormSchema / validateSubmission
+                ↓
+        Citizen PWA + mobile
 ```
 
-- **Primary:** drag-drop palette, field list, inspector (en/bn/hi labels, required, options, file accept).
-- **Secondary:** collapsed **Advanced JSON fallback** (`JsonFallbackPanel` pattern) — two-way sync with visual state; invalid JSON blocks save.
-- **Preview:** `DynamicFormFields` citizen preview (read-only sample values optional, no prefill submit).
-- **No new API** for v1 — same upsert payload as EN-4 guided save.
+**Primary:** drag-drop palette, field list, **validation inspector** (required, bounds, pattern, `show_if`, cross-field rules).  
+**Secondary:** JSON fallback (collapsed on State builder page; existing panel on Tenant designer).  
+**Preview:** `DynamicFormFields` with optional preview values to test conditionals.
+
+### `show_if` limits (current engine)
+
+- **Equals one value** — use for select/radio/text (e.g. Trade Licence: show FSSAI when `trade_type` **equals** `food`).
+- **Includes one option** — only when the **controlling field is multiselect**; checks that the citizen selected that single option, not “any of several”.
+- **Not supported until Phase 6:** multi-value OR visibility (e.g. show when `trade_type` is food **or** retail **or** industrial). Phase 2 inspector does not offer this; neither does raw `show_if` JSON today.
 
 ---
 
-## Out of scope
+## Scope
 
-- State-level **workflow** WYSIWYG (globals still use `workflow_pattern` enum in guided curator).
-- Auto-push template changes to existing ULB published forms (tenant **Load State template** remains manual).
-- Grievance global form templates.
-- Replacing Tenant Admin designer (tenant keeps publish/draft lifecycle; State edits **global template** only).
+### In scope
+
+- Extract `@enagar/forms/builder` from tenant designer
+- Shared validation inspector (field rules + single-value `show_if`) on **both** portals
+- Enforce `min_date` / `max_date` in submission validation — **done (Phase 3)**
+- New `cross_field_rules` (e.g. end date after start date) **and** richer visibility (multi-value OR, e.g. show when any of several choice values) — engine + builder UI
+- State route `/dashboard/library/[code]/form`
+- Citizen PWA: pass `formValues` into `createRenderPlan` for live conditionals
+
+### Out of scope
+
+- State-level workflow WYSIWYG
+- Auto-sync global template changes to existing tenant published forms
+- Grievance form templates
+- API lookup–driven dynamic dropdowns
+- Full JSON Schema / JSON Logic rule engine
 
 ---
 
 ## Acceptance criteria
 
-1. State Admin opens **Edit apply form** for a global service and builds/edits fields visually; save persists validated `form_schema`.
-2. JSON fallback stays available, collapsed; editing JSON updates visual builder when valid.
-3. Citizen preview renders through `@enagar/forms/web` on the builder page.
-4. `birth-cert` template editable in UI matches seed/API schema shape; `pnpm verify:en4` still passes after save.
-5. Tenant Admin service designer still works (shared builder extracted — no regression).
-6. Contract test asserts State builder route + shared module exist.
+1. State Admin builds/edits global templates visually; save persists validated `form_schema`.
+2. Tenant Admin uses the **same** validation inspector — no JSON required for common rules.
+3. JSON fallback available on both surfaces; valid JSON syncs to visual builder.
+4. Citizen preview and PWA honour `show_if` while filling the form.
+5. Cross-field compare rule can be added in builder and enforced on submit.
+6. Multi-value OR visibility (e.g. show field when choice is any of several values) can be added in Phase 6 — not in Phase 2 `show_if`.
+7. `pnpm verify:en4` still passes; new security contract tests for EN-5.
 
 ---
 
 ## Dependencies
 
-- **EN-4** done locally (global `form_schema`, library API, onboarding publish, tenant re-sync).
-- Tenant Admin visual builder in `service-designer-client.tsx` (reference implementation to extract).
+- EN-4 merged (`a9ccbc4`)
+- `@enagar/forms` validation model (`packages/forms/src/index.ts`)
+- Tenant designer reference: `service-designer-client.tsx`
 
 ---
 
 ## Jira paste (summary)
 
-**Title:** EN-5 — State Admin WYSIWYG global form builder with JSON fallback
+**Title:** EN-5 — Shared form builder with validation authoring (State + Tenant)
 
-**Summary:** Add a State Admin visual form builder for global service templates by extracting the Tenant Admin Sprint 6.7 form palette into a shared package, wiring a dedicated library form editor route, and keeping JSON as a collapsed advanced fallback. Reuses existing global library PATCH; no API schema changes.
+**Summary:** Extract a shared `@enagar/forms/builder` used by State global template editing and Tenant service designer. Add WYSIWYG validation authoring (pattern, bounds, show_if, cross-field rules), fix citizen live conditional fields, enforce date min/max, and keep JSON as advanced fallback.
 
 **Follows:** EN-4
 
 ---
 
-_Last updated: 2026-05-28_
+_Last updated: 2026-05-27_

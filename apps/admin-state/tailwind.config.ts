@@ -9,6 +9,8 @@ const config: Config = {
     './components/**/*.{ts,tsx}',
     './lib/**/*.{ts,tsx}',
     '../../packages/ui/src/**/*.{ts,tsx}',
+    '../../packages/forms/src/web/**/*.tsx',
+    '../../packages/forms/src/builder/**/*.tsx',
   ],
 };
 
