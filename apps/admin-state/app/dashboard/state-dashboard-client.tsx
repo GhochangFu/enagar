@@ -1,6 +1,21 @@
 'use client';
 
-import { Button, OperatorAppFooter, PageHeader } from '@enagar/ui';
+import {
+  AlertBanner,
+  Badge,
+  Button,
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableElement,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  OperatorAppFooter,
+  PageHeader,
+  ToastProvider,
+  useToast,
+} from '@enagar/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -39,6 +54,8 @@ import {
   type LibraryDraft,
   type TenantDraft,
 } from '../../lib/state-dashboard-forms';
+
+import type { StateAdminSearchHit } from '../../lib/state-admin-search';
 
 type Analytics = Record<
   | 'tenants_total'
@@ -110,6 +127,33 @@ type AuditCoverage = {
 
 type DashboardTab = StateAdminTabId;
 
+const TAB_COPY: Record<DashboardTab, { title: string; subtitle: string }> = {
+  overview: {
+    title: 'Platform operations dashboard',
+    subtitle: 'Statewide KPIs, municipality health, and cross-tenant analytics.',
+  },
+  tenants: {
+    title: 'Municipality directory',
+    subtitle: 'Onboard ULBs, re-publish catalogues, and inspect health.',
+  },
+  library: {
+    title: 'Service library curator',
+    subtitle: 'Publish form schemas and workflow seeds for tenant adoption.',
+  },
+  grievanceLibrary: {
+    title: 'Grievance catalogue',
+    subtitle: 'Global categories and subtypes seeded to tenant desks.',
+  },
+  integrations: {
+    title: 'Integration cockpit',
+    subtitle: 'Provider readiness, owners, and last-checked status.',
+  },
+  security: {
+    title: 'Audit & access controls',
+    subtitle: 'Audited impersonation and searchable platform audit log.',
+  },
+};
+
 async function readApiError(response: Response): Promise<string> {
   const text = await response.text();
   try {
@@ -144,6 +188,15 @@ function queryString(params: Record<string, string | null | undefined>): string 
 }
 
 export function StateDashboardClient(): JSX.Element {
+  return (
+    <ToastProvider>
+      <StateDashboardClientInner />
+    </ToastProvider>
+  );
+}
+
+function StateDashboardClientInner(): JSX.Element {
+  const { toast } = useToast();
   const [auth, setAuth] = useState<StateOAuthBundle | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -212,7 +265,6 @@ export function StateDashboardClient(): JSX.Element {
 
   const refresh = useCallback(async () => {
     if (!auth) return;
-    setStatus('Loading state-wide analytics...');
     try {
       const [
         analyticsRes,
@@ -241,9 +293,11 @@ export function StateDashboardClient(): JSX.Element {
       setAuditCoverage(auditCoverageRes);
       setStatus(`Loaded ${tenantsRes.length} municipalities.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Failed to load state-admin data');
+      const message = error instanceof Error ? error.message : 'Failed to load state-admin data';
+      setStatus(message);
+      toast(message, 'danger');
     }
-  }, [api, auth, auditFilters, analyticsRange]);
+  }, [api, auth, auditFilters, analyticsRange, toast]);
 
   useEffect(() => {
     void refresh();
@@ -506,9 +560,33 @@ export function StateDashboardClient(): JSX.Element {
       setImpersonationTenant(detail.code);
       setStatus(`Opened ${detail.code} profile.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Tenant profile failed');
+      const message = error instanceof Error ? error.message : 'Tenant profile failed';
+      setStatus(message);
+      toast(message, 'danger');
     }
   }
+
+  const handleSearchHit = useCallback(
+    (hit: StateAdminSearchHit) => {
+      if (hit.kind === 'tenant') {
+        setActiveTab('tenants');
+        void openTenantDetail(hit.code);
+        return;
+      }
+      if (hit.kind === 'library') {
+        setActiveTab('library');
+        selectLibraryForEdit(hit.code);
+        toast(`Opened template ${hit.code}.`, 'info');
+        return;
+      }
+      setActiveTab('security');
+      setAuditFilters((prev) => ({ ...prev, actor: hit.actor }));
+      toast(`Filtering audit log by ${hit.actor}.`, 'info');
+    },
+    [toast],
+  );
+
+  const tabCopy = TAB_COPY[activeTab];
 
   if (!auth) {
     return (
@@ -528,6 +606,8 @@ export function StateDashboardClient(): JSX.Element {
       activeTab={activeTab}
       onRefresh={() => void refresh()}
       onSelectTab={setActiveTab}
+      searchCatalogue={{ tenants, library }}
+      onSearchHit={handleSearchHit}
     >
       <StateDashboardTheme />
       {drawerTenant ? (
@@ -547,17 +627,33 @@ export function StateDashboardClient(): JSX.Element {
         />
       ) : null}
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 md:px-6">
         <PageHeader
           tenantBar
+          className="[&_p:first-child]:text-platform-accent"
           eyebrow="West Bengal · State operations"
-          title="Platform operations dashboard"
-          subtitle="Statewide KPIs, municipality onboarding, global service templates, and audited cross-tenant controls."
+          title={tabCopy.title}
+          subtitle={tabCopy.subtitle}
+          actions={
+            activeTab === 'overview' ? (
+              <Button type="button" size="sm" onClick={() => void refresh()}>
+                Refresh data
+              </Button>
+            ) : undefined
+          }
         />
 
-        <p className="rounded-2xl border border-warm-border bg-brand-muted/40 px-4 py-3 text-sm font-medium text-ink-secondary shadow-sm">
-          {status}
-        </p>
+        {activeTab === 'overview' && analyticsV2?.anomaly_hints.length ? (
+          <AlertBanner tone="warning" title="Anomaly hints">
+            {analyticsV2.anomaly_hints.join(' · ')}
+          </AlertBanner>
+        ) : null}
+
+        {activeTab === 'security' && auditCoverage?.missing_actions.length ? (
+          <AlertBanner tone="info" title="Audit coverage gap">
+            Missing actions: {auditCoverage.missing_actions.join(', ')}
+          </AlertBanner>
+        ) : null}
 
         {activeTab === 'overview' ? (
           <div className="space-y-6">
@@ -625,120 +721,136 @@ export function StateDashboardClient(): JSX.Element {
         ) : null}
 
         {activeTab === 'security' ? (
-          <section className="grid gap-6 lg:grid-cols-2">
-            <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-ink-primary">Audited impersonation</h2>
-              <p className="mt-1 text-sm text-ink-secondary">
-                15-minute support token with audit trail.
-              </p>
-              <div className="mt-4 grid gap-3">
-                <label className="text-xs font-semibold uppercase text-ink-secondary">
-                  Tenant code
-                  <input
-                    className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
-                    value={impersonationTenant}
-                    onChange={(event) => setImpersonationTenant(event.target.value.toUpperCase())}
-                  />
-                </label>
-                <label className="text-xs font-semibold uppercase text-ink-secondary">
-                  Reason
-                  <input
-                    className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
-                    value={impersonationReason}
-                    onChange={(event) => setImpersonationReason(event.target.value)}
-                  />
-                </label>
-                <Button icon="user" type="button" onClick={() => void impersonate()}>
-                  Create 15-minute token
-                </Button>
-              </div>
-            </article>
-
-            <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-ink-primary">Audit log search</h2>
-                  <p className="mt-1 text-sm text-ink-secondary">
-                    Filter, paginate, and export events.
-                  </p>
-                </div>
-                <Button
-                  icon="receipt"
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void exportAuditCsv()}
-                >
-                  Export CSV
-                </Button>
-              </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
-                {(
-                  [
-                    ['actor', 'Actor'],
-                    ['action', 'Action'],
-                    ['tenant_code', 'Tenant'],
-                    ['from', 'From'],
-                    ['to', 'To'],
-                  ] as Array<[keyof typeof auditFilters, string]>
-                ).map(([key, label]) => (
-                  <label key={key} className="text-xs font-semibold uppercase text-ink-secondary">
-                    {label}
+          <section className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-ink-primary">Audited impersonation</h2>
+                <p className="mt-1 text-sm text-ink-secondary">
+                  15-minute support token with audit trail.
+                </p>
+                <AlertBanner tone="warning" className="mt-4">
+                  Creates a short-lived token — action is logged.
+                </AlertBanner>
+                <div className="mt-4 grid gap-3">
+                  <label className="text-xs font-semibold uppercase text-ink-secondary">
+                    Tenant code
                     <input
                       className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm normal-case"
-                      value={auditFilters[key]}
-                      onChange={(event) =>
-                        setAuditFilters((prev) => ({ ...prev, [key]: event.target.value }))
-                      }
+                      value={impersonationTenant}
+                      onChange={(event) => setImpersonationTenant(event.target.value.toUpperCase())}
                     />
                   </label>
-                ))}
-              </div>
-              <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto text-sm">
-                {auditLogs.map((row) => (
-                  <li
-                    key={row.id}
-                    className="rounded-xl border border-warm-border bg-canvas px-3 py-2"
+                  <label className="text-xs font-semibold uppercase text-ink-secondary">
+                    Reason
+                    <input
+                      className="mt-1 w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm normal-case"
+                      value={impersonationReason}
+                      onChange={(event) => setImpersonationReason(event.target.value)}
+                    />
+                  </label>
+                  <Button icon="user" type="button" onClick={() => void impersonate()}>
+                    Create 15-minute token
+                  </Button>
+                </div>
+              </article>
+
+              <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-ink-primary">Coverage summary</h2>
+                <p className="mt-1 text-sm text-ink-secondary">Required vs covered audit actions</p>
+                {auditCoverage ? (
+                  <ul className="mt-4 space-y-2 text-sm">
+                    {auditCoverage.required_actions.map((action) => {
+                      const covered = auditCoverage.covered_actions.includes(action);
+                      return (
+                        <li key={action} className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs">{action}</span>
+                          <Badge tone={covered ? 'success' : 'danger'}>
+                            {covered ? 'OK' : 'Missing'}
+                          </Badge>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </article>
+            </div>
+
+            <DataTable
+              toolbar={
+                <>
+                  <p className="text-sm font-semibold text-ink-primary">Audit log</p>
+                  <input
+                    className="rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
+                    placeholder="Actor"
+                    value={auditFilters.actor}
+                    onChange={(event) =>
+                      setAuditFilters((prev) => ({ ...prev, actor: event.target.value }))
+                    }
+                  />
+                  <input
+                    className="rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
+                    placeholder="Action"
+                    value={auditFilters.action}
+                    onChange={(event) =>
+                      setAuditFilters((prev) => ({ ...prev, action: event.target.value }))
+                    }
+                  />
+                  <input
+                    className="rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
+                    placeholder="Tenant"
+                    value={auditFilters.tenant_code}
+                    onChange={(event) =>
+                      setAuditFilters((prev) => ({ ...prev, tenant_code: event.target.value }))
+                    }
+                  />
+                  <Button
+                    icon="receipt"
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void exportAuditCsv()}
                   >
-                    <span className="font-semibold text-ink-primary">{row.action}</span>
-                    <span className="ml-2 text-ink-secondary">{row.targetCode ?? 'state'}</span>
-                    <span className="block text-xs text-ink-secondary">
-                      {row.actorSubject} · {new Date(row.createdAt).toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {auditCursor ? (
+                    Export CSV
+                  </Button>
+                </>
+              }
+            >
+              <DataTableElement>
+                <DataTableHead>
+                  <tr>
+                    <DataTableHeaderCell>Time</DataTableHeaderCell>
+                    <DataTableHeaderCell>Action</DataTableHeaderCell>
+                    <DataTableHeaderCell>Actor</DataTableHeaderCell>
+                    <DataTableHeaderCell>Target</DataTableHeaderCell>
+                  </tr>
+                </DataTableHead>
+                <DataTableBody>
+                  {auditLogs.map((row) => (
+                    <DataTableRow key={row.id}>
+                      <DataTableCell>{new Date(row.createdAt).toLocaleString()}</DataTableCell>
+                      <DataTableCell>{row.action}</DataTableCell>
+                      <DataTableCell>{row.actorSubject}</DataTableCell>
+                      <DataTableCell>{row.targetCode ?? 'state'}</DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </DataTableBody>
+              </DataTableElement>
+            </DataTable>
+            {auditCursor ? (
+              <div className="flex justify-center">
                 <Button
                   type="button"
                   size="sm"
                   variant="secondary"
-                  className="mt-4"
                   onClick={() => void loadMoreAudit()}
                 >
                   Load more
                 </Button>
-              ) : null}
-              {auditCoverage ? (
-                <div className="mt-4 rounded-xl border border-warm-border bg-canvas p-3 text-xs">
-                  <p className="font-semibold text-ink-primary">Audit coverage</p>
-                  <p className="mt-1 text-ink-secondary">
-                    {auditCoverage.covered_actions.length}/{auditCoverage.required_actions.length}{' '}
-                    actions
-                  </p>
-                  {auditCoverage.missing_actions.length ? (
-                    <p className="mt-1 text-amber-800">
-                      Missing: {auditCoverage.missing_actions.join(', ')}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-emerald-700">All required actions observed.</p>
-                  )}
-                </div>
-              ) : null}
-            </article>
+              </div>
+            ) : null}
           </section>
         ) : null}
-        <OperatorAppFooter />
+        <OperatorAppFooter operatorHelpHref="/help/operator-help-admin-state.html" />
       </main>
     </StateAdminShell>
   );

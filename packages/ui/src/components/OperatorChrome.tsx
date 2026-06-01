@@ -22,25 +22,51 @@ export function OperatorSidebarBrand({
   collapsed,
   portalLabel,
   subtitle,
+  variant = 'light',
 }: {
   collapsed?: boolean;
   portalLabel: string;
   subtitle: string;
+  variant?: 'light' | 'dark';
 }): JSX.Element {
+  const isDark = variant === 'dark';
   if (collapsed) {
     return (
       <div className="flex justify-center py-1">
-        <OperatorBrandMark className="h-9 w-9 text-sm" />
+        <OperatorBrandMark
+          className={cn(
+            'h-9 w-9 text-sm',
+            isDark && 'border-sidebar-border bg-sidebar-muted text-sage',
+          )}
+        />
       </div>
     );
   }
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <OperatorBrandMark />
+      <OperatorBrandMark
+        className={cn(isDark && 'border-sidebar-border bg-sidebar-muted text-accent-sage')}
+      />
       <div className="min-w-0">
-        <p className="truncate text-base font-bold tracking-tight text-ink-primary">eNagarSeba</p>
-        <p className="truncate text-xs font-medium text-forest">{portalLabel}</p>
-        <p className="mt-0.5 truncate text-[11px] text-ink-muted">{subtitle}</p>
+        <p
+          className={cn(
+            'truncate text-base font-bold tracking-tight',
+            isDark ? 'text-ink-onDark' : 'text-ink-primary',
+          )}
+        >
+          eNagarSeba
+        </p>
+        <p className={cn('truncate text-xs font-medium', isDark ? 'text-sage' : 'text-forest')}>
+          {portalLabel}
+        </p>
+        <p
+          className={cn(
+            'mt-0.5 truncate text-[11px]',
+            isDark ? 'text-ink-onDarkMuted' : 'text-ink-muted',
+          )}
+        >
+          {subtitle}
+        </p>
       </div>
     </div>
   );
@@ -82,7 +108,14 @@ export function OperatorTopHeader({
   );
 }
 
-export function OperatorAppFooter({ compact = false }: { compact?: boolean }): JSX.Element {
+export function OperatorAppFooter({
+  compact = false,
+  operatorHelpHref = '/help/operator-help.html',
+}: {
+  compact?: boolean;
+  /** Static operator guide served from the app `public/help/` folder. */
+  operatorHelpHref?: string;
+}): JSX.Element {
   if (compact) {
     return (
       <footer className="border-t border-warm-border px-3 py-3 text-center">
@@ -109,7 +142,12 @@ export function OperatorAppFooter({ compact = false }: { compact?: boolean }): J
           <p className="text-[11px] font-semibold uppercase tracking-wider text-forest">Support</p>
           <ul className="mt-2 space-y-1 text-sm font-medium">
             <li>
-              <a className="text-brand hover:underline" href="#operator-help">
+              <a
+                className="text-brand hover:underline"
+                href={operatorHelpHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Operator help
               </a>
             </li>

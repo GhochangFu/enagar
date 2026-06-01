@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>State Operator Manual — eNagarSeba</title>
+    <link rel="stylesheet" href="assets/operator-help.css" />
+  </head>
+  <body data-portal="state">
+    <a class="help-skip" href="#main">Skip to main content</a>
+    <div class="help-layout">
+      <aside class="help-toc" aria-label="Contents">
+        <p class="portal-tag">West Bengal · State level</p>
+        <h1>Operator manual</h1>
+        <div class="help-search-wrap">
+          <label for="help-search">Find a topic</label>
+          <input
+            id="help-search"
+            class="help-search"
+            type="search"
+            placeholder="Try: ULB, publish, impersonation…"
+            autocomplete="off"
+          />
+          <p id="search-hit-count" class="search-hit-count" aria-live="polite"></p>
+        </div>
+        <nav>
+          <ul>
+            <li><a href="#welcome">Welcome</a></li>
+            <li><a href="#sign-in">Sign in &amp; menu</a></li>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#municipalities">Municipalities (ULBs)</a></li>
+            <li><a href="#service-library">Service library</a></li>
+            <li><a href="#grievance-library">Grievance library</a></li>
+            <li><a href="#integrations">Integrations</a></li>
+            <li><a href="#audit">Audit &amp; access</a></li>
+            <li><a href="#words">Words we use</a></li>
+            <li><a href="#problems">Common problems</a></li>
+          </ul>
+        </nav>
+      </aside>
+
+      <main id="main" class="help-main">
+        <header>
+          <h1>State Operator Manual</h1>
+          <p class="help-meta">
+            For state-level staff using <strong>State Admin</strong>.<br />
+            You oversee all municipalities (ULBs), standard services, and security — not day-to-day
+            citizen counters.<br />
+            June 2026 · Footer link <strong>Operator help</strong>
+          </p>
+        </header>
+
+        <p id="no-results" class="no-results-banner" role="status">
+          Nothing matched. Try one word — <em>ULB</em>, <em>publish</em>, or <em>audit</em>.
+        </p>
+
+        <section
+          id="welcome"
+          class="help-section"
+          data-search="welcome introduction state government platform ULB municipality oversee"
+        >
+          <h2>Welcome</h2>
+          <p>
+            This manual is for <strong>state programme operators</strong> who work on the computer
+            to support many municipalities at once. You do <strong>not</strong> need to be a
+            programmer. You need to know government processes: onboarding a ULB, publishing a
+            standard service, and checking audit logs.
+          </p>
+          <div class="help-card tip">
+            <strong>State Admin vs ULB Admin:</strong> State Admin (this manual) sets
+            <em>templates and rules for the whole state</em>. Each municipality uses
+            <strong>ULB Admin</strong> for daily applications. Do not confuse the two login links.
+          </div>
+          <p>
+            The screen uses a <strong>teal blue</strong> colour theme. ULB screens use green/coral —
+            that is intentional so you do not open the wrong portal.
+          </p>
+        </section>
+
+        <section
+          id="sign-in"
+          class="help-section"
+          data-search="sign in login menu overview municipalities library grievance integrations audit search"
+        >
+          <h2>Sign in &amp; menu</h2>
+          <ol class="help-steps">
+            <li>Open the State Admin address given by your IT team.</li>
+            <li>Sign in with your state operator username and password.</li>
+            <li>
+              Use the <strong>left menu</strong> to change section. On a large monitor, the top bar
+              also has <strong>search</strong> (Ctrl+K) to find a ULB code or service name quickly.
+            </li>
+          </ol>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Menu</th>
+                <th>Your main jobs here</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Overview</td>
+                <td>See statewide numbers and charts</td>
+              </tr>
+              <tr>
+                <td>Municipalities</td>
+                <td>Add or update a ULB (municipality)</td>
+              </tr>
+              <tr>
+                <td>Service library</td>
+                <td>Create standard services all ULBs can adopt</td>
+              </tr>
+              <tr>
+                <td>Grievance library</td>
+                <td>Standard complaint types</td>
+              </tr>
+              <tr>
+                <td>Integrations</td>
+                <td>Status of payment gateway, DigiLocker, etc.</td>
+              </tr>
+              <tr>
+                <td>Audit &amp; access</td>
+                <td>Support login for a ULB (with record) and audit log</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section
+          id="overview"
+          class="help-section"
+          data-search="overview dashboard numbers chart municipalities table anomaly export refresh"
+        >
+          <h2>Overview</h2>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/state-overview.png"
+              alt="State Admin overview with KPI cards and municipalities table"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Overview.</strong> Statewide summary cards, date range for trends, and the
+              municipalities table (click <strong>Open</strong> for ULB details).
+            </figcaption>
+          </figure>
+          <h3>Summary cards</h3>
+          <p>
+            Quick statewide picture: how many municipalities are active, how many services exist,
+            open applications and grievances, payments in the last 30 days, and overdue cases.
+          </p>
+          <h3>Charts and warnings</h3>
+          <p>
+            Choose a <strong>date range</strong> with the calendar boxes (not typed dates). Yellow
+            banners warn if one ULB looks unusual — investigate in Municipalities.
+          </p>
+          <h3>Top municipalities table</h3>
+          <p>
+            Sort columns to see who is busiest or who has most overdue work. Open the
+            <strong>detail drawer</strong> for one ULB’s contact settings and counts.
+          </p>
+        </section>
+
+        <section
+          id="municipalities"
+          class="help-section"
+          data-search="municipality ULB onboard new wizard code district language admin password services grievance categories"
+        >
+          <h2>Municipalities (ULBs)</h2>
+          <p>
+            A <strong>municipality</strong> (ULB) is one town/city body on the platform — for
+            example Kolkata, Siliguri. Here you <strong>create or update</strong> them.
+          </p>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/state-onboarding.png"
+              alt="Municipalities tab with ULB list and onboarding wizard form"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Municipalities.</strong> ULB list on the left; onboarding wizard on the right
+              to create or update a municipality and its first admin login.
+            </figcaption>
+          </figure>
+          <h3>Three ways to work on this page</h3>
+          <ul>
+            <li><strong>Onboarding wizard</strong> — guided form (best for new ULBs).</li>
+            <li><strong>Directory table</strong> — search list of all ULBs.</li>
+            <li><strong>JSON advanced</strong> — for IT bulk import only.</li>
+          </ul>
+          <h3>Field guide — onboarding wizard</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>What to enter</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>ULB code</td>
+                <td>
+                  Short uppercase code (example: ABC). Cannot change easily later — agree with ULB
+                  first.
+                </td>
+              </tr>
+              <tr>
+                <td>Name</td>
+                <td>Full municipality name citizens recognise.</td>
+              </tr>
+              <tr>
+                <td>District</td>
+                <td>District name for reports.</td>
+              </tr>
+              <tr>
+                <td>Ward count</td>
+                <td>Number of wards (optional).</td>
+              </tr>
+              <tr>
+                <td>Theme colour</td>
+                <td>Colour on citizen app — hex code from branding guide.</td>
+              </tr>
+              <tr>
+                <td>Languages</td>
+                <td>Usually English and Bangla; add Hindi if needed.</td>
+              </tr>
+              <tr>
+                <td>Default language</td>
+                <td>Language citizens see first (often Bangla).</td>
+              </tr>
+              <tr>
+                <td>Status</td>
+                <td><strong>Active</strong> = live. Inactive blocks citizens.</td>
+              </tr>
+              <tr>
+                <td>Inherit default services</td>
+                <td>Tick yes to auto-add recommended state services.</td>
+              </tr>
+              <tr>
+                <td>Service categories</td>
+                <td>Tick groups (certificates, licences, …) this ULB will offer.</td>
+              </tr>
+              <tr>
+                <td>Grievance categories</td>
+                <td>Tick complaint types (water, roads, …).</td>
+              </tr>
+              <tr>
+                <td>Support email</td>
+                <td>ULB helpline email shown to citizens.</td>
+              </tr>
+              <tr>
+                <td>First ULB administrator</td>
+                <td>
+                  Username, email, name, temporary password — hand to ULB securely; they must change
+                  password.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="help-card important">
+            Never send passwords by SMS or public chat. Use official letter or hand delivery to the
+            municipal commissioner office.
+          </div>
+          <h3>Update an existing ULB</h3>
+          <p>
+            Select the ULB in the list, change fields in the wizard, and save. Use
+            <strong>detail drawer</strong> to check service count and activity without saving.
+          </p>
+        </section>
+
+        <section
+          id="service-library"
+          class="help-section"
+          data-search="service library template publish draft deprecate form builder category fee SLA curator"
+        >
+          <h2>Service library</h2>
+          <p>
+            Here you maintain <strong>standard services</strong> (birth certificate, trade licence,
+            etc.) that municipalities can copy. A service must be <strong>published</strong> before
+            ULBs can use it.
+          </p>
+          <h3>List on the left — what badges mean</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Badge</th>
+                <th>Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Draft</td>
+                <td>Still being prepared — ULBs should not use yet</td>
+              </tr>
+              <tr>
+                <td>Published</td>
+                <td>Live — ULBs can adopt</td>
+              </tr>
+              <tr>
+                <td>Deprecated</td>
+                <td>Old — no new adoptions; ULBs migrate away</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Curator form (right side)</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>What to enter</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Service code</td>
+                <td>Short id without spaces (birth-certificate)</td>
+              </tr>
+              <tr>
+                <td>Category</td>
+                <td>Group on citizen home (certificate, licence, …)</td>
+              </tr>
+              <tr>
+                <td>Name &amp; description</td>
+                <td>Clear English; ULB may translate locally</td>
+              </tr>
+              <tr>
+                <td>Default SLA days</td>
+                <td>Recommended days to finish (ULB can change)</td>
+              </tr>
+              <tr>
+                <td>Fee type &amp; amount</td>
+                <td>Typical state fee — ULB may override</td>
+              </tr>
+              <tr>
+                <td>Curator notes</td>
+                <td>Internal notes for your team only</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Build the citizen form (state level)</h3>
+          <ol class="help-steps">
+            <li>Select a service in the list.</li>
+            <li>Click the link to <strong>open form builder</strong> (separate page).</li>
+            <li>Add questions the same way ULBs do — sections, text, dates, file uploads.</li>
+            <li>
+              Save and return to the library. When the form is complete, set status to
+              <strong>Publish</strong>.
+            </li>
+          </ol>
+          <p>
+            ULBs that adopt this service can click <strong>Load State template</strong> to copy your
+            form, then adjust locally.
+          </p>
+          <h3>Publish or retire a service</h3>
+          <ol class="help-steps">
+            <li>Finish the form — list should show form is usable (not zero questions).</li>
+            <li>Click <strong>Publish</strong> on the curator panel.</li>
+            <li>To retire, use <strong>Deprecate</strong> and inform ULBs by official letter.</li>
+          </ol>
+        </section>
+
+        <section
+          id="grievance-library"
+          class="help-section"
+          data-search="grievance complaint category subtype icon docket water road"
+        >
+          <h2>Grievance library</h2>
+          <p>
+            Standard <strong>complaint types</strong> citizens can file (water, sanitation, street
+            light, etc.).
+          </p>
+          <h3>Category</h3>
+          <ul>
+            <li><strong>Code</strong> — short id (broken-streetlight).</li>
+            <li><strong>Names</strong> — English, Bangla, Hindi labels.</li>
+            <li><strong>Icon</strong> — picture on citizen app (IT can help pick name).</li>
+            <li><strong>Docket code</strong> — letters at start of complaint number.</li>
+            <li><strong>Sort order</strong> — display position (lower = higher on list).</li>
+            <li><strong>Active</strong> — untick to hide from citizens.</li>
+          </ul>
+          <h3>Subtypes</h3>
+          <p>
+            Under one category, add subtypes (example: under Water — “no water” and “low pressure”).
+            Officers route work more easily.
+          </p>
+          <div class="help-card tip">
+            <strong>Example:</strong> Publish category <em>water-supply</em>, add subtypes, then
+            when onboarding a ULB tick <em>water-supply</em> in grievance categories.
+          </div>
+        </section>
+
+        <section
+          id="integrations"
+          class="help-section"
+          data-search="integration payment digilocker SMS gateway ready blocked sandbox"
+        >
+          <h2>Integrations</h2>
+          <p>
+            This page is a <strong>status board</strong> for external systems — not where you type
+            passwords.
+          </p>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Status light</th>
+                <th>Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ready</td>
+                <td>Working in this environment</td>
+              </tr>
+              <tr>
+                <td>Partial</td>
+                <td>Some functions work — read notes</td>
+              </tr>
+              <tr>
+                <td>Blocked</td>
+                <td>Not working — follow up with vendor / IT</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Fill <strong>owner</strong> (which team fixes it) and <strong>notes</strong> (MoU
+            pending, UAT, etc.). Click <strong>Check</strong> to refresh last test time.
+          </p>
+        </section>
+
+        <section
+          id="audit"
+          class="help-section"
+          data-search="audit impersonation support token 15 minutes reason log export security"
+        >
+          <h2>Audit &amp; access</h2>
+          <h3>Support login (impersonation)</h3>
+          <div class="help-card important">
+            Use only with permission and a written ticket. You can open a ULB’s system for
+            <strong>15 minutes</strong>. The system records your name and reason.
+          </div>
+          <ol class="help-steps">
+            <li>Enter <strong>ULB code</strong> (same code as onboarding).</li>
+            <li>Enter <strong>reason</strong> — ticket number or “commissioner letter dated …”.</li>
+            <li>Read the yellow warning, then click <strong>Create 15-minute token</strong>.</li>
+            <li>Follow IT instructions to use the token — do not email it to the ULB.</li>
+          </ol>
+          <h3>Coverage summary</h3>
+          <p>
+            Shows whether important actions (publish service, onboard ULB, etc.) are being logged.
+            Red “Missing” needs IT fix before audit season.
+          </p>
+          <h3>Audit log</h3>
+          <p>
+            Filter by person, action, or ULB. Use <strong>Export CSV</strong> for records.
+            <strong>Load more</strong> shows older entries.
+          </p>
+        </section>
+
+        <section
+          id="words"
+          class="help-section"
+          data-search="glossary ULB adopt publish template lifecycle"
+        >
+          <h2>Words we use</h2>
+          <dl class="glossary">
+            <dt>ULB</dt>
+            <dd>Urban local body — one municipality on the platform.</dd>
+            <dt>Adoption</dt>
+            <dd>When a ULB switches on a state service template for its citizens.</dd>
+            <dt>Publish</dt>
+            <dd>Make a draft service live for ULBs to adopt.</dd>
+            <dt>Deprecate</dt>
+            <dd>Retire a service — no new ULB uptake.</dd>
+            <dt>Curator</dt>
+            <dd>State officer who maintains the service library.</dd>
+            <dt>Token (15-minute)</dt>
+            <dd>Temporary support access to help a ULB — fully logged.</dd>
+          </dl>
+        </section>
+
+        <section
+          id="problems"
+          class="help-section"
+          data-search="problem cannot publish form empty ULB impersonation failed integration"
+        >
+          <h2>Common problems</h2>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Problem</th>
+                <th>What to do</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cannot publish service</td>
+                <td>Form may be empty — open form builder and add at least one question.</td>
+              </tr>
+              <tr>
+                <td>ULB has no services after onboard</td>
+                <td>Check you ticked service categories and templates are Published.</td>
+              </tr>
+              <tr>
+                <td>Search finds nothing</td>
+                <td>Check internet; tell IT if statewide search is down.</td>
+              </tr>
+              <tr>
+                <td>Impersonation failed</td>
+                <td>ULB code wrong or inactive; reason box empty; you may lack rights.</td>
+              </tr>
+              <tr>
+                <td>Integration stays Partial</td>
+                <td>
+                  Update notes; press Check; escalate to vendor — passwords are not stored here.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <footer
+          style="
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.9rem;
+            color: var(--ink-muted);
+          "
+        >
+          Government of West Bengal · eNagarSeba · State Operator Manual
+        </footer>
+      </main>
+    </div>
+    <script src="assets/operator-help.js"></script>
+  </body>
+</html>

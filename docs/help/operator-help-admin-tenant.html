@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ULB Operator Manual — eNagarSeba</title>
+    <link rel="stylesheet" href="assets/operator-help.css" />
+  </head>
+  <body data-portal="tenant">
+    <a class="help-skip" href="#main">Skip to main content</a>
+    <div class="help-layout">
+      <aside class="help-toc" aria-label="Contents">
+        <p class="portal-tag">Your municipality (ULB)</p>
+        <h1>Operator manual</h1>
+        <div class="help-search-wrap">
+          <label for="help-search">Find a topic</label>
+          <input
+            id="help-search"
+            class="help-search"
+            type="search"
+            placeholder="Try: form, desk, fee, publish…"
+            autocomplete="off"
+          />
+          <p id="search-hit-count" class="search-hit-count" aria-live="polite"></p>
+        </div>
+        <nav>
+          <ul>
+            <li><a href="#welcome">Welcome</a></li>
+            <li><a href="#sign-in">Sign in &amp; menu</a></li>
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#desk">Desk — daily work</a></li>
+            <li><a href="#masters">Master data</a></li>
+            <li><a href="#operations">Operations settings</a></li>
+            <li><a href="#service-setup">Setting up a service</a></li>
+            <li><a href="#forms">Building the application form</a></li>
+            <li><a href="#workflows">Setting up approval steps</a></li>
+            <li><a href="#fees-docs">Fees &amp; documents</a></li>
+            <li><a href="#words">Words we use</a></li>
+            <li><a href="#problems">Common problems</a></li>
+          </ul>
+        </nav>
+      </aside>
+
+      <main id="main" class="help-main">
+        <header>
+          <h1>ULB Operator Manual</h1>
+          <p class="help-meta">
+            For municipality staff using <strong>Tenant Admin</strong> (ULB Admin screen).<br />
+            Plain step-by-step guide · June 2026 · Open anytime from footer
+            <strong>Operator help</strong>
+          </p>
+        </header>
+
+        <p id="no-results" class="no-results-banner" role="status">
+          Nothing matched. Try one word only — for example <em>desk</em> or <em>publish</em>.
+        </p>
+
+        <section
+          id="welcome"
+          class="help-section"
+          data-search="welcome introduction who manual help eNagarSeba municipality"
+        >
+          <h2>Welcome</h2>
+          <p>
+            This manual helps you <strong>do your daily work on the computer</strong> in eNagarSeba
+            — not how the software is built. You will learn where to click, what each screen is for,
+            and how to set up forms and approval steps for citizen services.
+          </p>
+          <div class="help-card tip">
+            <strong>Two kinds of users in your office:</strong>
+            <ul>
+              <li>
+                <strong>ULB administrator</strong> — sets up services, master lists, fees, and
+                staff. Uses Dashboard, Masters, Operations, and service setup.
+              </li>
+              <li>
+                <strong>Desk officer</strong> — opens applications and grievances and moves them
+                forward. Uses <strong>Desk</strong> most of the day.
+              </li>
+            </ul>
+          </div>
+          <p>
+            If you only process files, start with <a href="#desk">Desk — daily work</a>. If you
+            configure services, read <a href="#forms">Building the application form</a> and
+            <a href="#workflows">Setting up approval steps</a>.
+          </p>
+        </section>
+
+        <section
+          id="sign-in"
+          class="help-section"
+          data-search="sign in login password menu sidebar navigation refresh session"
+        >
+          <h2>Sign in &amp; menu</h2>
+          <ol class="help-steps">
+            <li>Open the link your IT team gave you (ULB Admin / Tenant Admin login page).</li>
+            <li>
+              Enter the <strong>username and password</strong> issued for you. Do not share your
+              password.
+            </li>
+            <li>
+              After login, check the <strong>left menu</strong>. You should see your municipality
+              code (for example KOL) under the logo.
+            </li>
+            <li>
+              If your role was changed today (new menu items missing), click
+              <strong>Refresh session</strong> at the bottom of the menu, then sign in again if
+              asked.
+            </li>
+          </ol>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/tenant-menu.png"
+              alt="ULB Admin Dashboard with left menu, summary cards, and service catalogue table"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Dashboard.</strong> Left menu (Dashboard, Desk, Masters, Operations), summary
+              cards, and the service table with <strong>Configure</strong> for each service.
+            </figcaption>
+          </figure>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Menu name</th>
+                <th>Who usually sees it</th>
+                <th>What you do there</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Dashboard</td>
+                <td>ULB administrator</td>
+                <td>See totals, late cases, and open service setup</td>
+              </tr>
+              <tr>
+                <td>Desk</td>
+                <td>Everyone</td>
+                <td>Work on citizen applications and grievances</td>
+              </tr>
+              <tr>
+                <td>Masters</td>
+                <td>ULB administrator</td>
+                <td>Keep lists: revenue codes, addresses, departments, grievance types</td>
+              </tr>
+              <tr>
+                <td>Operations</td>
+                <td>ULB administrator</td>
+                <td>Banners, phone number on app, SMS text, staff names</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="help-card warn">
+            If you sign in and only see <strong>Desk</strong>, you are a Desk officer — that is
+            normal. Ask your administrator if you need Dashboard access.
+          </div>
+        </section>
+
+        <section
+          id="dashboard"
+          class="help-section"
+          data-search="dashboard summary numbers chart export excel CSV service list active SLA configure"
+        >
+          <h2>Dashboard</h2>
+          <p>
+            The Dashboard shows <strong>how busy your municipality is</strong> and which services
+            need attention.
+          </p>
+          <h3>Summary cards (top)</h3>
+          <ul>
+            <li>
+              <strong>Applications</strong> — how many citizens applied (total and still open).
+            </li>
+            <li>
+              <strong>Citizens registered</strong> — people who created an account on the citizen
+              app or website.
+            </li>
+            <li>
+              <strong>Grievances</strong> — complaints still open;
+              <strong>SLA breached</strong> means the complaint is overdue.
+            </li>
+            <li>
+              <strong>Payments settled</strong> — money successfully collected in the last 30 days.
+            </li>
+          </ul>
+          <p>
+            If something is overdue, a <strong>yellow warning</strong> appears with a link — click
+            it to open <strong>Desk</strong>.
+          </p>
+          <h3>Download reports</h3>
+          <p>
+            Buttons such as <strong>CSV applications</strong> download a spreadsheet you can open in
+            Excel. Use this for monthly reports.
+          </p>
+          <h3>Service list (bottom table)</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>What you see</th>
+                <th>What to do</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Active tick box</td>
+                <td>
+                  Tick = citizens can apply. Untick = service hidden from citizens (old files still
+                  in Desk).
+                </td>
+              </tr>
+              <tr>
+                <td>SLA days + Save</td>
+                <td>
+                  How many <strong>working days</strong> you allow before a case is “late”. Example:
+                  birth certificate 3 days, trade licence 7 days.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="btn-label">Configure</span></td>
+                <td>
+                  Opens the screen to build the <strong>form</strong>,
+                  <strong>approval steps</strong>, and <strong>fees</strong> for that service.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section
+          id="desk"
+          class="help-section"
+          data-search="desk queue application grievance forward return reject comment document payment work order"
+        >
+          <h2>Desk — daily work</h2>
+          <p>
+            Desk is where officers <strong>open a citizen’s file and take action</strong> — approve,
+            send back, or reject (if your role allows).
+          </p>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/tenant-desk.png"
+              alt="Desk screen showing application queue and detail panel"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Desk.</strong> Pick a file from the list on the left, review details on the
+              right, then use <strong>Forward</strong>, <strong>Return</strong>, or other action
+              buttons.
+            </figcaption>
+          </figure>
+          <h3>Working on an application</h3>
+          <ol class="help-steps">
+            <li>
+              Click the application row (note the <strong>docket number</strong> — citizens use this
+              to track status).
+            </li>
+            <li>Read the citizen’s answers and open each uploaded document.</li>
+            <li>Scroll to <strong>History</strong> to see who did what earlier.</li>
+            <li>
+              Choose an action button (only allowed actions are shown). Add a
+              <strong>comment</strong> if the system asks you to.
+            </li>
+            <li>
+              Click the button to confirm. The file moves to the next officer or back to the
+              citizen.
+            </li>
+          </ol>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Button / action</th>
+                <th>Meaning in plain language</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Forward</td>
+                <td>Send to the next officer in the chain</td>
+              </tr>
+              <tr>
+                <td>Return</td>
+                <td>Send back to a previous officer in your department</td>
+              </tr>
+              <tr>
+                <td>Return for correction</td>
+                <td>Send back to the <strong>citizen</strong> to fix mistakes or add documents</td>
+              </tr>
+              <tr>
+                <td>Reject</td>
+                <td>
+                  Only for <strong>department head</strong> or <strong>Chairperson</strong> on some
+                  services — closes the case
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>After approval</h3>
+          <p>
+            On some services the <strong>department head</strong> sends a
+            <strong>payment link</strong> after approval. After payment, your office may create a
+            <strong>work order</strong> and assign a contractor — follow the buttons on that file.
+          </p>
+          <h3>Grievances (complaints)</h3>
+          <p>
+            Switch to the grievance tab in Desk. You can assign the complaint to a colleague, change
+            status, and view photos or map location if the citizen attached them.
+          </p>
+        </section>
+
+        <section
+          id="masters"
+          class="help-section"
+          data-search="masters revenue head tariff address catalogue department designation staff grievance category"
+        >
+          <h2>Master data</h2>
+          <p>
+            <strong>Masters</strong> means “lists we use again and again”. Set these up
+            <strong>before</strong> you build forms and approval flows. Use the small links on the
+            left inside Masters to change section.
+          </p>
+          <h3>Revenue heads</h3>
+          <p>
+            Each fee must link to a <strong>revenue head</strong> for government accounts. Fill
+            English/Bangla/Hindi names and the accounting code from your finance section.
+          </p>
+          <h3>Address master</h3>
+          <p>
+            Wards, localities, and pincodes citizens choose from. You can upload a spreadsheet — use
+            <strong>dry run</strong> first to check errors before saving.
+          </p>
+          <h3>Service catalogue</h3>
+          <p>
+            Lists all services in your municipality. Note whether a service came from
+            <strong>State template</strong> or was created locally. Link each service to the correct
+            <strong>department</strong>.
+          </p>
+          <h3>Departments &amp; designations</h3>
+          <p>
+            <strong>Department</strong> = office unit (Health, Licence, etc.).
+            <strong>Designation</strong> = job role (Clerk, Officer, Executive Engineer). Mark one
+            person per department as <strong>department head</strong>. Mark
+            <strong>Chairperson</strong> for top-level reject rights. Then go to Operations →
+            <strong>Staff &amp; roles</strong> and attach designations to each login.
+          </p>
+          <h3>Grievance catalogue</h3>
+          <p>
+            Types of complaints citizens can file (street light, water, etc.) and sub-types under
+            each. Use simple English codes without spaces (example: <em>broken-streetlight</em>).
+          </p>
+        </section>
+
+        <section
+          id="operations"
+          class="help-section"
+          data-search="operations banner branding SMS template staff booking knowledge base Sahayak"
+        >
+          <h2>Operations settings</h2>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Section</th>
+                <th>What you change</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Banners</td>
+                <td>Messages on the citizen app (maintenance, holidays)</td>
+              </tr>
+              <tr>
+                <td>Branding &amp; flags</td>
+                <td>Helpline phone, email, languages (Bangla/English/Hindi)</td>
+              </tr>
+              <tr>
+                <td>Templates</td>
+                <td>Text of SMS or email when a case moves forward</td>
+              </tr>
+              <tr>
+                <td>Knowledge base</td>
+                <td>Help articles for the Sahayak chat assistant</td>
+              </tr>
+              <tr>
+                <td>Branding assets</td>
+                <td>Upload logo and pictures</td>
+              </tr>
+              <tr>
+                <td>Bookings</td>
+                <td>Halls, ambulances, or other bookable facilities</td>
+              </tr>
+              <tr>
+                <td>Staff &amp; roles</td>
+                <td>Which officer login gets which designation (needed for Desk queue)</td>
+              </tr>
+              <tr>
+                <td>Grievance SLA &amp; routing</td>
+                <td>How many hours before a complaint is “late”</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Prefer the normal form on each page. Use <strong>JSON advanced</strong> only if IT asks
+            you to — it is easy to make a mistake there.
+          </p>
+        </section>
+
+        <section
+          id="service-setup"
+          class="help-section"
+          data-search="service setup configure designer draft publish citizen preview state template"
+        >
+          <h2>Setting up a service</h2>
+          <ol class="help-steps">
+            <li>
+              Go to <strong>Dashboard</strong> → find the service in the table → click
+              <span class="btn-label">Configure</span>.
+            </li>
+            <li>
+              You will see one long page with: <strong>form builder</strong>,
+              <strong>approval flow</strong>, and <strong>fees/documents</strong>. On the right,
+              <strong>Preview</strong> shows what the citizen sees.
+            </li>
+            <li>Work in order: (1) form, (2) approval flow, (3) fees and document list.</li>
+            <li>
+              Each part has <strong>Save</strong> (keeps a draft) and <strong>Publish</strong> (goes
+              live for new applications). You must <strong>Publish</strong> or citizens keep seeing
+              the old version.
+            </li>
+          </ol>
+          <div class="help-card important">
+            <strong>Important:</strong> “Save” alone is not enough for citizens. Always click
+            <strong>Publish</strong> on the form and on the approval flow when you are finished
+            testing.
+          </div>
+          <p>
+            If the service was copied from State, use <strong>Load State template</strong> to copy
+            the state form as a starting point, then adjust for your municipality.
+          </p>
+        </section>
+
+        <section
+          id="forms"
+          class="help-section"
+          data-search="form builder field text date dropdown file upload required label Bangla Hindi publish save"
+        >
+          <h2>Building the application form</h2>
+          <p>
+            This is what the <strong>citizen fills online</strong> when applying for a licence,
+            certificate, etc.
+          </p>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/tenant-form-builder.png"
+              alt="Service setup screen with form builder, field palette, and citizen preview"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Form builder</strong> (example: Trade Licence). Left: field types to add.
+              Centre: question order. Right: citizen preview. Use <strong>Save</strong> then
+              <strong>Publish</strong> at the bottom of the form section.
+            </figcaption>
+          </figure>
+          <h3>Types of questions you can add</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Add this</th>
+                <th>When to use it</th>
+                <th>Remember to</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Section heading</td>
+                <td>Group related questions (“Applicant details”)</td>
+                <td>Write title in English, Bangla, Hindi</td>
+              </tr>
+              <tr>
+                <td>Short text</td>
+                <td>Name, mobile number, ID number</td>
+                <td>Tick <strong>Required</strong> if mandatory; set max length</td>
+              </tr>
+              <tr>
+                <td>Long text</td>
+                <td>Full address, description</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Number</td>
+                <td>Quantity, area, amount</td>
+                <td>Set minimum if zero is not allowed</td>
+              </tr>
+              <tr>
+                <td>Date</td>
+                <td>Birth date, event date</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Single choice / Dropdown</td>
+                <td>Pick one option (trade type, yes/no)</td>
+                <td>Add each option with labels in all languages</td>
+              </tr>
+              <tr>
+                <td>Multi select</td>
+                <td>Pick more than one item</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>File upload</td>
+                <td>PDF or photo the citizen must attach</td>
+                <td>Set max size (often 5 MB) and allowed types (PDF/JPG)</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Step-by-step: build a trade licence form</h3>
+          <ol class="help-steps">
+            <li>Add a <strong>Section</strong> titled “Applicant details”.</li>
+            <li>Add <strong>Short text</strong> “Full name” — tick Required.</li>
+            <li>Add <strong>Short text</strong> “Mobile number” — Required, 10 digits.</li>
+            <li>Add <strong>Dropdown</strong> “Trade type” — options General, Food, etc.</li>
+            <li>
+              Add <strong>File upload</strong> “FSSAI certificate” — only for food businesses (see
+              below).
+            </li>
+            <li>
+              Click each field and fill <strong>English, Bangla, and Hindi</strong> labels in the
+              right panel.
+            </li>
+            <li>
+              Check <strong>Preview</strong> on the right — switch language if your ULB uses Bangla
+              on the citizen app.
+            </li>
+            <li>
+              Click <span class="btn-label">Save</span>, fix any red error messages, then
+              <span class="btn-label">Publish</span>.
+            </li>
+          </ol>
+          <h3>Show a question only sometimes</h3>
+          <p>
+            Example: show “FSSAI certificate” only when trade type is Food. In field settings, use
+            <strong>Show only when</strong> (another field equals a value). If you are unsure, ask
+            IT — do not use the hidden JSON box unless trained.
+          </p>
+          <h3>Rules between two answers</h3>
+          <p>
+            Example: “End date cannot be before start date.” Use the
+            <strong>Cross-field rules</strong> panel below the form builder and follow the on-screen
+            labels.
+          </p>
+        </section>
+
+        <section
+          id="workflows"
+          class="help-section"
+          data-search="workflow approval flow forward return clerk officer chairperson BOC board councillors template publish"
+        >
+          <h2>Setting up approval steps</h2>
+          <p>
+            The <strong>approval flow</strong> decides which officer sees the file in Desk and in
+            what order. Set up <strong>departments and designations</strong> in Masters first, and
+            assign them to staff in Operations.
+          </p>
+          <figure class="screenshot">
+            <img
+              src="assets/screenshots/tenant-workflow.png"
+              alt="Approval flow diagram and workflow editor on the service setup page"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Approval flow.</strong> Diagram of steps (boxes and arrows) and buttons to add
+              stages or apply a template. Scroll down on this page after the form section.
+            </figcaption>
+          </figure>
+          <h3>Words on the approval screen</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>On screen</th>
+                <th>Plain meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Stage / step</td>
+                <td>One stop in the journey (Clerk review, Officer approval, …)</td>
+              </tr>
+              <tr>
+                <td>Initial</td>
+                <td>Where the citizen starts (draft application)</td>
+              </tr>
+              <tr>
+                <td>Terminal / Done</td>
+                <td>Case finished (approved or closed)</td>
+              </tr>
+              <tr>
+                <td>Owner designation</td>
+                <td>Which job role’s Desk queue receives the file</td>
+              </tr>
+              <tr>
+                <td>Forward / Return</td>
+                <td>Buttons officers use — you draw these as arrows between steps</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Easy way: use a template button</h3>
+          <ul>
+            <li><strong>Hoarding scrutiny</strong> — advertising / hoarding department chain.</li>
+            <li>
+              <strong>Municipal ladder</strong> — large projects: Executive Officer → senior council
+              levels → Chairperson.
+            </li>
+            <li><strong>PWD works</strong> — public works style chain.</li>
+          </ul>
+          <p>
+            After applying a template, rename steps to match your ULB and check each arrow points to
+            the correct next officer.
+          </p>
+          <h3>Board of Councillors (BOC)</h3>
+          <p>
+            Some services need a <strong>BOC</strong> meeting decision. Set BOC policy in the fees
+            section (never / always / officer may decide). Only add BOC steps when your municipality
+            rules require it.
+          </p>
+          <h3>Save and publish the flow</h3>
+          <ol class="help-steps">
+            <li>Fix any red error text under the approval diagram.</li>
+            <li>Click <span class="btn-label">Save</span> on the workflow section.</li>
+            <li>Click <span class="btn-label">Publish</span>.</li>
+            <li>
+              Ask a colleague to log in to Desk and confirm the test file appears in their queue.
+            </li>
+          </ol>
+        </section>
+
+        <section
+          id="fees-docs"
+          class="help-section"
+          data-search="fee payment document PDF required free fixed amount revenue head BOC municipal signoff high value"
+        >
+          <h2>Fees &amp; documents</h2>
+          <h3>When does the citizen pay?</h3>
+          <ul>
+            <li><strong>Upfront only</strong> — pay when applying.</li>
+            <li>
+              <strong>Deferred only</strong> — pay after approval (department head sends payment
+              link).
+            </li>
+            <li><strong>Both</strong> — application fee plus a later licence fee.</li>
+          </ul>
+          <h3>Fee types</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Free</td>
+                <td>No payment</td>
+              </tr>
+              <tr>
+                <td>Fixed</td>
+                <td>Same amount for everyone (enter rupees)</td>
+              </tr>
+              <tr>
+                <td>Slab</td>
+                <td>Different amount by choice on the form (e.g. trade type)</td>
+              </tr>
+              <tr>
+                <td>Computed</td>
+                <td>Base fee plus per-unit charge (e.g. per square metre)</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Document checklist</h3>
+          <p>
+            List each paper the citizen must upload (Aadhaar, site plan, etc.). Say if it is
+            mandatory and which file types are allowed (usually PDF or JPG, max 5 MB).
+          </p>
+          <h3>Other policies on this screen</h3>
+          <ul>
+            <li><strong>Revenue head</strong> — pick from Masters list.</li>
+            <li>
+              <strong>Municipal sign-off</strong> — for high-value work, senior council approval;
+              set threshold in rupees.
+            </li>
+          </ul>
+          <p>
+            Click <span class="btn-label">Save</span> at the bottom of the configuration section
+            when finished.
+          </p>
+        </section>
+
+        <section
+          id="words"
+          class="help-section"
+          data-search="glossary words meaning docket designation SLA publish draft BOC"
+        >
+          <h2>Words we use</h2>
+          <dl class="glossary">
+            <dt>Docket number</dt>
+            <dd>
+              The application reference citizens quote at the counter (example: TL-2026-00421).
+            </dd>
+            <dt>Designation</dt>
+            <dd>
+              Job role name in the system (Clerk, Licence Officer) — decides whose Desk queue shows
+              the file.
+            </dd>
+            <dt>Publish</dt>
+            <dd>
+              Make your draft live. Until you publish, citizens still see the old form or old
+              approval steps.
+            </dd>
+            <dt>SLA</dt>
+            <dd>Time limit you promised to finish a case. “Breached” means overdue.</dd>
+            <dt>BOC</dt>
+            <dd>Board of Councillors — special meeting approval for some cases.</dd>
+            <dt>ULB</dt>
+            <dd>Your urban local body / municipality.</dd>
+            <dt>State template</dt>
+            <dd>
+              Ready-made service from the state government library — you can adjust it for your
+              town.
+            </dd>
+          </dl>
+        </section>
+
+        <section
+          id="problems"
+          class="help-section"
+          data-search="problem error cannot save login empty queue publish failed help IT"
+        >
+          <h2>Common problems</h2>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>What happened</th>
+                <th>What to try</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Kicked out to login</td>
+                <td>Session timed out — sign in again. Do not leave the PC unlocked.</td>
+              </tr>
+              <tr>
+                <td>Cannot see Dashboard</td>
+                <td>Your login is Desk-only — ask administrator for admin rights.</td>
+              </tr>
+              <tr>
+                <td>Save form fails</td>
+                <td>
+                  Red message on screen — usually a missing label or duplicate question name. Fix
+                  and Save again.
+                </td>
+              </tr>
+              <tr>
+                <td>Publish fails</td>
+                <td>
+                  Save first; read error text; call IT if it mentions “workflow” or “validation”.
+                </td>
+              </tr>
+              <tr>
+                <td>Desk queue empty</td>
+                <td>
+                  Your designation may not be assigned — check Operations → Staff &amp; roles.
+                </td>
+              </tr>
+              <tr>
+                <td>Citizen still sees old form</td>
+                <td>You saved but did not <strong>Publish</strong> the form.</td>
+              </tr>
+              <tr>
+                <td>Wrong fee amount</td>
+                <td>
+                  Check fee type and which form question drives “slab” fees; amounts are in rupees
+                  on screen.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            For anything not listed, note the <strong>exact message on screen</strong> and the
+            <strong>service name</strong>, then contact your ULB IT support.
+          </p>
+        </section>
+
+        <footer
+          style="
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.9rem;
+            color: var(--ink-muted);
+          "
+        >
+          Government of West Bengal · eNagarSeba · ULB Operator Manual
+        </footer>
+      </main>
+    </div>
+    <script src="assets/operator-help.js"></script>
+  </body>
+</html>
