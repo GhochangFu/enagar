@@ -6,8 +6,14 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap');
 
 :root {
-  --canvas-rgb: 250 247 244;
+  --canvas-rgb: 248 246 243;
   --surface-rgb: 255 255 255;
+  --surface-raised-rgb: 253 252 251;
+  --sidebar-rgb: 43 53 48;
+  --sidebar-muted-rgb: 61 74 68;
+  --sidebar-border-rgb: 74 90 82;
+  --ink-on-dark-rgb: 245 243 240;
+  --ink-on-dark-muted-rgb: 184 196 190;
   --peach-accent-rgb: 255 205 170;
   --peach-soft-rgb: 255 240 230;
   --mint-band-rgb: 232 240 231;
@@ -17,6 +23,7 @@
   --saffron-wash-rgb: 255 240 230;
   --green-wash-rgb: 232 240 231;
   --platform-accent-rgb: 191 74 10;
+  --platform-band-rgb: 236 254 255;
   --border-warm-rgb: 232 221 214;
   --text-primary-rgb: 43 33 31;
   --text-secondary-rgb: 92 74 71;
@@ -28,6 +35,15 @@
   --brand-fg-rgb: 255 255 255;
   --brand-muted-rgb: 255 240 230;
   --brand-surface-rgb: 255 248 244;
+  --brand-hover-rgb: 163 63 9;
+  --success-rgb: 45 106 79;
+  --success-bg-rgb: 232 245 238;
+  --warning-rgb: 180 83 9;
+  --warning-bg-rgb: 254 243 199;
+  --danger-rgb: 185 28 28;
+  --danger-bg-rgb: 254 226 226;
+  --info-rgb: 29 78 216;
+  --info-bg-rgb: 239 246 255;
   --tenant-font-family: 'DM Sans', system-ui, sans-serif;
   --platform-heading-font: 'DM Sans', system-ui, sans-serif;
 }

@@ -1,10 +1,26 @@
 'use client';
 
-import { Button, PageHeader } from '@enagar/ui';
+import {
+  AlertBanner,
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableElement,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  KpiCard,
+  PageHeader,
+  useToast,
+} from '@enagar/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { DashboardTrendsChart } from '../../components/dashboard-trends-chart';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
 
 import type { Route } from 'next';
@@ -82,12 +98,13 @@ function pickLabel(json: unknown): string {
 
 export default function DashboardClient(): JSX.Element {
   const router = useRouter();
+  const { toast } = useToast();
   const { token, apiBase } = useTenantAdminSession();
-  const [status, setStatus] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [dashboardDeep, setDashboardDeep] = useState<DashboardDeep | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [slaDrafts, setSlaDrafts] = useState<Record<string, string>>({});
+  const [tableQuery, setTableQuery] = useState('');
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -101,7 +118,6 @@ export default function DashboardClient(): JSX.Element {
     if (!token) {
       return;
     }
-    setStatus(null);
     try {
       const [dashRes, deepRes, svcRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/dashboard`, { headers: authHeaders() }),
@@ -119,11 +135,7 @@ export default function DashboardClient(): JSX.Element {
           }
         }
         const body = await dashRes.text().catch(() => '');
-        const deepBody = await deepRes.text().catch(() => '');
-        const body2 = await svcRes.text().catch(() => '');
-        setStatus(
-          `API error (${dashRes.status} / ${deepRes.status} / ${svcRes.status}) ${body.slice(0, 120)} ${deepBody.slice(0, 120)} ${body2.slice(0, 120)}`,
-        );
+        toast(`API error loading dashboard (${dashRes.status}): ${body.slice(0, 120)}`, 'danger');
         return;
       }
       const dashJson = (await dashRes.json()) as DashboardSnapshot;
@@ -141,9 +153,9 @@ export default function DashboardClient(): JSX.Element {
       }
       setSlaDrafts(drafts);
     } catch {
-      setStatus('Network error loading dashboard.');
+      toast('Network error loading dashboard.', 'danger');
     }
-  }, [apiBase, authHeaders, router, token]);
+  }, [apiBase, authHeaders, router, toast, token]);
 
   useEffect(() => {
     void loadAll();
@@ -160,13 +172,13 @@ export default function DashboardClient(): JSX.Element {
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      setStatus(`Save failed (${res.status}): ${errText.slice(0, 240)}`);
+      toast(`Save failed (${res.status}): ${errText.slice(0, 180)}`, 'danger');
       await loadAll();
       return;
     }
     const updated = (await res.json()) as ServiceRow;
     setServices((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-    setStatus(null);
+    toast('Service updated.', 'success');
   }
 
   async function downloadExport(kind: string): Promise<void> {
@@ -178,7 +190,7 @@ export default function DashboardClient(): JSX.Element {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      setStatus(`Export failed (${res.status}): ${text.slice(0, 180)}`);
+      toast(`Export failed (${res.status}): ${text.slice(0, 120)}`, 'danger');
       return;
     }
     const blob = await res.blob();
@@ -190,35 +202,21 @@ export default function DashboardClient(): JSX.Element {
     link.click();
     link.remove();
     URL.revokeObjectURL(href);
-    setStatus(`${kind} CSV exported.`);
+    toast(`${kind} CSV exported.`, 'success');
   }
 
-  async function downloadPdf(kind: string): Promise<void> {
-    if (!token) {
-      return;
-    }
-    const res = await fetch(`${apiBase}/admin/tenant/exports/${kind}.pdf`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      setStatus(`PDF export failed (${res.status}): ${text.slice(0, 180)}`);
-      return;
-    }
-    const blob = await res.blob();
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = `${kind}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(href);
-    setStatus(`${kind} PDF exported.`);
-  }
+  const slaBreaches =
+    (dashboard?.grievances_sla_breached_open ?? 0) +
+    (dashboardDeep?.breached_applications.length ?? 0);
+
+  const filteredServices = services.filter((row) => {
+    const q = tableQuery.trim().toLowerCase();
+    if (!q) return true;
+    return row.code.toLowerCase().includes(q) || pickLabel(row.name).toLowerCase().includes(q);
+  });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-10">
+    <div className="mx-auto max-w-7xl space-y-8">
       <PageHeader
         eyebrow="Tenant Admin"
         title="Dashboard"
@@ -234,94 +232,86 @@ export default function DashboardClient(): JSX.Element {
         }
       />
 
-      {status ? (
-        <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {status}
-        </p>
+      {slaBreaches > 0 ? (
+        <AlertBanner
+          tone="warning"
+          title={`${slaBreaches} item${slaBreaches === 1 ? '' : 's'} past SLA`}
+          action={
+            <Link
+              href="/dashboard/desk"
+              className="text-sm font-semibold text-brand hover:underline"
+            >
+              Open in Desk →
+            </Link>
+          }
+        >
+          Review breached applications and grievances in the operator Desk.
+        </AlertBanner>
       ) : null}
 
       {dashboard ? (
-        <section className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <KpiCard title="Applications (total)" value={dashboard.applications_total} />
-          <KpiCard title="Applications (open)" value={dashboard.applications_open} />
-          <KpiCard title="Citizens registered" value={dashboard.citizens_registered} />
-          <KpiCard title="Grievances (open)" value={dashboard.grievances_open} />
-          <KpiCard title="SLA breached (open)" value={dashboard.grievances_sla_breached_open} />
-          <KpiCard title="Payments settled (30d)" value={dashboard.payments_settled_last_30_days} />
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard label="Applications (total)" value={dashboard.applications_total} />
+          <KpiCard label="Applications (open)" value={dashboard.applications_open} />
+          <KpiCard label="Citizens registered" value={dashboard.citizens_registered} />
+          <KpiCard label="Grievances (open)" value={dashboard.grievances_open} />
+          <KpiCard
+            label="SLA breached (open)"
+            value={dashboard.grievances_sla_breached_open}
+            accent="danger"
+          />
+          <KpiCard label="Payments settled (30d)" value={dashboard.payments_settled_last_30_days} />
         </section>
       ) : (
         <p className="text-ink-secondary">Loading KPIs…</p>
       )}
 
       {dashboardDeep ? (
-        <section className="mb-12 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+          <Card>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Sprint 6.9 · Dashboard depth
-                </p>
-                <h2 className="text-lg font-semibold text-slate-900">30-day trends</h2>
+                <h2 className="text-lg font-semibold text-ink-primary">30-day trends</h2>
+                <p className="text-sm text-ink-secondary">Applications submitted</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {['applications', 'payments', 'grievances', 'sla-summary'].map((kind) => (
-                  <div key={kind} className="flex gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void downloadExport(kind)}
-                    >
-                      CSV {kind}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void downloadPdf(kind)}
-                    >
-                      PDF
-                    </Button>
-                  </div>
+                {['applications', 'payments', 'grievances'].map((kind) => (
+                  <Button
+                    key={kind}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void downloadExport(kind)}
+                  >
+                    CSV {kind}
+                  </Button>
                 ))}
               </div>
             </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <TrendList
-                title="Applications submitted"
-                rows={dashboardDeep.application_trends_30d.slice(-7).map((row) => ({
-                  label: row.date,
-                  value: row.submitted,
-                }))}
-              />
-              <TrendList
-                title="Payments settled"
-                rows={dashboardDeep.payment_trends_30d.slice(-7).map((row) => ({
-                  label: row.date,
-                  value: `${row.settled} / ₹${(row.amount_paise / 100).toFixed(2)}`,
-                }))}
-              />
-            </div>
-          </article>
+            <DashboardTrendsChart rows={dashboardDeep.application_trends_30d} />
+          </Card>
 
-          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Top active workload</h2>
+          <Card>
+            <h2 className="text-lg font-semibold text-ink-primary">Top active workload</h2>
             <ul className="mt-4 space-y-3">
               {dashboardDeep.top_services.length ? (
                 dashboardDeep.top_services.map((row) => (
-                  <li key={row.service_code} className="rounded border border-slate-200 p-3">
-                    <p className="font-medium text-slate-900">{pickLabel(row.name)}</p>
-                    <p className="font-mono text-xs text-slate-500">{row.service_code}</p>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Open: {row.open_applications} · Recent 30d: {row.recent_submissions_30d}
-                    </p>
+                  <li
+                    key={row.service_code}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-warm-border px-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink-primary">{pickLabel(row.name)}</p>
+                      <p className="font-mono text-xs text-ink-secondary">{row.service_code}</p>
+                    </div>
+                    <Badge tone="warning">{row.open_applications} open</Badge>
                   </li>
                 ))
               ) : (
-                <li className="text-sm text-slate-500">No recent service activity.</li>
+                <li className="text-sm text-ink-secondary">No recent service activity.</li>
               )}
             </ul>
-          </article>
+          </Card>
 
           <QueueCard
             title="Breached applications"
@@ -353,34 +343,40 @@ export default function DashboardClient(): JSX.Element {
       ) : null}
 
       <section>
-        <div className="mb-4 flex items-baseline justify-between gap-4">
-          <h2 className="text-xl font-semibold text-slate-900">Service catalogue</h2>
-          <p className="text-xs text-slate-500">
-            Rows come from Postgres (<span className="font-mono">services</span>); citizen-facing{' '}
-            <span className="font-mono">GET /services/tenants/:code</span> now resolves published
-            database forms.
-          </p>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-4">
+          <h2 className="text-xl font-semibold text-ink-primary">Service catalogue</h2>
+          <p className="text-xs text-ink-secondary">Published services for this municipality</p>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+        <DataTable
+          toolbar={
+            <input
+              type="search"
+              value={tableQuery}
+              onChange={(event) => setTableQuery(event.target.value)}
+              placeholder="Search services…"
+              className="w-full max-w-xs rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 md:max-w-sm"
+            />
+          }
+        >
+          <DataTableElement>
+            <DataTableHead>
               <tr>
-                <th className="px-4 py-3 font-medium">Active</th>
-                <th className="px-4 py-3 font-medium">Code</th>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">SLA days</th>
-                <th className="px-4 py-3 font-medium">Updated</th>
-                <th className="px-4 py-3 font-medium">Designer</th>
+                <DataTableHeaderCell>Active</DataTableHeaderCell>
+                <DataTableHeaderCell>Code</DataTableHeaderCell>
+                <DataTableHeaderCell>Name</DataTableHeaderCell>
+                <DataTableHeaderCell>SLA days</DataTableHeaderCell>
+                <DataTableHeaderCell>Updated</DataTableHeaderCell>
+                <DataTableHeaderCell>Designer</DataTableHeaderCell>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {services.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80">
-                  <td className="px-4 py-3">
+            </DataTableHead>
+            <DataTableBody>
+              {filteredServices.map((row) => (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded border-warm-border"
                       checked={row.is_active}
                       onChange={(e) => {
                         const next = e.target.checked;
@@ -390,17 +386,15 @@ export default function DashboardClient(): JSX.Element {
                         void patchService(row.id, { is_active: next });
                       }}
                     />
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">{row.code}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-slate-800">
-                    {pickLabel(row.name)}
-                  </td>
-                  <td className="px-4 py-3">
+                  </DataTableCell>
+                  <DataTableCell className="font-mono text-xs">{row.code}</DataTableCell>
+                  <DataTableCell className="max-w-xs truncate">{pickLabel(row.name)}</DataTableCell>
+                  <DataTableCell>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
                         min={0}
-                        className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                        className="w-24 rounded-lg border border-warm-border px-2 py-1.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
                         value={slaDrafts[row.id] ?? ''}
                         onChange={(e) => setSlaDrafts((d) => ({ ...d, [row.id]: e.target.value }))}
                       />
@@ -411,7 +405,7 @@ export default function DashboardClient(): JSX.Element {
                           const raw = slaDrafts[row.id]?.trim() ?? '';
                           const n = raw === '' ? undefined : Number.parseInt(raw, 10);
                           if (n === undefined || Number.isNaN(n) || n < 0) {
-                            setStatus('SLA days must be a non-negative integer.');
+                            toast('SLA days must be a non-negative integer.', 'warning');
                             return;
                           }
                           void patchService(row.id, { effective_sla_days: n });
@@ -420,60 +414,24 @@ export default function DashboardClient(): JSX.Element {
                         Save
                       </Button>
                     </div>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                  </DataTableCell>
+                  <DataTableCell className="whitespace-nowrap text-xs text-ink-secondary">
                     {new Date(row.updated_at).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <a
+                  </DataTableCell>
+                  <DataTableCell>
+                    <Link
                       href={`/dashboard/services/${row.id}`}
-                      className="rounded bg-[rgb(var(--brand-rgb))] px-3 py-1.5 text-xs font-medium text-white hover:opacity-95"
+                      className="inline-flex rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-brand-hover"
                     >
                       Configure
-                    </a>
-                  </td>
-                </tr>
+                    </Link>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="mt-6 text-xs text-slate-500">
-          Dummy operators and MFA expectations: see{' '}
-          <span className="font-mono">docs/runbooks/keycloak.md</span> in this repository.
-        </p>
+            </DataTableBody>
+          </DataTableElement>
+        </DataTable>
       </section>
-    </div>
-  );
-}
-
-function KpiCard({ title, value }: { title: string; value: number }): JSX.Element {
-  return (
-    <article className="rounded-2xl border border-warm-border bg-mint-band p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-forest">{title}</p>
-      <p className="mt-2 text-3xl font-bold tabular-nums text-forest">{value}</p>
-    </article>
-  );
-}
-
-function TrendList({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: Array<{ label: string; value: string | number }>;
-}): JSX.Element {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <ul className="mt-3 space-y-2 text-sm">
-        {rows.map((row) => (
-          <li key={row.label} className="flex justify-between gap-4">
-            <span className="font-mono text-xs text-slate-500">{row.label}</span>
-            <span className="font-semibold text-slate-900">{row.value}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -488,7 +446,7 @@ function QueueCard({
   empty: string;
 }): JSX.Element {
   return (
-    <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+    <Card>
       <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
       <p className="mt-1 text-xs text-ink-secondary">Open in Desk</p>
       <ul className="mt-4 space-y-3">
@@ -497,7 +455,7 @@ function QueueCard({
             <li key={row.key}>
               <Link
                 href={row.href as Route}
-                className="block rounded-2xl border border-peach/80 bg-peach/25 p-3 transition hover:bg-peach/40"
+                className="block rounded-xl border border-danger/20 bg-danger-bg/40 p-3 transition hover:border-danger/40"
               >
                 <p className="font-mono text-xs font-semibold text-ink-primary">{row.title}</p>
                 <p className="mt-1 text-sm text-ink-secondary">{row.subtitle}</p>
@@ -509,6 +467,6 @@ function QueueCard({
           <li className="text-sm text-ink-secondary">{empty}</li>
         )}
       </ul>
-    </article>
+    </Card>
   );
 }

@@ -95,7 +95,7 @@ export function applyPlatformTheme(root: ThemeRoot | undefined = getDocumentRoot
   return tokens;
 }
 
-/** State Admin (`:3003`) — platform teal accent, shared canvas/surface tokens. */
+/** State Admin (`:3003`) — platform teal accent, deep teal sidebar (Platform Authority). */
 export function applyStateAdminTheme(root: ThemeRoot | undefined = getDocumentRoot()): ThemeTokens {
   const tokens: ThemeTokens = {
     ...createTenantPalette(STATE_ADMIN_BRAND_HEX),
@@ -104,6 +104,12 @@ export function applyStateAdminTheme(root: ThemeRoot | undefined = getDocumentRo
   };
   applyPaletteToRoot(tokens, root);
   root?.style.setProperty('--platform-accent-rgb', tokens.brandRgb);
+  root?.style.setProperty('--sidebar-rgb', '26 46 53');
+  root?.style.setProperty('--sidebar-muted-rgb', '36 59 68');
+  root?.style.setProperty('--sidebar-border-rgb', '47 79 88');
+  root?.style.setProperty('--ink-on-dark-rgb', '240 249 255');
+  root?.style.setProperty('--ink-on-dark-muted-rgb', '148 163 184');
+  root?.style.setProperty('--platform-band-rgb', '236 254 255');
   root?.style.setProperty('--tenant-font-family', PLUS_JAKARTA);
   root?.style.removeProperty('--tenant-logo-url');
   return tokens;

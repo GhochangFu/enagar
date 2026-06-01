@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, PageHeader } from '@enagar/ui';
+import { AlertBanner, Button, KpiCard, PageHeader, SegmentedControl } from '@enagar/ui';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import { DeskApplicationDocumentsPanel } from '../../../components/desk-application-documents-panel';
@@ -292,6 +292,9 @@ export default function DeskClient(): JSX.Element {
   const [status, setStatus] = useState<string | null>(null);
   const [summary, setSummary] = useState<DeskSummary | null>(null);
   const [tab, setTab] = useState<'applications' | 'grievances'>('applications');
+  const [appDetailTab, setAppDetailTab] = useState<'summary' | 'form' | 'documents' | 'timeline'>(
+    'summary',
+  );
   const [appQueue, setAppQueue] = useState<'my' | 'all'>('my');
   const [grievanceQueue, setGrievanceQueue] = useState<'my' | 'all' | 'breached'>('my');
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
@@ -548,53 +551,51 @@ export default function DeskClient(): JSX.Element {
       />
 
       {status ? (
-        <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <AlertBanner tone="warning" className="mb-2">
           {status}
-        </p>
+        </AlertBanner>
       ) : null}
 
       {summary ? (
-        <section className="mb-8 grid gap-4 md:grid-cols-5">
-          <Metric label="My applications" value={summary.applications_my_queue} />
-          <Metric label="All applications" value={summary.applications_all_open} />
-          <Metric label="My grievances" value={summary.grievances_my_queue} />
-          <Metric label="All grievances" value={summary.grievances_all_open} />
-          <Metric label="SLA breached" value={summary.grievances_sla_breached} />
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="My applications" value={summary.applications_my_queue} />
+          <KpiCard label="All applications" value={summary.applications_all_open} />
+          <KpiCard label="My grievances" value={summary.grievances_my_queue} />
+          <KpiCard label="All grievances" value={summary.grievances_all_open} />
+          <KpiCard label="SLA breached" value={summary.grievances_sla_breached} accent="danger" />
         </section>
       ) : null}
 
-      <section className="mb-6 flex flex-wrap gap-3">
-        <Button
-          type="button"
-          variant={tab === 'applications' ? 'primary' : 'secondary'}
-          onClick={() => setTab('applications')}
-        >
-          Applications
-        </Button>
-        <Button
-          type="button"
-          variant={tab === 'grievances' ? 'primary' : 'secondary'}
-          onClick={() => setTab('grievances')}
-        >
-          Grievances
-        </Button>
-      </section>
+      <SegmentedControl
+        aria-label="Desk inbox type"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'applications', label: 'Applications' },
+          { value: 'grievances', label: 'Grievances' },
+        ]}
+      />
 
       {tab === 'applications' ? (
-        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(240px,28%)_minmax(0,1fr)_minmax(240px,27%)]">
           <Panel title="Application inbox">
             <QueueSwitch
               value={appQueue}
               options={me?.is_admin ? ['my', 'all'] : ['my']}
               onChange={(next) => setAppQueue(next as 'my' | 'all')}
             />
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto">
               {applications.map((row) => (
                 <li key={row.id}>
                   <button
                     type="button"
                     onClick={() => void openApplication(row.docket_no)}
-                    className="w-full rounded-xl border border-warm-border bg-surface p-3 text-left transition hover:bg-brand-muted/20"
+                    className={[
+                      'w-full rounded-xl border p-3 text-left transition',
+                      applicationDetail?.application.docket_no === row.docket_no
+                        ? 'border-brand bg-brand-muted/40 shadow-sm'
+                        : 'border-warm-border bg-surface hover:bg-brand-muted/20',
+                    ].join(' ')}
                   >
                     <p className="font-mono text-xs font-semibold text-ink-primary">
                       {row.docket_no}
@@ -620,13 +621,35 @@ export default function DeskClient(): JSX.Element {
                   title={applicationDetail.application.docket_no}
                   subtitle={`${applicationDetail.application.service_name} · ${applicationDetail.application.status_label}`}
                 />
-                <DeskFeeSettlementPanel application={applicationDetail.application} />
-                <DeskWorkOrderPanel
-                  applicationDetail={applicationDetail}
-                  onAssignVendor={assignWorkOrderVendor}
+                <DetailTabs
+                  value={appDetailTab}
+                  onChange={setAppDetailTab}
+                  tabs={[
+                    { id: 'summary', label: 'Summary' },
+                    { id: 'form', label: 'Form data' },
+                    { id: 'documents', label: 'Documents' },
+                    { id: 'timeline', label: 'Timeline' },
+                  ]}
                 />
-                <FormDataSummary data={applicationDetail.application.form_data} />
-                {token ? (
+                {appDetailTab === 'summary' ? (
+                  <>
+                    <DeskFeeSettlementPanel application={applicationDetail.application} />
+                    <DeskWorkOrderPanel
+                      applicationDetail={applicationDetail}
+                      onAssignVendor={assignWorkOrderVendor}
+                    />
+                    <FormDataSummary data={applicationDetail.application.form_data} />
+                  </>
+                ) : null}
+                {appDetailTab === 'form' ? (
+                  <JsonFallbackPanel
+                    readOnly
+                    title="Raw form data (JSON)"
+                    description="Expand only when you need the exact submitted payload."
+                    value={prettyJson(applicationDetail.application.form_data)}
+                  />
+                ) : null}
+                {appDetailTab === 'documents' && token ? (
                   <DeskApplicationDocumentsPanel
                     apiBase={apiBase}
                     token={token}
@@ -634,117 +657,31 @@ export default function DeskClient(): JSX.Element {
                     documents={applicationDetail.application.documents}
                   />
                 ) : null}
-                <JsonFallbackPanel
-                  readOnly
-                  title="Raw form data (JSON)"
-                  description="Expand only when you need the exact submitted payload."
-                  value={prettyJson(applicationDetail.application.form_data)}
-                />
-                <textarea
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary"
-                  placeholder="Comment for workflow action"
-                />
-                {applicationDetail.allowed_transitions.some(
-                  (item) => item.officer_may_set_require_boc,
-                ) ? (
-                  <div className="space-y-2 rounded-2xl border border-warm-border bg-mint-band/30 p-3">
-                    <label className="flex items-center gap-2 text-sm text-ink-primary">
-                      <input
-                        type="checkbox"
-                        checked={requireBoc}
-                        onChange={(event) => setRequireBoc(event.target.checked)}
-                      />
-                      Require Board of Councillors (BOC) resolution before executive approval
-                    </label>
-                    <p className="text-xs text-ink-secondary">
-                      {requireBoc
-                        ? 'Use Route to BOC — do not use Approve to executive (that path skips BOC).'
-                        : 'Leave unchecked to approve directly to executive without BOC.'}
-                    </p>
-                  </div>
+                {appDetailTab === 'timeline' ? (
+                  <Timeline rows={applicationDetail.application.timeline} />
                 ) : null}
-                {applicationDetail.allowed_transitions.some(
-                  (item) => item.requires_boc_resolution_fields,
-                ) ? (
-                  <div className="grid gap-3 rounded-2xl border border-warm-border bg-surface p-4 md:grid-cols-2">
-                    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
-                      BOC resolution number
-                      <input
-                        className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
-                        value={bocResolutionNumber}
-                        onChange={(event) => setBocResolutionNumber(event.target.value)}
-                      />
-                    </label>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
-                      BOC resolution date
-                      <input
-                        type="date"
-                        className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
-                        value={bocResolutionDate}
-                        onChange={(event) => setBocResolutionDate(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {(() => {
-                    const officerBocAtScrutiny = applicationDetail.allowed_transitions.some(
-                      (item) => item.officer_may_set_require_boc,
-                    );
-                    const actionTransitions = applicationDetail.allowed_transitions.filter(
-                      (transition) => {
-                        if (!officerBocAtScrutiny) {
-                          return true;
-                        }
-                        if (transition.verb === 'route-to-boc') {
-                          return requireBoc;
-                        }
-                        if (transition.verb === 'approve-to-executive') {
-                          return !requireBoc;
-                        }
-                        return true;
-                      },
-                    );
-                    const needsRouteFallback =
-                      officerBocAtScrutiny &&
-                      requireBoc &&
-                      !actionTransitions.some((item) => item.verb === 'route-to-boc');
-                    return (
-                      <>
-                        {actionTransitions.map((transition) => (
-                          <Button
-                            key={transition.verb}
-                            type="button"
-                            onClick={() => void transitionApplication(transition.verb)}
-                            variant="primary"
-                            size="sm"
-                          >
-                            {transition.label} → {transition.to_stage}
-                          </Button>
-                        ))}
-                        {needsRouteFallback ? (
-                          <Button
-                            type="button"
-                            onClick={() => void transitionApplication('route-to-boc')}
-                            variant="primary"
-                            size="sm"
-                          >
-                            Route to BOC → boc-resolution
-                          </Button>
-                        ) : null}
-                      </>
-                    );
-                  })()}
-                  {!applicationDetail.allowed_transitions.length ? (
-                    <p className="text-sm text-ink-secondary">No allowed actions for your role.</p>
-                  ) : null}
-                </div>
-                <Timeline rows={applicationDetail.application.timeline} />
               </div>
             ) : (
               <p className="text-sm text-ink-secondary">Select a docket.</p>
+            )}
+          </Panel>
+
+          <Panel title="Workflow actions">
+            {applicationDetail ? (
+              <ApplicationWorkflowPanel
+                applicationDetail={applicationDetail}
+                comment={comment}
+                onCommentChange={setComment}
+                requireBoc={requireBoc}
+                onRequireBocChange={setRequireBoc}
+                bocResolutionNumber={bocResolutionNumber}
+                onBocResolutionNumberChange={setBocResolutionNumber}
+                bocResolutionDate={bocResolutionDate}
+                onBocResolutionDateChange={setBocResolutionDate}
+                onTransition={(verb) => void transitionApplication(verb)}
+              />
+            ) : (
+              <p className="text-sm text-ink-secondary">Select a docket to see workflow actions.</p>
             )}
           </Panel>
         </section>
@@ -915,12 +852,154 @@ export default function DeskClient(): JSX.Element {
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }): JSX.Element {
+function DetailTabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: Array<{ id: T; label: string }>;
+  value: T;
+  onChange: (value: T) => void;
+}): JSX.Element {
   return (
-    <article className="rounded-2xl border border-warm-border bg-surface p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-ink-primary">{value}</p>
-    </article>
+    <div className="flex flex-wrap gap-1 border-b border-warm-border">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={[
+            'min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition',
+            value === tab.id
+              ? 'border-brand text-brand'
+              : 'border-transparent text-ink-secondary hover:text-ink-primary',
+          ].join(' ')}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ApplicationWorkflowPanel({
+  applicationDetail,
+  comment,
+  onCommentChange,
+  requireBoc,
+  onRequireBocChange,
+  bocResolutionNumber,
+  onBocResolutionNumberChange,
+  bocResolutionDate,
+  onBocResolutionDateChange,
+  onTransition,
+}: {
+  applicationDetail: ApplicationDetail;
+  comment: string;
+  onCommentChange: (value: string) => void;
+  requireBoc: boolean;
+  onRequireBocChange: (value: boolean) => void;
+  bocResolutionNumber: string;
+  onBocResolutionNumberChange: (value: string) => void;
+  bocResolutionDate: string;
+  onBocResolutionDateChange: (value: string) => void;
+  onTransition: (verb: string) => void;
+}): JSX.Element {
+  const officerBocAtScrutiny = applicationDetail.allowed_transitions.some(
+    (item) => item.officer_may_set_require_boc,
+  );
+  const actionTransitions = applicationDetail.allowed_transitions.filter((transition) => {
+    if (!officerBocAtScrutiny) {
+      return true;
+    }
+    if (transition.verb === 'route-to-boc') {
+      return requireBoc;
+    }
+    if (transition.verb === 'approve-to-executive') {
+      return !requireBoc;
+    }
+    return true;
+  });
+  const needsRouteFallback =
+    officerBocAtScrutiny &&
+    requireBoc &&
+    !actionTransitions.some((item) => item.verb === 'route-to-boc');
+
+  return (
+    <div className="space-y-4">
+      <textarea
+        value={comment}
+        onChange={(event) => onCommentChange(event.target.value)}
+        className="min-h-24 w-full rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+        placeholder="Comment for workflow action"
+      />
+      {officerBocAtScrutiny ? (
+        <div className="space-y-2 rounded-2xl border border-warm-border bg-mint-band/30 p-3">
+          <label className="flex items-center gap-2 text-sm text-ink-primary">
+            <input
+              type="checkbox"
+              checked={requireBoc}
+              onChange={(event) => onRequireBocChange(event.target.checked)}
+            />
+            Require Board of Councillors (BOC) resolution before executive approval
+          </label>
+          <p className="text-xs text-ink-secondary">
+            {requireBoc
+              ? 'Use Route to BOC — do not use Approve to executive (that path skips BOC).'
+              : 'Leave unchecked to approve directly to executive without BOC.'}
+          </p>
+        </div>
+      ) : null}
+      {applicationDetail.allowed_transitions.some((item) => item.requires_boc_resolution_fields) ? (
+        <div className="grid gap-3">
+          <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            BOC resolution number
+            <input
+              className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+              value={bocResolutionNumber}
+              onChange={(event) => onBocResolutionNumberChange(event.target.value)}
+            />
+          </label>
+          <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+            BOC resolution date
+            <input
+              type="date"
+              className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+              value={bocResolutionDate}
+              onChange={(event) => onBocResolutionDateChange(event.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        {actionTransitions.map((transition) => (
+          <Button
+            key={transition.verb}
+            type="button"
+            onClick={() => onTransition(transition.verb)}
+            variant="primary"
+            size="sm"
+            className="w-full justify-center"
+          >
+            {transition.label} → {transition.to_stage}
+          </Button>
+        ))}
+        {needsRouteFallback ? (
+          <Button
+            type="button"
+            onClick={() => onTransition('route-to-boc')}
+            variant="primary"
+            size="sm"
+            className="w-full justify-center"
+          >
+            Route to BOC → boc-resolution
+          </Button>
+        ) : null}
+        {!applicationDetail.allowed_transitions.length ? (
+          <p className="text-sm text-ink-secondary">No allowed actions for your role.</p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

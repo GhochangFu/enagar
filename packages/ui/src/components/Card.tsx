@@ -18,7 +18,7 @@ const paddingClass = {
 } as const;
 
 const toneClass = {
-  default: 'bg-white border-warm-border',
+  default: 'bg-surface border-warm-border',
   muted: 'bg-brand-muted/50 border-brand-muted',
   surface: 'bg-brand-surface border-brand-surface',
 } as const;
@@ -33,7 +33,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-3xl border shadow-sm',
+        'rounded-2xl border shadow-sm',
         toneClass[tone],
         paddingClass[padding],
         className,

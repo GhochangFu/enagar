@@ -33,9 +33,7 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           {eyebrow ? (
-            <p className="text-xs font-medium uppercase tracking-wide text-platform-accent">
-              {eyebrow}
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-forest">{eyebrow}</p>
           ) : null}
           <h1 className="mt-1 text-2xl font-bold text-ink-primary">{title}</h1>
           {subtitle ? (

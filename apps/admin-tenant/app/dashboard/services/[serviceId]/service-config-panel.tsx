@@ -361,16 +361,16 @@ export function ServiceConfigPanel({
         : ['application'];
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-xl border border-warm-border bg-white p-5 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
             Sprint 6.8B/C · Guided config UX
           </p>
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-ink-primary">
             Fee, documents, and revenue mapping
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-secondary">
             Primary preview: {formatPreview(serviceConfig.fee_preview_paise)}
             {serviceConfig.payment_schedule_inferred ? ' · schedule inferred from workflow' : ''}
           </p>
@@ -378,19 +378,19 @@ export function ServiceConfigPanel({
         <button
           type="button"
           onClick={onSave}
-          className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
+          className="rounded bg-brand px-3 py-2 text-xs font-medium text-brand-fg hover:bg-brand-hover"
         >
           Save config
         </button>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4 xl:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-900">Payment schedule (ADR-0013)</h3>
-          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        <section className="rounded-lg border border-warm-border bg-canvas p-4 xl:col-span-2">
+          <h3 className="text-sm font-semibold text-ink-primary">Payment schedule (ADR-0013)</h3>
+          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
             When fees are collected
             <select
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+              className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
               value={paymentSchedule}
               onChange={(event) => {
                 const schedule = event.target.value as PaymentSchedule;
@@ -411,10 +411,12 @@ export function ServiceConfigPanel({
               const savedPreview = serviceConfig.fee_line_previews?.[code];
               const draftPreview = previewFixedFee(line.rule);
               return (
-                <div key={code} className="rounded-lg border border-slate-200 bg-white p-4">
+                <div key={code} className="rounded-lg border border-warm-border bg-white p-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold capitalize text-slate-900">{code} fee</h4>
-                    <span className="text-xs text-slate-500">
+                    <h4 className="text-sm font-semibold capitalize text-ink-primary">
+                      {code} fee
+                    </h4>
+                    <span className="text-xs text-ink-secondary">
                       Preview: {formatPreview(draftPreview ?? savedPreview)}
                     </span>
                   </div>
@@ -438,12 +440,12 @@ export function ServiceConfigPanel({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Legacy fee rule (primary line)</h3>
-          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        <section className="rounded-lg border border-warm-border bg-canvas p-4">
+          <h3 className="text-sm font-semibold text-ink-primary">Legacy fee rule (primary line)</h3>
+          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
             Rule type
             <select
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+              className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
               value={legacyFeeRule.type}
               onChange={(event) => {
                 const type = event.target.value;
@@ -488,13 +490,13 @@ export function ServiceConfigPanel({
           <FeeRuleFields feeRule={legacyFeeRule} onChange={setFeeRule} />
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <section className="rounded-lg border border-warm-border bg-canvas p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-slate-900">Document checklist</h3>
+            <h3 className="text-sm font-semibold text-ink-primary">Document checklist</h3>
             <button
               type="button"
               onClick={() => setDocuments([...documents, blankDocument(documents.length + 1)])}
-              className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
+              className="rounded border border-warm-border bg-white px-3 py-2 text-xs font-medium"
             >
               Add document
             </button>
@@ -518,10 +520,10 @@ export function ServiceConfigPanel({
         </section>
       </div>
 
-      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
         Municipal sign-off policy
         <select
-          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          className="mt-1 block w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
           value={municipalSignoffPolicy}
           onChange={(event) =>
             onMunicipalSignoffPolicyChange(event.target.value as MunicipalSignoffPolicy)
@@ -533,24 +535,24 @@ export function ServiceConfigPanel({
           </option>
           <option value="always">Always — every application uses municipal ladder</option>
         </select>
-        <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+        <p className="mt-1 text-xs font-normal normal-case text-ink-secondary">
           Use the PWD works or municipal ladder template with guarded forward edges from{' '}
           <span className="font-mono">dept-head-review</span>.
         </p>
       </label>
 
       {municipalSignoffPolicy === 'high_value_only' ? (
-        <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Municipal sign-off threshold (₹)
           <input
             type="number"
             min={0}
             step="0.01"
-            className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+            className="mt-1 block w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
             value={municipalSignoffThresholdRupees}
             onChange={(event) => onMunicipalSignoffThresholdRupeesChange(event.target.value)}
           />
-          <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+          <p className="mt-1 text-xs font-normal normal-case text-ink-secondary">
             Default ₹5,00,000. Fee preview for this service:{' '}
             {serviceConfig.fee_preview_paise != null
               ? `₹${(serviceConfig.fee_preview_paise / 100).toFixed(2)}`
@@ -559,10 +561,10 @@ export function ServiceConfigPanel({
         </label>
       ) : null}
 
-      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
         Board of Councillors (BOC) policy
         <select
-          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          className="mt-1 block w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
           value={bocPolicy}
           onChange={(event) => onBocPolicyChange(event.target.value as BocPolicy)}
         >
@@ -572,17 +574,17 @@ export function ServiceConfigPanel({
             Officer may require — hoarding officer can flag BOC at technical scrutiny
           </option>
         </select>
-        <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+        <p className="mt-1 text-xs font-normal normal-case text-ink-secondary">
           Publish a workflow with <span className="font-mono">boc-resolution</span> and guarded
           edges from <span className="font-mono">technical-scrutiny</span> (use the hoarding
           scrutiny template).
         </p>
       </label>
 
-      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
         Revenue head
         <select
-          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          className="mt-1 block w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
           value={revenueHeadCode}
           onChange={(event) => onRevenueHeadCodeChange(event.target.value)}
         >
@@ -595,8 +597,8 @@ export function ServiceConfigPanel({
         </select>
       </label>
 
-      <details className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+      <details className="mt-5 rounded-lg border border-warm-border bg-canvas p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink-primary">
           JSON fallback
         </summary>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -627,12 +629,12 @@ function FeeRuleFields({
 }): JSX.Element {
   if (feeRule.type === 'fixed') {
     return (
-      <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
         Amount (₹)
         <input
           type="number"
           min={0}
-          className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+          className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
           value={paiseToRupees(feeRule.amount_paise)}
           onChange={(event) =>
             onChange({ ...feeRule, amount_paise: rupeesToPaise(event.target.value) })
@@ -718,7 +720,7 @@ function FeeRuleFields({
           onClick={() =>
             onChange({ ...feeRule, slabs: [...slabs, { upto: null, amount_paise: 0 }] })
           }
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
+          className="rounded border border-warm-border bg-white px-3 py-2 text-xs font-medium"
         >
           Add slab
         </button>
@@ -734,7 +736,7 @@ function FeeRuleFields({
       />
     );
   }
-  return <p className="mt-3 text-sm text-slate-600">No fee is charged for this service.</p>;
+  return <p className="mt-3 text-sm text-ink-secondary">No fee is charged for this service.</p>;
 }
 
 function DocumentRow({
@@ -747,7 +749,7 @@ function DocumentRow({
   onRemove: () => void;
 }): JSX.Element {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-lg border border-warm-border bg-white p-3">
       <div className="grid gap-3 md:grid-cols-2">
         <TextInput
           label="Code"
@@ -781,7 +783,7 @@ function DocumentRow({
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink-primary">
           <input
             type="checkbox"
             checked={document.required}
@@ -814,9 +816,9 @@ function JsonFallback({
 }): JSX.Element {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-secondary">{title}</p>
       <textarea
-        className="h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+        className="h-64 w-full rounded-lg border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark"
         spellCheck={false}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -838,10 +840,10 @@ function TextInput({
   onChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
       {label}
       <input
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

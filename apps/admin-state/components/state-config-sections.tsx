@@ -1,16 +1,29 @@
 'use client';
 
-import { Button } from '@enagar/ui';
+import {
+  Badge,
+  Button,
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableElement,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+} from '@enagar/ui';
 import Link from 'next/link';
+import { useState } from 'react';
 
 import { pickLabel, countPreviewFormFields } from '../lib/state-dashboard-forms';
 
 import { FormField, FormSelect, GuidedFormCard } from './guided-form-primitives';
 import { JsonFallbackPanel } from './json-fallback-panel';
 import { RecordListItem, RecordListPanel } from './record-list-panel';
+import { SectionNav } from './section-nav';
 import { TenantOnboardingWizard } from './tenant-onboarding-wizard';
 
 import type { IntegrationDraft, LibraryDraft, TenantDraft } from '../lib/state-dashboard-forms';
+import type { JSX } from 'react';
 
 type TenantRow = {
   code: string;
@@ -39,6 +52,23 @@ type IntegrationRow = {
   owner: string | null;
   last_checked_at: string | null;
 };
+
+function lifecycleBadge(status: string): JSX.Element {
+  if (status === 'published') return <Badge tone="success">Published</Badge>;
+  if (status === 'deprecated') return <Badge tone="danger">Deprecated</Badge>;
+  return <Badge tone="warning">Draft</Badge>;
+}
+
+function integrationReadiness(status: string): {
+  label: string;
+  tone: 'success' | 'warning' | 'danger';
+} {
+  if (status === 'ready') return { label: 'Ready', tone: 'success' };
+  if (status === 'blocked') return { label: 'Blocked', tone: 'danger' };
+  return { label: 'Partial', tone: 'warning' };
+}
+
+type TenantPanelSection = 'wizard' | 'directory' | 'json';
 
 export function StateTenantSection({
   tenants,
@@ -76,10 +106,39 @@ export function StateTenantSection({
     }>;
   }>;
 }): JSX.Element {
+  const [section, setSection] = useState<TenantPanelSection>('wizard');
+  const [listQuery, setListQuery] = useState('');
+
+  const filteredTenants = tenants.filter((row) => {
+    const q = listQuery.trim().toLowerCase();
+    if (!q) return true;
+    return row.code.toLowerCase().includes(q) || row.name.toLowerCase().includes(q);
+  });
+
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.15fr)]">
+    <section className="grid gap-6 lg:grid-cols-[200px_280px_1fr] xl:grid-cols-[200px_300px_1fr]">
+      <SectionNav
+        aria-label="Municipality sections"
+        items={[
+          { id: 'wizard', label: 'Onboarding wizard' },
+          { id: 'directory', label: 'Directory table' },
+          { id: 'json', label: 'JSON advanced' },
+        ]}
+        active={section}
+        onSelect={setSection}
+      />
+
       <RecordListPanel title="Municipalities" newLabel="New ULB" onNew={onNewTenant}>
-        {tenants.map((row) => (
+        <div className="mb-2 px-1">
+          <input
+            type="search"
+            placeholder="Search ULB…"
+            value={listQuery}
+            onChange={(event) => setListQuery(event.target.value)}
+            className="w-full rounded-xl border border-warm-border bg-canvas px-3 py-2 text-sm"
+          />
+        </div>
+        {filteredTenants.map((row) => (
           <RecordListItem
             key={row.code}
             itemKey={row.code}
@@ -93,61 +152,86 @@ export function StateTenantSection({
       </RecordListPanel>
 
       <div className="space-y-4">
-        <TenantOnboardingWizard
-          key={selectedCode ?? '__new__'}
-          draft={draft}
-          onDraftChange={onDraftChange}
-          onSave={onSaveGuided}
-          fetchCatalogue={fetchOnboardingCatalogue}
-          mode={selectedCode ? 'reonboard' : 'new'}
-          municipalityCode={selectedCode}
-        />
+        {section === 'wizard' ? (
+          <>
+            <TenantOnboardingWizard
+              key={selectedCode ?? '__new__'}
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onSave={onSaveGuided}
+              fetchCatalogue={fetchOnboardingCatalogue}
+              mode={selectedCode ? 'reonboard' : 'new'}
+              municipalityCode={selectedCode}
+            />
+            {selectedCode ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => onOpenDetail(selectedCode)}
+              >
+                Open detail drawer
+              </Button>
+            ) : null}
+          </>
+        ) : null}
 
-        <article className="rounded-2xl border border-warm-border bg-surface p-4 shadow-sm">
-          <p className="text-sm font-semibold text-ink-primary">Directory quick view</p>
-          <div className="mt-2 overflow-x-auto rounded-xl border border-warm-border">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-cyan-50/70 text-[10px] uppercase text-ink-secondary">
+        {section === 'directory' ? (
+          <DataTable
+            toolbar={
+              <>
+                <p className="text-sm font-semibold text-ink-primary">ULB directory</p>
+              </>
+            }
+          >
+            <DataTableElement>
+              <DataTableHead>
                 <tr>
-                  <th className="px-2 py-2">ULB</th>
-                  <th className="px-2 py-2">District</th>
-                  <th className="px-2 py-2">Svc</th>
-                  <th className="px-2 py-2">Apps</th>
-                  <th className="px-2 py-2" />
+                  <DataTableHeaderCell>Code</DataTableHeaderCell>
+                  <DataTableHeaderCell>Name</DataTableHeaderCell>
+                  <DataTableHeaderCell>District</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell />
                 </tr>
-              </thead>
-              <tbody>
-                {tenants.map((row) => (
-                  <tr key={row.code} className="border-t border-warm-border hover:bg-mint-band/20">
-                    <td className="px-2 py-1.5 font-mono font-semibold text-platform-accent">
-                      {row.code}
-                    </td>
-                    <td className="px-2 py-1.5">{row.district}</td>
-                    <td className="px-2 py-1.5 tabular-nums">{row.services_total}</td>
-                    <td className="px-2 py-1.5 tabular-nums">{row.applications_total}</td>
-                    <td className="px-2 py-1.5">
+              </DataTableHead>
+              <DataTableBody>
+                {filteredTenants.map((row) => (
+                  <DataTableRow key={row.code}>
+                    <DataTableCell>
+                      <span className="font-mono text-xs font-semibold">{row.code}</span>
+                    </DataTableCell>
+                    <DataTableCell>{row.name}</DataTableCell>
+                    <DataTableCell>{row.district ?? '—'}</DataTableCell>
+                    <DataTableCell>
+                      <Badge tone={row.is_active ? 'success' : 'warning'}>
+                        {row.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </DataTableCell>
+                    <DataTableCell>
                       <Button
                         type="button"
                         size="sm"
-                        variant="ghost"
+                        variant="secondary"
                         onClick={() => onOpenDetail(row.code)}
                       >
                         Profile
                       </Button>
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+              </DataTableBody>
+            </DataTableElement>
+          </DataTable>
+        ) : null}
 
-        <JsonFallbackPanel
-          value={tenantJson}
-          onChange={onTenantJsonChange}
-          onSave={onSaveJson}
-          saveLabel="Save JSON"
-        />
+        {section === 'json' ? (
+          <JsonFallbackPanel
+            value={tenantJson}
+            onChange={onTenantJsonChange}
+            onSave={onSaveJson}
+            saveLabel="Save JSON"
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -179,7 +263,7 @@ export function StateLibrarySection({
   onLifecycle: (code: string, action: 'publish' | 'deprecate') => void;
 }): JSX.Element {
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.15fr)]">
+    <section className="grid gap-6 xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)]">
       <RecordListPanel title="Global templates" newLabel="New template" onNew={onNew}>
         {library.map((row) => (
           <RecordListItem
@@ -187,16 +271,31 @@ export function StateLibrarySection({
             itemKey={row.code}
             selected={selectedCode === row.code}
             title={pickLabel(row.name)}
-            subtitle={`${row.lifecycle_status} · v${row.library_version}`}
-            meta={`${row.category_code} · ${row.tenant_adoptions} adoptions · ${
-              row.has_usable_form_schema ? 'template ready' : 'stub on adopt'
-            }`}
+            subtitle={`v${row.library_version} · ${row.category_code}`}
+            meta={`${row.tenant_adoptions} adoptions · ${row.has_usable_form_schema ? 'form ready' : 'stub on adopt'}`}
             onSelect={() => onSelect(row.code)}
           />
         ))}
       </RecordListPanel>
 
       <div className="space-y-4">
+        {selectedCode ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {lifecycleBadge(draft.lifecycle_status)}
+            {(['publish', 'deprecate'] as const).map((action) => (
+              <Button
+                key={action}
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => onLifecycle(selectedCode, action)}
+              >
+                {action}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
         <GuidedFormCard
           eyebrow="Service library curator"
           title={selectedCode ? `Edit · ${selectedCode}` : 'New template'}
@@ -235,6 +334,7 @@ export function StateLibrarySection({
               value={draft.lifecycle_status}
               onChange={(v) => onDraftChange({ ...draft, lifecycle_status: v })}
               options={[
+                { value: '', label: '— Select lifecycle —' },
                 { value: 'draft', label: 'Draft' },
                 { value: 'published', label: 'Published' },
                 { value: 'deprecated', label: 'Deprecated' },
@@ -245,6 +345,7 @@ export function StateLibrarySection({
               value={draft.fee_type}
               onChange={(v) => onDraftChange({ ...draft, fee_type: v })}
               options={[
+                { value: '', label: '— Select fee type —' },
                 { value: 'fixed', label: 'Fixed' },
                 { value: 'slab', label: 'Slab' },
               ]}
@@ -281,7 +382,7 @@ export function StateLibrarySection({
               {selectedCode ? (
                 <Link
                   href={`/dashboard/library/${selectedCode}/form`}
-                  className="mt-3 inline-flex rounded-xl border border-platform-accent/30 bg-surface px-3 py-2 text-sm font-medium text-platform-accent hover:bg-mint-band/40"
+                  className="mt-3 inline-flex rounded-xl border border-brand/30 bg-surface px-3 py-2 text-sm font-medium text-brand hover:bg-brand-muted"
                 >
                   Edit apply form
                 </Link>
@@ -293,22 +394,6 @@ export function StateLibrarySection({
             </div>
           </div>
         </GuidedFormCard>
-
-        {selectedCode ? (
-          <div className="flex flex-wrap gap-2">
-            {(['publish', 'deprecate'] as const).map((action) => (
-              <Button
-                key={action}
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => onLifecycle(selectedCode, action)}
-              >
-                {action}
-              </Button>
-            ))}
-          </div>
-        ) : null}
 
         <JsonFallbackPanel
           value={libraryJson}
@@ -347,22 +432,41 @@ export function StateIntegrationSection({
   onCheck: (providerKey: string) => void;
 }): JSX.Element {
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.15fr)]">
-      <RecordListPanel title="Integrations" newLabel="New provider" onNew={onNew}>
-        {integrations.map((row) => (
-          <RecordListItem
-            key={row.provider_key}
-            itemKey={row.provider_key}
-            selected={selectedKey === row.provider_key}
-            title={`${row.environment} · ${row.status}`}
-            subtitle={row.owner ?? 'Unassigned owner'}
-            meta={row.last_checked_at ? `Checked ${row.last_checked_at}` : 'Never checked'}
-            onSelect={() => onSelect(row.provider_key)}
-          />
-        ))}
-      </RecordListPanel>
+    <section className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {integrations.map((row) => {
+          const readiness = integrationReadiness(row.status);
+          const selected = selectedKey === row.provider_key;
+          return (
+            <button
+              key={row.provider_key}
+              type="button"
+              onClick={() => onSelect(row.provider_key)}
+              className={[
+                'rounded-2xl border p-4 text-left transition',
+                selected
+                  ? 'border-brand bg-brand-muted shadow-sm'
+                  : 'border-warm-border bg-surface hover:bg-platform-band/40',
+              ].join(' ')}
+            >
+              <p className="font-semibold text-ink-primary">{row.provider_key}</p>
+              <p className="text-sm text-ink-secondary">{row.environment}</p>
+              <Badge tone={readiness.tone} className="mt-3">
+                {readiness.label}
+              </Badge>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={onNew}
+          className="rounded-2xl border border-dashed border-warm-border bg-canvas p-4 text-left text-sm font-medium text-ink-secondary hover:border-brand hover:text-brand"
+        >
+          + Add provider
+        </button>
+      </div>
 
-      <div className="space-y-4">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.6fr)]">
         <GuidedFormCard
           eyebrow="Integration cockpit"
           title={selectedKey ? `Edit · ${selectedKey}` : 'New integration'}
@@ -418,18 +522,24 @@ export function StateIntegrationSection({
           </div>
         </GuidedFormCard>
 
-        {selectedKey ? (
-          <Button type="button" size="sm" variant="secondary" onClick={() => onCheck(selectedKey)}>
-            Run readiness check
-          </Button>
-        ) : null}
-
-        <JsonFallbackPanel
-          value={integrationJson}
-          onChange={onJsonChange}
-          onSave={onSaveJson}
-          saveLabel="Save JSON"
-        />
+        <div className="space-y-4">
+          {selectedKey ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => onCheck(selectedKey)}
+            >
+              Run readiness check
+            </Button>
+          ) : null}
+          <JsonFallbackPanel
+            value={integrationJson}
+            onChange={onJsonChange}
+            onSave={onSaveJson}
+            saveLabel="Save JSON"
+          />
+        </div>
       </div>
     </section>
   );

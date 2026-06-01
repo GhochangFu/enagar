@@ -1,13 +1,14 @@
 'use client';
 
 import { putFileToUploadUrl } from '@enagar/forms/upload';
-import { Button, PageHeader } from '@enagar/ui';
+import { AlertBanner, Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
+import { SectionNav } from '../../../components/section-nav';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 import { clearStoredAuth } from '../../../lib/admin-auth';
 
@@ -1173,826 +1174,849 @@ export default function OperationsClient(): JSX.Element {
         }
       />
 
-      {status ? (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {status}
-        </p>
-      ) : null}
+      {status ? <AlertBanner tone="warning">{status}</AlertBanner> : null}
 
-      <nav className="flex flex-wrap gap-2" aria-label="Operations sections">
-        {OPERATIONS_SECTIONS.map((item) => (
-          <Button
-            key={item.id}
-            type="button"
-            size="sm"
-            variant={opsSection === item.id ? 'primary' : 'secondary'}
-            onClick={() => setOpsSection(item.id)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </nav>
-
-      {opsSection === 'banners' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <BannerEditor
-            draft={bannerDraft}
-            onChange={setBannerDraft}
-            onSave={() => void saveBanner()}
-          />
-          <RecordListPanel
-            title="Maintenance banners"
-            selectedKey={selectedBannerCode}
-            onNew={newBanner}
-            newLabel="New banner"
-            emptyLabel="No banners yet."
-          >
-            {banners.map((banner) => (
-              <RecordListItem
-                key={banner.id}
-                itemKey={banner.code}
-                selected={selectedBannerCode === banner.code}
-                title={pickLabel(banner.title)}
-                subtitle={`${banner.severity} · ${banner.is_active ? 'active' : 'inactive'}`}
-                meta={`${banner.starts_at ?? 'now'} → ${banner.ends_at ?? 'open-ended'}`}
-                onSelect={() => selectBanner(banner)}
+      <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <SectionNav
+          aria-label="Operations sections"
+          items={OPERATIONS_SECTIONS}
+          active={opsSection}
+          onSelect={setOpsSection}
+        />
+        <div className="min-w-0 space-y-6">
+          {opsSection === 'banners' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <BannerEditor
+                draft={bannerDraft}
+                onChange={setBannerDraft}
+                onSave={() => void saveBanner()}
               />
-            ))}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {opsSection === 'settings' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <GuidedOpsCard
-              title="Branding, languages, and feature flags"
-              saveLabel="Save settings"
-              onSave={() => void saveGuidedSettings()}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                <OpsField
-                  label="Theme color"
-                  value={settingsDraft.theme_color}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, theme_color: value }))}
-                />
-                <OpsField
-                  label="Logo URL"
-                  value={settingsDraft.logo_url}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, logo_url: value }))}
-                />
-                <OpsField
-                  label="Hero image URL"
-                  value={settingsDraft.hero_image_url}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, hero_image_url: value }))}
-                />
-                <OpsField
-                  label="Languages (comma-separated)"
-                  value={settingsDraft.languages_enabled}
-                  onChange={(value) =>
-                    setSettingsDraft((d) => ({ ...d, languages_enabled: value }))
-                  }
-                />
-                <OpsField
-                  label="Default language"
-                  value={settingsDraft.default_language}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, default_language: value }))}
-                />
-                <OpsField
-                  label="Contact phone"
-                  value={settingsDraft.contact_phone}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, contact_phone: value }))}
-                />
-                <OpsField
-                  label="Contact email"
-                  value={settingsDraft.contact_email}
-                  onChange={(value) => setSettingsDraft((d) => ({ ...d, contact_email: value }))}
-                />
-                {(
-                  [
-                    ['kb_cms', 'KB CMS enabled'],
-                    ['notification_templates', 'Notification templates enabled'],
-                    ['staff_roles', 'Staff roles enabled'],
-                  ] as Array<
-                    [
-                      keyof Pick<
-                        typeof settingsDraft,
-                        'kb_cms' | 'notification_templates' | 'staff_roles'
-                      >,
-                      string,
-                    ]
-                  >
-                ).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2 text-sm text-ink-primary">
-                    <input
-                      type="checkbox"
-                      checked={settingsDraft[key]}
-                      onChange={(event) =>
-                        setSettingsDraft((d) => ({ ...d, [key]: event.target.checked }))
-                      }
-                    />
-                    {label}
-                  </label>
+              <RecordListPanel
+                title="Maintenance banners"
+                selectedKey={selectedBannerCode}
+                onNew={newBanner}
+                newLabel="New banner"
+                emptyLabel="No banners yet."
+              >
+                {banners.map((banner) => (
+                  <RecordListItem
+                    key={banner.id}
+                    itemKey={banner.code}
+                    selected={selectedBannerCode === banner.code}
+                    title={pickLabel(banner.title)}
+                    subtitle={`${banner.severity} · ${banner.is_active ? 'active' : 'inactive'}`}
+                    meta={`${banner.starts_at ?? 'now'} → ${banner.ends_at ?? 'open-ended'}`}
+                    onSelect={() => selectBanner(banner)}
+                  />
                 ))}
-              </div>
-            </GuidedOpsCard>
-            <JsonFallbackPanel
-              value={settingsText}
-              onChange={setSettingsText}
-              onSave={() => void upsert('settings', settingsText, 'Settings')}
-              saveLabel="Save settings JSON"
-            />
-          </div>
-          <RecordListPanel title="Tenant settings" emptyLabel="Settings load on refresh.">
-            <RecordListItem
-              itemKey={settings?.tenant_code ?? 'tenant'}
-              selected
-              title="Current tenant configuration"
-              subtitle="Branding, languages, and feature flags"
-              meta={settingsDraft.default_language}
-              onSelect={() => undefined}
-            />
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {opsSection === 'templates' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <TemplatePreviewEditor
-            draft={templateDraft}
-            jsonValue={templateText}
-            onDraftChange={setTemplateDraft}
-            onJsonChange={setTemplateText}
-            onJsonSave={() =>
-              void upsert('notification-templates', templateText, 'Notification template')
-            }
-            onSave={() => void saveTemplateDraft()}
-          />
-          <RecordListPanel
-            title="Notification templates"
-            selectedKey={selectedTemplateKey}
-            emptyLabel="No templates yet."
-          >
-            {templates.map((template) => {
-              const key = `${template.code}:${template.channel}:${template.locale}`;
-              return (
-                <RecordListItem
-                  key={template.id}
-                  itemKey={key}
-                  selected={selectedTemplateKey === key}
-                  title={template.trigger}
-                  subtitle={`${template.code} · ${template.channel} · ${template.locale}`}
-                  meta={template.body.slice(0, 80)}
-                  onSelect={() => selectTemplate(template)}
-                />
-              );
-            })}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {opsSection === 'kb' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <GuidedOpsCard
-              title={selectedKbSlug ? `Edit KB · ${selectedKbSlug}` : 'New KB article'}
-              saveLabel="Save KB"
-              onSave={() => void saveKbDraft()}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                <OpsField
-                  label="Slug"
-                  value={kbDraft.slug}
-                  onChange={(value) => setKbDraft((d) => ({ ...d, slug: value }))}
-                />
-                <OpsField
-                  label="Title EN"
-                  value={kbDraft.title_en}
-                  onChange={(value) => setKbDraft((d) => ({ ...d, title_en: value }))}
-                />
-                <OpsField
-                  label="Tags (comma-separated)"
-                  value={kbDraft.tags}
-                  onChange={(value) => setKbDraft((d) => ({ ...d, tags: value }))}
-                />
-                <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
-                  Status
-                  <select
-                    className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
-                    value={kbDraft.status}
-                    onChange={(event) => setKbDraft((d) => ({ ...d, status: event.target.value }))}
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </label>
-              </div>
-              <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
-                Body markdown
-                <textarea
-                  className="mt-1 h-28 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
-                  value={kbDraft.body_en}
-                  onChange={(event) => setKbDraft((d) => ({ ...d, body_en: event.target.value }))}
-                />
-              </label>
-            </GuidedOpsCard>
-            <JsonFallbackPanel
-              value={kbText}
-              onChange={setKbText}
-              onSave={() => void upsert('kb-articles', kbText, 'KB article')}
-              saveLabel="Save KB JSON"
-            />
-          </div>
-          <RecordListPanel
-            title="KB articles"
-            selectedKey={selectedKbSlug}
-            emptyLabel="No KB articles yet."
-          >
-            {kbArticles.map((article) => (
-              <RecordListItem
-                key={article.id}
-                itemKey={article.slug}
-                selected={selectedKbSlug === article.slug}
-                title={pickLabel(article.title)}
-                subtitle={`${article.status} · ${article.tags.join(', ') || 'no tags'}`}
-                meta={`index ${article.index_status ?? 'not queued'}`}
-                onSelect={() => selectKbArticle(article)}
-              />
-            ))}
-          </RecordListPanel>
-          {selectedKbSlug &&
-          kbArticles.some((a) => a.slug === selectedKbSlug && a.status === 'published') ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => void requeueKb(selectedKbSlug)}
-            >
-              Requeue RAG index
-            </Button>
+              </RecordListPanel>
+            </section>
           ) : null}
-        </section>
-      ) : null}
 
-      {opsSection === 'branding' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <GuidedOpsCard
-              title={
-                selectedBrandingCode
-                  ? `Edit branding asset · ${selectedBrandingCode}`
-                  : 'Register branding asset'
-              }
-              saveLabel="Save asset"
-              onSave={() => void saveGuidedBrandingAsset()}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                {(
-                  [
-                    ['code', 'Code'],
-                    ['kind', 'Kind'],
-                    ['storage_key', 'Storage key'],
-                    ['public_url', 'Public URL'],
-                    ['mime_type', 'MIME type'],
-                    ['size_bytes', 'Size bytes'],
-                    ['width', 'Width'],
-                    ['height', 'Height'],
-                  ] as Array<[keyof typeof brandingAssetDraft, string]>
-                ).map(([key, label]) => (
-                  <OpsField
-                    key={key}
-                    label={label}
-                    value={brandingAssetDraft[key]}
-                    onChange={(value) => setBrandingAssetDraft((d) => ({ ...d, [key]: value }))}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    className="sr-only"
-                    disabled={brandingUploadBusy}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        void pickAndUploadBrandingFile(file);
-                      }
-                      event.target.value = '';
-                    }}
-                  />
-                  <span className="inline-flex rounded-lg border border-warm-border bg-surface px-3 py-2 text-sm font-medium text-ink-primary">
-                    {brandingUploadBusy ? 'Uploading…' : 'Upload file to MinIO'}
-                  </span>
-                </label>
-                {brandingAssetDraft.public_url.startsWith('http') ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={brandingAssetDraft.public_url}
-                    alt="Branding preview"
-                    className="h-12 max-w-[160px] rounded border border-warm-border object-contain"
-                  />
-                ) : null}
-              </div>
-              {brandingUploadError ? (
-                <p className="text-sm text-red-700">{brandingUploadError}</p>
-              ) : null}
-            </GuidedOpsCard>
-            <JsonFallbackPanel
-              value={brandingAssetText}
-              onChange={setBrandingAssetText}
-              onSave={() =>
-                void saveJsonEndpoint(
-                  'branding-assets',
-                  brandingAssetText,
-                  'PATCH',
-                  'Branding asset',
-                )
-              }
-              saveLabel="Save asset JSON"
-            />
-          </div>
-          <RecordListPanel
-            title="Branding assets"
-            selectedKey={selectedBrandingCode}
-            emptyLabel="No branding assets yet."
-          >
-            {brandingAssets.map((asset) => (
-              <RecordListItem
-                key={asset.id}
-                itemKey={asset.code}
-                selected={selectedBrandingCode === asset.code}
-                title={asset.kind}
-                subtitle={`${(asset.size_bytes / 1024).toFixed(0)} KB`}
-                meta={asset.public_url}
-                onSelect={() => selectBrandingAsset(asset)}
-              />
-            ))}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {opsSection === 'bookings' ? (
-        <section className="space-y-8">
-          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-4">
-              <GuidedOpsCard
-                title={
-                  selectedBookableCode
-                    ? `Edit bookable asset · ${selectedBookableCode}`
-                    : 'Bookable asset'
-                }
-                saveLabel="Save asset"
-                onSave={() => void saveGuidedBookableAsset()}
-              >
-                <div className="grid gap-3 md:grid-cols-2">
-                  <OpsField
-                    label="Code"
-                    value={bookingAssetDraft.code}
-                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, code: value }))}
-                  />
-                  <OpsField
-                    label="Name EN"
-                    value={bookingAssetDraft.name_en}
-                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, name_en: value }))}
-                  />
-                  <OpsField
-                    label="Ward"
-                    value={bookingAssetDraft.ward}
-                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, ward: value }))}
-                  />
-                  <OpsField
-                    label="Address"
-                    value={bookingAssetDraft.address}
-                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, address: value }))}
-                  />
-                  <OpsField
-                    label="Capacity"
-                    value={bookingAssetDraft.capacity}
-                    onChange={(value) => setBookingAssetDraft((d) => ({ ...d, capacity: value }))}
-                  />
-                  <label className="flex items-center gap-2 text-sm text-ink-primary">
-                    <input
-                      type="checkbox"
-                      checked={bookingAssetDraft.is_active}
-                      onChange={(event) =>
-                        setBookingAssetDraft((d) => ({ ...d, is_active: event.target.checked }))
+          {opsSection === 'settings' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-4">
+                <GuidedOpsCard
+                  title="Branding, languages, and feature flags"
+                  saveLabel="Save settings"
+                  onSave={() => void saveGuidedSettings()}
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <OpsField
+                      label="Theme color"
+                      value={settingsDraft.theme_color}
+                      onChange={(value) => setSettingsDraft((d) => ({ ...d, theme_color: value }))}
+                    />
+                    <OpsField
+                      label="Logo URL"
+                      value={settingsDraft.logo_url}
+                      onChange={(value) => setSettingsDraft((d) => ({ ...d, logo_url: value }))}
+                    />
+                    <OpsField
+                      label="Hero image URL"
+                      value={settingsDraft.hero_image_url}
+                      onChange={(value) =>
+                        setSettingsDraft((d) => ({ ...d, hero_image_url: value }))
                       }
                     />
-                    Active
-                  </label>
-                </div>
-              </GuidedOpsCard>
-              <JsonFallbackPanel
-                value={bookingAssetText}
-                onChange={setBookingAssetText}
-                onSave={() =>
-                  void saveJsonEndpoint(
-                    'bookings/assets',
-                    bookingAssetText,
-                    'PATCH',
-                    'Bookable asset',
-                  )
-                }
-                saveLabel="Save bookable asset JSON"
-              />
-            </div>
-            <RecordListPanel
-              title="Bookable assets"
-              selectedKey={selectedBookableCode}
-              emptyLabel="No bookable assets yet."
-            >
-              {bookings.assets.map((asset) => (
-                <RecordListItem
-                  key={asset.id}
-                  itemKey={asset.code}
-                  selected={selectedBookableCode === asset.code}
-                  title={pickLabel(asset.name)}
-                  subtitle={asset.is_active ? 'active' : 'inactive'}
-                  meta={`Capacity ${asset.capacity ?? 'not set'}`}
-                  onSelect={() => selectBookableAsset(asset)}
-                />
-              ))}
-            </RecordListPanel>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <div className="space-y-4">
-              <GuidedOpsCard
-                title="Availability / blackout window"
-                saveLabel="Save availability"
-                onSave={() => void saveGuidedAvailability()}
-              >
-                <div className="grid gap-3 md:grid-cols-2">
-                  <OpsField
-                    label="Asset code"
-                    value={bookingAvailabilityDraft.asset_code}
-                    onChange={(value) =>
-                      setBookingAvailabilityDraft((d) => ({ ...d, asset_code: value }))
-                    }
-                  />
-                  <OpsField
-                    label="Kind"
-                    value={bookingAvailabilityDraft.kind}
-                    onChange={(value) =>
-                      setBookingAvailabilityDraft((d) => ({ ...d, kind: value }))
-                    }
-                  />
-                  <OpsField
-                    label="Starts at (ISO)"
-                    value={bookingAvailabilityDraft.starts_at}
-                    onChange={(value) =>
-                      setBookingAvailabilityDraft((d) => ({ ...d, starts_at: value }))
-                    }
-                  />
-                  <OpsField
-                    label="Ends at (ISO)"
-                    value={bookingAvailabilityDraft.ends_at}
-                    onChange={(value) =>
-                      setBookingAvailabilityDraft((d) => ({ ...d, ends_at: value }))
-                    }
-                  />
-                  <OpsField
-                    label="Note"
-                    value={bookingAvailabilityDraft.note}
-                    onChange={(value) =>
-                      setBookingAvailabilityDraft((d) => ({ ...d, note: value }))
-                    }
-                  />
-                </div>
-              </GuidedOpsCard>
-              <JsonFallbackPanel
-                value={bookingAvailabilityText}
-                onChange={setBookingAvailabilityText}
-                onSave={() =>
-                  void saveJsonEndpoint(
-                    'bookings/availability',
-                    bookingAvailabilityText,
-                    'POST',
-                    'Availability',
-                  )
-                }
-                saveLabel="Save availability JSON"
-              />
-            </div>
-            <div className="space-y-4">
-              <GuidedOpsCard
-                title="Booking reservation"
-                saveLabel="Save reservation"
-                onSave={() => void saveGuidedReservation()}
-              >
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(
-                    [
-                      ['asset_code', 'Asset code'],
-                      ['holder_name', 'Holder name'],
-                      ['holder_mobile', 'Holder mobile'],
-                      ['docket_no', 'Docket no'],
-                      ['starts_at', 'Starts at (ISO)'],
-                      ['ends_at', 'Ends at (ISO)'],
-                      ['status', 'Status'],
-                      ['note', 'Note'],
-                    ] as Array<[keyof typeof bookingReservationDraft, string]>
-                  ).map(([key, label]) => (
                     <OpsField
-                      key={key}
-                      label={label}
-                      value={bookingReservationDraft[key]}
+                      label="Languages (comma-separated)"
+                      value={settingsDraft.languages_enabled}
                       onChange={(value) =>
-                        setBookingReservationDraft((d) => ({ ...d, [key]: value }))
+                        setSettingsDraft((d) => ({ ...d, languages_enabled: value }))
                       }
+                    />
+                    <OpsField
+                      label="Default language"
+                      value={settingsDraft.default_language}
+                      onChange={(value) =>
+                        setSettingsDraft((d) => ({ ...d, default_language: value }))
+                      }
+                    />
+                    <OpsField
+                      label="Contact phone"
+                      value={settingsDraft.contact_phone}
+                      onChange={(value) =>
+                        setSettingsDraft((d) => ({ ...d, contact_phone: value }))
+                      }
+                    />
+                    <OpsField
+                      label="Contact email"
+                      value={settingsDraft.contact_email}
+                      onChange={(value) =>
+                        setSettingsDraft((d) => ({ ...d, contact_email: value }))
+                      }
+                    />
+                    {(
+                      [
+                        ['kb_cms', 'KB CMS enabled'],
+                        ['notification_templates', 'Notification templates enabled'],
+                        ['staff_roles', 'Staff roles enabled'],
+                      ] as Array<
+                        [
+                          keyof Pick<
+                            typeof settingsDraft,
+                            'kb_cms' | 'notification_templates' | 'staff_roles'
+                          >,
+                          string,
+                        ]
+                      >
+                    ).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-ink-primary">
+                        <input
+                          type="checkbox"
+                          checked={settingsDraft[key]}
+                          onChange={(event) =>
+                            setSettingsDraft((d) => ({ ...d, [key]: event.target.checked }))
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </GuidedOpsCard>
+                <JsonFallbackPanel
+                  value={settingsText}
+                  onChange={setSettingsText}
+                  onSave={() => void upsert('settings', settingsText, 'Settings')}
+                  saveLabel="Save settings JSON"
+                />
+              </div>
+              <RecordListPanel title="Tenant settings" emptyLabel="Settings load on refresh.">
+                <RecordListItem
+                  itemKey={settings?.tenant_code ?? 'tenant'}
+                  selected
+                  title="Current tenant configuration"
+                  subtitle="Branding, languages, and feature flags"
+                  meta={settingsDraft.default_language}
+                  onSelect={() => undefined}
+                />
+              </RecordListPanel>
+            </section>
+          ) : null}
+
+          {opsSection === 'templates' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <TemplatePreviewEditor
+                draft={templateDraft}
+                jsonValue={templateText}
+                onDraftChange={setTemplateDraft}
+                onJsonChange={setTemplateText}
+                onJsonSave={() =>
+                  void upsert('notification-templates', templateText, 'Notification template')
+                }
+                onSave={() => void saveTemplateDraft()}
+              />
+              <RecordListPanel
+                title="Notification templates"
+                selectedKey={selectedTemplateKey}
+                emptyLabel="No templates yet."
+              >
+                {templates.map((template) => {
+                  const key = `${template.code}:${template.channel}:${template.locale}`;
+                  return (
+                    <RecordListItem
+                      key={template.id}
+                      itemKey={key}
+                      selected={selectedTemplateKey === key}
+                      title={template.trigger}
+                      subtitle={`${template.code} · ${template.channel} · ${template.locale}`}
+                      meta={template.body.slice(0, 80)}
+                      onSelect={() => selectTemplate(template)}
+                    />
+                  );
+                })}
+              </RecordListPanel>
+            </section>
+          ) : null}
+
+          {opsSection === 'kb' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-4">
+                <GuidedOpsCard
+                  title={selectedKbSlug ? `Edit KB · ${selectedKbSlug}` : 'New KB article'}
+                  saveLabel="Save KB"
+                  onSave={() => void saveKbDraft()}
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <OpsField
+                      label="Slug"
+                      value={kbDraft.slug}
+                      onChange={(value) => setKbDraft((d) => ({ ...d, slug: value }))}
+                    />
+                    <OpsField
+                      label="Title EN"
+                      value={kbDraft.title_en}
+                      onChange={(value) => setKbDraft((d) => ({ ...d, title_en: value }))}
+                    />
+                    <OpsField
+                      label="Tags (comma-separated)"
+                      value={kbDraft.tags}
+                      onChange={(value) => setKbDraft((d) => ({ ...d, tags: value }))}
+                    />
+                    <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                      Status
+                      <select
+                        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
+                        value={kbDraft.status}
+                        onChange={(event) =>
+                          setKbDraft((d) => ({ ...d, status: event.target.value }))
+                        }
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                    Body markdown
+                    <textarea
+                      className="mt-1 h-28 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case"
+                      value={kbDraft.body_en}
+                      onChange={(event) =>
+                        setKbDraft((d) => ({ ...d, body_en: event.target.value }))
+                      }
+                    />
+                  </label>
+                </GuidedOpsCard>
+                <JsonFallbackPanel
+                  value={kbText}
+                  onChange={setKbText}
+                  onSave={() => void upsert('kb-articles', kbText, 'KB article')}
+                  saveLabel="Save KB JSON"
+                />
+              </div>
+              <RecordListPanel
+                title="KB articles"
+                selectedKey={selectedKbSlug}
+                emptyLabel="No KB articles yet."
+              >
+                {kbArticles.map((article) => (
+                  <RecordListItem
+                    key={article.id}
+                    itemKey={article.slug}
+                    selected={selectedKbSlug === article.slug}
+                    title={pickLabel(article.title)}
+                    subtitle={`${article.status} · ${article.tags.join(', ') || 'no tags'}`}
+                    meta={`index ${article.index_status ?? 'not queued'}`}
+                    onSelect={() => selectKbArticle(article)}
+                  />
+                ))}
+              </RecordListPanel>
+              {selectedKbSlug &&
+              kbArticles.some((a) => a.slug === selectedKbSlug && a.status === 'published') ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void requeueKb(selectedKbSlug)}
+                >
+                  Requeue RAG index
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
+
+          {opsSection === 'branding' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-4">
+                <GuidedOpsCard
+                  title={
+                    selectedBrandingCode
+                      ? `Edit branding asset · ${selectedBrandingCode}`
+                      : 'Register branding asset'
+                  }
+                  saveLabel="Save asset"
+                  onSave={() => void saveGuidedBrandingAsset()}
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(
+                      [
+                        ['code', 'Code'],
+                        ['kind', 'Kind'],
+                        ['storage_key', 'Storage key'],
+                        ['public_url', 'Public URL'],
+                        ['mime_type', 'MIME type'],
+                        ['size_bytes', 'Size bytes'],
+                        ['width', 'Width'],
+                        ['height', 'Height'],
+                      ] as Array<[keyof typeof brandingAssetDraft, string]>
+                    ).map(([key, label]) => (
+                      <OpsField
+                        key={key}
+                        label={label}
+                        value={brandingAssetDraft[key]}
+                        onChange={(value) => setBrandingAssetDraft((d) => ({ ...d, [key]: value }))}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="sr-only"
+                        disabled={brandingUploadBusy}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            void pickAndUploadBrandingFile(file);
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                      <span className="inline-flex rounded-lg border border-warm-border bg-surface px-3 py-2 text-sm font-medium text-ink-primary">
+                        {brandingUploadBusy ? 'Uploading…' : 'Upload file to MinIO'}
+                      </span>
+                    </label>
+                    {brandingAssetDraft.public_url.startsWith('http') ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={brandingAssetDraft.public_url}
+                        alt="Branding preview"
+                        className="h-12 max-w-[160px] rounded border border-warm-border object-contain"
+                      />
+                    ) : null}
+                  </div>
+                  {brandingUploadError ? (
+                    <p className="text-sm text-red-700">{brandingUploadError}</p>
+                  ) : null}
+                </GuidedOpsCard>
+                <JsonFallbackPanel
+                  value={brandingAssetText}
+                  onChange={setBrandingAssetText}
+                  onSave={() =>
+                    void saveJsonEndpoint(
+                      'branding-assets',
+                      brandingAssetText,
+                      'PATCH',
+                      'Branding asset',
+                    )
+                  }
+                  saveLabel="Save asset JSON"
+                />
+              </div>
+              <RecordListPanel
+                title="Branding assets"
+                selectedKey={selectedBrandingCode}
+                emptyLabel="No branding assets yet."
+              >
+                {brandingAssets.map((asset) => (
+                  <RecordListItem
+                    key={asset.id}
+                    itemKey={asset.code}
+                    selected={selectedBrandingCode === asset.code}
+                    title={asset.kind}
+                    subtitle={`${(asset.size_bytes / 1024).toFixed(0)} KB`}
+                    meta={asset.public_url}
+                    onSelect={() => selectBrandingAsset(asset)}
+                  />
+                ))}
+              </RecordListPanel>
+            </section>
+          ) : null}
+
+          {opsSection === 'bookings' ? (
+            <section className="space-y-8">
+              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-4">
+                  <GuidedOpsCard
+                    title={
+                      selectedBookableCode
+                        ? `Edit bookable asset · ${selectedBookableCode}`
+                        : 'Bookable asset'
+                    }
+                    saveLabel="Save asset"
+                    onSave={() => void saveGuidedBookableAsset()}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <OpsField
+                        label="Code"
+                        value={bookingAssetDraft.code}
+                        onChange={(value) => setBookingAssetDraft((d) => ({ ...d, code: value }))}
+                      />
+                      <OpsField
+                        label="Name EN"
+                        value={bookingAssetDraft.name_en}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, name_en: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Ward"
+                        value={bookingAssetDraft.ward}
+                        onChange={(value) => setBookingAssetDraft((d) => ({ ...d, ward: value }))}
+                      />
+                      <OpsField
+                        label="Address"
+                        value={bookingAssetDraft.address}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, address: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Capacity"
+                        value={bookingAssetDraft.capacity}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, capacity: value }))
+                        }
+                      />
+                      <label className="flex items-center gap-2 text-sm text-ink-primary">
+                        <input
+                          type="checkbox"
+                          checked={bookingAssetDraft.is_active}
+                          onChange={(event) =>
+                            setBookingAssetDraft((d) => ({ ...d, is_active: event.target.checked }))
+                          }
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </GuidedOpsCard>
+                  <JsonFallbackPanel
+                    value={bookingAssetText}
+                    onChange={setBookingAssetText}
+                    onSave={() =>
+                      void saveJsonEndpoint(
+                        'bookings/assets',
+                        bookingAssetText,
+                        'PATCH',
+                        'Bookable asset',
+                      )
+                    }
+                    saveLabel="Save bookable asset JSON"
+                  />
+                </div>
+                <RecordListPanel
+                  title="Bookable assets"
+                  selectedKey={selectedBookableCode}
+                  emptyLabel="No bookable assets yet."
+                >
+                  {bookings.assets.map((asset) => (
+                    <RecordListItem
+                      key={asset.id}
+                      itemKey={asset.code}
+                      selected={selectedBookableCode === asset.code}
+                      title={pickLabel(asset.name)}
+                      subtitle={asset.is_active ? 'active' : 'inactive'}
+                      meta={`Capacity ${asset.capacity ?? 'not set'}`}
+                      onSelect={() => selectBookableAsset(asset)}
                     />
                   ))}
+                </RecordListPanel>
+              </section>
+
+              <section className="grid gap-6 xl:grid-cols-2">
+                <div className="space-y-4">
+                  <GuidedOpsCard
+                    title="Availability / blackout window"
+                    saveLabel="Save availability"
+                    onSave={() => void saveGuidedAvailability()}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <OpsField
+                        label="Asset code"
+                        value={bookingAvailabilityDraft.asset_code}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, asset_code: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Kind"
+                        value={bookingAvailabilityDraft.kind}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, kind: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Starts at (ISO)"
+                        value={bookingAvailabilityDraft.starts_at}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, starts_at: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Ends at (ISO)"
+                        value={bookingAvailabilityDraft.ends_at}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, ends_at: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Note"
+                        value={bookingAvailabilityDraft.note}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, note: value }))
+                        }
+                      />
+                    </div>
+                  </GuidedOpsCard>
+                  <JsonFallbackPanel
+                    value={bookingAvailabilityText}
+                    onChange={setBookingAvailabilityText}
+                    onSave={() =>
+                      void saveJsonEndpoint(
+                        'bookings/availability',
+                        bookingAvailabilityText,
+                        'POST',
+                        'Availability',
+                      )
+                    }
+                    saveLabel="Save availability JSON"
+                  />
                 </div>
-              </GuidedOpsCard>
-              <JsonFallbackPanel
-                value={bookingReservationText}
-                onChange={setBookingReservationText}
-                onSave={() =>
-                  void saveJsonEndpoint(
-                    'bookings/reservations',
-                    bookingReservationText,
-                    'POST',
-                    'Reservation',
-                  )
-                }
-                saveLabel="Save reservation JSON"
-              />
-            </div>
-          </section>
-
-          <RecordListPanel title="Booking calendar" emptyLabel="No availability or reservations.">
-            {bookings.availability.map((row) => (
-              <RecordListItem
-                key={row.id}
-                itemKey={row.id}
-                selected={false}
-                title={`${row.asset_code} · ${row.kind}`}
-                subtitle={new Date(row.starts_at).toLocaleString()}
-                meta={new Date(row.ends_at).toLocaleString()}
-                onSelect={() => {
-                  setBookingAvailabilityDraft({
-                    asset_code: row.asset_code,
-                    kind: row.kind,
-                    starts_at: row.starts_at,
-                    ends_at: row.ends_at,
-                    note: row.note ?? '',
-                  });
-                }}
-              />
-            ))}
-            {bookings.reservations.map((row) => (
-              <RecordListItem
-                key={row.id}
-                itemKey={row.id}
-                selected={false}
-                title={`${row.asset_code} · ${row.status}`}
-                subtitle={row.holder_name}
-                meta={`${new Date(row.starts_at).toLocaleString()} → ${new Date(row.ends_at).toLocaleString()}`}
-                onSelect={() => {
-                  setBookingReservationDraft({
-                    asset_code: row.asset_code,
-                    holder_name: row.holder_name,
-                    holder_mobile: '',
-                    docket_no: row.docket_no ?? '',
-                    starts_at: row.starts_at,
-                    ends_at: row.ends_at,
-                    status: row.status,
-                    note: '',
-                  });
-                }}
-              />
-            ))}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {opsSection === 'staff' ? (
-        <section className="space-y-8">
-          <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-            <div className="space-y-6">
-              <p className="text-sm text-ink-secondary">
-                Select a staff member to edit roles and profile. Assign workflow designations under{' '}
-                <strong>Masters → Organisation → Staff</strong>.
-              </p>
-              <RecordListPanel title="Staff" emptyLabel="No staff loaded.">
-                {staff.map((member) => (
-                  <RecordListItem
-                    key={member.id}
-                    itemKey={member.username}
-                    selected={selectedStaffUsername === member.username}
-                    title={member.display_name}
-                    subtitle={`${member.username} · ${member.status}`}
-                    meta={member.roles.map((role) => role.code).join(', ')}
-                    onSelect={() => loadStaffIntoForm(member)}
+                <div className="space-y-4">
+                  <GuidedOpsCard
+                    title="Booking reservation"
+                    saveLabel="Save reservation"
+                    onSave={() => void saveGuidedReservation()}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(
+                        [
+                          ['asset_code', 'Asset code'],
+                          ['holder_name', 'Holder name'],
+                          ['holder_mobile', 'Holder mobile'],
+                          ['docket_no', 'Docket no'],
+                          ['starts_at', 'Starts at (ISO)'],
+                          ['ends_at', 'Ends at (ISO)'],
+                          ['status', 'Status'],
+                          ['note', 'Note'],
+                        ] as Array<[keyof typeof bookingReservationDraft, string]>
+                      ).map(([key, label]) => (
+                        <OpsField
+                          key={key}
+                          label={label}
+                          value={bookingReservationDraft[key]}
+                          onChange={(value) =>
+                            setBookingReservationDraft((d) => ({ ...d, [key]: value }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </GuidedOpsCard>
+                  <JsonFallbackPanel
+                    value={bookingReservationText}
+                    onChange={setBookingReservationText}
+                    onSave={() =>
+                      void saveJsonEndpoint(
+                        'bookings/reservations',
+                        bookingReservationText,
+                        'POST',
+                        'Reservation',
+                      )
+                    }
+                    saveLabel="Save reservation JSON"
                   />
-                ))}
-              </RecordListPanel>
-              <RecordListPanel title="Roles" emptyLabel="No roles.">
-                {roles.map((role) => (
+                </div>
+              </section>
+
+              <RecordListPanel
+                title="Booking calendar"
+                emptyLabel="No availability or reservations."
+              >
+                {bookings.availability.map((row) => (
                   <RecordListItem
-                    key={role.code}
-                    itemKey={role.code}
+                    key={row.id}
+                    itemKey={row.id}
                     selected={false}
-                    title={role.name}
-                    onSelect={() => undefined}
-                  />
-                ))}
-              </RecordListPanel>
-              <RecordListPanel title="Role-stage maps" emptyLabel="No maps.">
-                {roleStageMaps.map((map) => (
-                  <RecordListItem
-                    key={map.id}
-                    itemKey={map.id}
-                    selected={false}
-                    title={map.role_code}
-                    subtitle={`${map.workflow_code} / ${map.stage_code}`}
-                    meta={`view ${String(map.can_view)} · act ${String(map.can_act)}`}
+                    title={`${row.asset_code} · ${row.kind}`}
+                    subtitle={new Date(row.starts_at).toLocaleString()}
+                    meta={new Date(row.ends_at).toLocaleString()}
                     onSelect={() => {
-                      setRoleStageDraft({
-                        workflow_code: map.workflow_code,
-                        stage_code: map.stage_code,
-                        role_code: map.role_code,
-                        can_view: map.can_view,
-                        can_act: map.can_act,
+                      setBookingAvailabilityDraft({
+                        asset_code: row.asset_code,
+                        kind: row.kind,
+                        starts_at: row.starts_at,
+                        ends_at: row.ends_at,
+                        note: row.note ?? '',
+                      });
+                    }}
+                  />
+                ))}
+                {bookings.reservations.map((row) => (
+                  <RecordListItem
+                    key={row.id}
+                    itemKey={row.id}
+                    selected={false}
+                    title={`${row.asset_code} · ${row.status}`}
+                    subtitle={row.holder_name}
+                    meta={`${new Date(row.starts_at).toLocaleString()} → ${new Date(row.ends_at).toLocaleString()}`}
+                    onSelect={() => {
+                      setBookingReservationDraft({
+                        asset_code: row.asset_code,
+                        holder_name: row.holder_name,
+                        holder_mobile: '',
+                        docket_no: row.docket_no ?? '',
+                        starts_at: row.starts_at,
+                        ends_at: row.ends_at,
+                        status: row.status,
+                        note: '',
                       });
                     }}
                   />
                 ))}
               </RecordListPanel>
-            </div>
-            <div className="space-y-4" ref={staffFormRef}>
-              <GuidedOpsCard
-                title={editingStaffKeycloakId ? 'Edit staff account' : 'Create staff account'}
-                saveLabel={editingStaffKeycloakId ? 'Update staff' : 'Create staff'}
-                onSave={() => void saveStaffForm()}
-              >
-                <p className="text-sm text-ink-secondary">
-                  {editingStaffKeycloakId
-                    ? 'Updates the eNagar staff record and role assignments. Username is fixed; reset password in Keycloak if needed.'
-                    : 'Creates the Keycloak login and eNagar staff record immediately. Share the default password with the operator.'}
-                </p>
-                {editingStaffKeycloakId ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={clearStaffForm}>
-                      New staff instead
-                    </Button>
-                  </div>
-                ) : null}
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {(
-                    [
-                      ['username', 'Username'],
-                      ['display_name', 'Display name'],
-                      ['email', 'Email (optional)'],
-                      ['mobile', 'Mobile (optional)'],
-                      ['role_codes', 'Role codes (comma-separated)'],
-                      ['ward_number', 'Ward number (optional)'],
-                      ...(!editingStaffKeycloakId
-                        ? ([
-                            ['password', 'Password (optional — platform default if blank)'],
-                          ] as const)
-                        : []),
-                    ] as Array<[keyof typeof staffInviteDraft, string]>
-                  ).map(([key, label]) => (
-                    <OpsField
-                      key={key}
-                      label={label}
-                      value={staffInviteDraft[key]}
-                      onChange={(value) => setStaffInviteDraft((d) => ({ ...d, [key]: value }))}
-                      readOnly={key === 'username' && Boolean(editingStaffKeycloakId)}
-                    />
-                  ))}
-                </div>
-              </GuidedOpsCard>
-              <GuidedOpsCard
-                title="Bulk staff import (CSV)"
-                saveLabel="Import CSV"
-                onSave={() => void importStaffCsv(false)}
-              >
-                <p className="text-sm text-ink-secondary">
-                  Required columns: <code>username</code>, <code>display_name</code>,{' '}
-                  <code>role_codes</code>. Use <code>|</code> for multiple roles or designations.
-                  Optional: <code>email</code>, <code>mobile</code>, <code>ward_number</code>,{' '}
-                  <code>password</code>, <code>designation_codes</code>. Max 100 rows.
-                </p>
-                <textarea
-                  className="mt-3 min-h-40 w-full rounded-xl border border-warm-border bg-white px-3 py-2 font-mono text-xs text-ink-primary"
-                  onChange={(event) => setStaffCsv(event.target.value)}
-                  value={staffCsv}
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void importStaffCsv(true)}
-                  >
-                    Dry-run validate
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setStaffCsv(STAFF_CSV_TEMPLATE)}
-                  >
-                    Reset template
-                  </Button>
-                </div>
-                {staffImportResult ? (
-                  <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-                    <p>
-                      {staffImportResult.dry_run ? 'Dry-run' : 'Import'}:{' '}
-                      {staffImportResult.created} ok, {staffImportResult.failed} failed
-                    </p>
-                    {staffImportResult.errors.slice(0, 5).map((error) => (
-                      <p key={`${error.row}-${error.field ?? 'row'}`} className="text-red-700">
-                        Row {error.row}
-                        {error.field ? ` (${error.field})` : ''}: {error.message}
-                      </p>
-                    ))}
-                    {!staffImportResult.dry_run &&
-                      staffImportResult.created_accounts.slice(0, 5).map((row) => (
-                        <p key={row.username}>
-                          {row.username}: password {row.password_hint}
-                        </p>
-                      ))}
-                  </div>
-                ) : null}
-              </GuidedOpsCard>
-              <JsonFallbackPanel
-                value={staffText}
-                onChange={setStaffText}
-                onSave={() =>
-                  void saveJsonEndpoint('staff-invites', staffText, 'POST', 'Staff invite')
-                }
-                saveLabel="Save invite JSON"
-              />
-              <GuidedOpsCard
-                title="Workflow role-stage mapping"
-                saveLabel="Save mapping"
-                onSave={() => void saveGuidedRoleStageMap()}
-              >
-                <div className="grid gap-3 md:grid-cols-2">
-                  <OpsField
-                    label="Workflow code"
-                    value={roleStageDraft.workflow_code}
-                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, workflow_code: value }))}
-                  />
-                  <OpsField
-                    label="Stage code"
-                    value={roleStageDraft.stage_code}
-                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, stage_code: value }))}
-                  />
-                  <OpsField
-                    label="Role code"
-                    value={roleStageDraft.role_code}
-                    onChange={(value) => setRoleStageDraft((d) => ({ ...d, role_code: value }))}
-                  />
-                  <label className="flex items-center gap-2 text-sm text-ink-primary">
-                    <input
-                      type="checkbox"
-                      checked={roleStageDraft.can_view}
-                      onChange={(event) =>
-                        setRoleStageDraft((d) => ({ ...d, can_view: event.target.checked }))
-                      }
-                    />
-                    Can view
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-ink-primary">
-                    <input
-                      type="checkbox"
-                      checked={roleStageDraft.can_act}
-                      onChange={(event) =>
-                        setRoleStageDraft((d) => ({ ...d, can_act: event.target.checked }))
-                      }
-                    />
-                    Can act
-                  </label>
-                </div>
-              </GuidedOpsCard>
-              <JsonFallbackPanel
-                value={roleStageText}
-                onChange={setRoleStageText}
-                onSave={() => void upsert('role-stage-maps', roleStageText, 'Role-stage map')}
-                saveLabel="Save role-stage JSON"
-              />
-              <JsonFallbackPanel
-                title="Legacy staff assignment JSON"
-                description="Use only when linking an existing Keycloak user id manually."
-                value={legacyStaffText}
-                onChange={setLegacyStaffText}
-                onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
-                saveLabel="Save staff JSON"
-              />
-            </div>
-          </section>
-        </section>
-      ) : null}
+            </section>
+          ) : null}
 
-      {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
+          {opsSection === 'staff' ? (
+            <section className="space-y-8">
+              <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+                <div className="space-y-6">
+                  <p className="text-sm text-ink-secondary">
+                    Select a staff member to edit roles and profile. Assign workflow designations
+                    under <strong>Masters → Organisation → Staff</strong>.
+                  </p>
+                  <RecordListPanel title="Staff" emptyLabel="No staff loaded.">
+                    {staff.map((member) => (
+                      <RecordListItem
+                        key={member.id}
+                        itemKey={member.username}
+                        selected={selectedStaffUsername === member.username}
+                        title={member.display_name}
+                        subtitle={`${member.username} · ${member.status}`}
+                        meta={member.roles.map((role) => role.code).join(', ')}
+                        onSelect={() => loadStaffIntoForm(member)}
+                      />
+                    ))}
+                  </RecordListPanel>
+                  <RecordListPanel title="Roles" emptyLabel="No roles.">
+                    {roles.map((role) => (
+                      <RecordListItem
+                        key={role.code}
+                        itemKey={role.code}
+                        selected={false}
+                        title={role.name}
+                        onSelect={() => undefined}
+                      />
+                    ))}
+                  </RecordListPanel>
+                  <RecordListPanel title="Role-stage maps" emptyLabel="No maps.">
+                    {roleStageMaps.map((map) => (
+                      <RecordListItem
+                        key={map.id}
+                        itemKey={map.id}
+                        selected={false}
+                        title={map.role_code}
+                        subtitle={`${map.workflow_code} / ${map.stage_code}`}
+                        meta={`view ${String(map.can_view)} · act ${String(map.can_act)}`}
+                        onSelect={() => {
+                          setRoleStageDraft({
+                            workflow_code: map.workflow_code,
+                            stage_code: map.stage_code,
+                            role_code: map.role_code,
+                            can_view: map.can_view,
+                            can_act: map.can_act,
+                          });
+                        }}
+                      />
+                    ))}
+                  </RecordListPanel>
+                </div>
+                <div className="space-y-4" ref={staffFormRef}>
+                  <GuidedOpsCard
+                    title={editingStaffKeycloakId ? 'Edit staff account' : 'Create staff account'}
+                    saveLabel={editingStaffKeycloakId ? 'Update staff' : 'Create staff'}
+                    onSave={() => void saveStaffForm()}
+                  >
+                    <p className="text-sm text-ink-secondary">
+                      {editingStaffKeycloakId
+                        ? 'Updates the eNagar staff record and role assignments. Username is fixed; reset password in Keycloak if needed.'
+                        : 'Creates the Keycloak login and eNagar staff record immediately. Share the default password with the operator.'}
+                    </p>
+                    {editingStaffKeycloakId ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={clearStaffForm}
+                        >
+                          New staff instead
+                        </Button>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {(
+                        [
+                          ['username', 'Username'],
+                          ['display_name', 'Display name'],
+                          ['email', 'Email (optional)'],
+                          ['mobile', 'Mobile (optional)'],
+                          ['role_codes', 'Role codes (comma-separated)'],
+                          ['ward_number', 'Ward number (optional)'],
+                          ...(!editingStaffKeycloakId
+                            ? ([
+                                ['password', 'Password (optional — platform default if blank)'],
+                              ] as const)
+                            : []),
+                        ] as Array<[keyof typeof staffInviteDraft, string]>
+                      ).map(([key, label]) => (
+                        <OpsField
+                          key={key}
+                          label={label}
+                          value={staffInviteDraft[key]}
+                          onChange={(value) => setStaffInviteDraft((d) => ({ ...d, [key]: value }))}
+                          readOnly={key === 'username' && Boolean(editingStaffKeycloakId)}
+                        />
+                      ))}
+                    </div>
+                  </GuidedOpsCard>
+                  <GuidedOpsCard
+                    title="Bulk staff import (CSV)"
+                    saveLabel="Import CSV"
+                    onSave={() => void importStaffCsv(false)}
+                  >
+                    <p className="text-sm text-ink-secondary">
+                      Required columns: <code>username</code>, <code>display_name</code>,{' '}
+                      <code>role_codes</code>. Use <code>|</code> for multiple roles or
+                      designations. Optional: <code>email</code>, <code>mobile</code>,{' '}
+                      <code>ward_number</code>, <code>password</code>,{' '}
+                      <code>designation_codes</code>. Max 100 rows.
+                    </p>
+                    <textarea
+                      className="mt-3 min-h-40 w-full rounded-xl border border-warm-border bg-white px-3 py-2 font-mono text-xs text-ink-primary"
+                      onChange={(event) => setStaffCsv(event.target.value)}
+                      value={staffCsv}
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void importStaffCsv(true)}
+                      >
+                        Dry-run validate
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setStaffCsv(STAFF_CSV_TEMPLATE)}
+                      >
+                        Reset template
+                      </Button>
+                    </div>
+                    {staffImportResult ? (
+                      <div className="mt-3 rounded-xl bg-canvas p-3 text-sm text-ink-primary">
+                        <p>
+                          {staffImportResult.dry_run ? 'Dry-run' : 'Import'}:{' '}
+                          {staffImportResult.created} ok, {staffImportResult.failed} failed
+                        </p>
+                        {staffImportResult.errors.slice(0, 5).map((error) => (
+                          <p key={`${error.row}-${error.field ?? 'row'}`} className="text-red-700">
+                            Row {error.row}
+                            {error.field ? ` (${error.field})` : ''}: {error.message}
+                          </p>
+                        ))}
+                        {!staffImportResult.dry_run &&
+                          staffImportResult.created_accounts.slice(0, 5).map((row) => (
+                            <p key={row.username}>
+                              {row.username}: password {row.password_hint}
+                            </p>
+                          ))}
+                      </div>
+                    ) : null}
+                  </GuidedOpsCard>
+                  <JsonFallbackPanel
+                    value={staffText}
+                    onChange={setStaffText}
+                    onSave={() =>
+                      void saveJsonEndpoint('staff-invites', staffText, 'POST', 'Staff invite')
+                    }
+                    saveLabel="Save invite JSON"
+                  />
+                  <GuidedOpsCard
+                    title="Workflow role-stage mapping"
+                    saveLabel="Save mapping"
+                    onSave={() => void saveGuidedRoleStageMap()}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <OpsField
+                        label="Workflow code"
+                        value={roleStageDraft.workflow_code}
+                        onChange={(value) =>
+                          setRoleStageDraft((d) => ({ ...d, workflow_code: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Stage code"
+                        value={roleStageDraft.stage_code}
+                        onChange={(value) =>
+                          setRoleStageDraft((d) => ({ ...d, stage_code: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Role code"
+                        value={roleStageDraft.role_code}
+                        onChange={(value) => setRoleStageDraft((d) => ({ ...d, role_code: value }))}
+                      />
+                      <label className="flex items-center gap-2 text-sm text-ink-primary">
+                        <input
+                          type="checkbox"
+                          checked={roleStageDraft.can_view}
+                          onChange={(event) =>
+                            setRoleStageDraft((d) => ({ ...d, can_view: event.target.checked }))
+                          }
+                        />
+                        Can view
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-ink-primary">
+                        <input
+                          type="checkbox"
+                          checked={roleStageDraft.can_act}
+                          onChange={(event) =>
+                            setRoleStageDraft((d) => ({ ...d, can_act: event.target.checked }))
+                          }
+                        />
+                        Can act
+                      </label>
+                    </div>
+                  </GuidedOpsCard>
+                  <JsonFallbackPanel
+                    value={roleStageText}
+                    onChange={setRoleStageText}
+                    onSave={() => void upsert('role-stage-maps', roleStageText, 'Role-stage map')}
+                    saveLabel="Save role-stage JSON"
+                  />
+                  <JsonFallbackPanel
+                    title="Legacy staff assignment JSON"
+                    description="Use only when linking an existing Keycloak user id manually."
+                    value={legacyStaffText}
+                    onChange={setLegacyStaffText}
+                    onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
+                    saveLabel="Save staff JSON"
+                  />
+                </div>
+              </section>
+            </section>
+          ) : null}
+
+          {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2039,18 +2063,18 @@ function BannerEditor({
         </Button>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Code
           <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.code}
             onChange={(event) => onChange({ ...draft, code: event.target.value })}
           />
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Severity
           <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.severity}
             onChange={(event) => onChange({ ...draft, severity: event.target.value })}
           >
@@ -2059,52 +2083,52 @@ function BannerEditor({
             <option value="critical">Critical</option>
           </select>
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Starts at
           <input
             type="datetime-local"
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.starts_at}
             onChange={(event) => onChange({ ...draft, starts_at: event.target.value })}
           />
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Ends at
           <input
             type="datetime-local"
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.ends_at}
             onChange={(event) => onChange({ ...draft, ends_at: event.target.value })}
           />
         </label>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Title
           <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.title}
             onChange={(event) => onChange({ ...draft, title: event.target.value })}
           />
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Link URL
           <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.link_url}
             onChange={(event) => onChange({ ...draft, link_url: event.target.value })}
           />
         </label>
       </div>
-      <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-ink-secondary">
         Body
         <textarea
-          className="mt-1 h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+          className="mt-1 h-24 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
           value={draft.body}
           onChange={(event) => onChange({ ...draft, body: event.target.value })}
         />
       </label>
-      <label className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+      <label className="mt-3 flex items-center gap-2 text-sm font-medium text-ink-primary">
         <input
           type="checkbox"
           checked={draft.is_active}
@@ -2167,10 +2191,10 @@ function TemplatePreviewEditor({
           value={draft.code}
           onChange={(code) => onDraftChange({ ...draft, code })}
         />
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Channel
           <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.channel}
             onChange={(event) => onDraftChange({ ...draft, channel: event.target.value })}
           >
@@ -2180,10 +2204,10 @@ function TemplatePreviewEditor({
             <option value="whatsapp">WhatsApp</option>
           </select>
         </label>
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           Locale
           <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+            className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
             value={draft.locale}
             onChange={(event) => onDraftChange({ ...draft, locale: event.target.value })}
           >
@@ -2205,15 +2229,15 @@ function TemplatePreviewEditor({
             value={draft.subject}
             onChange={(subject) => onDraftChange({ ...draft, subject })}
           />
-          <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
             Body
             <textarea
-              className="mt-1 h-36 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+              className="mt-1 h-36 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
               value={draft.body}
               onChange={(event) => onDraftChange({ ...draft, body: event.target.value })}
             />
           </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <label className="flex items-center gap-2 text-sm font-medium text-ink-primary">
             <input
               type="checkbox"
               checked={draft.is_active}
@@ -2222,11 +2246,11 @@ function TemplatePreviewEditor({
             Active
           </label>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="rounded-lg border border-warm-border bg-canvas p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
             Live preview
           </p>
-          <div className="mt-3 rounded-lg bg-white p-3 text-sm text-slate-800">
+          <div className="mt-3 rounded-lg bg-white p-3 text-sm text-ink-primary">
             {draft.subject ? (
               <p className="font-semibold">{renderTemplatePreview(draft.subject, sampleValues)}</p>
             ) : null}
@@ -2246,15 +2270,15 @@ function TemplatePreviewEditor({
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {variables.map((variable) => (
-              <span key={variable} className="rounded-full bg-slate-200 px-2 py-1 text-xs">
+              <span key={variable} className="rounded-full bg-mint-band px-2 py-1 text-xs">
                 {variable}
               </span>
             ))}
           </div>
         </div>
       </div>
-      <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+      <details className="mt-4 rounded-lg border border-warm-border bg-canvas p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink-primary">
           JSON fallback
         </summary>
         <div className="mt-3 flex justify-end">
@@ -2263,7 +2287,7 @@ function TemplatePreviewEditor({
           </Button>
         </div>
         <textarea
-          className="mt-3 h-64 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+          className="mt-3 h-64 w-full rounded-lg border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark"
           value={jsonValue}
           onChange={(event) => onJsonChange(event.target.value)}
           spellCheck={false}
@@ -2283,10 +2307,10 @@ function TemplateTextInput({
   onChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
       {label}
       <input
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -2333,7 +2357,7 @@ function OpsField({
     <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
       {label}
       <input
-        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal disabled:bg-slate-50 disabled:text-ink-secondary"
+        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal disabled:bg-canvas disabled:text-ink-secondary"
         value={value}
         readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}

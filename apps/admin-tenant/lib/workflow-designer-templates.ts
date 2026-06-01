@@ -374,7 +374,7 @@ export function insertPostApprovalPaymentBlock(
 
   next = upsertStage(
     next,
-    designationStage('payment-pending', headDesignation, 'Payment pending', 'post_approval'),
+    designationStage('payment-pending', headDesignation, 'Payment pending', 'post_approval', []),
   );
   next = upsertStage(next, {
     code: 'payment-received',

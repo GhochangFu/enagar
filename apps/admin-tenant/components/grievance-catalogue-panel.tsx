@@ -500,7 +500,7 @@ export function GrievanceCataloguePanel(): JSX.Element {
           </div>
           <form className="mt-4 grid gap-3" onSubmit={handleCategoryFormSubmit}>
             <input
-              className="rounded border border-warm-border px-3 py-2 text-sm disabled:bg-slate-50"
+              className="rounded border border-warm-border px-3 py-2 text-sm disabled:bg-canvas"
               placeholder="code (e.g. noise-pollution)"
               value={categoryDraft.code}
               disabled={Boolean(editingCategoryCode)}
@@ -601,7 +601,7 @@ export function GrievanceCataloguePanel(): JSX.Element {
                 {editingSubtypeCode ? `Edit sub-type · ${editingSubtypeCode}` : 'Add sub-type'}
               </p>
               <input
-                className="rounded border border-warm-border px-3 py-2 text-sm disabled:bg-slate-50"
+                className="rounded border border-warm-border px-3 py-2 text-sm disabled:bg-canvas"
                 placeholder="subtype code"
                 value={subtypeDraft.code}
                 disabled={Boolean(editingSubtypeCode)}

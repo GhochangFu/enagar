@@ -15,7 +15,15 @@ module.exports = {
       },
       colors: {
         canvas: 'rgb(var(--canvas-rgb) / <alpha-value>)',
-        surface: 'rgb(var(--surface-rgb) / <alpha-value>)',
+        surface: {
+          DEFAULT: 'rgb(var(--surface-rgb) / <alpha-value>)',
+          raised: 'rgb(var(--surface-raised-rgb) / <alpha-value>)',
+        },
+        sidebar: {
+          DEFAULT: 'rgb(var(--sidebar-rgb) / <alpha-value>)',
+          muted: 'rgb(var(--sidebar-muted-rgb) / <alpha-value>)',
+          border: 'rgb(var(--sidebar-border-rgb) / <alpha-value>)',
+        },
         peach: {
           accent: 'rgb(var(--peach-accent-rgb) / <alpha-value>)',
           soft: 'rgb(var(--peach-soft-rgb) / <alpha-value>)',
@@ -33,17 +41,37 @@ module.exports = {
         },
         platform: {
           accent: 'rgb(var(--platform-accent-rgb) / <alpha-value>)',
+          band: 'rgb(var(--platform-band-rgb) / <alpha-value>)',
         },
         brand: {
           DEFAULT: 'rgb(var(--brand-rgb) / <alpha-value>)',
           fg: 'rgb(var(--brand-fg-rgb) / <alpha-value>)',
           muted: 'rgb(var(--brand-muted-rgb) / <alpha-value>)',
           surface: 'rgb(var(--brand-surface-rgb) / <alpha-value>)',
+          hover: 'rgb(var(--brand-hover-rgb) / <alpha-value>)',
         },
         ink: {
           primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
           secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
           muted: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
+          onDark: 'rgb(var(--ink-on-dark-rgb) / <alpha-value>)',
+          onDarkMuted: 'rgb(var(--ink-on-dark-muted-rgb) / <alpha-value>)',
+        },
+        success: {
+          DEFAULT: 'rgb(var(--success-rgb) / <alpha-value>)',
+          bg: 'rgb(var(--success-bg-rgb) / <alpha-value>)',
+        },
+        warning: {
+          DEFAULT: 'rgb(var(--warning-rgb) / <alpha-value>)',
+          bg: 'rgb(var(--warning-bg-rgb) / <alpha-value>)',
+        },
+        danger: {
+          DEFAULT: 'rgb(var(--danger-rgb) / <alpha-value>)',
+          bg: 'rgb(var(--danger-bg-rgb) / <alpha-value>)',
+        },
+        info: {
+          DEFAULT: 'rgb(var(--info-rgb) / <alpha-value>)',
+          bg: 'rgb(var(--info-bg-rgb) / <alpha-value>)',
         },
         warm: {
           border: 'rgb(var(--border-warm-rgb) / <alpha-value>)',

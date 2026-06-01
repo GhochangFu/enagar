@@ -815,7 +815,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
   if (!token || !designer || !serviceConfig) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-10">
-        <p className="text-sm text-slate-600">Loading service designer…</p>
+        <p className="text-sm text-ink-secondary">Loading service designer…</p>
       </main>
     );
   }
@@ -1003,14 +1003,14 @@ function WorkflowCanvasPanel({
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-xl border border-warm-border bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
             Phase 6 · Designation workflow designer
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">Visual workflow designer</h2>
-          <p className="text-xs text-slate-500">
+          <h2 className="mt-1 text-lg font-semibold text-ink-primary">Visual workflow designer</h2>
+          <p className="text-xs text-ink-secondary">
             Pick ULB designations per stage and forward/return verbs. Template buttons replace the
             draft (legacy approved/closed paths are removed). Orange dashed edges are returns.
           </p>
@@ -1019,7 +1019,7 @@ function WorkflowCanvasPanel({
           <button
             type="button"
             onClick={onAddStage}
-            className="rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white"
+            className="rounded bg-brand px-3 py-2 text-xs font-medium text-brand-fg"
           >
             Add stage
           </button>
@@ -1036,7 +1036,7 @@ function WorkflowCanvasPanel({
         <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            className="rounded border border-warm-border bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-primary"
             onClick={() =>
               applyTemplate(
                 (draft) => applyHoardingScrutinyTemplate(draft),
@@ -1048,7 +1048,7 @@ function WorkflowCanvasPanel({
           </button>
           <button
             type="button"
-            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            className="rounded border border-warm-border bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-primary"
             onClick={() =>
               applyTemplate(
                 (draft) => applyPwdWorksTemplate(draft),
@@ -1060,7 +1060,7 @@ function WorkflowCanvasPanel({
           </button>
           <button
             type="button"
-            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            className="rounded border border-warm-border bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-primary"
             onClick={() =>
               applyTemplate(
                 (draft) => applyMunicipalLadderTemplate(draft),
@@ -1072,7 +1072,7 @@ function WorkflowCanvasPanel({
           </button>
           <button
             type="button"
-            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            className="rounded border border-warm-border bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-primary"
             disabled={!selectedStageCode}
             onClick={() => {
               if (!selectedStageCode) {
@@ -1099,7 +1099,7 @@ function WorkflowCanvasPanel({
         </div>
       ) : null}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="h-[420px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <div className="h-[420px] overflow-hidden rounded-lg border border-warm-border bg-canvas">
           {workflow ? (
             <ReactFlow
               nodes={nodes}
@@ -1114,7 +1114,9 @@ function WorkflowCanvasPanel({
               <Controls />
             </ReactFlow>
           ) : (
-            <p className="p-4 text-sm text-slate-500">Fix workflow JSON before using the canvas.</p>
+            <p className="p-4 text-sm text-ink-secondary">
+              Fix workflow JSON before using the canvas.
+            </p>
           )}
         </div>
         <div className="space-y-4">
@@ -1153,7 +1155,7 @@ function StageInspector({
 }): JSX.Element {
   if (!stage) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+      <div className="rounded-lg border border-warm-border bg-canvas p-3 text-sm text-ink-secondary">
         Select a canvas node to edit designation owner, stage kind, allowed verbs, and SLA.
       </div>
     );
@@ -1163,34 +1165,34 @@ function StageInspector({
   const selectedDesig = designations.find((row) => row.code === stage.owner_designation);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-lg border border-warm-border bg-canvas p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
         Stage inspector
       </p>
-      <label className="block text-xs font-medium text-slate-600">
+      <label className="block text-xs font-medium text-ink-secondary">
         Stage code
         <input
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+          className="mt-1 w-full rounded border border-warm-border px-2 py-1 font-mono text-xs"
           value={stage.code}
           onChange={(event) =>
             onUpdateStage(stage.code, { code: slugify(event.target.value, stage.code) })
           }
         />
       </label>
-      <label className="mt-3 block text-xs font-medium text-slate-600">
+      <label className="mt-3 block text-xs font-medium text-ink-secondary">
         Label EN
         <input
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+          className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
           value={stage.label.en}
           onChange={(event) =>
             onUpdateStage(stage.code, { label: { ...stage.label, en: event.target.value } })
           }
         />
       </label>
-      <label className="mt-3 block text-xs font-medium text-slate-600">
+      <label className="mt-3 block text-xs font-medium text-ink-secondary">
         Pending owner
         <select
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+          className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
           value={actorMode}
           onChange={(event) => {
             if (event.target.value === 'designation') {
@@ -1216,10 +1218,10 @@ function StageInspector({
         </select>
       </label>
       {actorMode === 'role' ? (
-        <label className="mt-3 block text-xs font-medium text-slate-600">
+        <label className="mt-3 block text-xs font-medium text-ink-secondary">
           Owner role
           <select
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+            className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
             value={stage.owner_role}
             onChange={(event) => onUpdateStage(stage.code, { owner_role: event.target.value })}
           >
@@ -1231,10 +1233,10 @@ function StageInspector({
           </select>
         </label>
       ) : (
-        <label className="mt-3 block text-xs font-medium text-slate-600">
+        <label className="mt-3 block text-xs font-medium text-ink-secondary">
           Owner designation
           <select
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+            className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
             value={stage.owner_designation ?? ''}
             onChange={(event) => {
               const code = event.target.value;
@@ -1257,10 +1259,10 @@ function StageInspector({
           </select>
         </label>
       )}
-      <label className="mt-3 block text-xs font-medium text-slate-600">
+      <label className="mt-3 block text-xs font-medium text-ink-secondary">
         Stage kind
         <select
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+          className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
           value={stage.stage_kind ?? ''}
           onChange={(event) =>
             onUpdateStage(stage.code, {
@@ -1277,17 +1279,17 @@ function StageInspector({
         </select>
       </label>
       {actorMode === 'designation' && selectedDesig ? (
-        <p className="mt-2 text-[11px] text-slate-500">
+        <p className="mt-2 text-[11px] text-ink-secondary">
           {selectedDesig.is_department_head ? 'Department head — reject allowed. ' : ''}
           {selectedDesig.can_reject_municipal ? 'Municipal reject (Chairperson). ' : ''}
           Configure allowed verbs below.
         </p>
       ) : null}
       <fieldset className="mt-3">
-        <legend className="text-xs font-medium text-slate-600">Allowed verbs</legend>
+        <legend className="text-xs font-medium text-ink-secondary">Allowed verbs</legend>
         <div className="mt-2 flex flex-wrap gap-2">
           {DESIGNATION_WORKFLOW_VERBS.map((verb) => (
-            <label key={verb} className="flex items-center gap-1 text-xs text-slate-700">
+            <label key={verb} className="flex items-center gap-1 text-xs text-ink-primary">
               <input
                 type="checkbox"
                 checked={stage.allowed_verbs?.includes(verb) ?? false}
@@ -1308,17 +1310,17 @@ function StageInspector({
           ))}
         </div>
       </fieldset>
-      <label className="mt-3 block text-xs font-medium text-slate-600">
+      <label className="mt-3 block text-xs font-medium text-ink-secondary">
         SLA hours
         <input
           type="number"
           min={0}
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+          className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
           value={stage.sla_hours ?? 0}
           onChange={(event) => onUpdateStage(stage.code, { sla_hours: Number(event.target.value) })}
         />
       </label>
-      <div className="mt-3 grid gap-2 text-xs font-medium text-slate-600">
+      <div className="mt-3 grid gap-2 text-xs font-medium text-ink-secondary">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1357,8 +1359,8 @@ function TransitionEditor({
   onUpdateWorkflow: (updater: (workflow: WorkflowDefinition) => WorkflowDefinition) => void;
 }): JSX.Element {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-lg border border-warm-border bg-canvas p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
         Transitions
       </p>
       <div className="space-y-3">
@@ -1386,10 +1388,10 @@ function TransitionEditor({
               />
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="block text-xs font-medium text-slate-600">
+              <label className="block text-xs font-medium text-ink-secondary">
                 Verb
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                   value={transition.verb}
                   onChange={(event) =>
                     onUpdateWorkflow((draft) =>
@@ -1404,10 +1406,10 @@ function TransitionEditor({
                   ))}
                 </select>
               </label>
-              <label className="block text-xs font-medium text-slate-600">
+              <label className="block text-xs font-medium text-ink-secondary">
                 Actor designation
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                   value={transition.actor_designation ?? ''}
                   onChange={(event) => {
                     const code = event.target.value;
@@ -1429,10 +1431,10 @@ function TransitionEditor({
               </label>
             </div>
             {!transition.actor_designation ? (
-              <label className="mt-2 block text-xs font-medium text-slate-600">
+              <label className="mt-2 block text-xs font-medium text-ink-secondary">
                 Actor role (legacy)
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                   value={transition.actor_role}
                   onChange={(event) =>
                     onUpdateWorkflow((draft) =>
@@ -1448,10 +1450,10 @@ function TransitionEditor({
                 </select>
               </label>
             ) : null}
-            <label className="mt-2 block text-xs font-medium text-slate-600">
+            <label className="mt-2 block text-xs font-medium text-ink-secondary">
               Transition guard
               <select
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                 value={
                   typeof transition.guard?.type === 'string'
                     ? transition.guard.type
@@ -1479,10 +1481,10 @@ function TransitionEditor({
                 ))}
               </select>
             </label>
-            <label className="mt-2 block text-xs font-medium text-slate-600">
+            <label className="mt-2 block text-xs font-medium text-ink-secondary">
               Effect
               <select
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                 value={transition.effects?.[0]?.type ?? 'audit'}
                 onChange={(event) =>
                   onUpdateWorkflow((draft) =>
@@ -1615,10 +1617,10 @@ function TransitionEditor({
               </div>
             ) : null}
             {transition.effects?.[0]?.type === 'generate_payment_link' ? (
-              <label className="mt-2 block text-xs font-medium text-slate-600">
+              <label className="mt-2 block text-xs font-medium text-ink-secondary">
                 Payment link fee line
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                   value={String(paymentLinkPayload(transition).fee_code ?? 'approval')}
                   onChange={(event) =>
                     onUpdateWorkflow((draft) =>
@@ -1643,10 +1645,10 @@ function TransitionEditor({
             ) : null}
             {typeof transition.guard?.type === 'string' &&
             transition.guard.type === 'payment_paid' ? (
-              <label className="mt-2 block text-xs font-medium text-slate-600">
+              <label className="mt-2 block text-xs font-medium text-ink-secondary">
                 Guard fee line (optional)
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
                   value={String(transition.guard.fee_code ?? '')}
                   onChange={(event) =>
                     onUpdateWorkflow((draft) =>
@@ -1696,10 +1698,10 @@ function TransitionSelect({
   onChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <label className="block text-xs font-medium text-slate-600">
+    <label className="block text-xs font-medium text-ink-secondary">
       {label}
       <select
-        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+        className="mt-1 w-full rounded border border-warm-border px-2 py-1 text-xs"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -1793,7 +1795,7 @@ function EditorPanel({
       ) : (
         <>
           <textarea
-            className="h-80 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
+            className="h-80 w-full rounded-lg border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark"
             spellCheck={false}
             value={value}
             onChange={(event) => onChange(event.target.value)}

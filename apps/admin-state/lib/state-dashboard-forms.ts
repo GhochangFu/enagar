@@ -62,16 +62,16 @@ export const EMPTY_TENANT_DRAFT: TenantDraft = {
 };
 
 export const EMPTY_LIBRARY_DRAFT: LibraryDraft = {
-  code: 'community-hall-booking-state',
-  category_code: 'municipal-services',
-  name_en: 'Community Hall Booking',
-  description_en: 'State-curated template for community hall booking.',
-  workflow_pattern: 'single_window',
-  default_sla_days: '7',
-  fee_type: 'fixed',
-  fee_amount_rupees: '500',
-  lifecycle_status: 'draft',
-  curator_notes: 'Sprint 6.12 smoke template.',
+  code: '',
+  category_code: '',
+  name_en: '',
+  description_en: '',
+  workflow_pattern: '',
+  default_sla_days: '',
+  fee_type: '',
+  fee_amount_rupees: '',
+  lifecycle_status: '',
+  curator_notes: '',
   form_schema_json: '{}',
 };
 

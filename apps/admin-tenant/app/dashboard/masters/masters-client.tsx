@@ -1,12 +1,13 @@
 'use client';
 
-import { Button, PageHeader } from '@enagar/ui';
+import { AlertBanner, Button, PageHeader } from '@enagar/ui';
 import { useCallback, useEffect, useState } from 'react';
 
 import { GrievanceCataloguePanel } from '../../../components/grievance-catalogue-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { OrgDesignationsPanel } from '../../../components/org-designations-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
+import { SectionNav } from '../../../components/section-nav';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
 import type { ReactNode } from 'react';
@@ -576,357 +577,361 @@ export default function MastersClient(): JSX.Element {
         }
       />
 
-      {status ? (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {status}
-        </p>
-      ) : null}
+      {status ? <AlertBanner tone="warning">{status}</AlertBanner> : null}
 
-      <nav className="flex flex-wrap gap-2" aria-label="Masters sections">
-        {MASTERS_SECTIONS.map((item) => (
-          <Button
-            key={item.id}
-            type="button"
-            size="sm"
-            variant={section === item.id ? 'primary' : 'secondary'}
-            onClick={() => setSection(item.id)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </nav>
-
-      {section === 'revenue' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <GuidedMasterCard
-              eyebrow="Sprint 6.10 · Guided masters"
-              title={
-                selectedRevenueCode
-                  ? `Edit revenue head · ${selectedRevenueCode}`
-                  : 'New revenue head'
-              }
-              saveLabel="Save revenue"
-              onSave={() => void saveGuidedRevenue()}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                {(
-                  [
-                    ['code', 'Code'],
-                    ['accounting_code', 'Accounting code'],
-                    ['name_en', 'Name EN'],
-                    ['name_bn', 'Name BN'],
-                    ['name_hi', 'Name HI'],
-                  ] as Array<[keyof Omit<typeof revenueDraft, 'is_active'>, string]>
-                ).map(([key, label]) => (
-                  <MasterField
-                    key={key}
-                    label={label}
-                    value={String(revenueDraft[key as keyof typeof revenueDraft])}
-                    onChange={(value) => setRevenueDraft((draft) => ({ ...draft, [key]: value }))}
-                  />
-                ))}
-                <label className="flex items-center gap-2 text-sm text-ink-primary">
-                  <input
-                    type="checkbox"
-                    checked={revenueDraft.is_active}
-                    onChange={(event) =>
-                      setRevenueDraft((draft) => ({ ...draft, is_active: event.target.checked }))
-                    }
-                  />
-                  Active
-                </label>
-              </div>
-            </GuidedMasterCard>
-            <JsonFallbackPanel
-              value={revenueText}
-              onChange={setRevenueText}
-              onSave={() => void upsert('revenue-heads', revenueText, 'Revenue head')}
-              saveLabel="Save revenue JSON"
-            />
-          </div>
-          <RecordListPanel
-            title="Revenue heads"
-            selectedKey={selectedRevenueCode}
-            onNew={newRevenueHead}
-            newLabel="New head"
-            emptyLabel="No revenue heads loaded."
-          >
-            {revenueHeads.map((head) => (
-              <RecordListItem
-                key={head.code}
-                itemKey={head.code}
-                selected={selectedRevenueCode === head.code}
-                title={pickLabel(head.name)}
-                meta={head.accounting_code}
-                onSelect={() => selectRevenueHead(head)}
-              />
-            ))}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {section === 'tariffs' ? (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <GuidedMasterCard
-              eyebrow="Guided tariff"
-              title={selectedTariffCode ? `Edit tariff · ${selectedTariffCode}` : 'New tariff'}
-              saveLabel="Save tariff"
-              onSave={() => void saveGuidedTariff()}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
-                  Type
-                  <select
-                    className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
-                    value={tariffDraft.type}
-                    onChange={(event) =>
-                      setTariffDraft((draft) => ({ ...draft, type: event.target.value }))
-                    }
-                  >
-                    <option value="fixed">Fixed</option>
-                    <option value="slab">Slab</option>
-                    <option value="external">External</option>
-                  </select>
-                </label>
-                {(
-                  [
-                    ['code', 'Code'],
-                    ['category', 'Category'],
-                    ['name_en', 'Name EN'],
-                    ['amount_rupees', 'Amount rupees'],
-                    ['input_key', 'Input key / external ref'],
-                  ] as Array<[keyof typeof tariffDraft, string]>
-                ).map(([key, label]) => (
-                  <MasterField
-                    key={key}
-                    label={label}
-                    value={String(tariffDraft[key as keyof typeof tariffDraft])}
-                    onChange={(value) => setTariffDraft((draft) => ({ ...draft, [key]: value }))}
-                  />
-                ))}
-              </div>
-            </GuidedMasterCard>
-            <JsonFallbackPanel
-              value={tariffText}
-              onChange={setTariffText}
-              onSave={() => void upsert('tariffs', tariffText, 'Tariff')}
-              saveLabel="Save tariff JSON"
-            />
-          </div>
-          <RecordListPanel
-            title="Tariffs"
-            selectedKey={selectedTariffCode}
-            onNew={newTariff}
-            newLabel="New tariff"
-            emptyLabel="No tariffs loaded."
-          >
-            {tariffs.map((tariff) => (
-              <RecordListItem
-                key={tariff.code}
-                itemKey={tariff.code}
-                selected={selectedTariffCode === tariff.code}
-                title={pickLabel(tariff.name)}
-                subtitle={tariff.category}
-                meta={
-                  tariff.preview_paise === null
-                    ? 'external'
-                    : `preview ₹${(tariff.preview_paise / 100).toFixed(2)}`
-                }
-                onSelect={() => selectTariff(tariff)}
-              />
-            ))}
-          </RecordListPanel>
-        </section>
-      ) : null}
-
-      {section === 'address' ? (
-        <section className="space-y-6">
-          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-4">
-              <GuidedMasterCard
-                eyebrow="Guided address row"
-                title={selectedAddressKey ? 'Edit address locality' : 'New address locality'}
-                saveLabel="Save address"
-                onSave={() => void saveGuidedAddress()}
-              >
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(
-                    [
-                      ['borough_code', 'Borough code'],
-                      ['borough_name', 'Borough name'],
-                      ['ward_number', 'Ward number'],
-                      ['ward_name', 'Ward name'],
-                      ['mouza', 'Mouza'],
-                      ['locality_name', 'Locality name'],
-                      ['pincode', 'PIN code'],
-                    ] as Array<[keyof typeof addressDraft, string]>
-                  ).map(([key, label]) => (
-                    <MasterField
-                      key={key}
-                      label={label}
-                      value={addressDraft[key]}
-                      onChange={(value) => setAddressDraft((draft) => ({ ...draft, [key]: value }))}
-                    />
-                  ))}
-                </div>
-              </GuidedMasterCard>
-              <JsonFallbackPanel
-                value={addressText}
-                onChange={setAddressText}
-                onSave={() => void upsert('address-master', addressText, 'Address master')}
-                saveLabel="Save address JSON"
-              />
-            </div>
-            <RecordListPanel
-              title="Address rows"
-              selectedKey={selectedAddressKey}
-              onNew={newAddressRow}
-              newLabel="New row"
-              emptyLabel="No address rows loaded."
-            >
-              {addressRows.map((row) => {
-                const key = addressRowKey(row);
-                return (
-                  <RecordListItem
-                    key={key}
-                    itemKey={key}
-                    selected={selectedAddressKey === key}
-                    title={row.locality_name}
-                    subtitle={`Ward ${row.ward_number ?? '-'} · ${row.borough_name ?? 'No borough'}`}
-                    meta={`${row.mouza ?? 'No mouza'} · ${row.pincode ?? 'No PIN'}`}
-                    onSelect={() => selectAddressRow(row)}
-                  />
-                );
-              })}
-            </RecordListPanel>
-          </section>
-
-          <section className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Sprint 6.9 · Bulk address import
-                </p>
-                <h2 className="text-lg font-semibold text-slate-900">Address master CSV</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Paste CSV rows, dry-run validation, then import valid borough/ward/locality
-                  records.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void importAddressCsv(true)}
+      <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <SectionNav
+          aria-label="Masters sections"
+          items={MASTERS_SECTIONS}
+          active={section}
+          onSelect={setSection}
+        />
+        <div className="min-w-0 space-y-6">
+          {section === 'revenue' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-4">
+                <GuidedMasterCard
+                  eyebrow="Sprint 6.10 · Guided masters"
+                  title={
+                    selectedRevenueCode
+                      ? `Edit revenue head · ${selectedRevenueCode}`
+                      : 'New revenue head'
+                  }
+                  saveLabel="Save revenue"
+                  onSave={() => void saveGuidedRevenue()}
                 >
-                  Dry-run
-                </Button>
-                <Button type="button" size="sm" onClick={() => void importAddressCsv(false)}>
-                  Import CSV
-                </Button>
-              </div>
-            </div>
-            <textarea
-              className="mt-4 h-40 w-full rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-xs text-slate-50"
-              value={addressCsv}
-              onChange={(event) => setAddressCsv(event.target.value)}
-              spellCheck={false}
-            />
-            {addressImportResult ? (
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                <p className="font-semibold text-slate-900">
-                  {addressImportResult.dry_run ? 'Dry-run' : 'Import'} result: insert{' '}
-                  {addressImportResult.inserted}, update {addressImportResult.updated}, failed{' '}
-                  {addressImportResult.failed}
-                </p>
-                {addressImportResult.errors.length ? (
-                  <ul className="mt-2 space-y-1 text-xs text-red-700">
-                    {addressImportResult.errors.map((error) => (
-                      <li key={`${error.row}-${error.field}-${error.message}`}>
-                        Row {error.row} / {error.field}: {error.message}
-                      </li>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(
+                      [
+                        ['code', 'Code'],
+                        ['accounting_code', 'Accounting code'],
+                        ['name_en', 'Name EN'],
+                        ['name_bn', 'Name BN'],
+                        ['name_hi', 'Name HI'],
+                      ] as Array<[keyof Omit<typeof revenueDraft, 'is_active'>, string]>
+                    ).map(([key, label]) => (
+                      <MasterField
+                        key={key}
+                        label={label}
+                        value={String(revenueDraft[key as keyof typeof revenueDraft])}
+                        onChange={(value) =>
+                          setRevenueDraft((draft) => ({ ...draft, [key]: value }))
+                        }
+                      />
                     ))}
-                  </ul>
-                ) : null}
+                    <label className="flex items-center gap-2 text-sm text-ink-primary">
+                      <input
+                        type="checkbox"
+                        checked={revenueDraft.is_active}
+                        onChange={(event) =>
+                          setRevenueDraft((draft) => ({
+                            ...draft,
+                            is_active: event.target.checked,
+                          }))
+                        }
+                      />
+                      Active
+                    </label>
+                  </div>
+                </GuidedMasterCard>
+                <JsonFallbackPanel
+                  value={revenueText}
+                  onChange={setRevenueText}
+                  onSave={() => void upsert('revenue-heads', revenueText, 'Revenue head')}
+                  saveLabel="Save revenue JSON"
+                />
               </div>
-            ) : null}
-          </section>
-        </section>
-      ) : null}
+              <RecordListPanel
+                title="Revenue heads"
+                selectedKey={selectedRevenueCode}
+                onNew={newRevenueHead}
+                newLabel="New head"
+                emptyLabel="No revenue heads loaded."
+              >
+                {revenueHeads.map((head) => (
+                  <RecordListItem
+                    key={head.code}
+                    itemKey={head.code}
+                    selected={selectedRevenueCode === head.code}
+                    title={pickLabel(head.name)}
+                    meta={head.accounting_code}
+                    onSelect={() => selectRevenueHead(head)}
+                  />
+                ))}
+              </RecordListPanel>
+            </section>
+          ) : null}
 
-      {section === 'organisation' ? (
-        <section className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-forest">
-              ADR-0011 · Phase 1
-            </p>
-            <h2 className="text-lg font-semibold text-ink-primary">Departments & designations</h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              ULB organisation master for workflow designations. Assign multiple designations per
-              staff member for Desk queue routing (Phase 4+).
-            </p>
-          </div>
-          <OrgDesignationsPanel />
-        </section>
-      ) : null}
+          {section === 'tariffs' ? (
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-4">
+                <GuidedMasterCard
+                  eyebrow="Guided tariff"
+                  title={selectedTariffCode ? `Edit tariff · ${selectedTariffCode}` : 'New tariff'}
+                  saveLabel="Save tariff"
+                  onSave={() => void saveGuidedTariff()}
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                      Type
+                      <select
+                        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
+                        value={tariffDraft.type}
+                        onChange={(event) =>
+                          setTariffDraft((draft) => ({ ...draft, type: event.target.value }))
+                        }
+                      >
+                        <option value="fixed">Fixed</option>
+                        <option value="slab">Slab</option>
+                        <option value="external">External</option>
+                      </select>
+                    </label>
+                    {(
+                      [
+                        ['code', 'Code'],
+                        ['category', 'Category'],
+                        ['name_en', 'Name EN'],
+                        ['amount_rupees', 'Amount rupees'],
+                        ['input_key', 'Input key / external ref'],
+                      ] as Array<[keyof typeof tariffDraft, string]>
+                    ).map(([key, label]) => (
+                      <MasterField
+                        key={key}
+                        label={label}
+                        value={String(tariffDraft[key as keyof typeof tariffDraft])}
+                        onChange={(value) =>
+                          setTariffDraft((draft) => ({ ...draft, [key]: value }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </GuidedMasterCard>
+                <JsonFallbackPanel
+                  value={tariffText}
+                  onChange={setTariffText}
+                  onSave={() => void upsert('tariffs', tariffText, 'Tariff')}
+                  saveLabel="Save tariff JSON"
+                />
+              </div>
+              <RecordListPanel
+                title="Tariffs"
+                selectedKey={selectedTariffCode}
+                onNew={newTariff}
+                newLabel="New tariff"
+                emptyLabel="No tariffs loaded."
+              >
+                {tariffs.map((tariff) => (
+                  <RecordListItem
+                    key={tariff.code}
+                    itemKey={tariff.code}
+                    selected={selectedTariffCode === tariff.code}
+                    title={pickLabel(tariff.name)}
+                    subtitle={tariff.category}
+                    meta={
+                      tariff.preview_paise === null
+                        ? 'external'
+                        : `preview ₹${(tariff.preview_paise / 100).toFixed(2)}`
+                    }
+                    onSelect={() => selectTariff(tariff)}
+                  />
+                ))}
+              </RecordListPanel>
+            </section>
+          ) : null}
 
-      {section === 'grievances' ? (
-        <section className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-forest">
-              Sprint 6.22 · Grievance taxonomy
-            </p>
-            <h2 className="text-lg font-semibold text-ink-primary">Grievance catalogue</h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Categories and sub-types citizens see when filing. Changes apply on next catalogue
-              fetch; PWA/mobile hardcoded lists update in Sprint 6.23.
-            </p>
-          </div>
-          <GrievanceCataloguePanel />
-        </section>
-      ) : null}
+          {section === 'address' ? (
+            <section className="space-y-6">
+              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-4">
+                  <GuidedMasterCard
+                    eyebrow="Guided address row"
+                    title={selectedAddressKey ? 'Edit address locality' : 'New address locality'}
+                    saveLabel="Save address"
+                    onSave={() => void saveGuidedAddress()}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(
+                        [
+                          ['borough_code', 'Borough code'],
+                          ['borough_name', 'Borough name'],
+                          ['ward_number', 'Ward number'],
+                          ['ward_name', 'Ward name'],
+                          ['mouza', 'Mouza'],
+                          ['locality_name', 'Locality name'],
+                          ['pincode', 'PIN code'],
+                        ] as Array<[keyof typeof addressDraft, string]>
+                      ).map(([key, label]) => (
+                        <MasterField
+                          key={key}
+                          label={label}
+                          value={addressDraft[key]}
+                          onChange={(value) =>
+                            setAddressDraft((draft) => ({ ...draft, [key]: value }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </GuidedMasterCard>
+                  <JsonFallbackPanel
+                    value={addressText}
+                    onChange={setAddressText}
+                    onSave={() => void upsert('address-master', addressText, 'Address master')}
+                    saveLabel="Save address JSON"
+                  />
+                </div>
+                <RecordListPanel
+                  title="Address rows"
+                  selectedKey={selectedAddressKey}
+                  onNew={newAddressRow}
+                  newLabel="New row"
+                  emptyLabel="No address rows loaded."
+                >
+                  {addressRows.map((row) => {
+                    const key = addressRowKey(row);
+                    return (
+                      <RecordListItem
+                        key={key}
+                        itemKey={key}
+                        selected={selectedAddressKey === key}
+                        title={row.locality_name}
+                        subtitle={`Ward ${row.ward_number ?? '-'} · ${row.borough_name ?? 'No borough'}`}
+                        meta={`${row.mouza ?? 'No mouza'} · ${row.pincode ?? 'No PIN'}`}
+                        onSelect={() => selectAddressRow(row)}
+                      />
+                    );
+                  })}
+                </RecordListPanel>
+              </section>
 
-      {section === 'catalogue' ? (
-        <section className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
-          <div className="mb-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-forest">
-              Sprint 6.10 · Catalogue governance
-            </p>
-            <h2 className="text-lg font-semibold text-ink-primary">
-              Inherited, forked, and tenant-only services
-            </h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Adopt global templates, fork local copies, or deactivate this tenant&apos;s view
-              without changing global catalogue rows. Assign adopted services to a department below.
-            </p>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {catalogueRows.map((row) => (
-              <CatalogueServiceCard
-                key={`${row.source}:${row.code}`}
-                row={row}
-                departments={departments}
-                onAdopt={
-                  row.global_code
-                    ? () => void catalogueAction(row.global_code ?? row.code, 'adopt')
-                    : undefined
-                }
-                onFork={() => void catalogueAction(row.global_code ?? row.code, 'fork')}
-                onDeactivate={() => void catalogueAction(row.code, 'deactivate')}
-                onAssignDepartment={
-                  row.tenant_service_id
-                    ? (departmentId) =>
-                        void assignServiceDepartment(row.tenant_service_id!, departmentId)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+              <section className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                      Sprint 6.9 · Bulk address import
+                    </p>
+                    <h2 className="text-lg font-semibold text-ink-primary">Address master CSV</h2>
+                    <p className="mt-1 text-sm text-ink-secondary">
+                      Paste CSV rows, dry-run validation, then import valid borough/ward/locality
+                      records.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void importAddressCsv(true)}
+                    >
+                      Dry-run
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => void importAddressCsv(false)}>
+                      Import CSV
+                    </Button>
+                  </div>
+                </div>
+                <textarea
+                  className="mt-4 h-40 w-full rounded-lg border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark"
+                  value={addressCsv}
+                  onChange={(event) => setAddressCsv(event.target.value)}
+                  spellCheck={false}
+                />
+                {addressImportResult ? (
+                  <div className="mt-4 rounded-lg border border-warm-border bg-canvas p-3 text-sm">
+                    <p className="font-semibold text-ink-primary">
+                      {addressImportResult.dry_run ? 'Dry-run' : 'Import'} result: insert{' '}
+                      {addressImportResult.inserted}, update {addressImportResult.updated}, failed{' '}
+                      {addressImportResult.failed}
+                    </p>
+                    {addressImportResult.errors.length ? (
+                      <ul className="mt-2 space-y-1 text-xs text-red-700">
+                        {addressImportResult.errors.map((error) => (
+                          <li key={`${error.row}-${error.field}-${error.message}`}>
+                            Row {error.row} / {error.field}: {error.message}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+            </section>
+          ) : null}
+
+          {section === 'organisation' ? (
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-forest">
+                  ADR-0011 · Phase 1
+                </p>
+                <h2 className="text-lg font-semibold text-ink-primary">
+                  Departments & designations
+                </h2>
+                <p className="mt-1 text-sm text-ink-secondary">
+                  ULB organisation master for workflow designations. Assign multiple designations
+                  per staff member for Desk queue routing (Phase 4+).
+                </p>
+              </div>
+              <OrgDesignationsPanel />
+            </section>
+          ) : null}
+
+          {section === 'grievances' ? (
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-forest">
+                  Sprint 6.22 · Grievance taxonomy
+                </p>
+                <h2 className="text-lg font-semibold text-ink-primary">Grievance catalogue</h2>
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Categories and sub-types citizens see when filing. Changes apply on next catalogue
+                  fetch; PWA/mobile hardcoded lists update in Sprint 6.23.
+                </p>
+              </div>
+              <GrievanceCataloguePanel />
+            </section>
+          ) : null}
+
+          {section === 'catalogue' ? (
+            <section className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
+              <div className="mb-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-forest">
+                  Sprint 6.10 · Catalogue governance
+                </p>
+                <h2 className="text-lg font-semibold text-ink-primary">
+                  Inherited, forked, and tenant-only services
+                </h2>
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Adopt global templates, fork local copies, or deactivate this tenant&apos;s view
+                  without changing global catalogue rows. Assign adopted services to a department
+                  below.
+                </p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {catalogueRows.map((row) => (
+                  <CatalogueServiceCard
+                    key={`${row.source}:${row.code}`}
+                    row={row}
+                    departments={departments}
+                    onAdopt={
+                      row.global_code
+                        ? () => void catalogueAction(row.global_code ?? row.code, 'adopt')
+                        : undefined
+                    }
+                    onFork={() => void catalogueAction(row.global_code ?? row.code, 'fork')}
+                    onDeactivate={() => void catalogueAction(row.code, 'deactivate')}
+                    onAssignDepartment={
+                      row.tenant_service_id
+                        ? (departmentId) =>
+                            void assignServiceDepartment(row.tenant_service_id!, departmentId)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

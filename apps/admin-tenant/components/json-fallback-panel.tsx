@@ -33,12 +33,12 @@ export function JsonFallbackPanel({
       </summary>
       <div className="space-y-3 border-t border-warm-border px-4 pb-4 pt-3">
         {readOnly ? (
-          <pre className="max-h-56 overflow-auto rounded-xl border border-warm-border bg-slate-950 p-3 font-mono text-xs text-slate-50">
+          <pre className="max-h-56 overflow-auto rounded-xl border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark">
             {value}
           </pre>
         ) : (
           <textarea
-            className="h-56 w-full rounded-xl border border-warm-border bg-slate-950 p-3 font-mono text-xs text-slate-50"
+            className="h-56 w-full rounded-xl border border-warm-border bg-sidebar p-3 font-mono text-xs text-ink-onDark"
             spellCheck={false}
             value={value}
             onChange={(event) => onChange?.(event.target.value)}

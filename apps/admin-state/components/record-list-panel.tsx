@@ -65,16 +65,16 @@ export function RecordListItem({
         className={[
           'w-full rounded-xl border px-3 py-2.5 text-left transition',
           selected
-            ? 'border-platform-accent bg-cyan-50/80 shadow-sm ring-1 ring-platform-accent/20'
+            ? 'border-brand bg-brand-muted shadow-sm ring-1 ring-brand/20 before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-brand relative'
             : 'border-warm-border bg-canvas hover:bg-brand-muted/30',
         ].join(' ')}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[11px] font-semibold text-platform-accent">{itemKey}</p>
+            <p className="font-mono text-xs font-semibold text-platform-accent">{itemKey}</p>
             <p className="font-medium text-ink-primary">{title}</p>
             {subtitle ? <p className="mt-0.5 text-xs text-ink-secondary">{subtitle}</p> : null}
-            {meta ? <p className="mt-1 text-[11px] text-ink-secondary">{meta}</p> : null}
+            {meta ? <p className="mt-1 text-xs text-ink-secondary">{meta}</p> : null}
           </div>
           <span className="shrink-0 text-xs font-semibold text-platform-accent">
             {selected ? 'Re-onboarding' : 'Re-onboard'}

@@ -26,14 +26,14 @@ export default function LoginPage({
           {error ? (
             <p
               role="alert"
-              className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+              className="mt-4 rounded-2xl border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-danger"
             >
               Sign-in could not be completed. <span className="font-mono text-xs">{error}</span>
             </p>
           ) : null}
           <Link
             href="/api/admin-auth/start"
-            className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-brand px-5 py-3 text-sm font-semibold text-brand-fg shadow-sm transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+            className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-brand px-5 py-3 text-sm font-semibold text-brand-fg shadow-sm transition hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
           >
             Continue to sign in
           </Link>

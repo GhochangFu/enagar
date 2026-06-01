@@ -5,12 +5,12 @@ import { cn } from '../cn';
 import type { HTMLAttributes, JSX } from 'react';
 
 const toneClass = {
-  neutral: 'bg-slate-100 text-slate-700',
+  neutral: 'bg-canvas text-ink-secondary',
   brand: 'bg-brand-muted text-brand',
-  success: 'bg-emerald-100 text-emerald-900',
-  warning: 'bg-amber-100 text-amber-950',
-  danger: 'bg-red-100 text-red-800',
-  info: 'bg-sky-100 text-sky-900',
+  success: 'bg-success-bg text-success',
+  warning: 'bg-warning-bg text-warning',
+  danger: 'bg-danger-bg text-danger',
+  info: 'bg-info-bg text-info',
 } as const;
 
 export type BadgeTone = keyof typeof toneClass;

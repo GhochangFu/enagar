@@ -12,8 +12,8 @@ export default function LogoutPage(): JSX.Element {
     <main className="flex min-h-screen items-center justify-center bg-canvas px-6 py-16">
       <StateLoginTheme />
       <div className="w-full max-w-md space-y-6">
-        <div className="rounded-3xl border border-warm-border bg-surface p-8 shadow-sm ring-1 ring-cyan-100">
-          <p className="inline-flex rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-platform-accent">
+        <div className="rounded-3xl border border-warm-border bg-surface p-8 shadow-sm">
+          <p className="inline-flex rounded-full bg-platform-band px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
             Signed out
           </p>
           <h1 className="mt-4 text-2xl font-bold text-ink-primary">You have left State Admin</h1>
