@@ -1,6 +1,10 @@
-import { localeMap, slugify } from '@enagar/forms/builder';
-
-import type { WorkflowDefinition, WorkflowStage, WorkflowTransition } from '@enagar/workflow';
+import {
+  CHAIRPERSON_REJECT_STAGE_CODE,
+  CITIZEN_CORRECTION_VERB,
+  type WorkflowDefinition,
+  type WorkflowStage,
+  type WorkflowTransition,
+} from '@enagar/workflow';
 
 export const DESIGNATION_WORKFLOW_VERBS = [
   'forward',
@@ -43,7 +47,16 @@ const MUNICIPAL_STAGE_DEFS: Array<{
 ];
 
 function stageLabel(en: string) {
-  return localeMap(en);
+  return { en, bn: en, hi: en };
+}
+
+function slugify(input: string, fallback: string): string {
+  const slug = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || fallback;
 }
 
 function upsertStage(workflow: WorkflowDefinition, stage: WorkflowStage): WorkflowDefinition {
@@ -95,6 +108,44 @@ function designationTransition(
   };
 }
 
+const REJECTED_STAGE_CODE = 'rejected';
+
+function rejectedTerminalStage(): WorkflowStage {
+  return {
+    code: REJECTED_STAGE_CODE,
+    label: stageLabel('Rejected'),
+    owner_role: 'citizen',
+    terminal: true,
+  };
+}
+
+/** Terminal `rejected` stage + `reject` transition (comment required at runtime). */
+function addRejectTransition(
+  workflow: WorkflowDefinition,
+  options: { from: string; designation: string },
+): WorkflowDefinition {
+  let next = upsertStage(workflow, rejectedTerminalStage());
+  next = addTransition(
+    next,
+    designationTransition(options.from, REJECTED_STAGE_CODE, 'reject', options.designation, {
+      requires_comment: true,
+      effects: [{ type: 'audit' }, { type: 'notify' }],
+    }),
+  );
+  return next;
+}
+
+/** Citizen correction: internal stage → citizen-owned initial/submitted stage. */
+function addReturnForCorrectionTransition(
+  workflow: WorkflowDefinition,
+  options: { from: string; to: string; designation: string },
+): WorkflowDefinition {
+  return addTransition(
+    workflow,
+    designationTransition(options.from, options.to, CITIZEN_CORRECTION_VERB, options.designation),
+  );
+}
+
 function designationStage(
   code: string,
   designation: string,
@@ -109,7 +160,7 @@ function designationStage(
     owner_role: 'tenant_clerk',
     owner_designation: designation,
     stage_kind: stageKind,
-    allowed_verbs: allowedVerbs,
+    ...(allowedVerbs.length > 0 ? { allowed_verbs: allowedVerbs } : {}),
     sla_hours: 48,
     ...extra,
   };
@@ -164,7 +215,6 @@ export function insertBocResolutionBranch(workflow: WorkflowDefinition): Workflo
     workflow,
     designationStage('boc-resolution', 'board_of_councillors', 'BOC resolution', 'municipality', [
       'record-boc-resolution',
-      'forward',
     ]),
   );
   next = upsertStage(
@@ -174,7 +224,7 @@ export function insertBocResolutionBranch(workflow: WorkflowDefinition): Workflo
       'executive_officer',
       'Executive approval',
       'municipality',
-      ['forward'],
+      [],
     ),
   );
   next = upsertStage(next, {
@@ -256,7 +306,7 @@ export function applyPwdWorksTemplate(workflow: WorkflowDefinition): WorkflowDef
       'pwd_executive_engineer',
       'Department head review',
       'dept_head',
-      ['forward', 'forward-to-eo', 'forward-to-dept-head-final', 'return', 'reject'],
+      ['forward-to-eo', 'forward-to-dept-head-final', 'return', 'reject'],
     ),
   );
 
@@ -267,6 +317,11 @@ export function applyPwdWorksTemplate(workflow: WorkflowDefinition): WorkflowDef
       actor_designation: undefined,
     }),
   );
+  next = addReturnForCorrectionTransition(next, {
+    from: 'maker-review',
+    to: entryCode,
+    designation: 'pwd_junior_engineer',
+  });
   next = addForwardReturnPair(next, {
     from: 'maker-review',
     to: 'checker-review',
@@ -297,6 +352,10 @@ export function applyPwdWorksTemplate(workflow: WorkflowDefinition): WorkflowDef
       'pwd_executive_engineer',
     ),
   );
+  next = addRejectTransition(next, {
+    from: 'dept-head-review',
+    designation: 'pwd_executive_engineer',
+  });
 
   next = insertMunicipalSignoffBlock(next, {
     entryStageCode: 'dept-head-review',
@@ -321,7 +380,7 @@ export function applyMunicipalLadderTemplate(workflow: WorkflowDefinition): Work
       'pwd_executive_engineer',
       'Department head review',
       'dept_head',
-      ['forward', 'forward-to-eo', 'forward-to-dept-head-final', 'return', 'reject'],
+      ['forward-to-eo', 'forward-to-dept-head-final', 'reject'],
     ),
   );
 
@@ -332,6 +391,10 @@ export function applyMunicipalLadderTemplate(workflow: WorkflowDefinition): Work
       actor_designation: undefined,
     }),
   );
+  next = addRejectTransition(next, {
+    from: 'dept-head-review',
+    designation: 'pwd_executive_engineer',
+  });
 
   next = insertMunicipalSignoffBlock(next, {
     entryStageCode: 'dept-head-review',
@@ -541,7 +604,6 @@ export function insertMunicipalSignoffBlock(
     next,
     designationStage(exitCode, 'pwd_executive_engineer', 'Department head (final)', 'dept_head', [
       'forward',
-      'return',
       'reject',
     ]),
   );
@@ -598,6 +660,15 @@ export function insertMunicipalSignoffBlock(
     );
   }
 
+  next = addRejectTransition(next, {
+    from: exitCode,
+    designation: 'pwd_executive_engineer',
+  });
+  next = addRejectTransition(next, {
+    from: CHAIRPERSON_REJECT_STAGE_CODE,
+    designation: 'chairperson',
+  });
+
   return next;
 }
 
@@ -616,7 +687,6 @@ export function insertHoardingScrutinyBlock(
       'return',
     ]),
     designationStage('technical-scrutiny', 'hoarding_officer', 'Technical scrutiny', 'approver', [
-      'forward',
       'return',
       'route-to-boc',
       'approve-to-executive',
@@ -636,6 +706,11 @@ export function insertHoardingScrutinyBlock(
     }),
   );
 
+  next = addReturnForCorrectionTransition(next, {
+    from: 'clerk-verification',
+    to: options.afterStageCode,
+    designation: 'hoarding_clerk',
+  });
   next = addForwardReturnPair(next, {
     from: 'clerk-verification',
     to: 'site-inspection',
