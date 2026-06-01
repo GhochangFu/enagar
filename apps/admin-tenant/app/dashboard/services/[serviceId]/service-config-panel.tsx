@@ -1,9 +1,24 @@
 'use client';
 
+type BocPolicy = 'never' | 'always' | 'officer_may_require';
+
+type MunicipalSignoffPolicy = 'never' | 'high_value_only' | 'always';
+
+type PaymentSchedule = 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+
+type FeeLineCode = 'application' | 'approval';
+
 type ServiceConfigResponse = {
   fee_rule: unknown;
   fee_preview_paise: number | null;
+  payment_schedule: PaymentSchedule;
+  fee_lines: unknown;
+  fee_line_previews: Partial<Record<FeeLineCode, number | null>>;
+  payment_schedule_inferred?: boolean;
   required_documents: unknown;
+  boc_policy: BocPolicy;
+  municipal_signoff_policy: MunicipalSignoffPolicy;
+  municipal_signoff_threshold_paise: number;
   revenue_head: { code: string; accounting_code: string } | null;
 };
 
@@ -25,6 +40,13 @@ type FeeRuleDraft =
       unit_amount_paise: number;
     }
   | { type: 'external'; provider: string; currency?: 'INR' };
+
+export type FeeLineDraft = {
+  label: { en: string; bn: string; hi: string };
+  rule: FeeRuleDraft;
+};
+
+export type FeeLinesDraft = Partial<Record<FeeLineCode, FeeLineDraft>>;
 
 type DocumentDraft = {
   code: string;
@@ -185,8 +207,66 @@ function coerceDocument(value: unknown, index: number): DocumentDraft {
   return blankDocument(index + 1);
 }
 
-function coerceDocuments(value: unknown): DocumentDraft[] {
+export function coerceDocuments(value: unknown): DocumentDraft[] {
   return Array.isArray(value) ? value.map(coerceDocument) : [];
+}
+
+function blankFeeLine(code: FeeLineCode): FeeLineDraft {
+  const label =
+    code === 'application'
+      ? { en: 'Application fee', bn: 'আবেদন ফি', hi: 'आवेदन शुल्क' }
+      : { en: 'Licence fee', bn: 'লাইসেন্স ফি', hi: 'लाइसेंस शुल्क' };
+  return { label, rule: { type: 'fixed', amount_paise: 1000, currency: 'INR' } };
+}
+
+function coerceFeeLine(value: unknown, code: FeeLineCode): FeeLineDraft {
+  if (!isRecord(value)) {
+    return blankFeeLine(code);
+  }
+  const label = coerceLabel(
+    value.label,
+    code === 'application' ? 'Application fee' : 'Licence fee',
+  );
+  return {
+    label,
+    rule: coerceFeeRule(value.rule),
+  };
+}
+
+function coerceFeeLines(value: unknown, schedule: PaymentSchedule): FeeLinesDraft {
+  const lines: FeeLinesDraft = {};
+  if (isRecord(value)) {
+    if (schedule === 'upfront_only' || schedule === 'upfront_and_deferred') {
+      lines.application = coerceFeeLine(value.application, 'application');
+    }
+    if (schedule === 'deferred_only' || schedule === 'upfront_and_deferred') {
+      lines.approval = coerceFeeLine(value.approval, 'approval');
+    }
+  }
+  if (schedule === 'upfront_only' || schedule === 'upfront_and_deferred') {
+    lines.application ??= blankFeeLine('application');
+  }
+  if (schedule === 'deferred_only' || schedule === 'upfront_and_deferred') {
+    lines.approval ??= blankFeeLine('approval');
+  }
+  return lines;
+}
+
+function previewFixedFee(rule: FeeRuleDraft): number | null {
+  if (rule.type === 'free') {
+    return 0;
+  }
+  if (rule.type === 'fixed') {
+    return rule.amount_paise;
+  }
+  return null;
+}
+
+function formatPreview(paise: number | null | undefined): string {
+  if (paise === null || paise === undefined) {
+    return 'external/invalid';
+  }
+  return `₹${(paise / 100).toFixed(2)}`;
 }
 
 function blankDocument(index: number): DocumentDraft {
@@ -206,29 +286,49 @@ function blankDocument(index: number): DocumentDraft {
 export function ServiceConfigPanel({
   serviceConfig,
   revenueHeads,
+  paymentSchedule,
+  feeLines,
   feeText,
   documentsText,
   revenueHeadCode,
   parsedFee,
   parsedDocuments,
+  onPaymentScheduleChange,
+  onFeeLinesChange,
   onFeeTextChange,
   onDocumentsTextChange,
   onRevenueHeadCodeChange,
+  bocPolicy,
+  onBocPolicyChange,
+  municipalSignoffPolicy,
+  onMunicipalSignoffPolicyChange,
+  municipalSignoffThresholdRupees,
+  onMunicipalSignoffThresholdRupeesChange,
   onSave,
 }: {
   serviceConfig: ServiceConfigResponse;
   revenueHeads: RevenueHeadRow[];
+  paymentSchedule: PaymentSchedule;
+  feeLines: FeeLinesDraft;
   feeText: string;
   documentsText: string;
   revenueHeadCode: string;
   parsedFee: ParsedValue;
   parsedDocuments: ParsedValue;
+  onPaymentScheduleChange: (value: PaymentSchedule) => void;
+  onFeeLinesChange: (value: FeeLinesDraft) => void;
   onFeeTextChange: (value: string) => void;
   onDocumentsTextChange: (value: string) => void;
   onRevenueHeadCodeChange: (value: string) => void;
+  bocPolicy: BocPolicy;
+  onBocPolicyChange: (value: BocPolicy) => void;
+  municipalSignoffPolicy: MunicipalSignoffPolicy;
+  onMunicipalSignoffPolicyChange: (value: MunicipalSignoffPolicy) => void;
+  municipalSignoffThresholdRupees: string;
+  onMunicipalSignoffThresholdRupeesChange: (value: string) => void;
   onSave: () => void;
 }): JSX.Element {
-  const feeRule = coerceFeeRule(parsedFee.value);
+  const legacyFeeRule = coerceFeeRule(parsedFee.value);
   const documents = coerceDocuments(parsedDocuments.value);
   const legacySlabSet =
     isRecord(parsedFee.value) && typeof parsedFee.value.slab_set === 'string'
@@ -239,9 +339,26 @@ export function ServiceConfigPanel({
     onFeeTextChange(pretty(next));
   }
 
+  function updateFeeLine(code: FeeLineCode, next: FeeLineDraft): void {
+    onFeeLinesChange({ ...feeLines, [code]: next });
+    if (code === 'application' && paymentSchedule !== 'deferred_only') {
+      onFeeTextChange(pretty(next.rule));
+    }
+    if (code === 'approval' && paymentSchedule === 'deferred_only') {
+      onFeeTextChange(pretty(next.rule));
+    }
+  }
+
   function setDocuments(next: DocumentDraft[]): void {
     onDocumentsTextChange(pretty(next));
   }
+
+  const activeLineCodes: FeeLineCode[] =
+    paymentSchedule === 'upfront_and_deferred'
+      ? ['application', 'approval']
+      : paymentSchedule === 'deferred_only'
+        ? ['approval']
+        : ['application'];
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -254,10 +371,8 @@ export function ServiceConfigPanel({
             Fee, documents, and revenue mapping
           </h2>
           <p className="text-xs text-slate-500">
-            Preview fee:{' '}
-            {serviceConfig.fee_preview_paise === null
-              ? 'external/invalid'
-              : `₹${(serviceConfig.fee_preview_paise / 100).toFixed(2)}`}
+            Primary preview: {formatPreview(serviceConfig.fee_preview_paise)}
+            {serviceConfig.payment_schedule_inferred ? ' · schedule inferred from workflow' : ''}
           </p>
         </div>
         <button
@@ -270,13 +385,66 @@ export function ServiceConfigPanel({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4 xl:col-span-2">
+          <h3 className="text-sm font-semibold text-slate-900">Payment schedule (ADR-0013)</h3>
+          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            When fees are collected
+            <select
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
+              value={paymentSchedule}
+              onChange={(event) => {
+                const schedule = event.target.value as PaymentSchedule;
+                onPaymentScheduleChange(schedule);
+                onFeeLinesChange(coerceFeeLines(feeLines, schedule));
+              }}
+            >
+              <option value="upfront_only">Upfront only — pay before submit</option>
+              <option value="deferred_only">Deferred only — dept head issues link later</option>
+              <option value="upfront_and_deferred">
+                Dual fee — application upfront + approval later
+              </option>
+            </select>
+          </label>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {activeLineCodes.map((code) => {
+              const line = feeLines[code] ?? blankFeeLine(code);
+              const savedPreview = serviceConfig.fee_line_previews?.[code];
+              const draftPreview = previewFixedFee(line.rule);
+              return (
+                <div key={code} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold capitalize text-slate-900">{code} fee</h4>
+                    <span className="text-xs text-slate-500">
+                      Preview: {formatPreview(draftPreview ?? savedPreview)}
+                    </span>
+                  </div>
+                  <TextInput
+                    label="Label EN"
+                    value={line.label.en}
+                    onChange={(en) =>
+                      updateFeeLine(code, {
+                        ...line,
+                        label: { ...line.label, en, bn: en, hi: en },
+                      })
+                    }
+                  />
+                  <FeeRuleFields
+                    feeRule={line.rule}
+                    onChange={(rule) => updateFeeLine(code, { ...line, rule })}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Fee rule guided editor</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Legacy fee rule (primary line)</h3>
           <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
             Rule type
             <select
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal"
-              value={feeRule.type}
+              value={legacyFeeRule.type}
               onChange={(event) => {
                 const type = event.target.value;
                 if (type === 'fixed') {
@@ -317,7 +485,7 @@ export function ServiceConfigPanel({
               configure fee tiers below, then save to replace the seed placeholder.
             </p>
           ) : null}
-          <FeeRuleFields feeRule={feeRule} onChange={setFeeRule} />
+          <FeeRuleFields feeRule={legacyFeeRule} onChange={setFeeRule} />
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -349,6 +517,67 @@ export function ServiceConfigPanel({
           </div>
         </section>
       </div>
+
+      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        Municipal sign-off policy
+        <select
+          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          value={municipalSignoffPolicy}
+          onChange={(event) =>
+            onMunicipalSignoffPolicyChange(event.target.value as MunicipalSignoffPolicy)
+          }
+        >
+          <option value="never">Never — skip EO/CIC/VC/Chairperson ladder</option>
+          <option value="high_value_only">
+            High value only — ladder when fee ≥ threshold or form flag
+          </option>
+          <option value="always">Always — every application uses municipal ladder</option>
+        </select>
+        <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+          Use the PWD works or municipal ladder template with guarded forward edges from{' '}
+          <span className="font-mono">dept-head-review</span>.
+        </p>
+      </label>
+
+      {municipalSignoffPolicy === 'high_value_only' ? (
+        <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-slate-500">
+          Municipal sign-off threshold (₹)
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+            value={municipalSignoffThresholdRupees}
+            onChange={(event) => onMunicipalSignoffThresholdRupeesChange(event.target.value)}
+          />
+          <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+            Default ₹5,00,000. Fee preview for this service:{' '}
+            {serviceConfig.fee_preview_paise != null
+              ? `₹${(serviceConfig.fee_preview_paise / 100).toFixed(2)}`
+              : 'not computed'}
+          </p>
+        </label>
+      ) : null}
+
+      <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        Board of Councillors (BOC) policy
+        <select
+          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          value={bocPolicy}
+          onChange={(event) => onBocPolicyChange(event.target.value as BocPolicy)}
+        >
+          <option value="never">Never — skip BOC stage (guards block route-to-boc)</option>
+          <option value="always">Always — every application requires BOC resolution</option>
+          <option value="officer_may_require">
+            Officer may require — hoarding officer can flag BOC at technical scrutiny
+          </option>
+        </select>
+        <p className="mt-1 text-xs font-normal normal-case text-slate-500">
+          Publish a workflow with <span className="font-mono">boc-resolution</span> and guarded
+          edges from <span className="font-mono">technical-scrutiny</span> (use the hoarding
+          scrutiny template).
+        </p>
+      </label>
 
       <label className="mt-5 block text-xs font-medium uppercase tracking-wide text-slate-500">
         Revenue head

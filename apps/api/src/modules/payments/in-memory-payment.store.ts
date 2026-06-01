@@ -20,6 +20,7 @@ import type {
   SettlementLedgerContext,
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
 import type { ApplicationReadScope } from '../applications/dto';
 
 interface IdempotencyRecord {
@@ -67,12 +68,25 @@ export class InMemoryPaymentStore implements PaymentStore {
     );
   }
 
-  async findActivePaymentByApplication(applicationId: string): Promise<PaymentResponse | null> {
-    const paymentId = this.activePaymentByApplication.get(applicationId);
-    if (!paymentId) {
-      return null;
+  async findActivePaymentByApplication(
+    applicationId: string,
+    feeCode?: FeeLineCode,
+  ): Promise<PaymentResponse | null> {
+    if (feeCode) {
+      const key = activePaymentKey(applicationId, feeCode);
+      const paymentId = this.activePaymentByApplication.get(key);
+      if (!paymentId) {
+        return null;
+      }
+      return clonePayment(this.payments.get(paymentId) ?? null);
     }
-    return clonePayment(this.payments.get(paymentId) ?? null);
+    for (const code of ['application', 'approval'] as const) {
+      const payment = await this.findActivePaymentByApplication(applicationId, code);
+      if (payment) {
+        return payment;
+      }
+    }
+    return null;
   }
 
   async createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse> {
@@ -82,6 +96,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       tenant_id: input.tenantId,
       citizen_subject: input.citizenSubject,
       application_id: input.applicationId,
+      fee_code: input.feeCode,
       amount_paise: input.amountPaise,
       currency: 'INR',
       method: input.method,
@@ -94,7 +109,10 @@ export class InMemoryPaymentStore implements PaymentStore {
     };
 
     this.payments.set(payment.id, payment);
-    this.activePaymentByApplication.set(payment.application_id, payment.id);
+    this.activePaymentByApplication.set(
+      activePaymentKey(payment.application_id, input.feeCode),
+      payment.id,
+    );
     this.idempotencyRecords.set(
       `${input.tenantId}:${input.citizenSubject}:${input.idempotencyKey}`,
       {
@@ -158,9 +176,13 @@ export class InMemoryPaymentStore implements PaymentStore {
 
     this.payments.set(paymentId, settled);
 
-    const activePaymentId = this.activePaymentByApplication.get(settled.application_id);
+    const activePaymentId = this.activePaymentByApplication.get(
+      activePaymentKey(settled.application_id, settled.fee_code),
+    );
     if (activePaymentId === paymentId) {
-      this.activePaymentByApplication.delete(settled.application_id);
+      this.activePaymentByApplication.delete(
+        activePaymentKey(settled.application_id, settled.fee_code),
+      );
     }
 
     const verificationToken = verificationTokenFresh();
@@ -222,6 +244,10 @@ export class InMemoryPaymentStore implements PaymentStore {
     const tenantId = idempotencyTenantId ?? principal.tenantId;
     return `${tenantId}:${principal.subject}:${idempotencyKey}`;
   }
+}
+
+function activePaymentKey(applicationId: string, feeCode: FeeLineCode): string {
+  return `${applicationId}:${feeCode}`;
 }
 
 function clonePayment(payment: PaymentResponse | null): PaymentResponse | null {

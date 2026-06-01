@@ -16,6 +16,7 @@ import { CurrentPrincipal } from '../../common/auth/current-principal.decorator'
 
 import { AdminTenantGrievanceConfigService } from './admin-tenant-grievance-config.service';
 import { AdminTenantGrievanceGovernanceService } from './admin-tenant-grievance-governance.service';
+import { AdminTenantOrgService } from './admin-tenant-org.service';
 import { AdminTenantService } from './admin-tenant.service';
 import {
   PatchGrievanceCategoryDto,
@@ -25,6 +26,14 @@ import {
   UpsertGrievanceCategoryDto,
   UpsertGrievanceSubtypeDto,
 } from './dto/grievance-config.dto';
+import {
+  PatchTenantDepartmentDto,
+  PatchTenantDesignationDto,
+  ReplaceUserDesignationsDto,
+  UpsertDesignationStageMapDto,
+  UpsertTenantDepartmentDto,
+  UpsertTenantDesignationDto,
+} from './dto/org-designations.dto';
 import { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
 import {
   PatchTenantServiceConfigDto,
@@ -36,7 +45,10 @@ import {
 import { SaveServiceFormDraftDto, SaveServiceWorkflowDraftDto } from './dto/service-designer.dto';
 import {
   CreateStaffInviteDto,
+  CreateStaffDto,
+  ImportStaffCsvDto,
   DeskApplicationTransitionDto,
+  DeskWorkOrderAssignDto,
   DeskCommentDto,
   DeskGrievanceAssignDto,
   DeskGrievanceStatusDto,
@@ -65,6 +77,7 @@ export class AdminTenantController {
     private readonly adminTenant: AdminTenantService,
     private readonly grievanceConfig: AdminTenantGrievanceConfigService,
     private readonly grievanceGovernance: AdminTenantGrievanceGovernanceService,
+    private readonly org: AdminTenantOrgService,
   ) {}
 
   @Get('dashboard')
@@ -135,6 +148,16 @@ export class AdminTenantController {
     @Body() dto: DeskApplicationTransitionDto,
   ) {
     return this.adminTenant.transitionDeskApplication(principal, applicationId, dto);
+  }
+
+  @Patch('desk/applications/:applicationId/work-order')
+  @ApiOperation({ summary: 'Assign vendor or staff to the linked work order (Phase 12)' })
+  assignDeskWorkOrder(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: DeskWorkOrderAssignDto,
+  ) {
+    return this.adminTenant.assignDeskWorkOrder(principal, applicationId, dto);
   }
 
   @Get('desk/inbox/grievances')
@@ -314,7 +337,8 @@ export class AdminTenantController {
 
   @Patch('services/:serviceId')
   @ApiOperation({
-    summary: 'Patch catalogue fields for one tenant service (active flag, labels, SLA days)',
+    summary:
+      'Patch catalogue fields for one tenant service (active flag, labels, SLA days, department)',
   })
   patchService(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -576,6 +600,102 @@ export class AdminTenantController {
     return this.adminTenant.addBookingReservation(principal, dto);
   }
 
+  @Get('org/departments')
+  @ApiOperation({ summary: 'List tenant departments (workflow designations — Masters)' })
+  listOrgDepartments(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.org.listDepartments(principal);
+  }
+
+  @Post('org/departments')
+  @ApiOperation({ summary: 'Create a tenant department' })
+  createOrgDepartment(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertTenantDepartmentDto,
+  ) {
+    return this.org.createDepartment(principal, dto);
+  }
+
+  @Patch('org/departments/:code')
+  @ApiOperation({ summary: 'Update a tenant department' })
+  patchOrgDepartment(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: PatchTenantDepartmentDto,
+  ) {
+    return this.org.patchDepartment(principal, code, dto);
+  }
+
+  @Get('org/designations')
+  @ApiOperation({ summary: 'List tenant designations (optional department_id filter)' })
+  listOrgDesignations(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('department_id') departmentId?: string,
+  ) {
+    return this.org.listDesignations(principal, departmentId);
+  }
+
+  @Post('org/designations')
+  @ApiOperation({ summary: 'Create a tenant designation' })
+  createOrgDesignation(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertTenantDesignationDto,
+  ) {
+    return this.org.createDesignation(principal, dto);
+  }
+
+  @Patch('org/designations/:code')
+  @ApiOperation({ summary: 'Update a tenant designation' })
+  patchOrgDesignation(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: PatchTenantDesignationDto,
+  ) {
+    return this.org.patchDesignation(principal, code, dto);
+  }
+
+  @Get('org/users/:userId/designations')
+  @ApiOperation({ summary: 'List designations assigned to a staff user' })
+  listUserOrgDesignations(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('userId') userId: string,
+  ) {
+    return this.org.listUserDesignations(principal, userId);
+  }
+
+  @Put('org/users/:userId/designations')
+  @ApiOperation({ summary: 'Replace designations assigned to a staff user' })
+  replaceUserOrgDesignations(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('userId') userId: string,
+    @Body() dto: ReplaceUserDesignationsDto,
+  ) {
+    return this.org.replaceUserDesignations(principal, userId, dto);
+  }
+
+  @Get('org/designation-stage-maps')
+  @ApiOperation({ summary: 'List designation ↔ workflow stage permission rows' })
+  listDesignationStageMaps(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.org.listDesignationStageMaps(principal);
+  }
+
+  @Post('org/designation-stage-maps')
+  @ApiOperation({ summary: 'Upsert designation ↔ workflow stage permissions' })
+  upsertDesignationStageMap(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertDesignationStageMapDto,
+  ) {
+    return this.org.upsertDesignationStageMap(principal, dto);
+  }
+
+  @Put('org/designation-stage-maps')
+  @ApiOperation({ summary: 'Upsert designation ↔ workflow stage permissions (idempotent)' })
+  putDesignationStageMap(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: UpsertDesignationStageMapDto,
+  ) {
+    return this.org.upsertDesignationStageMap(principal, dto);
+  }
+
   @Get('roles')
   @ApiOperation({ summary: 'List role codes available for tenant staff assignments' })
   listRoles(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
@@ -592,6 +712,21 @@ export class AdminTenantController {
   @ApiOperation({ summary: 'List guided tenant staff invite/provisioning records' })
   listStaffInvites(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.adminTenant.listStaffInvites(principal);
+  }
+
+  @Post('staff/create')
+  @ApiOperation({ summary: 'Create tenant staff with Keycloak identity and default password' })
+  createStaff(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Body() dto: CreateStaffDto) {
+    return this.adminTenant.createStaff(principal, dto);
+  }
+
+  @Post('staff/import-csv')
+  @ApiOperation({ summary: 'Bulk create tenant staff from CSV (Keycloak + eNagar records)' })
+  importStaffCsv(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: ImportStaffCsvDto,
+  ) {
+    return this.adminTenant.importStaffCsv(principal, dto.csv, dto.dry_run ?? false);
   }
 
   @Post('staff-invites')

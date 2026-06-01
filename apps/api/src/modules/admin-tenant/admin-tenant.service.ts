@@ -5,6 +5,11 @@ import {
   calculateSlaDueAt,
   createLinearWorkflowDraft,
   evaluateTransition,
+  officerMaySetRequireBoc,
+  pendingActorFromWorkflowStage,
+  readBocPolicy,
+  transitionRequiresBocResolutionFields,
+  transitionActorAllowed,
   validateWorkflowDefinition,
   workflowForPattern,
 } from '@enagar/workflow';
@@ -13,9 +18,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { KeycloakAdminProvisionerService } from '../../common/keycloak/keycloak-admin-provisioner.service';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import {
   countFormInputFields,
@@ -29,12 +36,37 @@ import {
   isGrievanceStatus,
   type GrievanceStatus,
 } from '../grievances/grievance-lifecycle';
+import { coerceFeeSettlementSnapshot, parseFeeLineCode } from '../payments/fee-settlement.util';
+import { PaymentsService } from '../payments/payments.service';
+import { attachPendingAtLabels } from '../services/pending-at-label.util';
+import {
+  ensureTenantServiceCategory,
+  ensureTenantServiceCategoryOnDepartment,
+  seedCategoryCodeFromNavigation,
+} from '../services/tenant-service-category.resolver';
+import {
+  workflowDefinitionFromRows,
+  workflowStageCreateInput,
+  workflowTransitionCreateInput,
+} from '../services/workflow-designation.mapper';
+import { PostApprovalExecutionService } from '../work-orders/post-approval-execution.service';
+import {
+  WorkOrdersService,
+  type WorkOrderResponse,
+  type TenantVendorResponse,
+} from '../work-orders/work-orders.service';
 
 import {
   assertCode,
   assertLocaleLabel,
   assertValidDocumentChecklist,
+  normalizeDocumentChecklist,
   assertValidFeeRule,
+  assertValidPaymentSchedule,
+  primaryFeeLineCode,
+  readPaymentScheduleFromConfig,
+  resolveServicePaymentConfig,
+  legacyFeeRuleToFeeLine,
   assertSupportedLocale,
   assertTenantBannerSeverity,
   assertOptionalIsoDate,
@@ -49,9 +81,21 @@ import {
   assertValidTariffCategory,
   calculateFeePreview,
 } from './admin-tenant-config.contracts';
-import { assertTenantPortalStaff } from './tenant-admin-portal-roles';
+import { applyBocTransitionPayload, deskSnapshotForAllowedTransition } from './boc-desk.util';
+import { deskApplicationInMyQueue, deskMyQueueWhereClause } from './desk-queue.util';
+import {
+  readMunicipalSignoffPolicyFromConfig,
+  readMunicipalSignoffThresholdFromConfig,
+} from './municipal-desk.util';
+import { loadStaffDesignationContext } from './staff-designations.util';
+import { assertTenantPortalAdminWrite, assertTenantPortalStaff } from './tenant-admin-portal-roles';
 
-import type { FeeRule } from './admin-tenant-config.contracts';
+import type {
+  FeeRule,
+  PaymentSchedule,
+  ResolvedServicePaymentConfig,
+  ServiceFeeLines,
+} from './admin-tenant-config.contracts';
 import type { PatchTenantServiceDto } from './dto/patch-tenant-service.dto';
 import type {
   PatchTenantServiceConfigDto,
@@ -64,6 +108,7 @@ import type {
   SaveServiceWorkflowDraftDto,
 } from './dto/service-designer.dto';
 import type {
+  CreateStaffDto,
   CreateStaffInviteDto,
   PatchTenantSettingsDto,
   RequeueKbArticleDto,
@@ -148,6 +193,9 @@ export type TenantAdminCatalogueRow = {
   global_code: string | null;
   tenant_service_id: string | null;
   category_code: string;
+  department_id: string | null;
+  department_code: string | null;
+  department_name: Prisma.JsonValue | null;
   name: Prisma.JsonValue;
   description: Prisma.JsonValue;
   is_active: boolean;
@@ -158,7 +206,14 @@ export type TenantAdminCatalogueRow = {
 export type TenantAdminServiceConfig = TenantAdminServiceRow & {
   fee_rule: Prisma.JsonValue;
   fee_preview_paise: number | null;
+  payment_schedule: PaymentSchedule;
+  fee_lines: ServiceFeeLines;
+  fee_line_previews: ResolvedServicePaymentConfig['fee_line_previews'];
+  payment_schedule_inferred: boolean;
   required_documents: Prisma.JsonValue;
+  boc_policy: ReturnType<typeof readBocPolicy>;
+  municipal_signoff_policy: ReturnType<typeof readMunicipalSignoffPolicyFromConfig>;
+  municipal_signoff_threshold_paise: number;
   revenue_head: {
     id: string;
     code: string;
@@ -354,6 +409,26 @@ export type TenantAdminStaffRow = {
   updated_at: string;
 };
 
+export type TenantAdminCreateStaffResult = {
+  staff: TenantAdminStaffRow;
+  login_username: string;
+  password_hint: string;
+};
+
+export type TenantAdminStaffImportResult = {
+  dry_run: boolean;
+  created: number;
+  failed: number;
+  errors: Array<{ row: number; field?: string; message: string }>;
+  previews: Array<{ row: number; username: string; display_name: string; role_codes: string[] }>;
+  created_accounts: Array<{
+    row: number;
+    username: string;
+    display_name: string;
+    password_hint: string;
+  }>;
+};
+
 export type TenantAdminStaffInviteRow = {
   id: string;
   username: string;
@@ -407,7 +482,21 @@ export type TenantDeskApplicationListItem = {
   status_label: string;
   current_stage: string;
   pending_role: string | null;
+  pending_designation: string | null;
+  pending_at_label: string | null;
   payment_status: string;
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_settlement?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        status: 'not_required' | 'pending' | 'paid' | 'failed';
+        amount_paise?: number | null;
+      }
+    >
+  >;
+  payment_redirect_url?: string | null;
+  active_payment_id?: string | null;
   submitted_at: string;
   updated_at: string | null;
 };
@@ -417,7 +506,11 @@ export type TenantDeskAllowedTransition = {
   to_stage: string;
   label: string;
   actor_role: string;
+  actor_designation: string | null;
   requires_comment: boolean;
+  requires_boc_resolution_fields: boolean;
+  officer_may_set_require_boc: boolean;
+  boc_policy: ReturnType<typeof readBocPolicy>;
 };
 
 export type TenantDeskApplicationDocument = {
@@ -445,6 +538,8 @@ export type TenantDeskApplicationDetail = {
     }>;
     documents: TenantDeskApplicationDocument[];
   };
+  work_order: WorkOrderResponse | null;
+  vendors: TenantVendorResponse[];
   allowed_transitions: TenantDeskAllowedTransition[];
 };
 
@@ -531,6 +626,10 @@ export class AdminTenantService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly objectStorage: ObjectStorageService,
+    private readonly payments: PaymentsService,
+    private readonly workOrders: WorkOrdersService,
+    private readonly postApprovalExecution: PostApprovalExecutionService,
+    private readonly keycloakProvisioner: KeycloakAdminProvisionerService,
   ) {}
 
   async getDashboard(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardSnapshot> {
@@ -739,7 +838,7 @@ export class AdminTenantService {
       }),
       this.prisma.tenantService.findMany({
         where: { tenantId: principal.tenantId },
-        include: { category: true, globalService: true },
+        include: { category: true, globalService: true, department: true },
         orderBy: [{ code: 'asc' }],
       }),
     ]);
@@ -755,7 +854,12 @@ export class AdminTenantService {
         source: local ? 'tenant_override' : 'global',
         global_code: global.code,
         tenant_service_id: local?.id ?? null,
-        category_code: local?.category.code ?? global.category.code,
+        category_code: local
+          ? seedCategoryCodeFromNavigation(local.globalCategoryCode)
+          : global.category.code,
+        department_id: local?.departmentId ?? null,
+        department_code: local?.department?.code ?? null,
+        department_name: local?.department?.name ?? null,
         name: (local?.name ?? global.name) as Prisma.JsonValue,
         description: (local?.description ?? global.description) as Prisma.JsonValue,
         is_active: local?.isActive ?? global.isActive,
@@ -773,7 +877,10 @@ export class AdminTenantService {
         source: local.globalServiceId ? 'forked' : 'tenant_only',
         global_code: local.globalService?.code ?? null,
         tenant_service_id: local.id,
-        category_code: local.category.code,
+        category_code: seedCategoryCodeFromNavigation(local.globalCategoryCode),
+        department_id: local.departmentId,
+        department_code: local.department.code,
+        department_name: local.department.name as Prisma.JsonValue,
         name: local.name as Prisma.JsonValue,
         description: local.description as Prisma.JsonValue,
         is_active: local.isActive,
@@ -807,13 +914,21 @@ export class AdminTenantService {
     if (existing && existing.globalServiceId !== global.id) {
       throw new BadRequestException('A tenant-owned service already uses this code');
     }
+    const resolved = await ensureTenantServiceCategory(
+      this.prisma,
+      principal.tenantId,
+      global.category.code,
+      global.category.name as Prisma.InputJsonValue,
+    );
     const service = await this.prisma.tenantService.upsert({
       where: { tenantId_code: { tenantId: principal.tenantId, code: global.code } },
       create: {
         tenantId: principal.tenantId,
         globalServiceId: global.id,
         code: global.code,
-        categoryId: global.categoryId,
+        categoryId: resolved.categoryId,
+        departmentId: resolved.departmentId,
+        globalCategoryCode: resolved.globalCategoryCode,
         revenueHeadId: global.revenueHeadId,
         name: global.name as Prisma.InputJsonValue,
         description: global.description as Prisma.InputJsonValue,
@@ -823,7 +938,7 @@ export class AdminTenantService {
         requiredDocuments: global.requiredDocuments as Prisma.InputJsonValue,
       },
       update: { isActive: true },
-      include: { category: true, globalService: true },
+      include: { category: true, globalService: true, department: true },
     });
     return toCatalogueRow(service, global.code, 'tenant_override');
   }
@@ -853,12 +968,32 @@ export class AdminTenantService {
     if (conflict) {
       throw new BadRequestException(`Fork already exists as ${forkCode}`);
     }
+    let categoryId: string;
+    let departmentId: string;
+    let globalCategoryCode: string;
+    if (existing) {
+      categoryId = existing.categoryId;
+      departmentId = existing.departmentId;
+      globalCategoryCode = existing.globalCategoryCode;
+    } else {
+      const resolved = await ensureTenantServiceCategory(
+        this.prisma,
+        principal.tenantId,
+        global!.category.code,
+        global!.category.name as Prisma.InputJsonValue,
+      );
+      categoryId = resolved.categoryId;
+      departmentId = resolved.departmentId;
+      globalCategoryCode = resolved.globalCategoryCode;
+    }
     const service = await this.prisma.tenantService.create({
       data: {
         tenantId: principal.tenantId,
         globalServiceId: null,
         code: forkCode,
-        categoryId: source.categoryId,
+        categoryId,
+        departmentId,
+        globalCategoryCode,
         revenueHeadId: source.revenueHeadId,
         name: source.name as Prisma.InputJsonValue,
         description: source.description as Prisma.InputJsonValue,
@@ -871,7 +1006,7 @@ export class AdminTenantService {
           'effectiveSlaDays' in source ? source.effectiveSlaDays : source.defaultSlaDays,
         requiredDocuments: source.requiredDocuments as Prisma.InputJsonValue,
       },
-      include: { category: true, globalService: true },
+      include: { category: true, globalService: true, department: true },
     });
     return toCatalogueRow(service, serviceCode, 'forked');
   }
@@ -884,7 +1019,7 @@ export class AdminTenantService {
     assertCode(serviceCode, 'service code');
     const service = await this.prisma.tenantService.findUnique({
       where: { tenantId_code: { tenantId: principal.tenantId, code: serviceCode } },
-      include: { category: true, globalService: true },
+      include: { category: true, globalService: true, department: true },
     });
     if (!service) {
       const adopted = await this.adoptCatalogueService(principal, serviceCode);
@@ -893,7 +1028,7 @@ export class AdminTenantService {
     const updated = await this.prisma.tenantService.update({
       where: { id: service.id },
       data: { isActive: false },
-      include: { category: true, globalService: true },
+      include: { category: true, globalService: true, department: true },
     });
     return toCatalogueRow(
       updated,
@@ -1228,6 +1363,9 @@ export class AdminTenantService {
         isActive: true,
         effectiveSlaDays: true,
         updatedAt: true,
+        globalCategoryCode: true,
+        departmentId: true,
+        category: { select: { name: true } },
       },
     });
 
@@ -1242,6 +1380,30 @@ export class AdminTenantService {
         ? mergeLabels(existing.description as Prisma.JsonValue, dto.description)
         : undefined;
 
+    let categoryId: string | undefined;
+    let departmentId: string | undefined;
+    if (dto.department_id !== undefined) {
+      assertUuid(dto.department_id, 'department_id');
+      if (dto.department_id !== existing.departmentId) {
+        const department = await this.prisma.tenantDepartment.findFirst({
+          where: { id: dto.department_id, tenantId: principal.tenantId, isActive: true },
+          select: { id: true },
+        });
+        if (!department) {
+          throw new BadRequestException('department_id does not exist for this tenant');
+        }
+        const resolved = await ensureTenantServiceCategoryOnDepartment(
+          this.prisma,
+          principal.tenantId,
+          department.id,
+          existing.globalCategoryCode,
+          existing.category.name as Prisma.InputJsonValue,
+        );
+        categoryId = resolved.categoryId;
+        departmentId = resolved.departmentId;
+      }
+    }
+
     const updated = await this.prisma.tenantService.update({
       where: { id: existing.id },
       data: {
@@ -1253,6 +1415,8 @@ export class AdminTenantService {
         ...(dto.effective_sla_days !== undefined
           ? { effectiveSlaDays: dto.effective_sla_days }
           : {}),
+        ...(categoryId !== undefined ? { categoryId } : {}),
+        ...(departmentId !== undefined ? { departmentId } : {}),
       },
       select: {
         id: true,
@@ -1289,7 +1453,16 @@ export class AdminTenantService {
       throw new NotFoundException('Service not found for this tenant');
     }
 
-    return toServiceConfigRow(row);
+    const workflowPublished = await this.prisma.workflow.findFirst({
+      where: { tenantId: principal.tenantId, serviceId, status: 'published' },
+      orderBy: { version: 'desc' },
+      include: workflowInclude,
+    });
+
+    return toServiceConfigRow(
+      row,
+      workflowPublished ? toWorkflowRow(workflowPublished).definition : null,
+    );
   }
 
   async patchServiceConfig(
@@ -1300,7 +1473,7 @@ export class AdminTenantService {
     assertTenantPortalStaff(principal);
     const existing = await this.prisma.tenantService.findFirst({
       where: { id: serviceId, tenantId: principal.tenantId },
-      select: { id: true },
+      select: { id: true, overrideConfig: true, effectiveFeeConfig: true },
     });
     if (!existing) {
       throw new NotFoundException('Service not found for this tenant');
@@ -1321,16 +1494,93 @@ export class AdminTenantService {
     }
 
     const data: Prisma.TenantServiceUpdateInput = {};
+    const overrideBase =
+      existing.overrideConfig &&
+      typeof existing.overrideConfig === 'object' &&
+      !Array.isArray(existing.overrideConfig)
+        ? { ...(existing.overrideConfig as Record<string, unknown>) }
+        : {};
+    let nextOverrideConfig: Record<string, unknown> | null = null;
+
     if (dto.fee_rule !== undefined) {
       assertValidFeeRule(dto.fee_rule);
       data.effectiveFeeConfig = dto.fee_rule as unknown as Prisma.InputJsonValue;
     }
     if (dto.required_documents !== undefined) {
-      assertValidDocumentChecklist(dto.required_documents);
-      data.requiredDocuments = dto.required_documents as unknown as Prisma.InputJsonValue;
+      const normalizedDocuments = normalizeDocumentChecklist(dto.required_documents);
+      assertValidDocumentChecklist(normalizedDocuments);
+      data.requiredDocuments = normalizedDocuments as unknown as Prisma.InputJsonValue;
     }
     if (revenueHeadId !== undefined) {
       data.revenueHead = revenueHeadId ? { connect: { id: revenueHeadId } } : { disconnect: true };
+    }
+
+    const touchesPaymentConfig =
+      dto.payment_schedule !== undefined ||
+      dto.fee_lines !== undefined ||
+      dto.fee_rule !== undefined;
+    if (touchesPaymentConfig) {
+      nextOverrideConfig = { ...overrideBase };
+    }
+
+    if (dto.payment_schedule !== undefined || dto.fee_lines !== undefined) {
+      const resolved = resolveServicePaymentConfig(
+        overrideBase,
+        dto.fee_rule ?? existing.effectiveFeeConfig,
+        null,
+      );
+      const payment_schedule = dto.payment_schedule ?? resolved.payment_schedule;
+      const fee_lines = (dto.fee_lines ?? resolved.fee_lines) as ServiceFeeLines;
+      assertValidPaymentSchedule(payment_schedule, fee_lines);
+      nextOverrideConfig = {
+        ...(nextOverrideConfig ?? overrideBase),
+        payment_schedule,
+        fee_lines,
+      };
+      const primaryRule = fee_lines[primaryFeeLineCode(payment_schedule)]?.rule;
+      if (primaryRule) {
+        data.effectiveFeeConfig = primaryRule as unknown as Prisma.InputJsonValue;
+      }
+    } else if (dto.fee_rule !== undefined && readPaymentScheduleFromConfig(overrideBase)) {
+      const payment_schedule = readPaymentScheduleFromConfig(overrideBase)!;
+      const resolved = resolveServicePaymentConfig(overrideBase, dto.fee_rule, null);
+      const primary = primaryFeeLineCode(payment_schedule);
+      const fee_lines: ServiceFeeLines = {
+        ...resolved.fee_lines,
+        [primary]: {
+          ...(resolved.fee_lines[primary] ??
+            legacyFeeRuleToFeeLine(primary, dto.fee_rule as FeeRule)),
+          rule: dto.fee_rule as FeeRule,
+        },
+      };
+      assertValidPaymentSchedule(payment_schedule, fee_lines);
+      nextOverrideConfig = {
+        ...(nextOverrideConfig ?? overrideBase),
+        payment_schedule,
+        fee_lines,
+      };
+    }
+
+    if (
+      dto.boc_policy !== undefined ||
+      dto.municipal_signoff_policy !== undefined ||
+      dto.municipal_signoff_threshold_paise !== undefined
+    ) {
+      nextOverrideConfig = { ...(nextOverrideConfig ?? overrideBase) };
+      if (dto.boc_policy !== undefined) {
+        nextOverrideConfig.boc_policy = dto.boc_policy;
+      }
+      if (dto.municipal_signoff_policy !== undefined) {
+        nextOverrideConfig.municipal_signoff_policy = dto.municipal_signoff_policy;
+      }
+      if (dto.municipal_signoff_threshold_paise !== undefined) {
+        nextOverrideConfig.municipal_signoff_threshold_paise =
+          dto.municipal_signoff_threshold_paise;
+      }
+    }
+
+    if (nextOverrideConfig) {
+      data.overrideConfig = nextOverrideConfig as Prisma.InputJsonValue;
     }
 
     const updated = await this.prisma.tenantService.update({
@@ -1339,7 +1589,16 @@ export class AdminTenantService {
       include: { revenueHead: true },
     });
 
-    return toServiceConfigRow(updated);
+    const workflowPublished = await this.prisma.workflow.findFirst({
+      where: { tenantId: principal.tenantId, serviceId, status: 'published' },
+      orderBy: { version: 'desc' },
+      include: workflowInclude,
+    });
+
+    return toServiceConfigRow(
+      updated,
+      workflowPublished ? toWorkflowRow(workflowPublished).definition : null,
+    );
   }
 
   async listRevenueHeads(principal: AuthenticatedPrincipal): Promise<TenantAdminRevenueHeadRow[]> {
@@ -1778,17 +2037,7 @@ export class AdminTenantService {
       const stageIds = new Map<string, string>();
       for (const [index, stage] of dto.workflow.stages.entries()) {
         const created = await tx.workflowStage.create({
-          data: {
-            tenantId: principal.tenantId,
-            workflowId: workflow.id,
-            code: stage.code,
-            label: stage.label as unknown as Prisma.InputJsonValue,
-            ownerRole: stage.owner_role,
-            slaHours: stage.sla_hours,
-            isInitial: stage.initial === true,
-            isTerminal: stage.terminal === true,
-            sortOrder: index,
-          },
+          data: workflowStageCreateInput(principal.tenantId, workflow.id, stage, index),
         });
         stageIds.set(stage.code, created.id);
       }
@@ -1800,16 +2049,13 @@ export class AdminTenantService {
           throw new BadRequestException('Workflow transition references an unknown stage');
         }
         await tx.workflowTransition.create({
-          data: {
-            tenantId: principal.tenantId,
-            workflowId: workflow.id,
+          data: workflowTransitionCreateInput(
+            principal.tenantId,
+            workflow.id,
             fromStageId,
             toStageId,
-            verb: transition.verb,
-            actorRole: transition.actor_role,
-            requiresComment: transition.requires_comment === true,
-            sideEffects: (transition.effects ?? []) as unknown as Prisma.InputJsonValue,
-          },
+            transition,
+          ),
         });
       }
 
@@ -2398,6 +2644,243 @@ export class AdminTenantService {
     return rows.map(toStaffInviteRow);
   }
 
+  async createStaff(
+    principal: AuthenticatedPrincipal,
+    dto: CreateStaffDto,
+  ): Promise<TenantAdminCreateStaffResult> {
+    assertTenantPortalAdminWrite(principal);
+    assertRoleCodes(dto.role_codes);
+    assertUsername(dto.username);
+    assertDisplayName(dto.display_name);
+    assertOptionalContact(dto.email, 'email');
+    assertOptionalContact(dto.mobile, 'mobile');
+
+    const username = dto.username.trim().toLowerCase();
+    const roleCodes = dto.role_codes as string[];
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        tenantId: principal.tenantId,
+        OR: [
+          { username },
+          ...(dto.email ? [{ email: dto.email }] : []),
+          ...(dto.mobile ? [{ mobile: dto.mobile }] : []),
+        ],
+      },
+    });
+    if (existingUser) {
+      throw new BadRequestException('A staff user with the same username/email/mobile exists');
+    }
+
+    const existingInvite = await this.prisma.staffInvite.findFirst({
+      where: { tenantId: principal.tenantId, username },
+    });
+    if (existingInvite) {
+      throw new BadRequestException('A staff invite with this username already exists');
+    }
+
+    const tenantCode = principal.tenantCode?.trim();
+    if (!tenantCode) {
+      throw new BadRequestException('Tenant code missing from authenticated session');
+    }
+
+    let provisioned;
+    try {
+      provisioned = await this.keycloakProvisioner.provisionTenantStaff({
+        tenantId: principal.tenantId,
+        tenantCode,
+        username,
+        displayName: dto.display_name,
+        email: dto.email,
+        roleCodes,
+        password: dto.password,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new ServiceUnavailableException(`Could not create Keycloak staff user: ${detail}`);
+    }
+
+    const staff = await this.upsertStaff(principal, {
+      keycloak_user_id: provisioned.keycloak_user_id,
+      username,
+      display_name: dto.display_name,
+      email: dto.email,
+      mobile: dto.mobile,
+      status: 'active',
+      role_codes: roleCodes,
+      ward_number: dto.ward_number,
+    });
+
+    if (dto.designation_ids?.length) {
+      const uniqueIds = [...new Set(dto.designation_ids.map((id) => id.trim()).filter(Boolean))];
+      for (const id of uniqueIds) {
+        assertUuid(id, 'designation_id');
+      }
+      const designations = await this.prisma.tenantDesignation.findMany({
+        where: { tenantId: principal.tenantId, id: { in: uniqueIds }, isActive: true },
+        select: { id: true },
+      });
+      if (designations.length !== uniqueIds.length) {
+        throw new BadRequestException('One or more designation_ids are invalid or inactive');
+      }
+      await this.prisma.$transaction(async (tx) => {
+        await tx.userDesignation.deleteMany({
+          where: { tenantId: principal.tenantId, userId: staff.id },
+        });
+        if (uniqueIds.length > 0) {
+          await tx.userDesignation.createMany({
+            data: uniqueIds.map((designationId) => ({
+              tenantId: principal.tenantId,
+              userId: staff.id,
+              designationId,
+            })),
+          });
+        }
+      });
+    }
+
+    await this.auditTenantMutation(principal, 'staff.create', {
+      user_id: staff.id,
+      username: staff.username,
+      role_codes: roleCodes,
+      keycloak_user_id: provisioned.keycloak_user_id,
+      designation_count: dto.designation_ids?.length ?? 0,
+    });
+
+    return {
+      staff,
+      login_username: provisioned.username,
+      password_hint: provisioned.password_hint,
+    };
+  }
+
+  async importStaffCsv(
+    principal: AuthenticatedPrincipal,
+    csv: string,
+    dryRun = false,
+  ): Promise<TenantAdminStaffImportResult> {
+    assertTenantPortalAdminWrite(principal);
+    const parsed = parseCsv(csv);
+    const errors: TenantAdminStaffImportResult['errors'] = [];
+    const previews: TenantAdminStaffImportResult['previews'] = [];
+    const createdAccounts: TenantAdminStaffImportResult['created_accounts'] = [];
+    let created = 0;
+
+    const requiredHeaders = ['username', 'display_name', 'role_codes'];
+    for (const header of requiredHeaders) {
+      if (!parsed.headers.includes(header)) {
+        errors.push({ row: 1, field: header, message: 'Missing required CSV header' });
+      }
+    }
+    if (errors.length > 0) {
+      return {
+        dry_run: dryRun,
+        created: 0,
+        failed: parsed.records.length,
+        errors,
+        previews,
+        created_accounts: createdAccounts,
+      };
+    }
+
+    if (parsed.records.length > 100) {
+      errors.push({
+        row: 1,
+        message: 'CSV exceeds maximum of 100 staff rows per import',
+      });
+      return {
+        dry_run: dryRun,
+        created: 0,
+        failed: parsed.records.length,
+        errors,
+        previews,
+        created_accounts: createdAccounts,
+      };
+    }
+
+    for (const record of parsed.records) {
+      const rowErrors = validateStaffImportRow(record.row, record.data);
+      if (rowErrors.length > 0) {
+        errors.push(...rowErrors);
+        continue;
+      }
+
+      const roleCodes = parseDelimitedCell(record.data.role_codes ?? '');
+      const designationCodes = parseDelimitedCell(record.data.designation_codes ?? '');
+      previews.push({
+        row: record.row,
+        username: record.data.username!.trim().toLowerCase(),
+        display_name: record.data.display_name!.trim(),
+        role_codes: roleCodes,
+      });
+
+      if (dryRun) {
+        created += 1;
+        continue;
+      }
+
+      let designationIds: string[] | undefined;
+      if (designationCodes.length > 0) {
+        const designations = await this.prisma.tenantDesignation.findMany({
+          where: {
+            tenantId: principal.tenantId,
+            code: { in: designationCodes },
+            isActive: true,
+          },
+          select: { id: true, code: true },
+        });
+        if (designations.length !== designationCodes.length) {
+          const found = new Set(designations.map((row) => row.code));
+          const missing = designationCodes.filter((code) => !found.has(code));
+          errors.push({
+            row: record.row,
+            field: 'designation_codes',
+            message: `Unknown designation code(s): ${missing.join(', ')}`,
+          });
+          continue;
+        }
+        designationIds = designations.map((row) => row.id);
+      }
+
+      try {
+        const result = await this.createStaff(principal, {
+          username: record.data.username!.trim(),
+          display_name: record.data.display_name!.trim(),
+          email: record.data.email?.trim() || undefined,
+          mobile: record.data.mobile?.trim() || undefined,
+          role_codes: roleCodes,
+          ward_number: record.data.ward_number?.trim() || undefined,
+          password: record.data.password?.trim() || undefined,
+          designation_ids: designationIds,
+        });
+        created += 1;
+        createdAccounts.push({
+          row: record.row,
+          username: result.login_username,
+          display_name: result.staff.display_name,
+          password_hint: result.password_hint,
+        });
+      } catch (error) {
+        const message =
+          error instanceof BadRequestException || error instanceof ServiceUnavailableException
+            ? String(error.message)
+            : error instanceof Error
+              ? error.message
+              : 'Staff create failed';
+        errors.push({ row: record.row, message });
+      }
+    }
+
+    return {
+      dry_run: dryRun,
+      created,
+      failed: errors.length,
+      errors,
+      previews,
+      created_accounts: createdAccounts,
+    };
+  }
+
   async createStaffInvite(
     principal: AuthenticatedPrincipal,
     dto: CreateStaffInviteDto,
@@ -2773,10 +3256,16 @@ export class AdminTenantService {
     if (queue === 'all' && !hasDeskAdminRole(principal.roles)) {
       throw new ForbiddenException('Only municipality admins can view all open applications');
     }
+    const roles = normalizeDeskRoles(principal.roles);
+    const designations = await loadStaffDesignationContext(this.prisma, principal);
+    if (queue === 'my' && roles.length === 0 && designations.codes.length === 0) {
+      return [];
+    }
     const rows = await this.prisma.application.findMany({
       where: {
         tenantId: principal.tenantId,
         NOT: { status: { in: ['closed', 'cancelled'] } },
+        ...(queue === 'my' ? { OR: deskMyQueueWhereClause(roles, designations.codes) } : {}),
       },
       select: {
         id: true,
@@ -2785,6 +3274,7 @@ export class AdminTenantService {
         status: true,
         statusLabel: true,
         pendingRole: true,
+        pendingDesignation: true,
         paymentStatus: true,
         submittedAt: true,
         updatedAt: true,
@@ -2794,12 +3284,8 @@ export class AdminTenantService {
       orderBy: [{ updatedAt: 'desc' }, { submittedAt: 'desc' }],
       take: 200,
     });
-    const roles = normalizeDeskRoles(principal.roles);
-    return rows
-      .map((row) => toDeskApplicationListItem(row))
-      .filter(
-        (row) => queue !== 'my' || (row.pending_role ? roles.includes(row.pending_role) : false),
-      );
+    const items = rows.map((row) => toDeskApplicationListItem(row));
+    return attachPendingAtLabels(this.prisma, principal.tenantId, items);
   }
 
   async getDeskApplication(
@@ -2816,23 +3302,37 @@ export class AdminTenantService {
         status: true,
         statusLabel: true,
         pendingRole: true,
+        pendingDesignation: true,
         paymentStatus: true,
         submittedAt: true,
         updatedAt: true,
         runtimeSnapshot: true,
-        service: { select: { id: true, code: true, name: true } },
+        service: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            overrideConfig: true,
+            effectiveFeeConfig: true,
+          },
+        },
       },
     });
     if (!row) {
       throw new NotFoundException('Application not found');
     }
     const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+    const currentStage =
+      typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status;
     if (!hasDeskAdminRole(principal.roles)) {
-      const pendingRole = row.pendingRole ?? snapshotString(row.runtimeSnapshot, 'pending_role');
       const roles = normalizeDeskRoles(principal.roles);
-      const pendingAtRole = pendingRole ? roles.includes(pendingRole) : false;
-      if (!pendingAtRole && !timelineHasActorRole(snapshot, roles)) {
-        throw new ForbiddenException('Application is not pending at your role');
+      const designations = await loadStaffDesignationContext(this.prisma, principal);
+      const listItem = toDeskApplicationListItem(row);
+      if (
+        !deskApplicationInMyQueue(listItem, roles, designations.codes) &&
+        !timelineHasActorRole(snapshot, roles)
+      ) {
+        throw new ForbiddenException('Application is not pending at your role or designation');
       }
     }
     const workflow = await this.loadWorkflowForDesk(row.service.id);
@@ -2844,19 +3344,32 @@ export class AdminTenantService {
       documentRows.length > 0
         ? documentRows.map((doc) => toDeskApplicationDocument(doc))
         : toDeskApplicationDocumentsFromSnapshot(snapshot.documents);
+    const listItem = toDeskApplicationListItem(row);
+    const [labeledItem] = await attachPendingAtLabels(this.prisma, principal.tenantId, [listItem]);
+    const applicationRow: TenantDeskApplicationListItem = labeledItem ?? {
+      ...listItem,
+      pending_at_label: null,
+    };
+    const workOrder = await this.workOrders.getByApplicationId(principal.tenantId, row.id);
+    const vendors = await this.workOrders.listVendors(principal.tenantId);
     return {
       application: {
-        ...toDeskApplicationListItem(row),
+        ...applicationRow,
         form_data: (snapshot.form_data ?? {}) as Prisma.JsonValue,
         timeline: Array.isArray(snapshot.timeline)
           ? (snapshot.timeline as TenantDeskApplicationDetail['application']['timeline'])
           : [],
         documents,
       },
+      work_order: workOrder,
+      vendors,
       allowed_transitions: await this.allowedApplicationTransitions(
         principal,
         workflow,
-        typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status,
+        currentStage,
+        snapshot,
+        row.service.overrideConfig,
+        previewFeeRule(row.service.effectiveFeeConfig),
       ),
     };
   }
@@ -2915,7 +3428,12 @@ export class AdminTenantService {
   async transitionDeskApplication(
     principal: AuthenticatedPrincipal,
     applicationId: string,
-    dto: { verb: string; comment?: string },
+    dto: {
+      verb: string;
+      comment?: string;
+      require_boc?: boolean;
+      boc_resolution?: { resolution_number: string; resolution_date: string };
+    },
   ): Promise<TenantDeskApplicationDetail> {
     assertDeskAccess(principal);
     const row = await this.prisma.application.findFirst({
@@ -2929,44 +3447,72 @@ export class AdminTenantService {
         serviceCode: true,
         status: true,
         runtimeSnapshot: true,
+        service: { select: { overrideConfig: true, effectiveFeeConfig: true } },
       },
     });
     if (!row) {
       throw new NotFoundException('Application not found');
     }
     const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+    const currentStage =
+      typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status;
+    const feePreviewPaise = previewFeeRule(row.service.effectiveFeeConfig);
+    const evaluationSnapshot = applyBocTransitionPayload(
+      row.service.overrideConfig,
+      snapshot,
+      dto.verb,
+      {
+        require_boc: dto.require_boc,
+        boc_resolution: dto.boc_resolution,
+      },
+      currentStage,
+      { feePreviewPaise },
+    );
     const workflow = await this.loadWorkflowForDesk(row.serviceId);
     const actorRoles = normalizeDeskRoles(principal.roles);
+    const staffDesignations = await loadStaffDesignationContext(this.prisma, principal);
     const evaluated = evaluateTransition({
       workflow: workflow.definition,
-      current_stage:
-        typeof snapshot.current_stage === 'string' ? snapshot.current_stage : row.status,
+      current_stage: currentStage,
       verb: dto.verb,
       actor_roles: actorRoles as WorkflowRole[],
+      actor_designations: staffDesignations.codes,
+      designation_capabilities: staffDesignations.capabilities,
+      runtime_snapshot: evaluationSnapshot,
       comment: dto.comment,
     });
     if (!evaluated.ok) {
+      if (evaluated.reason === 'PAYMENT_LINK_NOT_PERMITTED') {
+        throw new ForbiddenException(
+          'Only a department-head designation may issue the citizen payment link',
+        );
+      }
       throw new BadRequestException(`Workflow transition rejected: ${evaluated.reason}`);
     }
-    await this.assertRoleStageCanAct(
+    await this.assertWorkflowStageCanAct(
       principal,
       workflow.row,
       evaluated.from.code,
-      evaluated.transition.actor_role,
+      evaluated.transition,
+      staffDesignations.codes,
     );
 
     const now = new Date();
     const dueAt = calculateSlaDueAt(now, evaluated.to.sla_hours);
-    const pendingRole = evaluated.to.terminal
-      ? null
-      : (resolvePendingRoleFromEffects(evaluated.effects) ?? evaluated.to.owner_role);
+    const pendingFromEffects = resolvePendingRoleFromEffects(evaluated.effects);
+    const pendingActor = evaluated.to.terminal
+      ? { pending_designation: null, pending_role: null }
+      : pendingFromEffects
+        ? { pending_designation: null, pending_role: pendingFromEffects }
+        : pendingActorFromWorkflowStage(evaluated.to);
     const timeline = Array.isArray(snapshot.timeline) ? snapshot.timeline : [];
     const nextSnapshot = {
-      ...snapshot,
+      ...evaluationSnapshot,
       current_stage: evaluated.to.code,
       status: evaluated.to.terminal ? 'closed' : evaluated.to.code,
       status_label: evaluated.to.label.en,
-      pending_role: pendingRole,
+      pending_role: pendingActor.pending_role,
+      pending_designation: pendingActor.pending_designation,
       timeline: [
         ...timeline,
         {
@@ -2975,6 +3521,7 @@ export class AdminTenantService {
           to_stage: evaluated.to.code,
           verb: evaluated.transition.verb,
           actor_role: evaluated.transition.actor_role,
+          actor_designation: evaluated.transition.actor_designation ?? null,
           comment: dto.comment?.trim() || null,
           created_at: now.toISOString(),
         },
@@ -3003,7 +3550,8 @@ export class AdminTenantService {
           currentStageId: nextStage?.id ?? null,
           status: nextSnapshot.status,
           statusLabel: { en: nextSnapshot.status_label },
-          pendingRole,
+          pendingRole: pendingActor.pending_role,
+          pendingDesignation: pendingActor.pending_designation,
           runtimeSnapshot: nextSnapshot as Prisma.InputJsonValue,
         },
       });
@@ -3016,6 +3564,7 @@ export class AdminTenantService {
           verb: evaluated.transition.verb,
           actorSubject: principal.subject,
           actorRole: evaluated.transition.actor_role,
+          actorDesignation: evaluated.transition.actor_designation ?? null,
           comment: dto.comment?.trim() || null,
           metadata: { effects: evaluated.effects } as unknown as Prisma.InputJsonValue,
         },
@@ -3034,6 +3583,39 @@ export class AdminTenantService {
       }
     });
 
+    if (evaluated.effects.some((effect) => effect.type === 'generate_payment_link')) {
+      const linkEffect = evaluated.effects.find(
+        (effect) => effect.type === 'generate_payment_link',
+      );
+      const feeCode = parseFeeLineCode(linkEffect?.payload?.fee_code, 'approval');
+      await this.payments.issueDeskPaymentLink(principal.tenantId, row.id, feeCode);
+      await this.prisma.notification.create({
+        data: {
+          tenantId: row.tenantId,
+          citizenId: row.citizenId,
+          type: 'application_status',
+          title: 'Payment required',
+          body: `${row.docketNo}: please complete payment to proceed`,
+          deepLink: `/applications?application=${encodeURIComponent(row.docketNo)}`,
+        },
+      });
+    }
+
+    if (evaluated.effects.some((effect) => effect.type === 'create_work_order')) {
+      await this.postApprovalExecution.handleTransitionEffects(
+        this.prisma,
+        row.tenantId,
+        row.id,
+        evaluated.effects,
+        evaluated.to.code,
+      );
+    }
+    await this.postApprovalExecution.syncWorkOrderStatusForStage(
+      row.tenantId,
+      row.id,
+      evaluated.to.code,
+    );
+
     await this.auditTenantMutation(principal, 'desk.application.transition', {
       docket_no: row.docketNo,
       verb: evaluated.transition.verb,
@@ -3041,6 +3623,27 @@ export class AdminTenantService {
       to_stage: evaluated.to.code,
     });
 
+    return this.getDeskApplication(principal, row.docketNo);
+  }
+
+  async assignDeskWorkOrder(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    input: { vendor_id?: string | null; assigned_user_id?: string | null },
+  ): Promise<TenantDeskApplicationDetail> {
+    assertDeskAccess(principal);
+    const row = await this.prisma.application.findFirst({
+      where: { tenantId: principal.tenantId, id: applicationId },
+      select: { id: true, docketNo: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const workOrder = await this.workOrders.getByApplicationId(principal.tenantId, row.id);
+    if (!workOrder) {
+      throw new BadRequestException('No work order exists for this application yet');
+    }
+    await this.workOrders.assign(principal.tenantId, workOrder.id, input);
     return this.getDeskApplication(principal, row.docketNo);
   }
 
@@ -3371,19 +3974,61 @@ export class AdminTenantService {
     principal: AuthenticatedPrincipal,
     workflow: { definition: WorkflowDefinition; row: WorkflowWithChildren | null },
     currentStage: string,
+    runtimeSnapshot: Record<string, unknown> | undefined,
+    serviceOverrideConfig: Prisma.JsonValue,
+    feePreviewPaise: number | null = null,
   ): Promise<TenantDeskAllowedTransition[]> {
     const roles = normalizeDeskRoles(principal.roles);
+    const staffDesignations = await loadStaffDesignationContext(this.prisma, principal);
+    const bocPolicy = readBocPolicy(serviceOverrideConfig);
+    const baseSnapshot = runtimeSnapshot ?? {};
     const transitions = workflow.definition.transitions.filter(
-      (transition) => transition.from === currentStage && roles.includes(transition.actor_role),
+      (transition) =>
+        transition.from === currentStage &&
+        transitionActorAllowed(transition, roles, staffDesignations.codes),
     );
     const allowed: TenantDeskAllowedTransition[] = [];
     for (const transition of transitions) {
+      const evaluationSnapshot = deskSnapshotForAllowedTransition(
+        serviceOverrideConfig,
+        baseSnapshot,
+        currentStage,
+        transition.guard,
+        { feePreviewPaise },
+      );
+      let evaluated = evaluateTransition({
+        workflow: workflow.definition,
+        current_stage: currentStage,
+        verb: transition.verb,
+        actor_roles: roles as WorkflowRole[],
+        actor_designations: staffDesignations.codes,
+        designation_capabilities: staffDesignations.capabilities,
+        runtime_snapshot: evaluationSnapshot,
+      });
+      if (!evaluated.ok) {
+        if (evaluated.reason === 'COMMENT_REQUIRED' && transition.verb === 'reject') {
+          evaluated = evaluateTransition({
+            workflow: workflow.definition,
+            current_stage: currentStage,
+            verb: transition.verb,
+            actor_roles: roles as WorkflowRole[],
+            actor_designations: staffDesignations.codes,
+            designation_capabilities: staffDesignations.capabilities,
+            runtime_snapshot: evaluationSnapshot,
+            comment: 'preview',
+          });
+        }
+        if (!evaluated.ok) {
+          continue;
+        }
+      }
       try {
-        await this.assertRoleStageCanAct(
+        await this.assertWorkflowStageCanAct(
           principal,
           workflow.row,
           currentStage,
-          transition.actor_role,
+          transition,
+          staffDesignations.codes,
         );
       } catch {
         continue;
@@ -3393,17 +4038,22 @@ export class AdminTenantService {
         to_stage: transition.to,
         label: labelForTransition(transition.verb),
         actor_role: transition.actor_role,
-        requires_comment: transition.requires_comment === true,
+        actor_designation: transition.actor_designation ?? null,
+        requires_comment: transition.requires_comment === true || transition.verb === 'reject',
+        requires_boc_resolution_fields: transitionRequiresBocResolutionFields(transition.verb),
+        officer_may_set_require_boc: officerMaySetRequireBoc(bocPolicy, currentStage),
+        boc_policy: bocPolicy,
       });
     }
     return allowed;
   }
 
-  private async assertRoleStageCanAct(
+  private async assertWorkflowStageCanAct(
     principal: AuthenticatedPrincipal,
     workflow: WorkflowWithChildren | null,
     stageCode: string,
-    actorRole: string,
+    transition: { actor_role: string; actor_designation?: string },
+    actorDesignations: string[],
   ): Promise<void> {
     if (!workflow) {
       return;
@@ -3412,7 +4062,23 @@ export class AdminTenantService {
     if (!stage) {
       return;
     }
-    const roles = normalizeDeskRoles([...principal.roles, actorRole]);
+    if (transition.actor_designation) {
+      const rows = await this.prisma.designationStageMap.findMany({
+        where: {
+          tenantId: principal.tenantId,
+          stageId: stage.id,
+          designationCode: transition.actor_designation,
+        },
+      });
+      if (rows.length > 0 && !rows.some((row) => row.canAct)) {
+        throw new ForbiddenException('Designation cannot act on this workflow stage');
+      }
+      if (rows.length === 0 && !actorDesignations.includes(transition.actor_designation)) {
+        throw new ForbiddenException('Designation cannot act on this workflow stage');
+      }
+      return;
+    }
+    const roles = normalizeDeskRoles([...principal.roles, transition.actor_role]);
     const rows = await this.prisma.roleStageMap.findMany({
       where: { tenantId: principal.tenantId, stageId: stage.id, roleCode: { in: roles } },
     });
@@ -3680,6 +4346,7 @@ function toDeskApplicationListItem(row: {
   status: string;
   statusLabel: Prisma.JsonValue;
   pendingRole: string | null;
+  pendingDesignation?: string | null;
   paymentStatus: string;
   submittedAt: Date;
   updatedAt?: Date;
@@ -3687,6 +4354,14 @@ function toDeskApplicationListItem(row: {
   service: { name: Prisma.JsonValue };
 }): TenantDeskApplicationListItem {
   const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
+  const feeSettlement = coerceFeeSettlementSnapshot(snapshot.fee_settlement);
+  const scheduleRaw = snapshot.payment_schedule;
+  const payment_schedule =
+    scheduleRaw === 'upfront_only' ||
+    scheduleRaw === 'deferred_only' ||
+    scheduleRaw === 'upfront_and_deferred'
+      ? scheduleRaw
+      : undefined;
   return {
     id: row.id,
     docket_no: row.docketNo,
@@ -3697,7 +4372,17 @@ function toDeskApplicationListItem(row: {
       snapshotString(row.runtimeSnapshot, 'status_label') ?? labelFromJson(row.statusLabel).en,
     current_stage: snapshotString(row.runtimeSnapshot, 'current_stage') ?? row.status,
     pending_role: snapshotString(row.runtimeSnapshot, 'pending_role') ?? row.pendingRole,
+    pending_designation:
+      snapshotString(row.runtimeSnapshot, 'pending_designation') ?? row.pendingDesignation ?? null,
+    pending_at_label: null,
     payment_status: snapshotString(row.runtimeSnapshot, 'payment_status') ?? row.paymentStatus,
+    payment_schedule,
+    fee_settlement:
+      Object.keys(feeSettlement).length > 0
+        ? (feeSettlement as TenantDeskApplicationListItem['fee_settlement'])
+        : undefined,
+    payment_redirect_url: snapshotString(row.runtimeSnapshot, 'payment_redirect_url'),
+    active_payment_id: snapshotString(row.runtimeSnapshot, 'active_payment_id'),
     submitted_at:
       typeof snapshot.submitted_at === 'string'
         ? snapshot.submitted_at
@@ -4128,23 +4813,37 @@ function toFormVersionRow(row: {
   };
 }
 
-function toServiceConfigRow(row: {
-  id: string;
-  code: string;
-  name: Prisma.JsonValue;
-  description: Prisma.JsonValue;
-  isActive: boolean;
-  effectiveSlaDays: number | null;
-  effectiveFeeConfig: Prisma.JsonValue;
-  requiredDocuments: Prisma.JsonValue;
-  updatedAt: Date;
-  revenueHead: {
+function toServiceConfigRow(
+  row: {
     id: string;
     code: string;
     name: Prisma.JsonValue;
-    accountingCode: string;
-  } | null;
-}): TenantAdminServiceConfig {
+    description: Prisma.JsonValue;
+    isActive: boolean;
+    effectiveSlaDays: number | null;
+    effectiveFeeConfig: Prisma.JsonValue;
+    requiredDocuments: Prisma.JsonValue;
+    overrideConfig: Prisma.JsonValue;
+    updatedAt: Date;
+    revenueHead: {
+      id: string;
+      code: string;
+      name: Prisma.JsonValue;
+      accountingCode: string;
+    } | null;
+  },
+  workflowDefinition?: {
+    stages?: Array<{ code?: string }>;
+    transitions?: Array<{ effects?: Array<{ type?: string }> }>;
+  } | null,
+): TenantAdminServiceConfig {
+  const payment = resolveServicePaymentConfig(
+    row.overrideConfig,
+    row.effectiveFeeConfig,
+    workflowDefinition,
+  );
+  const primaryRule = payment.fee_lines[primaryFeeLineCode(payment.payment_schedule)]?.rule;
+
   return {
     id: row.id,
     code: row.code,
@@ -4153,9 +4852,18 @@ function toServiceConfigRow(row: {
     is_active: row.isActive,
     effective_sla_days: row.effectiveSlaDays,
     updated_at: row.updatedAt.toISOString(),
-    fee_rule: row.effectiveFeeConfig,
-    fee_preview_paise: previewFeeRule(row.effectiveFeeConfig),
-    required_documents: row.requiredDocuments,
+    fee_rule: primaryRule ?? row.effectiveFeeConfig,
+    fee_preview_paise: primaryRule
+      ? previewFeeRule(primaryRule)
+      : previewFeeRule(row.effectiveFeeConfig),
+    payment_schedule: payment.payment_schedule,
+    fee_lines: payment.fee_lines,
+    fee_line_previews: payment.fee_line_previews,
+    payment_schedule_inferred: payment.inferred_schedule,
+    required_documents: normalizeDocumentChecklist(row.requiredDocuments),
+    boc_policy: readBocPolicy(row.overrideConfig),
+    municipal_signoff_policy: readMunicipalSignoffPolicyFromConfig(row.overrideConfig),
+    municipal_signoff_threshold_paise: readMunicipalSignoffThresholdFromConfig(row.overrideConfig),
     revenue_head: row.revenueHead
       ? {
           id: row.revenueHead.id,
@@ -4187,12 +4895,15 @@ function toCatalogueRow(
   row: {
     id: string;
     code: string;
+    departmentId: string;
     name: Prisma.JsonValue;
     description: Prisma.JsonValue;
     isActive: boolean;
     updatedAt: Date;
+    globalCategoryCode: string;
     category: { code: string };
     globalService: { code: string } | null;
+    department: { code: string; name: Prisma.JsonValue };
   },
   globalCode: string | null,
   source: TenantAdminCatalogueRow['source'],
@@ -4202,7 +4913,10 @@ function toCatalogueRow(
     source,
     global_code: globalCode,
     tenant_service_id: row.id,
-    category_code: row.category.code,
+    category_code: seedCategoryCodeFromNavigation(row.globalCategoryCode),
+    department_id: row.departmentId,
+    department_code: row.department.code,
+    department_name: row.department.name,
     name: row.name,
     description: row.description,
     is_active: row.isActive,
@@ -4362,6 +5076,63 @@ function toCsv(headers: string[], rows: unknown[][]): string {
   );
 }
 
+function parseDelimitedCell(value: string): string[] {
+  return value
+    .split(/[|,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function validateStaffImportRow(
+  row: number,
+  data: Record<string, string>,
+): Array<{ row: number; field?: string; message: string }> {
+  const errors: Array<{ row: number; field?: string; message: string }> = [];
+  if (!data.username?.trim()) {
+    errors.push({ row, field: 'username', message: 'username is required' });
+  } else {
+    try {
+      assertUsername(data.username.trim().toLowerCase());
+    } catch {
+      errors.push({ row, field: 'username', message: 'username format is invalid' });
+    }
+  }
+  if (!data.display_name?.trim()) {
+    errors.push({ row, field: 'display_name', message: 'display_name is required' });
+  } else {
+    try {
+      assertDisplayName(data.display_name.trim());
+    } catch {
+      errors.push({ row, field: 'display_name', message: 'display_name is invalid' });
+    }
+  }
+  const roleCodes = parseDelimitedCell(data.role_codes ?? '');
+  if (!roleCodes.length) {
+    errors.push({ row, field: 'role_codes', message: 'role_codes is required' });
+  } else {
+    try {
+      assertRoleCodes(roleCodes);
+    } catch {
+      errors.push({ row, field: 'role_codes', message: 'one or more role_codes are invalid' });
+    }
+  }
+  if (data.email?.trim()) {
+    try {
+      assertOptionalContact(data.email.trim(), 'email');
+    } catch {
+      errors.push({ row, field: 'email', message: 'email is invalid' });
+    }
+  }
+  if (data.mobile?.trim()) {
+    try {
+      assertOptionalContact(data.mobile.trim(), 'mobile');
+    } catch {
+      errors.push({ row, field: 'mobile', message: 'mobile is invalid' });
+    }
+  }
+  return errors;
+}
+
 function parseCsv(input: string): {
   headers: string[];
   records: Array<{ row: number; data: Record<string, string> }>;
@@ -4440,29 +5211,7 @@ function toWorkflowRow(row: WorkflowWithChildren): TenantAdminWorkflowRow {
 }
 
 function toWorkflowDefinition(row: WorkflowWithChildren): WorkflowDefinition {
-  return {
-    code: row.code,
-    version: row.version,
-    stages: row.stages
-      .slice()
-      .sort((left, right) => left.sortOrder - right.sortOrder)
-      .map((stage) => ({
-        code: stage.code,
-        label: stage.label as { en: string; bn: string; hi: string },
-        owner_role: stage.ownerRole,
-        sla_hours: stage.slaHours ?? undefined,
-        initial: stage.isInitial,
-        terminal: stage.isTerminal,
-      })),
-    transitions: row.transitions.map((transition) => ({
-      from: transition.fromStage.code,
-      to: transition.toStage.code,
-      verb: transition.verb,
-      actor_role: transition.actorRole,
-      requires_comment: transition.requiresComment,
-      effects: transition.sideEffects as unknown as WorkflowEffect[],
-    })),
-  };
+  return workflowDefinitionFromRows(row.code, row.version, row.stages, row.transitions);
 }
 
 function labelFromJson(value: Prisma.JsonValue): { en: string; bn: string; hi: string } {

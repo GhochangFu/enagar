@@ -48,8 +48,14 @@ export class PaymentsController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: InitiatePaymentDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<PaymentResponse> {
-    return this.payments.initiate(principal, dto, idempotencyKey);
+    return this.payments.initiate(
+      principal,
+      dto,
+      idempotencyKey,
+      readScopeFromHeader(municipalityTenantCode),
+    );
   }
 
   @Post('stub/complete')

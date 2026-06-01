@@ -3,7 +3,7 @@
 import { putFileToUploadUrl } from '@enagar/forms/upload';
 import { Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
@@ -145,11 +145,32 @@ type RoleRow = {
 
 type StaffRow = {
   id: string;
+  keycloak_user_id: string;
   username: string;
   display_name: string;
+  email: string | null;
+  mobile: string | null;
   status: string;
-  roles: Array<{ code: string; ward_number: string | null }>;
+  roles: Array<{ code: string; name: string; ward_number: string | null }>;
 };
+
+type StaffImportResult = {
+  dry_run: boolean;
+  created: number;
+  failed: number;
+  errors: Array<{ row: number; field?: string; message: string }>;
+  previews: Array<{ row: number; username: string; display_name: string; role_codes: string[] }>;
+  created_accounts: Array<{
+    row: number;
+    username: string;
+    display_name: string;
+    password_hint: string;
+  }>;
+};
+
+const STAFF_CSV_TEMPLATE = `username,display_name,role_codes,email,mobile,ward_number,password,designation_codes
+pilot-clerk-1,Pilot Clerk One,tenant_clerk,,,,,
+pilot-engineer-1,Pilot Engineer,pwd_junior_engineer,,,,,pwd_junior_engineer`;
 
 type StaffInviteRow = {
   id: string;
@@ -266,12 +287,13 @@ export default function OperationsClient(): JSX.Element {
     note: 'Smoke reservation',
   });
   const [staffInviteDraft, setStaffInviteDraft] = useState({
-    username: 'kmc-tenant-clerk-demo',
-    display_name: 'KMC Tenant Clerk Invite',
-    email: 'kmc-clerk-demo@example.gov.in',
+    username: '',
+    display_name: '',
+    email: '',
     mobile: '',
     role_codes: 'tenant_clerk',
     ward_number: '',
+    password: '',
   });
   const [roleStageDraft, setRoleStageDraft] = useState({
     workflow_code: 'birth-cert-workflow-v1',
@@ -293,7 +315,12 @@ export default function OperationsClient(): JSX.Element {
   });
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
-  const [staffInvites, setStaffInvites] = useState<StaffInviteRow[]>([]);
+  const [selectedStaffUsername, setSelectedStaffUsername] = useState<string | null>(null);
+  const [editingStaffKeycloakId, setEditingStaffKeycloakId] = useState<string | null>(null);
+  const [staffCsv, setStaffCsv] = useState(STAFF_CSV_TEMPLATE);
+  const [staffImportResult, setStaffImportResult] = useState<StaffImportResult | null>(null);
+  const staffFormRef = useRef<HTMLDivElement | null>(null);
+  const [_staffInvites, setStaffInvites] = useState<StaffInviteRow[]>([]);
   const [roleStageMaps, setRoleStageMaps] = useState<RoleStageMapRow[]>([]);
 
   const [settingsText, setSettingsText] = useState(
@@ -746,15 +773,6 @@ export default function OperationsClient(): JSX.Element {
     await loadOperations();
   }
 
-  async function updateStaffInvite(inviteId: string, action: string): Promise<void> {
-    await saveJsonEndpoint(
-      'staff-invites',
-      pretty({ invite_id: inviteId, action }),
-      'PATCH',
-      `Staff invite ${action}`,
-    );
-  }
-
   function selectBanner(banner: BannerRow): void {
     setSelectedBannerCode(banner.code);
     setBannerDraft({
@@ -986,20 +1004,144 @@ export default function OperationsClient(): JSX.Element {
     await saveJsonEndpoint('bookings/reservations', pretty(payload), 'POST', 'Reservation');
   }
 
-  async function saveGuidedStaffInvite(): Promise<void> {
+  function clearStaffForm(): void {
+    setSelectedStaffUsername(null);
+    setEditingStaffKeycloakId(null);
+    setStaffInviteDraft({
+      username: '',
+      display_name: '',
+      email: '',
+      mobile: '',
+      role_codes: 'tenant_clerk',
+      ward_number: '',
+      password: '',
+    });
+  }
+
+  function loadStaffIntoForm(member: StaffRow): void {
+    setSelectedStaffUsername(member.username);
+    setEditingStaffKeycloakId(member.keycloak_user_id);
+    setStaffInviteDraft({
+      username: member.username,
+      display_name: member.display_name,
+      email: member.email ?? '',
+      mobile: member.mobile ?? '',
+      role_codes: member.roles.map((role) => role.code).join(', '),
+      ward_number: member.roles.find((role) => role.ward_number)?.ward_number ?? '',
+      password: '',
+    });
+    staffFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function saveUpdateStaff(): Promise<void> {
+    if (!editingStaffKeycloakId) {
+      return;
+    }
     const payload = {
-      username: staffInviteDraft.username,
-      display_name: staffInviteDraft.display_name,
-      email: staffInviteDraft.email,
-      mobile: staffInviteDraft.mobile,
+      keycloak_user_id: editingStaffKeycloakId,
+      username: staffInviteDraft.username.trim(),
+      display_name: staffInviteDraft.display_name.trim(),
+      email: staffInviteDraft.email.trim() || undefined,
+      mobile: staffInviteDraft.mobile.trim() || undefined,
+      status: 'active',
       role_codes: staffInviteDraft.role_codes
         .split(',')
         .map((role) => role.trim())
         .filter(Boolean),
-      ward_number: staffInviteDraft.ward_number || null,
+      ward_number: staffInviteDraft.ward_number.trim() || undefined,
     };
-    setStaffText(pretty(payload));
-    await saveJsonEndpoint('staff-invites', pretty(payload), 'POST', 'Staff invite');
+    const res = await fetch(`${apiBase}/admin/tenant/staff`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) return;
+      const text = await res.text().catch(() => '');
+      setStatus(`Staff update failed (${res.status}). ${text.slice(0, 220)}`);
+      return;
+    }
+    setStatus(`Staff updated: ${payload.display_name} (${payload.username}).`);
+    await loadOperations();
+  }
+
+  async function saveCreateStaff(): Promise<void> {
+    const payload = {
+      username: staffInviteDraft.username.trim(),
+      display_name: staffInviteDraft.display_name.trim(),
+      email: staffInviteDraft.email.trim() || undefined,
+      mobile: staffInviteDraft.mobile.trim() || undefined,
+      role_codes: staffInviteDraft.role_codes
+        .split(',')
+        .map((role) => role.trim())
+        .filter(Boolean),
+      ward_number: staffInviteDraft.ward_number.trim() || undefined,
+      password: staffInviteDraft.password.trim() || undefined,
+    };
+    if (!payload.username || !payload.display_name || !payload.role_codes.length) {
+      setStatus('Username, display name, and at least one role are required.');
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/staff/create`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) return;
+      const text = await res.text().catch(() => '');
+      setStatus(`Staff create failed (${res.status}). ${text.slice(0, 220)}`);
+      return;
+    }
+    const created = (await res.json()) as {
+      login_username: string;
+      password_hint: string;
+      staff: { username: string; display_name: string };
+    };
+    setStatus(
+      `Staff created: ${created.staff.display_name} (${created.login_username}). Default password: ${created.password_hint}`,
+    );
+    clearStaffForm();
+    await loadOperations();
+  }
+
+  async function saveStaffForm(): Promise<void> {
+    if (editingStaffKeycloakId) {
+      await saveUpdateStaff();
+      return;
+    }
+    await saveCreateStaff();
+  }
+
+  async function importStaffCsv(dryRun: boolean): Promise<void> {
+    const res = await fetch(`${apiBase}/admin/tenant/staff/import-csv`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ csv: staffCsv, dry_run: dryRun }),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) return;
+      const text = await res.text().catch(() => '');
+      setStatus(
+        `Staff CSV ${dryRun ? 'dry-run' : 'import'} failed (${res.status}). ${text.slice(0, 220)}`,
+      );
+      return;
+    }
+    const result = (await res.json()) as StaffImportResult;
+    setStaffImportResult(result);
+    const passwordSummary =
+      !dryRun && result.created_accounts.length
+        ? ` Passwords: ${result.created_accounts
+            .slice(0, 3)
+            .map((row) => `${row.username}=${row.password_hint}`)
+            .join('; ')}${result.created_accounts.length > 3 ? '…' : ''}.`
+        : '';
+    setStatus(
+      `Staff CSV ${dryRun ? 'dry-run' : 'import'}: ${result.created} ok, ${result.failed} failed.${passwordSummary}`,
+    );
+    if (!dryRun) {
+      await loadOperations();
+    }
   }
 
   async function saveGuidedRoleStageMap(): Promise<void> {
@@ -1629,22 +1771,90 @@ export default function OperationsClient(): JSX.Element {
 
       {opsSection === 'staff' ? (
         <section className="space-y-8">
-          <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-4">
+          <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+            <div className="space-y-6">
+              <p className="text-sm text-ink-secondary">
+                Select a staff member to edit roles and profile. Assign workflow designations under{' '}
+                <strong>Masters → Organisation → Staff</strong>.
+              </p>
+              <RecordListPanel title="Staff" emptyLabel="No staff loaded.">
+                {staff.map((member) => (
+                  <RecordListItem
+                    key={member.id}
+                    itemKey={member.username}
+                    selected={selectedStaffUsername === member.username}
+                    title={member.display_name}
+                    subtitle={`${member.username} · ${member.status}`}
+                    meta={member.roles.map((role) => role.code).join(', ')}
+                    onSelect={() => loadStaffIntoForm(member)}
+                  />
+                ))}
+              </RecordListPanel>
+              <RecordListPanel title="Roles" emptyLabel="No roles.">
+                {roles.map((role) => (
+                  <RecordListItem
+                    key={role.code}
+                    itemKey={role.code}
+                    selected={false}
+                    title={role.name}
+                    onSelect={() => undefined}
+                  />
+                ))}
+              </RecordListPanel>
+              <RecordListPanel title="Role-stage maps" emptyLabel="No maps.">
+                {roleStageMaps.map((map) => (
+                  <RecordListItem
+                    key={map.id}
+                    itemKey={map.id}
+                    selected={false}
+                    title={map.role_code}
+                    subtitle={`${map.workflow_code} / ${map.stage_code}`}
+                    meta={`view ${String(map.can_view)} · act ${String(map.can_act)}`}
+                    onSelect={() => {
+                      setRoleStageDraft({
+                        workflow_code: map.workflow_code,
+                        stage_code: map.stage_code,
+                        role_code: map.role_code,
+                        can_view: map.can_view,
+                        can_act: map.can_act,
+                      });
+                    }}
+                  />
+                ))}
+              </RecordListPanel>
+            </div>
+            <div className="space-y-4" ref={staffFormRef}>
               <GuidedOpsCard
-                title="Staff invite / provisioning"
-                saveLabel="Send invite"
-                onSave={() => void saveGuidedStaffInvite()}
+                title={editingStaffKeycloakId ? 'Edit staff account' : 'Create staff account'}
+                saveLabel={editingStaffKeycloakId ? 'Update staff' : 'Create staff'}
+                onSave={() => void saveStaffForm()}
               >
-                <div className="grid gap-3 md:grid-cols-2">
+                <p className="text-sm text-ink-secondary">
+                  {editingStaffKeycloakId
+                    ? 'Updates the eNagar staff record and role assignments. Username is fixed; reset password in Keycloak if needed.'
+                    : 'Creates the Keycloak login and eNagar staff record immediately. Share the default password with the operator.'}
+                </p>
+                {editingStaffKeycloakId ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={clearStaffForm}>
+                      New staff instead
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {(
                     [
                       ['username', 'Username'],
                       ['display_name', 'Display name'],
-                      ['email', 'Email'],
-                      ['mobile', 'Mobile'],
+                      ['email', 'Email (optional)'],
+                      ['mobile', 'Mobile (optional)'],
                       ['role_codes', 'Role codes (comma-separated)'],
-                      ['ward_number', 'Ward number'],
+                      ['ward_number', 'Ward number (optional)'],
+                      ...(!editingStaffKeycloakId
+                        ? ([
+                            ['password', 'Password (optional — platform default if blank)'],
+                          ] as const)
+                        : []),
                     ] as Array<[keyof typeof staffInviteDraft, string]>
                   ).map(([key, label]) => (
                     <OpsField
@@ -1652,9 +1862,65 @@ export default function OperationsClient(): JSX.Element {
                       label={label}
                       value={staffInviteDraft[key]}
                       onChange={(value) => setStaffInviteDraft((d) => ({ ...d, [key]: value }))}
+                      readOnly={key === 'username' && Boolean(editingStaffKeycloakId)}
                     />
                   ))}
                 </div>
+              </GuidedOpsCard>
+              <GuidedOpsCard
+                title="Bulk staff import (CSV)"
+                saveLabel="Import CSV"
+                onSave={() => void importStaffCsv(false)}
+              >
+                <p className="text-sm text-ink-secondary">
+                  Required columns: <code>username</code>, <code>display_name</code>,{' '}
+                  <code>role_codes</code>. Use <code>|</code> for multiple roles or designations.
+                  Optional: <code>email</code>, <code>mobile</code>, <code>ward_number</code>,{' '}
+                  <code>password</code>, <code>designation_codes</code>. Max 100 rows.
+                </p>
+                <textarea
+                  className="mt-3 min-h-40 w-full rounded-xl border border-warm-border bg-white px-3 py-2 font-mono text-xs text-ink-primary"
+                  onChange={(event) => setStaffCsv(event.target.value)}
+                  value={staffCsv}
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void importStaffCsv(true)}
+                  >
+                    Dry-run validate
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setStaffCsv(STAFF_CSV_TEMPLATE)}
+                  >
+                    Reset template
+                  </Button>
+                </div>
+                {staffImportResult ? (
+                  <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                    <p>
+                      {staffImportResult.dry_run ? 'Dry-run' : 'Import'}:{' '}
+                      {staffImportResult.created} ok, {staffImportResult.failed} failed
+                    </p>
+                    {staffImportResult.errors.slice(0, 5).map((error) => (
+                      <p key={`${error.row}-${error.field ?? 'row'}`} className="text-red-700">
+                        Row {error.row}
+                        {error.field ? ` (${error.field})` : ''}: {error.message}
+                      </p>
+                    ))}
+                    {!staffImportResult.dry_run &&
+                      staffImportResult.created_accounts.slice(0, 5).map((row) => (
+                        <p key={row.username}>
+                          {row.username}: password {row.password_hint}
+                        </p>
+                      ))}
+                  </div>
+                ) : null}
               </GuidedOpsCard>
               <JsonFallbackPanel
                 value={staffText}
@@ -1715,103 +1981,12 @@ export default function OperationsClient(): JSX.Element {
               />
               <JsonFallbackPanel
                 title="Legacy staff assignment JSON"
+                description="Use only when linking an existing Keycloak user id manually."
                 value={legacyStaffText}
                 onChange={setLegacyStaffText}
                 onSave={() => void upsert('staff', legacyStaffText, 'Staff')}
                 saveLabel="Save staff JSON"
               />
-            </div>
-            <div className="space-y-6">
-              <RecordListPanel title="Staff invites" emptyLabel="No invites.">
-                {staffInvites.map((invite) => (
-                  <RecordListItem
-                    key={invite.id}
-                    itemKey={invite.username}
-                    selected={false}
-                    title={invite.display_name}
-                    subtitle={`${invite.status} · ${invite.role_codes.join(', ')}`}
-                    meta={invite.failure_reason ?? invite.provisioning_mode}
-                    onSelect={() => {
-                      setStaffInviteDraft({
-                        username: invite.username,
-                        display_name: invite.display_name,
-                        email: invite.email ?? '',
-                        mobile: invite.mobile ?? '',
-                        role_codes: invite.role_codes.join(','),
-                        ward_number: invite.ward_number ?? '',
-                      });
-                    }}
-                  />
-                ))}
-              </RecordListPanel>
-              {staffInvites.length ? (
-                <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-warm-border p-3">
-                  <p className="w-full text-xs text-ink-secondary">
-                    Provisioning actions (select invite above, then):
-                  </p>
-                  {(['retry', 'mark_provisioned', 'disable'] as const).map((action) => (
-                    <Button
-                      key={action}
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        const invite = staffInvites.find(
-                          (row) => row.username === staffInviteDraft.username,
-                        );
-                        if (invite) void updateStaffInvite(invite.id, action);
-                      }}
-                    >
-                      {action.replace('_', ' ')}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-              <RecordListPanel title="Staff" emptyLabel="No staff loaded.">
-                {staff.map((member) => (
-                  <RecordListItem
-                    key={member.id}
-                    itemKey={member.username}
-                    selected={false}
-                    title={member.display_name}
-                    subtitle={member.status}
-                    meta={member.roles.map((role) => role.code).join(', ')}
-                    onSelect={() => undefined}
-                  />
-                ))}
-              </RecordListPanel>
-              <RecordListPanel title="Roles" emptyLabel="No roles.">
-                {roles.map((role) => (
-                  <RecordListItem
-                    key={role.code}
-                    itemKey={role.code}
-                    selected={false}
-                    title={role.name}
-                    onSelect={() => undefined}
-                  />
-                ))}
-              </RecordListPanel>
-              <RecordListPanel title="Role-stage maps" emptyLabel="No maps.">
-                {roleStageMaps.map((map) => (
-                  <RecordListItem
-                    key={map.id}
-                    itemKey={map.id}
-                    selected={false}
-                    title={map.role_code}
-                    subtitle={`${map.workflow_code} / ${map.stage_code}`}
-                    meta={`view ${String(map.can_view)} · act ${String(map.can_act)}`}
-                    onSelect={() => {
-                      setRoleStageDraft({
-                        workflow_code: map.workflow_code,
-                        stage_code: map.stage_code,
-                        role_code: map.role_code,
-                        can_view: map.can_view,
-                        can_act: map.can_act,
-                      });
-                    }}
-                  />
-                ))}
-              </RecordListPanel>
             </div>
           </section>
         </section>
@@ -2147,17 +2322,20 @@ function OpsField({
   label,
   value,
   onChange,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }): JSX.Element {
   return (
     <label className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
       {label}
       <input
-        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
+        className="mt-1 w-full rounded border border-warm-border px-3 py-2 text-sm normal-case tracking-normal disabled:bg-slate-50 disabled:text-ink-secondary"
         value={value}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>

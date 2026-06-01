@@ -1,5 +1,6 @@
 import type { LedgerSettlementDto, PaymentMethod, PaymentResponse, ReceiptCitizenDto } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
 import type { ApplicationReadScope } from '../applications/dto';
 
 export const PAYMENT_STORE = 'PAYMENT_STORE';
@@ -9,6 +10,7 @@ export interface CreatePendingPaymentInput {
   tenantId: string;
   citizenSubject: string;
   applicationId: string;
+  feeCode: FeeLineCode;
   amountPaise: number;
   method: PaymentMethod;
   gateway: 'stub';
@@ -42,7 +44,10 @@ export interface PaymentStore {
     idempotencyKey: string,
     idempotencyTenantId?: string,
   ): Promise<ExistingIdempotencyRecord | null>;
-  findActivePaymentByApplication(applicationId: string): Promise<PaymentResponse | null>;
+  findActivePaymentByApplication(
+    applicationId: string,
+    feeCode?: FeeLineCode,
+  ): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;
   listByPrincipal(
     principal: AuthenticatedPrincipal,

@@ -27,6 +27,7 @@ import {
   type WorkflowEffectType,
   type WorkflowStage,
   type WorkflowTransition,
+  WorkflowStageKind,
 } from '@enagar/workflow';
 import { Background, Controls, MarkerType, ReactFlow, type Edge, type Node } from '@xyflow/react';
 import Link from 'next/link';
@@ -35,8 +36,18 @@ import { type DragEvent, useCallback, useEffect, useMemo, useState } from 'react
 
 import { useTenantAdminSession } from '../../../../components/tenant-admin-session';
 import { clearStoredAuth } from '../../../../lib/admin-auth';
+import {
+  addDesignationStage,
+  addForwardReturnPair,
+  applyHoardingScrutinyTemplate,
+  applyMunicipalLadderTemplate,
+  applyPwdWorksTemplate,
+  defaultAllowedVerbsForDesignation,
+  DESIGNATION_WORKFLOW_VERBS,
+  WORKFLOW_GUARD_PRESETS,
+} from '../../../../lib/workflow-designer-templates';
 
-import { ServiceConfigPanel } from './service-config-panel';
+import { ServiceConfigPanel, coerceDocuments, type FeeLinesDraft } from './service-config-panel';
 
 import type { Route } from 'next';
 
@@ -69,10 +80,23 @@ type ServiceDesignerResponse = {
   } | null;
 };
 
+type BocPolicy = 'never' | 'always' | 'officer_may_require';
+
+type MunicipalSignoffPolicy = 'never' | 'high_value_only' | 'always';
+
+type PaymentSchedule = 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+
 type ServiceConfigResponse = {
   fee_rule: unknown;
   fee_preview_paise: number | null;
+  payment_schedule: PaymentSchedule;
+  fee_lines: unknown;
+  fee_line_previews: Partial<Record<'application' | 'approval', number | null>>;
+  payment_schedule_inferred?: boolean;
   required_documents: unknown;
+  boc_policy: BocPolicy;
+  municipal_signoff_policy: MunicipalSignoffPolicy;
+  municipal_signoff_threshold_paise: number;
   revenue_head: { code: string; accounting_code: string } | null;
 };
 
@@ -94,7 +118,32 @@ function pickLabel(json: unknown): string {
 }
 
 const DEFAULT_STAGE_ROLES = ['tenant_clerk', 'tenant_admin', 'citizen'];
-const DEFAULT_EFFECT_TYPES = ['audit', 'notify', 'sla_timer', 'certificate', 'escalate'];
+const DEFAULT_EFFECT_TYPES = [
+  'audit',
+  'notify',
+  'sla_timer',
+  'certificate',
+  'escalate',
+  'generate_payment_link',
+  'create_work_order',
+];
+const STAGE_KIND_OPTIONS: WorkflowStageKind[] = [
+  'maker',
+  'checker',
+  'approver',
+  'dept_head',
+  'municipality',
+  'post_approval',
+  'citizen',
+  'system',
+];
+
+type DesignationOption = {
+  code: string;
+  label: string;
+  is_department_head: boolean;
+  can_reject_municipal: boolean;
+};
 
 function cloneWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
   return JSON.parse(JSON.stringify(workflow)) as WorkflowDefinition;
@@ -106,7 +155,7 @@ function buildWorkflowNodes(workflow: WorkflowDefinition): Node[] {
     type: 'default',
     position: { x: 40 + index * 220, y: stage.terminal ? 210 : stage.initial ? 20 : 115 },
     data: {
-      label: `${stage.label.en}${stage.initial ? ' (initial)' : ''}${stage.terminal ? ' (terminal)' : ''}`,
+      label: `${stage.label.en}${stage.owner_designation ? `\n@${stage.owner_designation}` : `\nrole:${stage.owner_role}`}${stage.initial ? '\n(initial)' : ''}${stage.terminal ? '\n(terminal)' : ''}`,
     },
     style: {
       border: stage.initial
@@ -126,17 +175,96 @@ function buildWorkflowNodes(workflow: WorkflowDefinition): Node[] {
 }
 
 function buildWorkflowEdges(workflow: WorkflowDefinition): Edge[] {
-  return workflow.transitions.map((transition, index) => ({
-    id: `${transition.from}-${transition.to}-${transition.verb}-${index}`,
-    source: transition.from,
-    target: transition.to,
-    label: transition.verb,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    type: 'smoothstep',
-    animated: transition.effects?.some((effect) => effect.type === 'notify') ?? false,
-    style: { stroke: '#0f4c75', strokeWidth: 2 },
-    labelStyle: { fill: '#0f172a', fontSize: 11, fontWeight: 600 },
-  }));
+  return workflow.transitions.map((transition, index) => {
+    const isReturn = transition.verb === 'return';
+    return {
+      id: `${transition.from}-${transition.to}-${transition.verb}-${index}`,
+      source: transition.from,
+      target: transition.to,
+      label: transition.verb,
+      markerEnd: { type: MarkerType.ArrowClosed },
+      type: 'smoothstep',
+      animated: transition.effects?.some((effect) => effect.type === 'notify') ?? false,
+      style: {
+        stroke: isReturn ? '#b45309' : '#0f4c75',
+        strokeWidth: 2,
+        strokeDasharray: isReturn ? '6 4' : undefined,
+      },
+      labelStyle: {
+        fill: isReturn ? '#92400e' : '#0f172a',
+        fontSize: 11,
+        fontWeight: 600,
+      },
+    };
+  });
+}
+
+function pickDesignationLabel(json: unknown, fallback: string): string {
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
+    const record = json as Record<string, unknown>;
+    if (typeof record.en === 'string' && record.en.trim()) {
+      return record.en.trim();
+    }
+  }
+  return fallback;
+}
+
+function buildFeeLinesDraft(schedule: PaymentSchedule, value: unknown): FeeLinesDraft {
+  const draft: FeeLinesDraft = {};
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const record = source as Record<string, unknown>;
+  const defaultLabel = (code: 'application' | 'approval') =>
+    code === 'application'
+      ? { en: 'Application fee', bn: 'আবেদন ফি', hi: 'आवेदन शुल्क' }
+      : { en: 'Licence fee', bn: 'লাইসেন্স ফি', hi: 'लाइसेंस शुल्क' };
+
+  if (schedule === 'upfront_only' || schedule === 'upfront_and_deferred') {
+    const line = record.application;
+    draft.application =
+      line && typeof line === 'object' && !Array.isArray(line)
+        ? (line as FeeLinesDraft['application'])
+        : {
+            label: defaultLabel('application'),
+            rule: { type: 'fixed', amount_paise: 1000, currency: 'INR' },
+          };
+  }
+  if (schedule === 'deferred_only' || schedule === 'upfront_and_deferred') {
+    const line = record.approval;
+    draft.approval =
+      line && typeof line === 'object' && !Array.isArray(line)
+        ? (line as FeeLinesDraft['approval'])
+        : {
+            label: defaultLabel('approval'),
+            rule: { type: 'fixed', amount_paise: 1000, currency: 'INR' },
+          };
+  }
+  return draft;
+}
+
+function serializeFeeLines(
+  schedule: PaymentSchedule,
+  lines: FeeLinesDraft,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if ((schedule === 'upfront_only' || schedule === 'upfront_and_deferred') && lines.application) {
+    payload.application = lines.application;
+  }
+  if ((schedule === 'deferred_only' || schedule === 'upfront_and_deferred') && lines.approval) {
+    payload.approval = lines.approval;
+  }
+  return payload;
+}
+
+/** Tenant Admin API requires workflow.code to start with `{serviceCode}-`. */
+function ensureWorkflowCodeForService(
+  workflow: WorkflowDefinition,
+  serviceCode: string,
+): WorkflowDefinition {
+  const prefix = `${serviceCode.trim()}-`;
+  if (workflow.code.startsWith(prefix)) {
+    return workflow;
+  }
+  return { ...workflow, code: `${serviceCode.trim()}-workflow-v1` };
 }
 
 export default function ServiceDesignerClient({ serviceId }: { serviceId: string }): JSX.Element {
@@ -148,11 +276,18 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
   const [formText, setFormText] = useState('');
   const [workflowText, setWorkflowText] = useState('');
   const [feeText, setFeeText] = useState('');
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentSchedule>('upfront_only');
+  const [feeLines, setFeeLines] = useState<FeeLinesDraft>({});
   const [documentsText, setDocumentsText] = useState('');
   const [revenueHeadCode, setRevenueHeadCode] = useState('');
+  const [bocPolicy, setBocPolicy] = useState<BocPolicy>('never');
+  const [municipalSignoffPolicy, setMunicipalSignoffPolicy] =
+    useState<MunicipalSignoffPolicy>('high_value_only');
+  const [municipalSignoffThresholdRupees, setMunicipalSignoffThresholdRupees] = useState('500000');
   const [values, setValues] = useState<Values>({});
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [selectedStageCode, setSelectedStageCode] = useState<string | null>(null);
+  const [designations, setDesignations] = useState<DesignationOption[]>([]);
   const [status, setStatus] = useState<string | null>(null);
 
   const authHeaders = useCallback(
@@ -178,7 +313,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     }
     setStatus(null);
     try {
-      const [designerRes, configRes, revenueRes] = await Promise.all([
+      const [designerRes, configRes, revenueRes, desigRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/services/${serviceId}/designer`, {
           cache: 'no-store',
           headers: authHeaders(),
@@ -191,8 +326,17 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
           cache: 'no-store',
           headers: authHeaders(),
         }),
+        fetch(`${apiBase}/admin/tenant/org/designations`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
       ]);
-      if (designerRes.status === 401 || configRes.status === 401 || revenueRes.status === 401) {
+      if (
+        designerRes.status === 401 ||
+        configRes.status === 401 ||
+        revenueRes.status === 401 ||
+        desigRes.status === 401
+      ) {
         clearStoredAuth();
         router.replace('/login?error=session_expired');
         return;
@@ -207,12 +351,41 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       const data = (await designerRes.json()) as ServiceDesignerResponse;
       const config = (await configRes.json()) as ServiceConfigResponse;
       const heads = (await revenueRes.json()) as RevenueHeadRow[];
+      if (desigRes.ok) {
+        const desigRows = (await desigRes.json()) as Array<{
+          code: string;
+          name: unknown;
+          is_department_head: boolean;
+          can_reject_municipal: boolean;
+          is_active: boolean;
+        }>;
+        setDesignations(
+          desigRows
+            .filter((row) => row.is_active)
+            .map((row) => ({
+              code: row.code,
+              label: pickDesignationLabel(row.name, row.code),
+              is_department_head: row.is_department_head,
+              can_reject_municipal: row.can_reject_municipal,
+            }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+        );
+      } else {
+        setDesignations([]);
+      }
       setDesigner(data);
       setServiceConfig(config);
       setRevenueHeads(heads.filter((head) => head.is_active));
       setFeeText(pretty(config.fee_rule));
-      setDocumentsText(pretty(config.required_documents));
+      setPaymentSchedule(config.payment_schedule ?? 'upfront_only');
+      setFeeLines(buildFeeLinesDraft(config.payment_schedule ?? 'upfront_only', config.fee_lines));
+      setDocumentsText(pretty(coerceDocuments(config.required_documents)));
       setRevenueHeadCode(config.revenue_head?.code ?? '');
+      setBocPolicy(config.boc_policy ?? 'never');
+      setMunicipalSignoffPolicy(config.municipal_signoff_policy ?? 'high_value_only');
+      setMunicipalSignoffThresholdRupees(
+        String((config.municipal_signoff_threshold_paise ?? 50_000_000) / 100),
+      );
       setFormText(
         pretty(
           data.form_draft?.form_schema ??
@@ -536,20 +709,36 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       setStatus('Workflow definition must be valid before saving.');
       return false;
     }
-    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/workflow-draft`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify({ workflow: parsedWorkflow.workflow }),
-    });
-    if (!res.ok) {
-      if (redirectIfUnauthorized(res)) {
-        return false;
-      }
-      const body = await res.text().catch(() => '');
-      setStatus(`Workflow save failed (${res.status}). ${body.slice(0, 180)}`);
+    const serviceCode = designer?.service.code?.trim();
+    if (!serviceCode) {
+      setStatus('Service code is missing — reload the designer page.');
       return false;
     }
-    return true;
+    const workflow = ensureWorkflowCodeForService(parsedWorkflow.workflow, serviceCode);
+    if (workflow.code !== parsedWorkflow.workflow.code) {
+      setWorkflowText(pretty(workflow));
+    }
+    try {
+      const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/workflow-draft`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ workflow }),
+      });
+      if (!res.ok) {
+        if (redirectIfUnauthorized(res)) {
+          return false;
+        }
+        const body = await res.text().catch(() => '');
+        setStatus(`Workflow save failed (${res.status}). ${body.slice(0, 180)}`);
+        return false;
+      }
+      return true;
+    } catch {
+      setStatus(
+        `Could not reach the API at ${apiBase}. Start the API (pnpm --filter @enagar/api dev), confirm NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api in apps/admin-tenant/.env.local, then restart admin-tenant.`,
+      );
+      return false;
+    }
   }
 
   async function saveWorkflow(): Promise<void> {
@@ -568,13 +757,18 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     if (!saved) {
       return;
     }
-    const res = await fetch(
-      `${apiBase}/admin/tenant/services/${serviceId}/workflow-draft/publish`,
-      {
+    let res: Response;
+    try {
+      res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/workflow-draft/publish`, {
         method: 'PATCH',
         headers: authHeaders(),
-      },
-    );
+      });
+    } catch {
+      setStatus(
+        `Could not reach the API at ${apiBase}. Start the API on port 3001 and restart admin-tenant.`,
+      );
+      return;
+    }
     if (redirectIfUnauthorized(res)) {
       return;
     }
@@ -589,13 +783,21 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       setStatus('Fee rule and document checklist must be valid JSON before saving.');
       return;
     }
+    const payloadFeeLines = serializeFeeLines(paymentSchedule, feeLines);
     const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
       method: 'PATCH',
       headers: authHeaders(),
       body: JSON.stringify({
         fee_rule: parsedFee.value,
-        required_documents: parsedDocuments.value,
+        payment_schedule: paymentSchedule,
+        fee_lines: payloadFeeLines,
+        required_documents: coerceDocuments(parsedDocuments.value),
         revenue_head_code: revenueHeadCode,
+        boc_policy: bocPolicy,
+        municipal_signoff_policy: municipalSignoffPolicy,
+        municipal_signoff_threshold_paise: Math.round(
+          Number(municipalSignoffThresholdRupees) * 100,
+        ),
       }),
     });
     if (!res.ok) {
@@ -697,6 +899,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             valid={parsedWorkflow.validation.ok}
             nodes={workflowNodes}
             edges={workflowEdges}
+            designations={designations}
             selectedStageCode={selectedStageCode}
             onSelectStage={setSelectedStageCode}
             onAddStage={addWorkflowStage}
@@ -704,6 +907,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             onRemoveStage={removeStage}
             onAddTransition={addWorkflowTransition}
             onUpdateWorkflow={updateWorkflow}
+            onApplyTemplate={(message) => setStatus(message)}
           />
           <EditorPanel
             title="Workflow definition draft"
@@ -721,14 +925,24 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
           <ServiceConfigPanel
             serviceConfig={serviceConfig}
             revenueHeads={revenueHeads}
+            paymentSchedule={paymentSchedule}
+            feeLines={feeLines}
             feeText={feeText}
             documentsText={documentsText}
             revenueHeadCode={revenueHeadCode}
             parsedFee={parsedFee}
             parsedDocuments={parsedDocuments}
+            onPaymentScheduleChange={setPaymentSchedule}
+            onFeeLinesChange={setFeeLines}
             onFeeTextChange={setFeeText}
             onDocumentsTextChange={setDocumentsText}
             onRevenueHeadCodeChange={setRevenueHeadCode}
+            bocPolicy={bocPolicy}
+            onBocPolicyChange={setBocPolicy}
+            municipalSignoffPolicy={municipalSignoffPolicy}
+            onMunicipalSignoffPolicyChange={setMunicipalSignoffPolicy}
+            municipalSignoffThresholdRupees={municipalSignoffThresholdRupees}
+            onMunicipalSignoffThresholdRupeesChange={setMunicipalSignoffThresholdRupees}
             onSave={() => void saveServiceConfig()}
           />
         </div>
@@ -750,6 +964,7 @@ function WorkflowCanvasPanel({
   valid,
   nodes,
   edges,
+  designations,
   selectedStageCode,
   onSelectStage,
   onAddStage,
@@ -757,11 +972,13 @@ function WorkflowCanvasPanel({
   onRemoveStage,
   onAddTransition,
   onUpdateWorkflow,
+  onApplyTemplate,
 }: {
   workflow: WorkflowDefinition | null;
   valid: boolean;
   nodes: Node[];
   edges: Edge[];
+  designations: DesignationOption[];
   selectedStageCode: string | null;
   onSelectStage: (stageCode: string | null) => void;
   onAddStage: () => void;
@@ -769,22 +986,36 @@ function WorkflowCanvasPanel({
   onRemoveStage: (stageCode: string) => void;
   onAddTransition: () => void;
   onUpdateWorkflow: (updater: (workflow: WorkflowDefinition) => WorkflowDefinition) => void;
+  onApplyTemplate: (message: string) => void;
 }): JSX.Element {
   const selectedStage = workflow?.stages.find((stage) => stage.code === selectedStageCode) ?? null;
+
+  function applyTemplate(
+    updater: (draft: WorkflowDefinition) => WorkflowDefinition,
+    message: string,
+  ): void {
+    if (!workflow) {
+      onApplyTemplate('Fix workflow JSON before applying templates.');
+      return;
+    }
+    onUpdateWorkflow((draft) => updater(draft));
+    onApplyTemplate(message);
+  }
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sprint 6.7B · React Flow workflow canvas
+            Phase 6 · Designation workflow designer
           </p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Visual workflow designer</h2>
           <p className="text-xs text-slate-500">
-            Canvas edits the same workflow definition saved by the existing draft/publish API.
+            Pick ULB designations per stage and forward/return verbs. Template buttons replace the
+            draft (legacy approved/closed paths are removed). Orange dashed edges are returns.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={onAddStage}
@@ -801,6 +1032,72 @@ function WorkflowCanvasPanel({
           </button>
         </div>
       </div>
+      {workflow ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            onClick={() =>
+              applyTemplate(
+                (draft) => applyHoardingScrutinyTemplate(draft),
+                'Replaced workflow with hoarding scrutiny (submitted → clerk → inspector → officer → certificate).',
+              )
+            }
+          >
+            Hoarding scrutiny (replace)
+          </button>
+          <button
+            type="button"
+            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            onClick={() =>
+              applyTemplate(
+                (draft) => applyPwdWorksTemplate(draft),
+                'Replaced workflow with PWD maker–checker–approver–dept head + municipal ladder.',
+              )
+            }
+          >
+            PWD works (replace)
+          </button>
+          <button
+            type="button"
+            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            onClick={() =>
+              applyTemplate(
+                (draft) => applyMunicipalLadderTemplate(draft),
+                'Replaced workflow with dept head + municipal ladder (EO → CIC → VC → Chairperson).',
+              )
+            }
+          >
+            Municipal ladder (replace)
+          </button>
+          <button
+            type="button"
+            className="rounded border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            disabled={!selectedStageCode}
+            onClick={() => {
+              if (!selectedStageCode) {
+                return;
+              }
+              const targetDesig = designations[0]?.code ?? 'hoarding_inspector';
+              applyTemplate((draft) => {
+                const { workflow: withStage, stageCode } = addDesignationStage(draft, {
+                  designationCode: targetDesig,
+                });
+                return addForwardReturnPair(withStage, {
+                  from: selectedStageCode,
+                  to: stageCode,
+                  forwardDesignation:
+                    draft.stages.find((stage) => stage.code === selectedStageCode)
+                      ?.owner_designation ?? targetDesig,
+                  returnDesignation: targetDesig,
+                });
+              }, `Added forward/return pair from ${selectedStageCode}.`);
+            }}
+          >
+            Forward + return pair
+          </button>
+        </div>
+      ) : null}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="h-[420px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
           {workflow ? (
@@ -823,11 +1120,16 @@ function WorkflowCanvasPanel({
         <div className="space-y-4">
           <StageInspector
             stage={selectedStage}
+            designations={designations}
             onUpdateStage={onUpdateStage}
             onRemoveStage={onRemoveStage}
           />
           {workflow ? (
-            <TransitionEditor workflow={workflow} onUpdateWorkflow={onUpdateWorkflow} />
+            <TransitionEditor
+              workflow={workflow}
+              designations={designations}
+              onUpdateWorkflow={onUpdateWorkflow}
+            />
           ) : null}
           <p className={valid ? 'text-xs text-emerald-700' : 'text-xs text-red-700'}>
             {valid ? 'Workflow valid.' : 'Workflow has validation issues.'}
@@ -840,20 +1142,25 @@ function WorkflowCanvasPanel({
 
 function StageInspector({
   stage,
+  designations,
   onUpdateStage,
   onRemoveStage,
 }: {
   stage: WorkflowStage | null;
+  designations: DesignationOption[];
   onUpdateStage: (stageCode: string, patch: Partial<WorkflowStage>) => void;
   onRemoveStage: (stageCode: string) => void;
 }): JSX.Element {
   if (!stage) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-        Select a canvas node to edit stage labels, ownership, SLA, and terminal state.
+        Select a canvas node to edit designation owner, stage kind, allowed verbs, and SLA.
       </div>
     );
   }
+
+  const actorMode = stage.owner_designation ? 'designation' : 'role';
+  const selectedDesig = designations.find((row) => row.code === stage.owner_designation);
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -881,19 +1188,126 @@ function StageInspector({
         />
       </label>
       <label className="mt-3 block text-xs font-medium text-slate-600">
-        Owner role
+        Pending owner
         <select
           className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-          value={stage.owner_role}
-          onChange={(event) => onUpdateStage(stage.code, { owner_role: event.target.value })}
+          value={actorMode}
+          onChange={(event) => {
+            if (event.target.value === 'designation') {
+              const first = designations[0];
+              if (!first) {
+                return;
+              }
+              onUpdateStage(stage.code, {
+                owner_designation: first.code,
+                owner_role: 'tenant_clerk',
+                allowed_verbs: defaultAllowedVerbsForDesignation(first.code, first),
+              });
+            } else {
+              onUpdateStage(stage.code, {
+                owner_designation: undefined,
+                owner_role: stage.owner_role || 'tenant_clerk',
+              });
+            }
+          }}
         >
-          {DEFAULT_STAGE_ROLES.map((role) => (
-            <option key={role} value={role}>
-              {role}
+          <option value="role">Legacy role</option>
+          <option value="designation">ULB designation</option>
+        </select>
+      </label>
+      {actorMode === 'role' ? (
+        <label className="mt-3 block text-xs font-medium text-slate-600">
+          Owner role
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+            value={stage.owner_role}
+            onChange={(event) => onUpdateStage(stage.code, { owner_role: event.target.value })}
+          >
+            {DEFAULT_STAGE_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label className="mt-3 block text-xs font-medium text-slate-600">
+          Owner designation
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+            value={stage.owner_designation ?? ''}
+            onChange={(event) => {
+              const code = event.target.value;
+              const desig = designations.find((row) => row.code === code);
+              onUpdateStage(stage.code, {
+                owner_designation: code,
+                owner_role: 'tenant_clerk',
+                allowed_verbs: desig
+                  ? defaultAllowedVerbsForDesignation(code, desig)
+                  : ['forward', 'return'],
+              });
+            }}
+          >
+            <option value="">Select designation…</option>
+            {designations.map((row) => (
+              <option key={row.code} value={row.code}>
+                {row.label} ({row.code})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="mt-3 block text-xs font-medium text-slate-600">
+        Stage kind
+        <select
+          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+          value={stage.stage_kind ?? ''}
+          onChange={(event) =>
+            onUpdateStage(stage.code, {
+              stage_kind: (event.target.value || undefined) as WorkflowStageKind | undefined,
+            })
+          }
+        >
+          <option value="">(none)</option>
+          {STAGE_KIND_OPTIONS.map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
             </option>
           ))}
         </select>
       </label>
+      {actorMode === 'designation' && selectedDesig ? (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {selectedDesig.is_department_head ? 'Department head — reject allowed. ' : ''}
+          {selectedDesig.can_reject_municipal ? 'Municipal reject (Chairperson). ' : ''}
+          Configure allowed verbs below.
+        </p>
+      ) : null}
+      <fieldset className="mt-3">
+        <legend className="text-xs font-medium text-slate-600">Allowed verbs</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {DESIGNATION_WORKFLOW_VERBS.map((verb) => (
+            <label key={verb} className="flex items-center gap-1 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={stage.allowed_verbs?.includes(verb) ?? false}
+                onChange={(event) => {
+                  const current = new Set(stage.allowed_verbs ?? ['forward', 'return']);
+                  if (event.target.checked) {
+                    current.add(verb);
+                  } else {
+                    current.delete(verb);
+                  }
+                  onUpdateStage(stage.code, {
+                    allowed_verbs: [...current],
+                  });
+                }}
+              />
+              {verb}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label className="mt-3 block text-xs font-medium text-slate-600">
         SLA hours
         <input
@@ -935,9 +1349,11 @@ function StageInspector({
 
 function TransitionEditor({
   workflow,
+  designations,
   onUpdateWorkflow,
 }: {
   workflow: WorkflowDefinition;
+  designations: DesignationOption[];
   onUpdateWorkflow: (updater: (workflow: WorkflowDefinition) => WorkflowDefinition) => void;
 }): JSX.Element {
   return (
@@ -972,20 +1388,49 @@ function TransitionEditor({
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="block text-xs font-medium text-slate-600">
                 Verb
-                <input
+                <select
                   className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
                   value={transition.verb}
                   onChange={(event) =>
                     onUpdateWorkflow((draft) =>
-                      updateTransition(draft, index, {
-                        verb: slugify(event.target.value, 'advance'),
-                      }),
+                      updateTransition(draft, index, { verb: event.target.value }),
                     )
                   }
-                />
+                >
+                  {[...DESIGNATION_WORKFLOW_VERBS, 'advance', 'submit', 'approve'].map((verb) => (
+                    <option key={verb} value={verb}>
+                      {verb}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="block text-xs font-medium text-slate-600">
-                Actor
+                Actor designation
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  value={transition.actor_designation ?? ''}
+                  onChange={(event) => {
+                    const code = event.target.value;
+                    onUpdateWorkflow((draft) =>
+                      updateTransition(draft, index, {
+                        actor_designation: code || undefined,
+                        actor_role: code ? 'tenant_clerk' : transition.actor_role,
+                      }),
+                    );
+                  }}
+                >
+                  <option value="">Legacy role only</option>
+                  {designations.map((row) => (
+                    <option key={row.code} value={row.code}>
+                      {row.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {!transition.actor_designation ? (
+              <label className="mt-2 block text-xs font-medium text-slate-600">
+                Actor role (legacy)
                 <select
                   className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
                   value={transition.actor_role}
@@ -1002,7 +1447,38 @@ function TransitionEditor({
                   ))}
                 </select>
               </label>
-            </div>
+            ) : null}
+            <label className="mt-2 block text-xs font-medium text-slate-600">
+              Transition guard
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                value={
+                  typeof transition.guard?.type === 'string'
+                    ? transition.guard.type
+                    : typeof transition.guard?.kind === 'string'
+                      ? transition.guard.kind
+                      : ''
+                }
+                onChange={(event) => {
+                  const type = event.target.value;
+                  onUpdateWorkflow((draft) =>
+                    updateTransition(draft, index, {
+                      guard: type
+                        ? type === 'payment_paid'
+                          ? { type, fee_code: 'approval' }
+                          : { type }
+                        : undefined,
+                    }),
+                  );
+                }}
+              >
+                {WORKFLOW_GUARD_PRESETS.map((preset) => (
+                  <option key={preset.value || 'none'} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="mt-2 block text-xs font-medium text-slate-600">
               Effect
               <select
@@ -1022,7 +1498,9 @@ function TransitionEditor({
                                   trigger_stage: transition.from,
                                 },
                               }
-                            : {}),
+                            : event.target.value === 'generate_payment_link'
+                              ? { payload: { fee_code: 'approval' } }
+                              : {}),
                         },
                       ],
                     }),
@@ -1136,6 +1614,57 @@ function TransitionEditor({
                 </div>
               </div>
             ) : null}
+            {transition.effects?.[0]?.type === 'generate_payment_link' ? (
+              <label className="mt-2 block text-xs font-medium text-slate-600">
+                Payment link fee line
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  value={String(paymentLinkPayload(transition).fee_code ?? 'approval')}
+                  onChange={(event) =>
+                    onUpdateWorkflow((draft) =>
+                      updateTransition(draft, index, {
+                        effects: [
+                          {
+                            type: 'generate_payment_link',
+                            payload: {
+                              ...paymentLinkPayload(transition),
+                              fee_code: event.target.value,
+                            },
+                          },
+                        ],
+                      }),
+                    )
+                  }
+                >
+                  <option value="approval">Approval / licence fee</option>
+                  <option value="application">Application fee</option>
+                </select>
+              </label>
+            ) : null}
+            {typeof transition.guard?.type === 'string' &&
+            transition.guard.type === 'payment_paid' ? (
+              <label className="mt-2 block text-xs font-medium text-slate-600">
+                Guard fee line (optional)
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  value={String(transition.guard.fee_code ?? '')}
+                  onChange={(event) =>
+                    onUpdateWorkflow((draft) =>
+                      updateTransition(draft, index, {
+                        guard: {
+                          type: 'payment_paid',
+                          ...(event.target.value ? { fee_code: event.target.value } : {}),
+                        },
+                      }),
+                    )
+                  }
+                >
+                  <option value="">All required lines paid (rollup)</option>
+                  <option value="approval">Approval line paid</option>
+                  <option value="application">Application line paid</option>
+                </select>
+              </label>
+            ) : null}
             <button
               type="button"
               onClick={() =>
@@ -1195,6 +1724,12 @@ function updateTransition(
       itemIndex === index ? { ...transition, ...patch } : transition,
     ),
   };
+}
+
+function paymentLinkPayload(transition: WorkflowTransition): Record<string, unknown> {
+  const effect = transition.effects?.find((entry) => entry.type === 'generate_payment_link');
+  const payload = effect?.payload;
+  return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
 }
 
 function escalationPayload(transition: WorkflowTransition): Record<string, unknown> {

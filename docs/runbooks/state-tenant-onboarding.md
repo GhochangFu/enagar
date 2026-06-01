@@ -18,6 +18,7 @@ Use for **New municipality** (blank draft) or **Re-onboard** (click an existing 
 - Records audit metadata: `forms_from_global`, `forms_stubbed` (EN-4).
 - Adopts grievance categories when selected (`grievance_category_codes`).
 - Provisions Keycloak `tenant_admin` (`{code}-tenant-admin`) with `tenant_id` / `tenant_code` attributes and the wizard password.
+- **Org pack (Phase 14):** upserts **24 departments** (Appendix A) and **47 sample designations** (Appendix B + municipal ladder + hoarding pilot roles). Optional override: `TENANT_ORG_IMPORT_PATH` → JSON import file (see `infrastructure/onboarding/README.md`).
 - Triggers RAG indexer `POST /index/tenant/{code}` when `RAG_INDEXER_URL` is set.
 - `GET /api/tenants` lists active ULBs from Postgres (citizen picker).
 

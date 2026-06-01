@@ -2,8 +2,15 @@
 
 import { useMemo, useState } from 'react';
 
+import {
+  applicationFeePaid,
+  citizenMayInitiatePayment,
+  citizenPaymentAwaitingDeptLink,
+  effectivePaymentRollup,
+} from '../lib/payment-eligibility';
 import { authHeaders, formatInrFromPaise, readApiError } from '../lib/workspace-http';
 
+import type { FeeLineDisplay } from '../lib/service-payment';
 import type {
   ApplicationDetail,
   PaymentApiResponse,
@@ -93,7 +100,8 @@ export function ApplicationDetailPanel({
   apiBaseUrl,
   application,
   comment,
-  feePaise,
+  paymentLine,
+  scheduledApprovalFee,
   onCancel,
   onCommentChange,
   onInitiatePayment,
@@ -106,13 +114,15 @@ export function ApplicationDetailPanel({
   apiBaseUrl: string;
   application: ApplicationDetail | null;
   comment: string;
-  feePaise: number | null;
+  paymentLine: FeeLineDisplay | null;
+  scheduledApprovalFee?: FeeLineDisplay | null;
   onCancel: () => void;
   onCommentChange: (value: string) => void;
   onInitiatePayment: (
     applicationId: string,
     amountPaise: number,
     method: PaymentGatewayMethod,
+    feeCode: 'application' | 'approval',
   ) => Promise<PaymentApiResponse | null>;
   onStubComplete: (payment: PaymentApiResponse) => Promise<boolean>;
   onSubmitComment: (event: FormEvent<HTMLFormElement>) => void;
@@ -146,13 +156,27 @@ export function ApplicationDetailPanel({
     );
   }
 
-  const pendingStub = appPayments.find((row) => row.status === 'requires_action');
+  const deskIssuedPaymentId = application.active_payment_id?.trim() || null;
+  const pendingStub =
+    appPayments.find(
+      (row) =>
+        row.status === 'requires_action' &&
+        (!deskIssuedPaymentId || row.id === deskIssuedPaymentId),
+    ) ?? appPayments.find((row) => row.status === 'requires_action');
   const latestSettled = appPayments.find((row) => row.status === 'settled');
+  const activeFeeCode = paymentLine?.feeCode;
   const canStartNewPayment =
     Boolean(token) &&
-    feePaise != null &&
-    (application.payment_status === 'pending' || application.payment_status === 'failed') &&
-    !pendingStub;
+    paymentLine != null &&
+    citizenMayInitiatePayment(
+      application,
+      activeFeeCode ? { feeCode: activeFeeCode } : undefined,
+    ) &&
+    !pendingStub &&
+    !(deskIssuedPaymentId && activeFeeCode === 'approval');
+  const awaitingDeptLink = citizenPaymentAwaitingDeptLink(application);
+  const applicationLinePaid = applicationFeePaid(application);
+  const paymentRollup = effectivePaymentRollup(application);
 
   return (
     <div className="space-y-4 rounded-3xl border border-warm-border bg-white p-5 shadow-sm">
@@ -178,29 +202,67 @@ export function ApplicationDetailPanel({
       <InfoGrid
         items={[
           ['Stage', application.current_stage],
-          ['Payment', application.payment_status],
-          ['Pending Role', application.pending_role ?? 'None'],
+          ['Payment', paymentRollup],
+          [
+            'Pending at',
+            application.pending_at_label ??
+              application.pending_role ??
+              (application.pending_designation
+                ? application.pending_designation.replace(/_/g, ' ')
+                : 'None'),
+          ],
           ['Submitted', new Date(application.submitted_at).toLocaleString()],
         ]}
       />
 
       <section className="rounded-2xl border border-slate-200 p-4">
         <h4 className="font-bold">Fees &amp; payment (stub)</h4>
-        {feePaise != null ? (
+        {application.fee_settlement && (
+          <ul className="mt-2 space-y-1 text-sm text-slate-700">
+            {(['application', 'approval'] as const).map((code) => {
+              const line = application.fee_settlement?.[code];
+              if (!line) {
+                return null;
+              }
+              return (
+                <li key={code}>
+                  <span className="capitalize">{code.replace('_', ' ')}</span>: {line.status}
+                  {line.amount_paise != null ? ` · ${formatInrFromPaise(line.amount_paise)}` : ''}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {paymentLine != null ? (
           <p className="mt-2 text-sm text-slate-700">
-            Fixed fee: <strong>{formatInrFromPaise(feePaise)}</strong>
+            {paymentLine.label}: <strong>{formatInrFromPaise(paymentLine.amountPaise)}</strong>
           </p>
         ) : (
           <p className="mt-2 text-sm text-slate-600">
-            This service has no fixed-fee line item in the catalogue (or fee is not fixed).
+            No citizen payment line is open for this application right now.
           </p>
         )}
-        {application.payment_status === 'not_required' && (
+        {paymentRollup === 'not_required' &&
+          !awaitingDeptLink &&
+          !applicationLinePaid &&
+          application.payment_schedule === 'deferred_only' && (
+            <p className="mt-2 text-sm text-slate-600">
+              No payment is required until the ULB issues a link after approval.
+            </p>
+          )}
+        {awaitingDeptLink && scheduledApprovalFee && (
           <p className="mt-2 text-sm text-slate-600">
-            No payment is required for this application.
+            <strong>{scheduledApprovalFee.label}</strong> (
+            {formatInrFromPaise(scheduledApprovalFee.amountPaise)}) is payable after approval, when
+            the ULB issues a payment link at the <strong>Payment pending</strong> stage.
           </p>
         )}
-        {application.payment_status === 'paid' && (
+        {applicationLinePaid &&
+          application.payment_schedule === 'upfront_and_deferred' &&
+          application.current_stage !== 'payment-pending' && (
+            <p className="mt-2 text-sm text-emerald-800">Application fee is paid.</p>
+          )}
+        {paymentRollup === 'paid' && (
           <p className="mt-2 text-sm text-emerald-800">Payment is recorded as paid.</p>
         )}
         {appPayments.length > 0 && (
@@ -213,9 +275,21 @@ export function ApplicationDetailPanel({
             ))}
           </ul>
         )}
+        {paymentRollup === 'pending' && deskIssuedPaymentId && !pendingStub && token && (
+          <p className="mt-2 text-sm text-amber-800">
+            Payment was issued by the ULB. Reload this application or refresh the page if the
+            capture button does not appear.
+          </p>
+        )}
+        {application.payment_redirect_url && paymentRollup === 'pending' && (
+          <p className="mt-2 text-xs text-slate-500 break-all">
+            Partner link: {application.payment_redirect_url}
+          </p>
+        )}
         {pendingStub && token && (
           <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
             <p>
+              {deskIssuedPaymentId ? 'Your municipality has issued a payment request. ' : ''}
               Stub partner reserved order <strong>{pendingStub.gateway_order_id}</strong>. Simulate
               capture to settle and issue receipt metadata.
             </p>
@@ -228,9 +302,9 @@ export function ApplicationDetailPanel({
             </button>
           </div>
         )}
-        {canStartNewPayment && feePaise != null && (
+        {canStartNewPayment && paymentLine != null && (
           <div className="mt-3 space-y-2">
-            {application.payment_status === 'failed' && (
+            {paymentRollup === 'failed' && (
               <p className="text-sm text-amber-800">
                 Last attempt failed. Start a fresh payment after reading the status banner;
                 idempotency keys rotate each tap.
@@ -251,17 +325,23 @@ export function ApplicationDetailPanel({
             </label>
             <button
               className="w-full rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => void onInitiatePayment(application.id, feePaise, paymentMethod)}
+              onClick={() =>
+                void onInitiatePayment(
+                  application.id,
+                  paymentLine.amountPaise,
+                  paymentMethod,
+                  paymentLine.feeCode,
+                )
+              }
               type="button"
             >
               Initiate stub payment
             </button>
           </div>
         )}
-        {!token &&
-          (application.payment_status === 'pending' || application.payment_status === 'failed') && (
-            <p className="mt-2 text-sm text-red-700">Sign in is required to initiate payment.</p>
-          )}
+        {!token && (paymentRollup === 'pending' || paymentRollup === 'failed') && (
+          <p className="mt-2 text-sm text-red-700">Sign in is required to initiate payment.</p>
+        )}
         {latestSettled && token && !pendingStub && (
           <ReceiptPreviewPlaceholder
             apiBaseUrl={apiBaseUrl}
@@ -271,6 +351,15 @@ export function ApplicationDetailPanel({
           />
         )}
       </section>
+
+      {application.current_stage === 'citizen-feedback' && token && (
+        <CitizenFeedbackSection
+          apiBaseUrl={apiBaseUrl}
+          applicationId={application.id}
+          tenantScopeCode={tenantScopeCode}
+          token={token}
+        />
+      )}
 
       <section>
         <h4 className="font-bold">Timeline</h4>
@@ -356,5 +445,92 @@ function InfoGrid({ items }: { items: Array<[string, string]> }): JSX.Element {
         <Info key={label} label={label} value={value} />
       ))}
     </dl>
+  );
+}
+
+function CitizenFeedbackSection({
+  apiBaseUrl,
+  applicationId,
+  tenantScopeCode,
+  token,
+}: {
+  apiBaseUrl: string;
+  applicationId: string;
+  tenantScopeCode?: string | null;
+  token: TokenResponse;
+}): JSX.Element {
+  const [rating, setRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitFeedback(): Promise<void> {
+    setSubmitting(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}/feedback`,
+        {
+          method: 'POST',
+          headers: authHeaders(token, true, tenantScopeCode),
+          body: JSON.stringify({
+            rating,
+            comment: feedbackComment.trim() || undefined,
+          }),
+        },
+      );
+      if (!res.ok) {
+        setStatus(await readApiError(res));
+        setSubmitting(false);
+        return;
+      }
+      setStatus('Thank you — your feedback was recorded.');
+      window.location.reload();
+    } catch {
+      setStatus('Network error submitting feedback.');
+    }
+    setSubmitting(false);
+  }
+
+  return (
+    <section className="rounded-2xl border border-brand/30 bg-brand-muted/40 p-4">
+      <h4 className="font-bold text-brand">Rate this service</h4>
+      <p className="mt-1 text-sm text-slate-700">
+        Work is complete. Please share feedback before this application closes.
+      </p>
+      <label className="mt-3 block text-sm font-medium text-slate-700">
+        Rating (1–5)
+        <input
+          className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2"
+          max={5}
+          min={1}
+          onChange={(event) => setRating(Number(event.target.value))}
+          type="number"
+          value={rating}
+        />
+      </label>
+      <label className="mt-3 block text-sm font-medium text-slate-700">
+        Comment (optional)
+        <textarea
+          className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2"
+          onChange={(event) => setFeedbackComment(event.target.value)}
+          rows={3}
+          value={feedbackComment}
+        />
+      </label>
+      <button
+        className="mt-3 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        disabled={submitting}
+        onClick={() => void submitFeedback()}
+        type="button"
+      >
+        {submitting ? 'Submitting…' : 'Submit feedback'}
+      </button>
+      {status ? (
+        <p className="mt-2 text-sm text-slate-700" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
   );
 }

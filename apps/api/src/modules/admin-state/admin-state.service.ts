@@ -6,6 +6,8 @@ import { SignJWT } from 'jose';
 import { PrismaService } from '../../common/database/prisma.service';
 import { KeycloakAdminProvisionerService } from '../../common/keycloak/keycloak-admin-provisioner.service';
 import { globalServices } from '../services/service-catalogue.seed';
+import { ensureTenantServiceCategory } from '../services/tenant-service-category.resolver';
+import { TenantOrgOnboardingService } from '../tenant-org-onboarding/tenant-org-onboarding.service';
 
 import { AdminStateGrievanceLibraryService } from './admin-state-grievance-library.service';
 import {
@@ -189,6 +191,7 @@ export class AdminStateService {
     private readonly prisma: PrismaService,
     private readonly keycloakProvisioner: KeycloakAdminProvisionerService,
     private readonly grievanceLibrary: AdminStateGrievanceLibraryService,
+    private readonly tenantOrgOnboarding: TenantOrgOnboardingService,
   ) {}
 
   async getOnboardingCatalogue(
@@ -434,6 +437,11 @@ export class AdminStateService {
       });
     }
 
+    let orgProvision: { departments_upserted: number; designations_upserted: number } | undefined;
+    if (isActive && isStateWizardOnboarding(dto)) {
+      orgProvision = await this.tenantOrgOnboarding.provisionForTenant(tenant.id);
+    }
+
     let tenantAdminProvision: { username: string } | undefined;
     if (isActive && dto.tenant_admin_username?.trim()) {
       const provisioned = await this.keycloakProvisioner.provisionTenantAdmin({
@@ -459,6 +467,8 @@ export class AdminStateService {
       tenant_admin: tenantAdminProvision?.username ?? null,
       forms_from_global: formsFromGlobal,
       forms_stubbed: formsStubbed,
+      org_departments_upserted: orgProvision?.departments_upserted ?? null,
+      org_designations_upserted: orgProvision?.designations_upserted ?? null,
     });
     return {
       id: tenant.id,
@@ -981,13 +991,21 @@ export class AdminStateService {
 
     for (const global of globals) {
       const revenueHeadId = global.revenueHeadId;
+      const resolved = await ensureTenantServiceCategory(
+        this.prisma,
+        tenantId,
+        global.category.code,
+        global.category.name as Prisma.InputJsonValue,
+      );
       const tenantService = await this.prisma.tenantService.upsert({
         where: { tenantId_code: { tenantId, code: global.code } },
         create: {
           tenantId,
           code: global.code,
           globalServiceId: global.id,
-          categoryId: global.categoryId,
+          categoryId: resolved.categoryId,
+          departmentId: resolved.departmentId,
+          globalCategoryCode: resolved.globalCategoryCode,
           revenueHeadId,
           name: global.name as Prisma.InputJsonValue,
           description: global.description as Prisma.InputJsonValue,
@@ -1082,8 +1100,8 @@ export class AdminStateService {
     const revenueByCode = new Map(revenueHeads.map((row) => [row.code, row.id]));
     const globalByCode = new Map(globals.map((row) => [row.code, row]));
     for (const seed of globalServices.slice(0, 10)) {
-      const categoryId = categoryByCode.get(seed.category_code);
-      if (!categoryId) continue;
+      if (!categoryByCode.has(seed.category_code)) continue;
+      const resolved = await ensureTenantServiceCategory(this.prisma, tenantId, seed.category_code);
       const global = globalByCode.get(seed.code);
       await this.prisma.tenantService.upsert({
         where: { tenantId_code: { tenantId, code: seed.code } },
@@ -1091,7 +1109,9 @@ export class AdminStateService {
           tenantId,
           code: seed.code,
           globalServiceId: global?.id ?? null,
-          categoryId,
+          categoryId: resolved.categoryId,
+          departmentId: resolved.departmentId,
+          globalCategoryCode: resolved.globalCategoryCode,
           revenueHeadId: seed.revenue_head_code ? revenueByCode.get(seed.revenue_head_code) : null,
           name: seed.name as Prisma.InputJsonValue,
           description: seed.description as Prisma.InputJsonValue,
@@ -1367,6 +1387,11 @@ function assertWizardOnboarding(dto: UpsertTenantDto): void {
       `wizard onboarding required before active tenant: ${errors.join(', ')}`,
     );
   }
+}
+
+function isStateWizardOnboarding(dto: UpsertTenantDto): boolean {
+  const config = dto.config ?? {};
+  return config.onboarding_source === 'state_wizard' && config.wizard_completed === true;
 }
 
 function assertTemplateCode(value: unknown): asserts value is string {

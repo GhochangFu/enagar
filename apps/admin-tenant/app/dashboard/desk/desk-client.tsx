@@ -30,7 +30,21 @@ type ApplicationRow = {
   status_label: string;
   current_stage: string;
   pending_role: string | null;
+  pending_designation: string | null;
+  pending_at_label: string | null;
   payment_status: string;
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_settlement?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        status: 'not_required' | 'pending' | 'paid' | 'failed';
+        amount_paise?: number | null;
+      }
+    >
+  >;
+  payment_redirect_url?: string | null;
+  active_payment_id?: string | null;
   submitted_at: string;
 };
 
@@ -39,6 +53,9 @@ type AllowedTransition = {
   to_stage: string;
   label: string;
   requires_comment: boolean;
+  requires_boc_resolution_fields?: boolean;
+  officer_may_set_require_boc?: boolean;
+  boc_policy?: string;
 };
 
 type ApplicationDocumentRow = {
@@ -66,6 +83,14 @@ type ApplicationDetail = {
     }>;
     documents: ApplicationDocumentRow[];
   };
+  work_order: {
+    id: string;
+    work_order_no: string;
+    status: string;
+    vendor_id: string | null;
+    assigned_user_id: string | null;
+  } | null;
+  vendors: Array<{ id: string; code: string; name: { en: string }; is_active: boolean }>;
   allowed_transitions: AllowedTransition[];
 };
 
@@ -129,6 +154,107 @@ function formatFieldValue(value: unknown): string {
   return String(value);
 }
 
+function formatInrFromPaise(paise: number | null | undefined): string {
+  if (paise == null || !Number.isFinite(paise)) {
+    return '—';
+  }
+  return `₹${(paise / 100).toFixed(2)}`;
+}
+
+function DeskFeeSettlementPanel({
+  application,
+}: {
+  application: ApplicationRow;
+}): JSX.Element | null {
+  const lines = application.fee_settlement;
+  if (!lines || (!lines.application && !lines.approval)) {
+    return (
+      <div className="rounded-2xl border border-warm-border bg-mint-band/20 px-4 py-3 text-sm text-ink-secondary">
+        Payment rollup: <strong className="text-ink-primary">{application.payment_status}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-warm-border bg-mint-band/20 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+        Fees &amp; payment
+      </p>
+      <p className="mt-1 text-sm text-ink-primary">
+        Rollup: <strong>{application.payment_status}</strong>
+        {application.payment_schedule ? (
+          <span className="text-ink-secondary"> · schedule {application.payment_schedule}</span>
+        ) : null}
+      </p>
+      <ul className="mt-2 space-y-1 text-sm text-ink-primary">
+        {(['application', 'approval'] as const).map((code) => {
+          const line = lines[code];
+          if (!line) {
+            return null;
+          }
+          return (
+            <li key={code}>
+              <span className="capitalize">{code.replace('_', ' ')}</span>: {line.status}
+              {line.amount_paise != null ? ` · ${formatInrFromPaise(line.amount_paise)}` : ''}
+            </li>
+          );
+        })}
+      </ul>
+      {application.active_payment_id ? (
+        <p className="mt-2 text-xs text-ink-secondary">
+          Active citizen payment: <span className="font-mono">{application.active_payment_id}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function DeskWorkOrderPanel({
+  applicationDetail,
+  onAssignVendor,
+}: {
+  applicationDetail: ApplicationDetail;
+  onAssignVendor: (vendorId: string) => Promise<void>;
+}): JSX.Element | null {
+  const workOrder = applicationDetail.work_order;
+  if (!workOrder) {
+    return null;
+  }
+  const vendors = applicationDetail.vendors ?? [];
+  return (
+    <div className="rounded-2xl border border-warm-border bg-surface px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Work order</p>
+      <p className="mt-1 text-sm text-ink-primary">
+        <strong>{workOrder.work_order_no}</strong> · {workOrder.status}
+      </p>
+      {vendors.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="block text-xs text-ink-secondary">
+            Assign vendor
+            <select
+              className="mt-1 block rounded-lg border border-warm-border bg-white px-3 py-2 text-sm"
+              defaultValue={workOrder.vendor_id ?? ''}
+              onChange={(event) => {
+                const vendorId = event.target.value;
+                if (vendorId) {
+                  void onAssignVendor(vendorId);
+                }
+              }}
+            >
+              <option value="">Select vendor…</option>
+              {vendors.map((vendor) => (
+                <option key={vendor.id} value={vendor.id}>
+                  {vendor.name.en} ({vendor.code})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FormDataSummary({ data }: { data: unknown }): JSX.Element {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return (
@@ -173,6 +299,9 @@ export default function DeskClient(): JSX.Element {
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [grievanceDetail, setGrievanceDetail] = useState<GrievanceDetail | null>(null);
   const [comment, setComment] = useState('');
+  const [requireBoc, setRequireBoc] = useState(false);
+  const [bocResolutionNumber, setBocResolutionNumber] = useState('');
+  const [bocResolutionDate, setBocResolutionDate] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
 
   const authHeaders = useCallback(
@@ -246,15 +375,46 @@ export default function DeskClient(): JSX.Element {
     }
     setApplicationDetail((await res.json()) as ApplicationDetail);
     setComment('');
+    setRequireBoc(false);
+    setBocResolutionNumber('');
+    setBocResolutionDate('');
   }
 
   async function transitionApplication(verb: string): Promise<void> {
     if (!token || !applicationDetail) return;
-    const selected = applicationDetail.allowed_transitions.find((item) => item.verb === verb);
-    const body = { verb, comment: comment.trim() || undefined };
-    if (selected?.requires_comment && !body.comment) {
+    const officerBocChoice = applicationDetail.allowed_transitions.some(
+      (item) => item.officer_may_set_require_boc,
+    );
+    let actionVerb = verb;
+    if (officerBocChoice && requireBoc) {
+      if (verb === 'approve-to-executive') {
+        actionVerb = 'route-to-boc';
+      }
+    }
+    const selected = applicationDetail.allowed_transitions.find(
+      (item) => item.verb === actionVerb || item.verb === verb,
+    );
+    const body: {
+      verb: string;
+      comment?: string;
+      require_boc?: boolean;
+      boc_resolution?: { resolution_number: string; resolution_date: string };
+    } = { verb: actionVerb, comment: comment.trim() || undefined };
+    if ((selected?.requires_comment || actionVerb === 'reject') && !body.comment) {
       setStatus('Comment is required for this workflow action.');
       return;
+    }
+    if (selected?.requires_boc_resolution_fields) {
+      const resolution_number = bocResolutionNumber.trim();
+      const resolution_date = bocResolutionDate.trim();
+      if (!resolution_number || !resolution_date) {
+        setStatus('BOC resolution number and date are required for this action.');
+        return;
+      }
+      body.boc_resolution = { resolution_number, resolution_date };
+    }
+    if (officerBocChoice && requireBoc && actionVerb === 'route-to-boc') {
+      body.require_boc = true;
     }
     const res = await fetch(
       `${apiBase}/admin/tenant/desk/applications/${applicationDetail.application.id}/transitions`,
@@ -266,7 +426,27 @@ export default function DeskClient(): JSX.Element {
     }
     setApplicationDetail((await res.json()) as ApplicationDetail);
     setComment('');
+    setRequireBoc(false);
+    setBocResolutionNumber('');
+    setBocResolutionDate('');
     await loadDesk();
+  }
+
+  async function assignWorkOrderVendor(vendorId: string): Promise<void> {
+    if (!token || !applicationDetail) return;
+    const res = await fetch(
+      `${apiBase}/admin/tenant/desk/applications/${applicationDetail.application.id}/work-order`,
+      {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ vendor_id: vendorId }),
+      },
+    );
+    if (!res.ok) {
+      setStatus(`Work order assign failed (${res.status}).`);
+      return;
+    }
+    setApplicationDetail((await res.json()) as ApplicationDetail);
   }
 
   async function openGrievance(id: string): Promise<void> {
@@ -421,7 +601,8 @@ export default function DeskClient(): JSX.Element {
                     </p>
                     <p className="mt-1 text-sm text-ink-primary">{row.service_name}</p>
                     <p className="mt-1 text-xs text-ink-secondary">
-                      {row.current_stage} · pending {row.pending_role ?? 'none'}
+                      {row.current_stage} · Pending at{' '}
+                      {row.pending_at_label ?? row.pending_role ?? 'none'}
                     </p>
                   </button>
                 </li>
@@ -438,6 +619,11 @@ export default function DeskClient(): JSX.Element {
                 <DetailHeader
                   title={applicationDetail.application.docket_no}
                   subtitle={`${applicationDetail.application.service_name} · ${applicationDetail.application.status_label}`}
+                />
+                <DeskFeeSettlementPanel application={applicationDetail.application} />
+                <DeskWorkOrderPanel
+                  applicationDetail={applicationDetail}
+                  onAssignVendor={assignWorkOrderVendor}
                 />
                 <FormDataSummary data={applicationDetail.application.form_data} />
                 {token ? (
@@ -460,18 +646,97 @@ export default function DeskClient(): JSX.Element {
                   className="min-h-24 w-full rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary"
                   placeholder="Comment for workflow action"
                 />
+                {applicationDetail.allowed_transitions.some(
+                  (item) => item.officer_may_set_require_boc,
+                ) ? (
+                  <div className="space-y-2 rounded-2xl border border-warm-border bg-mint-band/30 p-3">
+                    <label className="flex items-center gap-2 text-sm text-ink-primary">
+                      <input
+                        type="checkbox"
+                        checked={requireBoc}
+                        onChange={(event) => setRequireBoc(event.target.checked)}
+                      />
+                      Require Board of Councillors (BOC) resolution before executive approval
+                    </label>
+                    <p className="text-xs text-ink-secondary">
+                      {requireBoc
+                        ? 'Use Route to BOC — do not use Approve to executive (that path skips BOC).'
+                        : 'Leave unchecked to approve directly to executive without BOC.'}
+                    </p>
+                  </div>
+                ) : null}
+                {applicationDetail.allowed_transitions.some(
+                  (item) => item.requires_boc_resolution_fields,
+                ) ? (
+                  <div className="grid gap-3 rounded-2xl border border-warm-border bg-surface p-4 md:grid-cols-2">
+                    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                      BOC resolution number
+                      <input
+                        className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
+                        value={bocResolutionNumber}
+                        onChange={(event) => setBocResolutionNumber(event.target.value)}
+                      />
+                    </label>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                      BOC resolution date
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-lg border border-warm-border px-3 py-2 text-sm normal-case tracking-normal"
+                        value={bocResolutionDate}
+                        onChange={(event) => setBocResolutionDate(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
-                  {applicationDetail.allowed_transitions.map((transition) => (
-                    <Button
-                      key={transition.verb}
-                      type="button"
-                      onClick={() => void transitionApplication(transition.verb)}
-                      variant="primary"
-                      size="sm"
-                    >
-                      {transition.label} → {transition.to_stage}
-                    </Button>
-                  ))}
+                  {(() => {
+                    const officerBocAtScrutiny = applicationDetail.allowed_transitions.some(
+                      (item) => item.officer_may_set_require_boc,
+                    );
+                    const actionTransitions = applicationDetail.allowed_transitions.filter(
+                      (transition) => {
+                        if (!officerBocAtScrutiny) {
+                          return true;
+                        }
+                        if (transition.verb === 'route-to-boc') {
+                          return requireBoc;
+                        }
+                        if (transition.verb === 'approve-to-executive') {
+                          return !requireBoc;
+                        }
+                        return true;
+                      },
+                    );
+                    const needsRouteFallback =
+                      officerBocAtScrutiny &&
+                      requireBoc &&
+                      !actionTransitions.some((item) => item.verb === 'route-to-boc');
+                    return (
+                      <>
+                        {actionTransitions.map((transition) => (
+                          <Button
+                            key={transition.verb}
+                            type="button"
+                            onClick={() => void transitionApplication(transition.verb)}
+                            variant="primary"
+                            size="sm"
+                          >
+                            {transition.label} → {transition.to_stage}
+                          </Button>
+                        ))}
+                        {needsRouteFallback ? (
+                          <Button
+                            type="button"
+                            onClick={() => void transitionApplication('route-to-boc')}
+                            variant="primary"
+                            size="sm"
+                          >
+                            Route to BOC → boc-resolution
+                          </Button>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                   {!applicationDetail.allowed_transitions.length ? (
                     <p className="text-sm text-ink-secondary">No allowed actions for your role.</p>
                   ) : null}

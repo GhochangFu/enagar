@@ -38,6 +38,7 @@ import type {
 } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Payment as PrismaPayment, Receipt as PrismaReceipt } from '../../generated/prisma';
+import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
 import type { ApplicationReadScope } from '../applications/dto';
 
 function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
@@ -94,11 +95,15 @@ export class PostgresPaymentStore implements PaymentStore {
       : null;
   }
 
-  async findActivePaymentByApplication(applicationId: string): Promise<PaymentResponse | null> {
+  async findActivePaymentByApplication(
+    applicationId: string,
+    feeCode?: FeeLineCode,
+  ): Promise<PaymentResponse | null> {
     const payment = await this.db.payment.findFirst({
       where: {
         applicationId,
         status: 'requires_action',
+        ...(feeCode ? { feeCode } : {}),
       },
     });
     return payment ? this.toPaymentResponse(payment) : null;
@@ -112,6 +117,7 @@ export class PostgresPaymentStore implements PaymentStore {
           tenantId: input.tenantId,
           citizenSubject: input.citizenSubject,
           applicationId: input.applicationId,
+          feeCode: input.feeCode,
           amountPaise: input.amountPaise,
           currency: 'INR',
           method: input.method,
@@ -325,6 +331,7 @@ export class PostgresPaymentStore implements PaymentStore {
       tenant_id: row.tenantId,
       citizen_subject: row.citizenSubject,
       application_id: row.applicationId,
+      fee_code: row.feeCode as PaymentResponse['fee_code'],
       amount_paise: row.amountPaise,
       currency: 'INR',
       method: row.method as PaymentMethod,

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { birthCertificateSchema } from '@enagar/forms/fixtures';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
@@ -68,6 +70,29 @@ const birthCertificateForm = {
   },
 };
 
+async function submitBirthCertWithApplicationFeePaid(
+  applications: ApplicationsService,
+  principal: AuthenticatedPrincipal,
+  municipalityScope?: string,
+): Promise<ApplicationResponse> {
+  const draft = municipalityScope
+    ? await applications.createDraft(
+        principal,
+        { service_code: 'birth-cert', form_data: birthCertificateForm },
+        municipalityScope,
+      )
+    : await applications.createDraft(principal, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      });
+  await applications.updateFeeLineSettlement(principal, draft.id, 'application', {
+    status: 'paid',
+    payment_id: randomUUID(),
+    amount_paise: 5000,
+  });
+  return applications.submitDraft(principal, draft.id, { enforceCleanDocuments: false });
+}
+
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
 
@@ -80,14 +105,11 @@ describe('ApplicationsService', () => {
   });
 
   it('creates a citizen application with docket number and timeline', async () => {
-    const application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
 
     expect(application.docket_no).toMatch(/^WBM\/KMC\/birth-cert\/2026\/00001$/);
     expect(application.current_stage).toBe('submitted');
-    expect(application.payment_status).toBe('pending');
+    expect(application.payment_status).toBe('paid');
     expect(application.workflow_code).toBe('cert-issuance-v1');
     expect(application.timeline.map((item) => item.verb)).toEqual([
       'draft-created',
@@ -124,15 +146,20 @@ describe('ApplicationsService', () => {
     expect(application.docket_no).toMatch(/^WBM\/KMC\/birth-cert\/2026\/00001$/);
   });
 
+  it('blocks submit for upfront services until application fee is paid', async () => {
+    const draft = await service.createDraft(
+      portalForDrafts,
+      { service_code: 'birth-cert', form_data: birthCertificateForm },
+      'KMC',
+    );
+    await expect(
+      service.submitDraft(portalForDrafts, draft.id, { enforceCleanDocuments: false }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('lists and reads only the current citizen tenant applications', async () => {
-    const application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
-    await service.create(citizenB, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
+    await submitBirthCertWithApplicationFeePaid(service, citizenB);
 
     await expect(service.list(citizenA)).resolves.toHaveLength(1);
     await expect(service.getByDocketNo(citizenA, application.docket_no)).resolves.toMatchObject({
@@ -144,10 +171,7 @@ describe('ApplicationsService', () => {
   });
 
   it('cancels and comments with timeline records', async () => {
-    const application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
 
     const commented = await service.comment(citizenA, application.id, {
       body: 'Please review soon.',
@@ -163,10 +187,7 @@ describe('ApplicationsService', () => {
   });
 
   it('rejects cross-citizen mutation attempts as not found', async () => {
-    const application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
 
     await expect(
       service.comment(citizenB, application.id, { body: 'Trying to cross tenant boundary.' }),
@@ -177,10 +198,7 @@ describe('ApplicationsService', () => {
   });
 
   it('keeps in-flight applications on their submitted form schema snapshot', async () => {
-    const v1Application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const v1Application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
     service.publishFormSchema({
       ...birthCertificateSchema,
       version: 2,
@@ -199,10 +217,7 @@ describe('ApplicationsService', () => {
         },
       ],
     });
-    const v2Application = await service.create(citizenA, {
-      service_code: 'birth-cert',
-      form_data: birthCertificateForm,
-    });
+    const v2Application = await submitBirthCertWithApplicationFeePaid(service, citizenA);
 
     await expect(service.getByDocketNo(citizenA, v1Application.docket_no)).resolves.toMatchObject({
       form_version: 1,

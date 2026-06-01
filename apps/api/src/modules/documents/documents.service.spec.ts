@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
@@ -70,7 +72,7 @@ describe('DocumentsService', () => {
   });
 
   it('creates tenant-scoped upload intents and attaches metadata to applications', async () => {
-    const application = await applications.create(principal, {
+    const application = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -93,7 +95,7 @@ describe('DocumentsService', () => {
   });
 
   it('blocks oversized uploads and scan-pending downloads', async () => {
-    const application = await applications.create(principal, {
+    const application = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -122,7 +124,7 @@ describe('DocumentsService', () => {
   });
 
   it('marks upload_status uploaded on confirm-upload (stub storage)', async () => {
-    const application = await applications.create(principal, {
+    const application = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -139,7 +141,7 @@ describe('DocumentsService', () => {
   });
 
   it('allows download only after a clean scan result', async () => {
-    const application = await applications.create(principal, {
+    const application = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -183,6 +185,12 @@ describe('DocumentsService', () => {
       scan_provider: 'clamav-local',
     });
 
+    await applications.updateFeeLineSettlement(principal, draft.id, 'application', {
+      status: 'paid',
+      payment_id: randomUUID(),
+      amount_paise: 5000,
+    });
+
     const submitted = await applications.submitDraft(principal, draft.id);
 
     expect(submitted.status).toBe('submitted');
@@ -216,7 +224,7 @@ describe('DocumentsService', () => {
   });
 
   it('rejects cross-tenant scan and download attempts as not found', async () => {
-    const application = await applications.create(principal, {
+    const application = await applications.createDraft(principal, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });

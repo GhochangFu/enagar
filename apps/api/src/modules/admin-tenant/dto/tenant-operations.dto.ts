@@ -1,4 +1,12 @@
-import { IsArray, IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 export class UpsertTenantBannerDto {
   @IsString()
@@ -282,12 +290,60 @@ export class CreateStaffInviteDto {
   ward_number?: string;
 }
 
+/** Tenant Admin — create staff with Keycloak identity (no email invite). */
+export class CreateStaffDto {
+  @IsString()
+  username!: string;
+
+  @IsString()
+  display_name!: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  mobile?: string;
+
+  @IsArray()
+  role_codes!: unknown[];
+
+  @IsOptional()
+  @IsString()
+  ward_number?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
+
+  @IsOptional()
+  @IsArray()
+  designation_ids?: string[];
+}
+
+export class ImportStaffCsvDto {
+  @IsString()
+  csv!: string;
+
+  @IsOptional()
+  dry_run?: boolean;
+}
+
 export class UpdateStaffInviteDto {
   @IsString()
   invite_id!: string;
 
   @IsString()
   action!: string;
+}
+
+export class DeskBocResolutionDto {
+  @IsString()
+  resolution_number!: string;
+
+  @IsString()
+  resolution_date!: string;
 }
 
 export class DeskApplicationTransitionDto {
@@ -297,6 +353,26 @@ export class DeskApplicationTransitionDto {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  /** When `boc_policy` is `officer_may_require` at `technical-scrutiny`, sets `requires_boc_resolution`. */
+  @IsOptional()
+  @IsBoolean()
+  require_boc?: boolean;
+
+  @IsOptional()
+  @Type(() => DeskBocResolutionDto)
+  @ValidateNested()
+  boc_resolution?: DeskBocResolutionDto;
+}
+
+export class DeskWorkOrderAssignDto {
+  @IsOptional()
+  @IsString()
+  vendor_id?: string | null;
+
+  @IsOptional()
+  @IsString()
+  assigned_user_id?: string | null;
 }
 
 export class DeskGrievanceAssignDto {

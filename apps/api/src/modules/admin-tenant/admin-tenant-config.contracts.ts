@@ -28,6 +28,30 @@ export type DocumentChecklistItem = {
   max_size_mb: number;
 };
 
+export const PAYMENT_SCHEDULES = ['upfront_only', 'deferred_only', 'upfront_and_deferred'] as const;
+export type PaymentSchedule = (typeof PAYMENT_SCHEDULES)[number];
+
+export const FEE_LINE_CODES = ['application', 'approval'] as const;
+export type FeeLineCode = (typeof FEE_LINE_CODES)[number];
+
+export type ServiceFeeLine = {
+  label: LocaleLabel;
+  rule: FeeRule;
+  revenue_head_code?: string;
+  accounting_code?: string;
+};
+
+export type ServiceFeeLines = Partial<Record<FeeLineCode, ServiceFeeLine>>;
+
+export type ServiceFeeLinePreviews = Partial<Record<FeeLineCode, number | null>>;
+
+export type ResolvedServicePaymentConfig = {
+  payment_schedule: PaymentSchedule;
+  fee_lines: ServiceFeeLines;
+  fee_line_previews: ServiceFeeLinePreviews;
+  inferred_schedule: boolean;
+};
+
 export type TariffCategory = 'property' | 'water' | 'conservancy' | 'sewerage';
 export type NotificationChannel = 'push' | 'sms' | 'email' | 'whatsapp';
 export type SupportedLocale = 'en' | 'bn' | 'hi';
@@ -106,6 +130,293 @@ export function calculateFeePreview(
     case 'external':
       return null;
   }
+}
+
+export function requiredFeeLineCodes(schedule: PaymentSchedule): FeeLineCode[] {
+  switch (schedule) {
+    case 'upfront_only':
+      return ['application'];
+    case 'deferred_only':
+      return ['approval'];
+    case 'upfront_and_deferred':
+      return ['application', 'approval'];
+  }
+}
+
+export function readPaymentScheduleFromConfig(overrideConfig: unknown): PaymentSchedule | null {
+  if (!isRecord(overrideConfig)) {
+    return null;
+  }
+  const schedule = overrideConfig.payment_schedule;
+  return PAYMENT_SCHEDULES.includes(schedule as PaymentSchedule)
+    ? (schedule as PaymentSchedule)
+    : null;
+}
+
+export function readFeeLinesFromConfig(overrideConfig: unknown): ServiceFeeLines | null {
+  if (!isRecord(overrideConfig) || !isRecord(overrideConfig.fee_lines)) {
+    return null;
+  }
+  const feeLines = overrideConfig.fee_lines;
+  const parsed: ServiceFeeLines = {};
+  for (const code of FEE_LINE_CODES) {
+    if (feeLines[code] !== undefined) {
+      parsed[code] = feeLines[code] as ServiceFeeLine;
+    }
+  }
+  return Object.keys(parsed).length > 0 ? parsed : null;
+}
+
+export function defaultFeeLineLabel(code: FeeLineCode): LocaleLabel {
+  if (code === 'application') {
+    return {
+      en: 'Application fee',
+      bn: 'আবেদন ফি',
+      hi: 'आवेदन शुल्क',
+    };
+  }
+  return {
+    en: 'Licence fee',
+    bn: 'লাইসেন্স ফি',
+    hi: 'लाइसेंस शुल्क',
+  };
+}
+
+export function legacyFeeRuleToFeeLine(code: FeeLineCode, rule: FeeRule): ServiceFeeLine {
+  return {
+    label: defaultFeeLineLabel(code),
+    rule,
+  };
+}
+
+export function migrateLegacyFeeRuleToFeeLines(
+  schedule: PaymentSchedule,
+  legacyFeeRule: FeeRule,
+): ServiceFeeLines {
+  const primaryCode = schedule === 'deferred_only' ? 'approval' : 'application';
+  return {
+    [primaryCode]: legacyFeeRuleToFeeLine(primaryCode, legacyFeeRule),
+  };
+}
+
+export function workflowInfersDeferredPaymentSchedule(
+  definition:
+    | {
+        stages?: Array<{ code?: string }>;
+        transitions?: Array<{ effects?: Array<{ type?: string }> }>;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!definition) {
+    return false;
+  }
+  const hasPaymentPendingStage = (definition.stages ?? []).some(
+    (stage) => stage.code === 'payment-pending',
+  );
+  const hasGenerateLink = (definition.transitions ?? []).some((transition) =>
+    (transition.effects ?? []).some((effect) => effect.type === 'generate_payment_link'),
+  );
+  return hasPaymentPendingStage && hasGenerateLink;
+}
+
+export function inferPaymentSchedule(
+  overrideConfig: unknown,
+  workflowDefinition?: {
+    stages?: Array<{ code?: string }>;
+    transitions?: Array<{ effects?: Array<{ type?: string }> }>;
+  } | null,
+): PaymentSchedule {
+  const explicit = readPaymentScheduleFromConfig(overrideConfig);
+  if (explicit) {
+    return explicit;
+  }
+  if (workflowInfersDeferredPaymentSchedule(workflowDefinition)) {
+    return 'deferred_only';
+  }
+  return 'upfront_only';
+}
+
+export function assertValidServiceFeeLine(
+  value: unknown,
+  field: string,
+): asserts value is ServiceFeeLine {
+  if (!isRecord(value)) {
+    throw new BadRequestException(`${field} must be an object`);
+  }
+  assertLocaleLabel(value.label, `${field}.label`);
+  if (!isRecord(value.rule)) {
+    throw new BadRequestException(`${field}.rule must be an object`);
+  }
+  assertValidFeeRule(value.rule);
+  if (value.revenue_head_code !== undefined) {
+    assertCode(value.revenue_head_code, `${field}.revenue_head_code`);
+  }
+  if (value.accounting_code !== undefined && typeof value.accounting_code !== 'string') {
+    throw new BadRequestException(`${field}.accounting_code must be a string`);
+  }
+}
+
+export function assertValidFeeLines(value: unknown): asserts value is ServiceFeeLines {
+  if (!isRecord(value)) {
+    throw new BadRequestException('fee_lines must be an object');
+  }
+  for (const code of FEE_LINE_CODES) {
+    if (value[code] === undefined) {
+      continue;
+    }
+    assertValidServiceFeeLine(value[code], `fee_lines.${code}`);
+  }
+}
+
+export function assertValidPaymentSchedule(
+  schedule: unknown,
+  feeLines: unknown,
+): asserts schedule is PaymentSchedule {
+  if (!PAYMENT_SCHEDULES.includes(String(schedule) as PaymentSchedule)) {
+    throw new BadRequestException('Unsupported payment_schedule');
+  }
+  assertValidFeeLines(feeLines);
+  const lines = feeLines as ServiceFeeLines;
+  const required = requiredFeeLineCodes(schedule as PaymentSchedule);
+  for (const code of required) {
+    if (!lines[code]) {
+      throw new BadRequestException(`payment_schedule "${schedule}" requires fee_lines.${code}`);
+    }
+  }
+  for (const code of FEE_LINE_CODES) {
+    if (lines[code] && !required.includes(code)) {
+      throw new BadRequestException(
+        `payment_schedule "${schedule}" must not include fee_lines.${code}`,
+      );
+    }
+  }
+}
+
+export function previewFeeLines(
+  feeLines: ServiceFeeLines,
+  inputs: Record<string, unknown> = {},
+): ServiceFeeLinePreviews {
+  const previews: ServiceFeeLinePreviews = {};
+  for (const code of FEE_LINE_CODES) {
+    const line = feeLines[code];
+    if (!line) {
+      continue;
+    }
+    try {
+      assertValidFeeRule(line.rule);
+      previews[code] = calculateFeePreview(line.rule, inputs);
+    } catch {
+      previews[code] = null;
+    }
+  }
+  return previews;
+}
+
+export function primaryFeeLineCode(schedule: PaymentSchedule): FeeLineCode {
+  return schedule === 'deferred_only' ? 'approval' : 'application';
+}
+
+export function resolveServicePaymentConfig(
+  overrideConfig: unknown,
+  legacyFeeRule: unknown,
+  workflowDefinition?: {
+    stages?: Array<{ code?: string }>;
+    transitions?: Array<{ effects?: Array<{ type?: string }> }>;
+  } | null,
+): ResolvedServicePaymentConfig {
+  const explicitSchedule = readPaymentScheduleFromConfig(overrideConfig);
+  const payment_schedule = inferPaymentSchedule(overrideConfig, workflowDefinition);
+  const storedLines = readFeeLinesFromConfig(overrideConfig);
+  let fee_lines: ServiceFeeLines = storedLines ?? {};
+
+  if (Object.keys(fee_lines).length === 0) {
+    try {
+      assertValidFeeRule(legacyFeeRule);
+      fee_lines = migrateLegacyFeeRuleToFeeLines(payment_schedule, legacyFeeRule as FeeRule);
+    } catch {
+      fee_lines = {};
+    }
+  }
+
+  for (const code of requiredFeeLineCodes(payment_schedule)) {
+    if (!fee_lines[code]) {
+      try {
+        assertValidFeeRule(legacyFeeRule);
+        fee_lines = {
+          ...fee_lines,
+          [code]: legacyFeeRuleToFeeLine(code, legacyFeeRule as FeeRule),
+        };
+      } catch {
+        // leave missing — validation on PATCH will catch incomplete configs
+      }
+    }
+  }
+
+  return {
+    payment_schedule,
+    fee_lines,
+    fee_line_previews: previewFeeLines(fee_lines),
+    inferred_schedule: explicitSchedule === null,
+  };
+}
+
+function titleFromDocumentCode(code: string): string {
+  return code
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+/** Legacy catalogue seeds store document codes as strings; expand to checklist objects. */
+export function normalizeDocumentChecklist(value: unknown): DocumentChecklistItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item, index) => {
+    if (typeof item === 'string') {
+      const code = item.trim() || `document-${index + 1}`;
+      const label = titleFromDocumentCode(code);
+      return {
+        code,
+        label: { en: label },
+        required: true,
+        accept: ['application/pdf', 'image/jpeg'],
+        max_size_mb: 5,
+      };
+    }
+    if (!isRecord(item)) {
+      throw new BadRequestException('Document checklist item must be an object');
+    }
+    const code =
+      typeof item.code === 'string' && item.code.trim() ? item.code : `document-${index + 1}`;
+    const label = isRecord(item.label)
+      ? {
+          en:
+            typeof item.label.en === 'string' && item.label.en.trim()
+              ? item.label.en
+              : titleFromDocumentCode(code),
+          ...(typeof item.label.bn === 'string' && item.label.bn.trim()
+            ? { bn: item.label.bn }
+            : {}),
+          ...(typeof item.label.hi === 'string' && item.label.hi.trim()
+            ? { hi: item.label.hi }
+            : {}),
+        }
+      : { en: titleFromDocumentCode(code) };
+    const accept = Array.isArray(item.accept)
+      ? item.accept.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry))
+      : ['application/pdf', 'image/jpeg'];
+    const maxSize = Number(item.max_size_mb);
+    return {
+      code,
+      label,
+      required: typeof item.required === 'boolean' ? item.required : true,
+      accept: accept.length > 0 ? accept : ['application/pdf', 'image/jpeg'],
+      max_size_mb: Number.isFinite(maxSize) && maxSize > 0 ? maxSize : 5,
+    };
+  });
 }
 
 export function assertValidDocumentChecklist(

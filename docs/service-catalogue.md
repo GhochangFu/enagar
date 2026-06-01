@@ -67,6 +67,11 @@ interface ServiceTemplate {
 
   // ─── Money ──────────────────────────────────────────────────────────
   fees: FeeRule;                // see §5 — fixed | slab | computed | free
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_lines?: {
+    application?: { label: LocaleMap; rule: FeeRule };
+    approval?: { label: LocaleMap; rule: FeeRule };
+  };
   late_fee?: LateFeeRule;       // optional; e.g. property-tax 2 %/mo
   refundable?: boolean;         // tender deposits, security deposits
 

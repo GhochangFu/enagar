@@ -8,7 +8,13 @@ import {
   rtiSchema,
   tradeLicenceSchema,
 } from '@enagar/forms/fixtures';
-import { calculateSlaDueAt, getInitialStage, workflowForPattern } from '@enagar/workflow';
+import {
+  calculateSlaDueAt,
+  getInitialStage,
+  evaluateTransition,
+  CITIZEN_FEEDBACK_VERB,
+  workflowForPattern,
+} from '@enagar/workflow';
 import {
   BadRequestException,
   Inject,
@@ -27,7 +33,19 @@ import {
   mapApplicationDocumentRow,
   toApplicationDocumentResponse,
 } from '../documents/application-document.mapper';
+import {
+  applyFeeSettlementPatch,
+  applicationFeePaidForSubmit,
+  applicationPaymentSnapshotIncomplete,
+  buildInitialFeeSettlement,
+  coerceFeeSettlementSnapshot,
+  hydrateApplicationPaymentSnapshot,
+  mergeFeeSettlementPreservingStatus,
+  rollupPaymentStatus,
+} from '../payments/fee-settlement.util';
+import { attachPendingAtLabels } from '../services/pending-at-label.util';
 import { ServicesService } from '../services/services.service';
+import { pendingActorFromWorkflowStage } from '../services/workflow-designation.mapper';
 import { TenantsService } from '../tenants/tenants.service';
 
 import { APPLICATION_STORE } from './application-store';
@@ -35,6 +53,7 @@ import { APPLICATION_STORE } from './application-store';
 import type { ApplicationStore } from './application-store';
 import type {
   ApplicationCommentResponse,
+  ApplicationFeedbackDto,
   ApplicationReadScope,
   ApplicationResponse,
   ApplicationSummaryResponse,
@@ -43,6 +62,9 @@ import type {
   CreateApplicationDto,
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { Prisma } from '../../generated/prisma';
+import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
+import type { FeeLineSettlement } from '../payments/fee-settlement.util';
 import type { EnagarFormSchema } from '@enagar/forms';
 
 type StoredApplication = ApplicationResponse;
@@ -109,6 +131,9 @@ export class ApplicationsService {
     const workflow =
       (await this.services.getPublishedWorkflowDefinition(tenantCode, dto.service_code)) ??
       workflowForPattern(service.workflow_pattern);
+    const paymentConfig = await this.services.resolvePaymentConfig(tenantCode, dto.service_code);
+    const fee_settlement = buildInitialFeeSettlement(paymentConfig);
+    const payment_status = rollupPaymentStatus(paymentConfig.payment_schedule, fee_settlement);
     const createdAt = new Date();
     const docketNo = await this.store.nextDocketNo(tenantCode, dto.service_code);
     const application: ApplicationResponse = {
@@ -127,7 +152,9 @@ export class ApplicationsService {
       status: 'draft',
       status_label: 'Draft',
       pending_role: 'citizen',
-      payment_status: service.fee_type === 'free' ? 'not_required' : 'pending',
+      payment_schedule: paymentConfig.payment_schedule,
+      fee_settlement,
+      payment_status,
       form_data: dto.form_data,
       submitted_at: createdAt.toISOString(),
       timeline: [
@@ -195,16 +222,41 @@ export class ApplicationsService {
       }
     }
 
+    const paymentConfig = await this.services.resolvePaymentConfig(
+      workflowTenantCode,
+      application.service_code,
+    );
+    const settlementForSubmit = coerceFeeSettlementSnapshot(application.fee_settlement);
+    if (
+      !applicationFeePaidForSubmit(paymentConfig.payment_schedule, settlementForSubmit, {
+        applicationFeePreviewPaise: paymentConfig.fee_line_previews.application,
+      })
+    ) {
+      throw new BadRequestException(
+        'Application fee must be paid before submit. Pay the application fee on this draft, complete settlement, then submit again.',
+      );
+    }
+
     const submittedAt = new Date();
     const dueAt = calculateSlaDueAt(submittedAt, initialStage.sla_hours);
+    const pendingActor = pendingActorFromWorkflowStage(initialStage);
+    const fee_settlement = mergeFeeSettlementPreservingStatus(
+      application.fee_settlement,
+      buildInitialFeeSettlement(paymentConfig),
+    );
+    const payment_status = rollupPaymentStatus(paymentConfig.payment_schedule, fee_settlement);
     const updated: ApplicationResponse = {
       ...application,
+      payment_schedule: paymentConfig.payment_schedule,
+      fee_settlement,
+      payment_status,
       workflow_code: workflow.code,
       workflow_version: workflow.version,
       current_stage: initialStage.code,
       status: initialStage.terminal ? 'closed' : 'submitted',
       status_label: initialStage.label.en,
-      pending_role: initialStage.owner_role,
+      pending_role: pendingActor.pending_role,
+      pending_designation: pendingActor.pending_designation,
       submitted_at: submittedAt.toISOString(),
       timeline: [
         ...application.timeline,
@@ -241,10 +293,16 @@ export class ApplicationsService {
     principal: AuthenticatedPrincipal,
     readScope?: ApplicationReadScope,
   ): Promise<ApplicationSummaryResponse[]> {
-    return (await this.store.list())
-      .filter((application) => this.canAccess(principal, application, readScope))
+    const owned = (await this.store.list()).filter((application) =>
+      this.canAccess(principal, application, readScope),
+    );
+    const hydrated = await Promise.all(
+      owned.map((application) => this.hydratePaymentSnapshot(application)),
+    );
+    const summaries = hydrated
       .sort((left, right) => right.submitted_at.localeCompare(left.submitted_at))
       .map(toSummary);
+    return this.enrichSummariesWithPendingAt(summaries);
   }
 
   async getByDocketNo(
@@ -257,7 +315,12 @@ export class ApplicationsService {
       throw new NotFoundException('Application not found');
     }
 
-    return cloneApplication(await this.withPersistedDocuments(application));
+    const enriched = await this.enrichWithPendingAt(
+      cloneApplication(
+        await this.hydratePaymentSnapshot(await this.withPersistedDocuments(application)),
+      ),
+    );
+    return enriched;
   }
 
   async cancel(
@@ -277,6 +340,7 @@ export class ApplicationsService {
       status: 'cancelled',
       status_label: 'Withdrawn',
       pending_role: null,
+      pending_designation: null,
       timeline: [
         ...application.timeline,
         {
@@ -344,6 +408,68 @@ export class ApplicationsService {
     await this.store.save(updated);
   }
 
+  async submitFeedback(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    dto: ApplicationFeedbackDto,
+    readScope?: ApplicationReadScope,
+  ): Promise<ApplicationResponse> {
+    const application = await this.getOwnedApplication(principal, applicationId, readScope);
+    if (application.current_stage !== 'citizen-feedback') {
+      throw new BadRequestException('Feedback is allowed only at the citizen-feedback stage');
+    }
+
+    const tenantCode = application.tenant_code;
+    if (!tenantCode) {
+      throw new BadRequestException('Application missing tenant_code');
+    }
+
+    const service = await this.services.getTenantService(tenantCode, application.service_code);
+    const workflow =
+      (await this.services.getPublishedWorkflowDefinition(tenantCode, application.service_code)) ??
+      workflowForPattern(service.workflow_pattern);
+
+    const evaluated = evaluateTransition({
+      workflow,
+      current_stage: application.current_stage,
+      verb: CITIZEN_FEEDBACK_VERB,
+      actor_roles: ['citizen'],
+    });
+    if (!evaluated.ok) {
+      throw new BadRequestException(`Workflow transition rejected: ${evaluated.reason}`);
+    }
+
+    const submittedAt = new Date().toISOString();
+    const updated: ApplicationResponse = {
+      ...application,
+      current_stage: evaluated.to.code,
+      status: evaluated.to.terminal ? 'closed' : evaluated.to.code,
+      status_label: evaluated.to.label.en,
+      pending_role: null,
+      pending_designation: null,
+      citizen_feedback: {
+        rating: dto.rating,
+        comment: dto.comment?.trim() || null,
+        submitted_at: submittedAt,
+      },
+      timeline: [
+        ...application.timeline,
+        {
+          id: randomUUID(),
+          from_stage: evaluated.from.code,
+          to_stage: evaluated.to.code,
+          verb: evaluated.transition.verb,
+          actor_role: 'citizen',
+          comment: dto.comment?.trim() || null,
+          created_at: submittedAt,
+        },
+      ],
+    };
+
+    await this.store.save(updated);
+    return cloneApplication(updated);
+  }
+
   async getOwnedApplication(
     principal: AuthenticatedPrincipal,
     applicationId: string,
@@ -353,7 +479,37 @@ export class ApplicationsService {
     if (!application || !this.canAccess(principal, application, readScope)) {
       throw new NotFoundException('Application not found');
     }
-    return this.withPersistedDocuments(application);
+    return this.hydratePaymentSnapshot(await this.withPersistedDocuments(application));
+  }
+
+  private async hydratePaymentSnapshot(
+    application: ApplicationResponse,
+  ): Promise<ApplicationResponse> {
+    const tenantCode = application.tenant_code?.trim();
+    if (!tenantCode) {
+      return application;
+    }
+    if (!applicationPaymentSnapshotIncomplete(application)) {
+      return application;
+    }
+
+    const paymentConfig = await this.services.resolvePaymentConfig(
+      tenantCode,
+      application.service_code,
+    );
+    const hydrated = hydrateApplicationPaymentSnapshot(application, paymentConfig);
+    if (!hydrated.changed) {
+      return application;
+    }
+
+    const updated: ApplicationResponse = {
+      ...application,
+      payment_schedule: hydrated.payment_schedule,
+      fee_settlement: hydrated.fee_settlement,
+      payment_status: hydrated.payment_status,
+    };
+    await this.store.save(updated);
+    return updated;
   }
 
   private async withPersistedDocuments(
@@ -390,6 +546,158 @@ export class ApplicationsService {
       ...application,
       payment_status: paymentStatus,
     });
+  }
+
+  async updateFeeLineSettlement(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    feeCode: FeeLineCode,
+    patch: Partial<FeeLineSettlement>,
+    snapshotExtras?: Record<string, unknown>,
+  ): Promise<void> {
+    const application = await this.getOwnedApplication(principal, applicationId);
+    const schedule =
+      application.payment_schedule ??
+      (
+        await this.services.resolvePaymentConfig(
+          application.tenant_code ?? '',
+          application.service_code,
+        )
+      ).payment_schedule;
+    const settlement = coerceFeeSettlementSnapshot(application.fee_settlement);
+    const next = applyFeeSettlementPatch(schedule, settlement, feeCode, patch);
+    await this.store.save({
+      ...application,
+      ...next,
+      ...snapshotExtras,
+    });
+  }
+
+  /** Desk / system path — tenant-scoped, no citizen-subject ownership check (Phase 11). */
+  async recordPaymentStatusForTenant(
+    tenantId: string,
+    applicationId: string,
+    paymentStatus: StoredApplication['payment_status'],
+    snapshotExtras?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.prisma) {
+      throw new BadRequestException('Tenant payment updates require Postgres application store');
+    }
+    const row = await this.prisma.application.findFirst({
+      where: { id: applicationId, tenantId },
+      select: { runtimeSnapshot: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const base =
+      row.runtimeSnapshot &&
+      typeof row.runtimeSnapshot === 'object' &&
+      !Array.isArray(row.runtimeSnapshot)
+        ? (row.runtimeSnapshot as Record<string, unknown>)
+        : {};
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        paymentStatus,
+        runtimeSnapshot: {
+          ...base,
+          payment_status: paymentStatus,
+          ...snapshotExtras,
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async updateFeeLineSettlementForTenant(
+    tenantId: string,
+    applicationId: string,
+    feeCode: FeeLineCode,
+    patch: Partial<FeeLineSettlement>,
+    snapshotExtras?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.prisma) {
+      throw new BadRequestException('Tenant payment updates require Postgres application store');
+    }
+    const row = await this.prisma.application.findFirst({
+      where: { id: applicationId, tenantId },
+      select: { runtimeSnapshot: true, serviceCode: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const snapshot =
+      row.runtimeSnapshot &&
+      typeof row.runtimeSnapshot === 'object' &&
+      !Array.isArray(row.runtimeSnapshot)
+        ? (row.runtimeSnapshot as unknown as ApplicationResponse)
+        : ({} as ApplicationResponse);
+    const tenantCode = snapshot.tenant_code?.trim();
+    if (!tenantCode) {
+      throw new BadRequestException('Application is missing tenant_code in runtime snapshot');
+    }
+    const schedule =
+      snapshot.payment_schedule ??
+      (await this.services.resolvePaymentConfig(tenantCode, row.serviceCode)).payment_schedule;
+    const settlement = coerceFeeSettlementSnapshot(snapshot.fee_settlement);
+    const next = applyFeeSettlementPatch(schedule, settlement, feeCode, patch);
+    const base =
+      row.runtimeSnapshot &&
+      typeof row.runtimeSnapshot === 'object' &&
+      !Array.isArray(row.runtimeSnapshot)
+        ? (row.runtimeSnapshot as Record<string, unknown>)
+        : {};
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        paymentStatus: next.payment_status,
+        runtimeSnapshot: {
+          ...base,
+          payment_schedule: schedule,
+          fee_settlement: next.fee_settlement,
+          payment_status: next.payment_status,
+          ...snapshotExtras,
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  private async enrichSummariesWithPendingAt(
+    summaries: ApplicationSummaryResponse[],
+  ): Promise<ApplicationSummaryResponse[]> {
+    if (!this.prisma || summaries.length === 0) {
+      return summaries;
+    }
+    const byTenant = new Map<string, ApplicationSummaryResponse[]>();
+    for (const row of summaries) {
+      const tenantId = row.tenant_id;
+      if (!tenantId) {
+        continue;
+      }
+      const bucket = byTenant.get(tenantId) ?? [];
+      bucket.push(row);
+      byTenant.set(tenantId, bucket);
+    }
+    const enriched: ApplicationSummaryResponse[] = [];
+    for (const [tenantId, rows] of byTenant) {
+      enriched.push(...(await attachPendingAtLabels(this.prisma, tenantId, rows)));
+    }
+    const withoutTenant = summaries.filter((row) => !row.tenant_id);
+    return [...enriched, ...withoutTenant].sort((left, right) =>
+      right.submitted_at.localeCompare(left.submitted_at),
+    );
+  }
+
+  private async enrichWithPendingAt(
+    application: ApplicationResponse,
+  ): Promise<ApplicationResponse> {
+    if (!this.prisma) {
+      return application;
+    }
+    const [enriched] = await attachPendingAtLabels(this.prisma, application.tenant_id, [
+      application,
+    ]);
+    return enriched ?? application;
   }
 
   private canAccess(

@@ -19,6 +19,8 @@ import {
 } from '../src/modules/services/service-catalogue.seed';
 import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../src/modules/tenants/tenant.seed';
 
+import { ensureTenantServiceCategory } from './seed/tenant-service-categories';
+
 const defaultDatabaseUrl =
   'postgresql://enagar:enagar_dev_pw_change_me@localhost:5432/enagarseba?schema=public';
 
@@ -189,6 +191,80 @@ const priorityServiceFormSchemas = [
         accept: ['application/pdf', 'image/jpeg'],
         max_size_mb: 10,
         show_if: { field: 'bpl_applicant', equals: 'yes' },
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'ad-hoarding',
+    version: 1,
+    title: label('Hoarding Permission', 'হোর্ডিং অনুমতি', 'होर्डिंग अनुमति'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('site_address', 'Site address', 'সাইটের ঠিকানা', 'साइट का पता', {
+        required: true,
+        min_length: 5,
+        max_length: 300,
+      }),
+      textarea('hoarding_dimensions', 'Hoarding size (W x H)', 'হোর্ডিং মাপ', 'होर्डिंग आकार', {
+        required: true,
+        min_length: 3,
+        max_length: 80,
+      }),
+      fileField('site_photo', 'Site photograph', 'সাইটের ছবি', 'साइट फोटो', {
+        required: true,
+        accept: ['image/jpeg', 'image/png'],
+        max_size_mb: 10,
+      }),
+      fileField('creative_mock', 'Creative mock-up', 'ক্রিয়েটিভ মক-আপ', 'क्रिएटिव मॉक-अप', {
+        required: true,
+        accept: ['application/pdf', 'image/jpeg', 'image/png'],
+        max_size_mb: 10,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'ad-billboard',
+    version: 1,
+    title: label('Billboard Permission', 'বিলবোর্ড অনুমতি', 'बिलबोर्ड अनुमति'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('billboard_location', 'Billboard location', 'বিলবোর্ড অবস্থান', 'बिलबोर्ड स्थान', {
+        required: true,
+        min_length: 5,
+        max_length: 300,
+      }),
+      fileField('site_photo', 'Site photograph', 'সাইটের ছবি', 'साइट फोटो', {
+        required: true,
+        accept: ['image/jpeg', 'image/png'],
+        max_size_mb: 10,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'ad-mobile',
+    version: 1,
+    title: label('Mobile Advertisement Van', 'মোবাইল বিজ্ঞাপন ভ্যান', 'मोबाइल विज्ञापन वैन'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('vehicle_number', 'Vehicle registration', 'যানবাহন নম্বর', 'वाहन पंजीकरण', {
+        required: true,
+        min_length: 4,
+        max_length: 20,
       }),
     ],
   },
@@ -786,10 +862,11 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
 
   for (const tenant of tenants) {
     for (const service of resolveEffectiveServices(tenant.code)) {
-      const categoryId = categoryIds.get(service.category_code);
-      if (!categoryId) {
-        throw new Error(`Missing service category seed "${service.category_code}"`);
-      }
+      const globalCategory = await ensureTenantServiceCategory(
+        prisma,
+        tenant.id,
+        service.category_code,
+      );
       const revenueHeadId = service.revenue_head_code
         ? revenueHeadIds.get(service.revenue_head_code)
         : null;
@@ -800,12 +877,18 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
       const override = overrideByTenantService.get(`${tenant.code}:${service.code}`);
       const data = {
         globalServiceId: globalServiceIds.get(service.code) ?? null,
-        categoryId,
+        categoryId: globalCategory.categoryId,
+        departmentId: globalCategory.departmentId,
+        globalCategoryCode: globalCategory.globalCategoryCode,
         revenueHeadId: revenueHeadId ?? null,
         name: service.name,
         description: service.description,
         isActive: service.active,
-        overrideConfig: { source: service.source } as Prisma.InputJsonValue,
+        overrideConfig: {
+          source: service.source,
+          ...(service.payment_schedule ? { payment_schedule: service.payment_schedule } : {}),
+          ...(service.fee_lines ? { fee_lines: service.fee_lines } : {}),
+        } as Prisma.InputJsonValue,
         effectiveFeeConfig: {
           type: service.fee_type,
           ...service.fee_config,
@@ -951,6 +1034,8 @@ async function main(): Promise<void> {
       if (tenant.code !== CITIZEN_PORTAL_TENANT_CODE) {
         await seedGrievancePoliciesForTenant(prisma, tenant.id);
         await seedTenantGrievanceCatalogue(prisma, tenant.id, tenant.code);
+        const { seedTenantOrgForTenant } = await import('./seed/tenant-org');
+        await seedTenantOrgForTenant(prisma, tenant.id, tenant.code);
       }
 
       console.info(`Seeded tenant ${tenant.code} (${tenant.id})`);

@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class PatchTenantServiceDto {
   @IsOptional()
@@ -20,4 +20,9 @@ export class PatchTenantServiceDto {
   @Min(0)
   @Max(3650)
   effective_sla_days?: number;
+
+  /** Reassign this tenant service to another department (creates/links category on target dept). */
+  @IsOptional()
+  @IsUUID()
+  department_id?: string;
 }

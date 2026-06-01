@@ -608,6 +608,8 @@ Directed edges: `from_stage_id` → `to_stage_id`, `verb`, `actor_role`, `requir
 
 RBAC matrix: which `role_code` can `can_view` / `can_act` on a stage.
 
+> **Planned (ADR-0011 / ADR-0012, not yet migrated):** `tenant_departments`, `tenant_designations` (`is_department_head`, `can_reject_municipal`), `user_designations`, `tenant_service_categories`, `designation_stage_map`, **`work_orders`** (Option A — one row per `application_id` in v1); workflow columns `owner_designation`, `actor_designation`, `stage_kind`, `guard`; application `pending_designation`. Legacy `*_role` columns remain until per-service migration. See [`docs/workflow-designations.md`](../workflow-designations.md) §9.1.
+
 ---
 
 ### 3.6 Applications and documents

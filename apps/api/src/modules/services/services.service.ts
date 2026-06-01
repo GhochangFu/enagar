@@ -2,6 +2,10 @@ import { validateFormSchema } from '@enagar/forms';
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import {
+  resolveServicePaymentConfig,
+  type ResolvedServicePaymentConfig,
+} from '../admin-tenant/admin-tenant-config.contracts';
 import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../tenants/tenant.seed';
 
 import {
@@ -11,6 +15,13 @@ import {
   revenueHeads,
   serviceCategories,
 } from './service-catalogue.seed';
+import { seedCategoryCodeFromNavigation } from './tenant-service-category.resolver';
+import { toGlobalNavigationCategoryCode } from './tenant-service-category.util';
+import {
+  workflowDefinitionFromRows,
+  type WorkflowStageRow,
+  type WorkflowTransitionRow,
+} from './workflow-designation.mapper';
 
 import type {
   EffectiveServiceSummary,
@@ -22,7 +33,7 @@ import type {
 } from './service-catalogue.seed';
 import type { Prisma } from '../../generated/prisma';
 import type { EnagarFormSchema } from '@enagar/forms';
-import type { WorkflowDefinition, WorkflowEffect } from '@enagar/workflow';
+import type { WorkflowDefinition } from '@enagar/workflow';
 
 type WorkflowWithChildren = Prisma.WorkflowGetPayload<{
   include: {
@@ -36,6 +47,11 @@ type WorkflowWithChildren = Prisma.WorkflowGetPayload<{
   };
 }>;
 
+type TenantServiceListFilters = {
+  globalCategory?: string;
+  departmentId?: string;
+};
+
 type DbTenantServiceRow = {
   id: string;
   code: string;
@@ -46,6 +62,9 @@ type DbTenantServiceRow = {
   effectiveFeeConfig: Prisma.JsonValue;
   effectiveSlaDays: number | null;
   requiredDocuments: Prisma.JsonValue;
+  globalCategoryCode: string;
+  departmentId: string;
+  department?: { id: string; code: string; name: Prisma.JsonValue } | null;
   category: { code: string; isActive: boolean };
   revenueHead: { code: string; accountingCode: string; isActive: boolean } | null;
   globalService: {
@@ -100,16 +119,31 @@ export class ServicesService {
     return [...globalServices].sort((left, right) => left.code.localeCompare(right.code));
   }
 
-  async listTenantServices(tenantCode: string): Promise<EffectiveServiceSummary[]> {
+  async listTenantServices(
+    tenantCode: string,
+    filters?: TenantServiceListFilters,
+  ): Promise<EffectiveServiceSummary[]> {
     if (this.prisma) {
-      return this.listTenantServicesFromDb(tenantCode);
+      return this.listTenantServicesFromDb(tenantCode, filters);
     }
 
     this.assertTenantExists(tenantCode);
 
+    const navFilter = filters?.globalCategory
+      ? toGlobalNavigationCategoryCode(filters.globalCategory)
+      : undefined;
+
     return resolveEffectiveServices(tenantCode)
       .filter((service) => service.active)
-      .map((service) => ({ ...service }));
+      .filter((service) => {
+        if (!navFilter) return true;
+        const nav = toGlobalNavigationCategoryCode(service.category_code);
+        return nav === navFilter;
+      })
+      .map((service) => ({
+        ...service,
+        global_category_code: toGlobalNavigationCategoryCode(service.category_code),
+      }));
   }
 
   async getTenantService(
@@ -148,6 +182,39 @@ export class ServicesService {
       include: workflowInclude,
     });
     return workflow ? normalizeWorkflowActorsForStageOwners(toWorkflowDefinition(workflow)) : null;
+  }
+
+  async resolvePaymentConfig(
+    tenantCode: string,
+    serviceCode: string,
+  ): Promise<ResolvedServicePaymentConfig> {
+    const workflow = await this.getPublishedWorkflowDefinition(tenantCode, serviceCode);
+    if (this.prisma) {
+      const tenant = await this.findActiveTenant(tenantCode);
+      const row = await this.prisma.tenantService.findFirst({
+        where: { tenantId: tenant.id, code: serviceCode.trim().toLowerCase() },
+        select: { overrideConfig: true, effectiveFeeConfig: true },
+      });
+      if (!row) {
+        throw new NotFoundException('Service not found');
+      }
+      return resolveServicePaymentConfig(row.overrideConfig, row.effectiveFeeConfig, workflow);
+    }
+
+    this.assertTenantExists(tenantCode);
+    const service = getEffectiveService(tenantCode, serviceCode);
+    if (!service?.active) {
+      throw new NotFoundException('Service not found');
+    }
+    const overrideConfig = {
+      ...(service.payment_schedule ? { payment_schedule: service.payment_schedule } : {}),
+      ...(service.fee_lines ? { fee_lines: service.fee_lines } : {}),
+    };
+    return resolveServicePaymentConfig(
+      overrideConfig,
+      { type: service.fee_type, ...service.fee_config },
+      workflow,
+    );
   }
 
   /**
@@ -191,17 +258,26 @@ export class ServicesService {
     return codes.size;
   }
 
-  private async listTenantServicesFromDb(tenantCode: string): Promise<EffectiveServiceSummary[]> {
+  private async listTenantServicesFromDb(
+    tenantCode: string,
+    filters?: TenantServiceListFilters,
+  ): Promise<EffectiveServiceSummary[]> {
     const tenant = await this.findActiveTenant(tenantCode);
+    const navFilter = filters?.globalCategory
+      ? toGlobalNavigationCategoryCode(filters.globalCategory)
+      : undefined;
     const rows = await this.prisma!.tenantService.findMany({
       where: {
         tenantId: tenant.id,
         isActive: true,
+        ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+        ...(navFilter ? { globalCategoryCode: navFilter } : {}),
         category: { is: { isActive: true } },
         formVersions: { some: { status: 'published' } },
       },
       include: {
         category: { select: { code: true, isActive: true } },
+        department: { select: { id: true, code: true, name: true } },
         revenueHead: { select: { code: true, accountingCode: true, isActive: true } },
         globalService: {
           select: {
@@ -246,6 +322,7 @@ export class ServicesService {
       },
       include: {
         category: { select: { code: true, isActive: true } },
+        department: { select: { id: true, code: true, name: true } },
         revenueHead: { select: { code: true, accountingCode: true, isActive: true } },
         globalService: {
           select: {
@@ -309,29 +386,12 @@ const workflowInclude = {
 };
 
 function toWorkflowDefinition(row: WorkflowWithChildren): WorkflowDefinition {
-  return {
-    code: row.code,
-    version: row.version,
-    stages: row.stages
-      .slice()
-      .sort((left, right) => left.sortOrder - right.sortOrder)
-      .map((stage) => ({
-        code: stage.code,
-        label: stage.label as { en: string; bn: string; hi: string },
-        owner_role: stage.ownerRole,
-        sla_hours: stage.slaHours ?? undefined,
-        initial: stage.isInitial,
-        terminal: stage.isTerminal,
-      })),
-    transitions: row.transitions.map((transition) => ({
-      from: transition.fromStage.code,
-      to: transition.toStage.code,
-      verb: transition.verb,
-      actor_role: transition.actorRole,
-      requires_comment: transition.requiresComment,
-      effects: transition.sideEffects as unknown as WorkflowEffect[],
-    })),
-  };
+  return workflowDefinitionFromRows(
+    row.code,
+    row.version,
+    row.stages as WorkflowStageRow[],
+    row.transitions as WorkflowTransitionRow[],
+  );
 }
 
 function normalizeWorkflowActorsForStageOwners(workflow: WorkflowDefinition): WorkflowDefinition {
@@ -362,13 +422,20 @@ function toEffectiveServiceSummary(
 
   const formSchema = coercePublishedFormSchema(form.formSchema);
   const feeType = resolveFeeType(row.effectiveFeeConfig, row.globalService?.feeType);
+  const payment = resolveServicePaymentConfig(row.overrideConfig, row.effectiveFeeConfig);
 
   return {
     service_id: row.id,
     form_version_id: form.id,
     tenant_code: tenantCode,
     code: row.code,
-    category_code: row.category.code,
+    category_code: seedCategoryCodeFromNavigation(row.globalCategoryCode),
+    global_category_code: row.globalCategoryCode,
+    department_id: row.departmentId,
+    department_code: row.department?.code ?? null,
+    department_name: row.department
+      ? coerceLocaleMap(row.department.name, row.department.code)
+      : null,
     revenue_head_code: row.revenueHead?.code ?? null,
     accounting_code: row.revenueHead?.accountingCode ?? null,
     name: coerceLocaleMap(row.name, row.code),
@@ -377,6 +444,9 @@ function toEffectiveServiceSummary(
     active: row.isActive,
     fee_type: feeType,
     fee_config: coerceRecord(row.effectiveFeeConfig, feeType),
+    payment_schedule: payment.payment_schedule,
+    fee_lines: payment.fee_lines,
+    fee_line_previews: payment.fee_line_previews,
     sla_days: row.effectiveSlaDays,
     required_documents: coerceDocumentCodes(row.requiredDocuments),
     pushes_to_digilocker: row.globalService?.pushesToDigilocker ?? false,

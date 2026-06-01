@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { Public } from '../../common/auth/public.decorator';
@@ -33,9 +33,28 @@ export class ServicesController {
     return this.services.listGlobalServices();
   }
 
+  @Get('catalogue')
+  listCatalogue(
+    @Query('tenant_code') tenantCode: string,
+    @Query('category') globalCategory?: string,
+    @Query('department_id') departmentId?: string,
+  ): Promise<EffectiveServiceSummary[]> {
+    return this.services.listTenantServices(tenantCode, {
+      globalCategory,
+      departmentId,
+    });
+  }
+
   @Get('tenants/:tenantCode')
-  listTenantServices(@Param('tenantCode') tenantCode: string): Promise<EffectiveServiceSummary[]> {
-    return this.services.listTenantServices(tenantCode);
+  listTenantServices(
+    @Param('tenantCode') tenantCode: string,
+    @Query('global_category') globalCategory?: string,
+    @Query('department_id') departmentId?: string,
+  ): Promise<EffectiveServiceSummary[]> {
+    return this.services.listTenantServices(tenantCode, {
+      globalCategory,
+      departmentId,
+    });
   }
 
   @Get('tenants/:tenantCode/:serviceCode')

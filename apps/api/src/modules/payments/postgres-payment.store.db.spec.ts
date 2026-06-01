@@ -26,7 +26,6 @@ describeDb('PostgresPaymentStore DB integration', () => {
       tenantSeeds.filter((t) => t.is_active && t.code !== CITIZEN_PORTAL_TENANT_CODE),
   } as TenantsService);
   const tenantId = randomUUID();
-  const categoryCode = `phase-31a-pay-${Date.now()}`;
   const tenantCode = `P${Date.now().toString().slice(-8)}`;
   const serviceCode = 'birth-cert-pay-db';
   const citizenSubject = `citizen-pay-${Date.now()}`;
@@ -61,7 +60,6 @@ describeDb('PostgresPaymentStore DB integration', () => {
 
   beforeAll(async () => {
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
-    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
 
     const tenant = await prisma.tenant.create({
       data: {
@@ -71,11 +69,19 @@ describeDb('PostgresPaymentStore DB integration', () => {
         languagesEnabled: ['en', 'bn', 'hi'],
       },
     });
-    const category = await prisma.serviceCategory.create({
+    const department = await prisma.tenantDepartment.create({
       data: {
-        code: categoryCode,
+        tenantId: tenant.id,
+        code: 'birth-death',
+        name: { en: 'Birth & Death', bn: 'Birth & Death', hi: 'Birth & Death' },
+      },
+    });
+    const category = await prisma.tenantServiceCategory.create({
+      data: {
+        tenantId: tenant.id,
+        departmentId: department.id,
+        code: 'cert',
         name: { en: 'Test', bn: 'Test', hi: 'Test' },
-        description: { en: 'Test', bn: 'Test', hi: 'Test' },
       },
     });
     await prisma.citizen.create({
@@ -91,6 +97,8 @@ describeDb('PostgresPaymentStore DB integration', () => {
         tenantId: tenant.id,
         code: serviceCode,
         categoryId: category.id,
+        departmentId: department.id,
+        globalCategoryCode: 'cert',
         name: { en: 'Birth Certificate', bn: 'Birth Certificate', hi: 'Birth Certificate' },
         description: { en: 'Test service', bn: 'Test service', hi: 'Test service' },
         effectiveFeeConfig: { amount_paise: 5000, currency: 'INR' },
@@ -107,7 +115,6 @@ describeDb('PostgresPaymentStore DB integration', () => {
 
   afterAll(async () => {
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
-    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
     await prisma.$disconnect();
   });
 
@@ -117,6 +124,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
       tenantId,
       citizenSubject,
       applicationId,
+      feeCode: 'application',
       amountPaise: 5000,
       method: 'upi',
       gateway: 'stub',
@@ -163,6 +171,7 @@ describeDb('PostgresPaymentStore DB integration', () => {
       tenantId,
       citizenSubject,
       applicationId: settleApplicationId,
+      feeCode: 'application',
       amountPaise: 5000,
       method: 'upi',
       gateway: 'stub',

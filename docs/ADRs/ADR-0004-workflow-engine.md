@@ -1,13 +1,13 @@
 # ADR-0004 — Workflow engine: Postgres-backed state machine with BullMQ workers
 
-| Field               | Value                                                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Status**          | Accepted                                                                                                           |
-| **Date**            | 2026-05-07                                                                                                         |
-| **Decision-makers** | Project Technical Lead                                                                                             |
-| **Supersedes**      | _none_                                                                                                             |
-| **Superseded by**   | _none_                                                                                                             |
-| **Related**         | ADR-0001 (Postgres), ADR-0002 (NestJS), ADR-0005 (Hosting), ADR-0009 (Keycloak), ADR-0010 (External-data adapters) |
+| Field               | Value                                                                                                                                                                |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Status**          | Accepted                                                                                                                                                             |
+| **Date**            | 2026-05-07                                                                                                                                                           |
+| **Decision-makers** | Project Technical Lead                                                                                                                                               |
+| **Supersedes**      | _none_                                                                                                                                                               |
+| **Superseded by**   | _none_                                                                                                                                                               |
+| **Related**         | ADR-0001 (Postgres), ADR-0002 (NestJS), ADR-0005 (Hosting), ADR-0009 (Keycloak), ADR-0010 (External-data adapters), ADR-0011 (Designation actors — extends this ADR) |
 
 ## Context
 
@@ -144,6 +144,9 @@ workflow runtime.
 - `ARCHITECTURE.md` §5 — Services, Applications, and Admin APIs.
 - `docs/service-catalogue.md` §4 — workflow patterns and tenant override rules.
 - `docs/glossary.md` §4 — application, workflow, stage, transition, SLA, and escalation vocabulary.
+- `docs/ADRs/ADR-0011-org-designations-dept-catalogue.md` — departments, tenant categories, designation-based stages (extends actor model; engine unchanged).
+- `docs/workflow-designations.md` — implementation spec for designation workflows, forward/return, municipal ladder, BOC guards, post-approval (v0.2).
+- `docs/ADRs/ADR-0012-post-approval-execution.md` — payment link, work orders, vendors, feedback.
 - `docs/security/threat-model.md` §4.8 and §7.1 — queue/idempotency and tenant-isolation threats.
 - BullMQ documentation — <https://docs.bullmq.io/>
 - Temporal documentation — <https://docs.temporal.io/>

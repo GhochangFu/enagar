@@ -1,3 +1,4 @@
+import type { ServiceFeeLines } from '../admin-tenant/admin-tenant-config.contracts';
 import type { EnagarFormSchema } from '@enagar/forms';
 
 export type LocaleMap = Record<'en' | 'bn' | 'hi', string>;
@@ -34,6 +35,16 @@ export interface GlobalServiceSeed {
   default_sla_days: number | null;
   fee_type: FeeType;
   fee_config: Record<string, unknown>;
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_lines?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        label: LocaleMap;
+        rule: Record<string, unknown>;
+      }
+    >
+  >;
   required_documents: string[];
   pushes_to_digilocker: boolean;
   popular: boolean;
@@ -60,7 +71,14 @@ export interface EffectiveServiceSummary {
   form_version_id?: string;
   tenant_code: string;
   code: string;
+  /** Global catalogue seed code (e.g. `certificates`) for citizen navigation. */
   category_code: string;
+  /** Citizen nav code (14 categories, e.g. `cert`). */
+  global_category_code?: string;
+  /** Owning department UUID when resolved from DB. */
+  department_id?: string;
+  department_code?: string | null;
+  department_name?: LocaleMap | null;
   revenue_head_code: string | null;
   accounting_code?: string | null;
   name: LocaleMap;
@@ -69,6 +87,10 @@ export interface EffectiveServiceSummary {
   active: boolean;
   fee_type: FeeType;
   fee_config: Record<string, unknown>;
+  payment_schedule?: GlobalServiceSeed['payment_schedule'];
+  /** Resolved fee lines (LocaleLabel); seed catalogue may use stricter LocaleMap labels. */
+  fee_lines?: ServiceFeeLines;
+  fee_line_previews?: Partial<Record<'application' | 'approval', number | null>>;
   sla_days: number | null;
   required_documents: string[];
   pushes_to_digilocker: boolean;
@@ -141,6 +163,10 @@ export const globalServices: GlobalServiceSeed[] = [
     default_sla_days: 7,
     fee_type: 'fixed',
     fee_config: { amount_paise: 5000, currency: 'INR' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Application fee', 'আবেদন ফি', 'आवेदन शुल्क', 5000),
+    },
     required_documents: ['hospital-discharge', 'parent-aadhaar', 'address-proof'],
     pushes_to_digilocker: true,
     popular: true,
@@ -177,6 +203,11 @@ export const globalServices: GlobalServiceSeed[] = [
     default_sla_days: 21,
     fee_type: 'slab',
     fee_config: { slab_set: 'trade-type-v1' },
+    payment_schedule: 'upfront_and_deferred',
+    fee_lines: {
+      application: feeLine('Application fee', 'আবেদন ফি', 'आवेदन शुल्क', 50_000),
+      approval: feeLine('Licence fee', 'লাইসেন্স ফি', 'लाइसेंस शुल्क', 100_000),
+    },
     required_documents: ['aadhaar', 'premises-proof', 'passport-photo'],
     pushes_to_digilocker: true,
     popular: true,
@@ -218,6 +249,72 @@ export const globalServices: GlobalServiceSeed[] = [
     popular: true,
   },
   {
+    code: 'ad-hoarding',
+    category_code: 'advertising',
+    revenue_head_code: 'cert-fee',
+    name: label('Hoarding Permission', 'হোর্ডিং অনুমতি', 'होर्डिंग अनुमति'),
+    description: label(
+      'Apply for outdoor hoarding / signage permission.',
+      'আউটডোর হোর্ডিং / সাইনেজ অনুমতির জন্য আবেদন করুন।',
+      'आउटडोर होर्डिंग / साइनेज अनुमति के लिए आवेदन करें।',
+    ),
+    workflow_pattern: 'cert-issuance',
+    default_sla_days: 15,
+    fee_type: 'fixed',
+    fee_config: { amount_paise: 5000000, currency: 'INR' },
+    payment_schedule: 'deferred_only',
+    fee_lines: {
+      approval: feeLine('Permission fee', 'অনুমতি ফি', 'अनुमति शुल्क', 5_000_000),
+    },
+    required_documents: ['site-photo', 'creative-mock', 'address-proof'],
+    pushes_to_digilocker: false,
+    popular: true,
+  },
+  {
+    code: 'ad-billboard',
+    category_code: 'advertising',
+    revenue_head_code: 'cert-fee',
+    name: label('Billboard Permission', 'বিলবোর্ড অনুমতি', 'बिलबोर्ड अनुमति'),
+    description: label(
+      'Apply for a municipal billboard / large-format advertisement.',
+      'পৌর বিলবোর্ড / বড় ফরম্যাট বিজ্ঞাপনের অনুমতি আবেদন করুন।',
+      'नगरपालिका बिलबोर्ड / बड़े प्रारूप विज्ञापन की अनुमति आवेदन करें।',
+    ),
+    workflow_pattern: 'cert-issuance',
+    default_sla_days: 21,
+    fee_type: 'fixed',
+    fee_config: { amount_paise: 25000000, currency: 'INR' },
+    payment_schedule: 'deferred_only',
+    fee_lines: {
+      approval: feeLine('Permission fee', 'অনুমতি ফি', 'अनुमति शुल्क', 25_000_000),
+    },
+    required_documents: ['site-photo', 'creative-mock', 'structural-certificate'],
+    pushes_to_digilocker: false,
+    popular: false,
+  },
+  {
+    code: 'ad-mobile',
+    category_code: 'advertising',
+    revenue_head_code: 'cert-fee',
+    name: label('Mobile Advertisement Van', 'মোবাইল বিজ্ঞাপন ভ্যান', 'मोबाइल विज्ञापन वैन'),
+    description: label(
+      'Permission for mobile advertisement vehicles within municipal limits.',
+      'পৌরসীমার মধ্যে মোবাইল বিজ্ঞাপন যানের অনুমতি।',
+      'नगरपालिका सीमा में मोबाइल विज्ञापन वाहन की अनुमति।',
+    ),
+    workflow_pattern: 'cert-issuance',
+    default_sla_days: 7,
+    fee_type: 'fixed',
+    fee_config: { amount_paise: 2000000, currency: 'INR' },
+    payment_schedule: 'deferred_only',
+    fee_lines: {
+      approval: feeLine('Permission fee', 'অনুমতি ফি', 'अनुमति शुल्क', 2_000_000),
+    },
+    required_documents: ['vehicle-rc', 'route-map'],
+    pushes_to_digilocker: false,
+    popular: false,
+  },
+  {
     code: 'rti',
     category_code: 'rti',
     revenue_head_code: 'rti-fee',
@@ -231,6 +328,10 @@ export const globalServices: GlobalServiceSeed[] = [
     default_sla_days: 30,
     fee_type: 'fixed',
     fee_config: { amount_paise: 1000, bpl_amount_paise: 0, currency: 'INR' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('RTI application fee', 'আরটিআই আবেদন ফি', 'आरटीआई आवेदन शुल्क', 1000),
+    },
     required_documents: ['identity-proof'],
     pushes_to_digilocker: false,
     popular: false,
@@ -307,6 +408,8 @@ function toEffectiveService(
     active: override?.active ?? true,
     fee_type: service.fee_type,
     fee_config: override?.fee_config ?? service.fee_config,
+    payment_schedule: service.payment_schedule,
+    fee_lines: service.fee_lines as ServiceFeeLines | undefined,
     sla_days: override?.sla_days ?? service.default_sla_days,
     required_documents: override?.required_documents ?? service.required_documents,
     pushes_to_digilocker: service.pushes_to_digilocker,
@@ -370,4 +473,16 @@ function revenueHead(
 
 function label(en: string, bn: string, hi: string): LocaleMap {
   return { en, bn, hi };
+}
+
+function feeLine(
+  en: string,
+  bn: string,
+  hi: string,
+  amountPaise: number,
+): { label: LocaleMap; rule: Record<string, unknown> } {
+  return {
+    label: label(en, bn, hi),
+    rule: { type: 'fixed', amount_paise: amountPaise, currency: 'INR' },
+  };
 }

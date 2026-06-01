@@ -28,9 +28,20 @@ const requiredSprint21Tables = [
   'service_form_versions',
 ] as const;
 
+const requiredOrgDesignationTables = [
+  'tenant_departments',
+  'tenant_designations',
+  'user_designations',
+  'tenant_service_categories',
+  'designation_stage_map',
+  'tenant_vendors',
+  'work_orders',
+] as const;
+
 const requiredTenantIsolationTables = [
   ...requiredSprint11Tables,
   ...requiredSprint21Tables,
+  ...requiredOrgDesignationTables,
   'workflows',
   'workflow_stages',
   'workflow_transitions',
@@ -77,11 +88,11 @@ describe('Tenant-isolation migration contract', () => {
   const createdTables = extractCreatedTables(migrationSql);
   const tenantScopedTables = extractTenantScopedTables(migrationSql);
 
-  it('creates the complete Phase 1 and Phase 2 database table set', () => {
+  it('creates the complete Phase 1–3 database table set', () => {
     expect(createdTables).toEqual(expect.arrayContaining([...requiredTenantIsolationTables]));
   });
 
-  it('keeps the Prisma schema mapped to the Phase 1 and Phase 2 database tables', () => {
+  it('keeps the Prisma schema mapped to the Phase 1–3 database tables', () => {
     const schema = readFileSync(schemaPath, 'utf8');
 
     for (const tableName of requiredTenantIsolationTables) {
@@ -89,7 +100,7 @@ describe('Tenant-isolation migration contract', () => {
     }
   });
 
-  it('enables RLS on every Phase 1 and Phase 2 table', () => {
+  it('enables RLS on every Phase 1–3 table', () => {
     for (const tableName of requiredTenantIsolationTables) {
       expect(normalizedSql).toContain(`alter table ${tableName} enable row level security`);
     }

@@ -11,6 +11,7 @@ import { InMemoryApplicationStore } from '../applications/in-memory-application.
 import { ServicesService } from '../services/services.service';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 import { TenantsService } from '../tenants/tenants.service';
+import { PostApprovalExecutionService } from '../work-orders/post-approval-execution.service';
 
 import { InMemoryPaymentStore } from './in-memory-payment.store';
 import { PaymentsService } from './payments.service';
@@ -47,15 +48,32 @@ const birthCertificateForm = {
   },
 };
 
+const tradeLicenceForm = {
+  applicant_name: 'Citizen A',
+  business_name: 'Test Traders',
+  trade_type: 'retail',
+  premises_proof: {
+    name: 'premises.pdf',
+    mime_type: 'application/pdf',
+    size_mb: 0.01,
+  },
+};
+
 describe('PaymentsService', () => {
   let applications: ApplicationsService;
   let payments: PaymentsService;
-  let prisma: { glPosting: { findMany: jest.Mock } };
+  let prisma: {
+    glPosting: { findMany: jest.Mock };
+    application: { findFirst: jest.Mock };
+  };
 
   beforeEach(() => {
     prisma = {
       glPosting: {
         findMany: jest.fn().mockResolvedValue([]),
+      },
+      application: {
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     };
     const services = new ServicesService();
@@ -67,6 +85,7 @@ describe('PaymentsService', () => {
     payments = new PaymentsService(
       applications,
       services,
+      {} as PostApprovalExecutionService,
       new StubPaymentGateway(),
       new InMemoryPaymentStore(),
       prisma as unknown as PrismaService,
@@ -74,7 +93,7 @@ describe('PaymentsService', () => {
   });
 
   it('initiates a stub payment for a fixed-fee application', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -85,6 +104,7 @@ describe('PaymentsService', () => {
         application_id: application.id,
         amount_paise: 5000,
         method: 'upi',
+        fee_code: 'application',
       },
       'birth-cert-payment-1',
     );
@@ -99,8 +119,29 @@ describe('PaymentsService', () => {
     });
   });
 
+  it('blocks citizen approval fee initiate before desk payment link (ADR-0013 §13D)', async () => {
+    const draft = await applications.createDraft(citizenA, {
+      service_code: 'trade-licence',
+      form_data: tradeLicenceForm,
+    });
+    expect(draft.payment_schedule).toBe('upfront_and_deferred');
+
+    await expect(
+      payments.initiate(
+        citizenA,
+        {
+          application_id: draft.id,
+          amount_paise: 100_000,
+          method: 'upi',
+          fee_code: 'approval',
+        },
+        'trade-approval-too-early',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('returns the same payment for an idempotent retry', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -108,6 +149,7 @@ describe('PaymentsService', () => {
       application_id: application.id,
       amount_paise: 5000,
       method: 'upi' as const,
+      fee_code: 'application' as const,
     };
 
     const first = await payments.initiate(citizenA, dto, 'retry-key');
@@ -118,7 +160,7 @@ describe('PaymentsService', () => {
   });
 
   it('rejects idempotency key reuse with a different request body', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -128,6 +170,7 @@ describe('PaymentsService', () => {
         application_id: application.id,
         amount_paise: 5000,
         method: 'upi',
+        fee_code: 'application',
       },
       'same-key',
     );
@@ -146,7 +189,7 @@ describe('PaymentsService', () => {
   });
 
   it('rejects cross-tenant payment reads and mutations as not found', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -156,6 +199,7 @@ describe('PaymentsService', () => {
         application_id: application.id,
         amount_paise: 5000,
         method: 'upi',
+        fee_code: 'application',
       },
       'tenant-key',
     );
@@ -175,7 +219,7 @@ describe('PaymentsService', () => {
   });
 
   it('rejects mismatched or unsupported fee amounts', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -187,6 +231,7 @@ describe('PaymentsService', () => {
           application_id: application.id,
           amount_paise: 1,
           method: 'upi',
+          fee_code: 'application',
         },
         'wrong-amount',
       ),
@@ -194,7 +239,7 @@ describe('PaymentsService', () => {
   });
 
   it('settles deterministic stub captures and attaches receipt artefacts', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -205,6 +250,7 @@ describe('PaymentsService', () => {
         application_id: application.id,
         amount_paise: 5000,
         method: 'upi',
+        fee_code: 'application',
       },
       'settle-flow',
     );
@@ -230,7 +276,7 @@ describe('PaymentsService', () => {
   });
 
   it('does not settle twice without idempotent replay safeguards', async () => {
-    const application = await applications.create(citizenA, {
+    const application = await applications.createDraft(citizenA, {
       service_code: 'birth-cert',
       form_data: birthCertificateForm,
     });
@@ -241,6 +287,7 @@ describe('PaymentsService', () => {
         application_id: application.id,
         amount_paise: 5000,
         method: 'upi',
+        fee_code: 'application',
       },
       'double-settle',
     );
@@ -275,7 +322,10 @@ describe('PaymentsService', () => {
     let store: InMemoryPaymentStore;
     let hubPayments: PaymentsService;
     let hubApplications: ApplicationsService;
-    const prismaStub = { glPosting: { findMany: jest.fn().mockResolvedValue([]) } };
+    const prismaStub = {
+      glPosting: { findMany: jest.fn().mockResolvedValue([]) },
+      application: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
 
     const portalPrincipal: AuthenticatedPrincipal = {
       subject: 'hub-pay-user',
@@ -296,6 +346,7 @@ describe('PaymentsService', () => {
       hubPayments = new PaymentsService(
         hubApplications,
         services,
+        {} as PostApprovalExecutionService,
         new StubPaymentGateway(),
         store,
         prismaStub as unknown as PrismaService,
@@ -309,6 +360,7 @@ describe('PaymentsService', () => {
         tenantId: citizenA.tenantId,
         citizenSubject: portalPrincipal.subject,
         applicationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        feeCode: 'application',
         amountPaise: 5000,
         method: 'upi',
         gateway: 'stub',
@@ -323,6 +375,7 @@ describe('PaymentsService', () => {
         tenantId: citizenB.tenantId,
         citizenSubject: portalPrincipal.subject,
         applicationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        feeCode: 'application',
         amountPaise: 5000,
         method: 'upi',
         gateway: 'stub',
@@ -351,26 +404,32 @@ describe('PaymentsService', () => {
         { service_code: 'birth-cert', form_data: birthCertificateForm },
         'KMC',
       );
-      const submitted = await hubApplications.submitDraft(portalPrincipal, draft.id, {
-        enforceCleanDocuments: false,
-      });
-      expect(submitted.tenant_id).toBe(citizenA.tenantId);
+      expect(draft.tenant_id).toBe(citizenA.tenantId);
+      expect(draft.fee_settlement?.application?.amount_paise).toBe(5000);
+
+      await expect(
+        hubApplications.submitDraft(portalPrincipal, draft.id, {
+          enforceCleanDocuments: false,
+        }),
+      ).rejects.toThrow(BadRequestException);
 
       const first = await hubPayments.initiate(
         portalPrincipal,
         {
-          application_id: submitted.id,
+          application_id: draft.id,
           amount_paise: 5000,
           method: 'upi',
+          fee_code: 'application',
         },
         'portal-kmc-pay-idem',
       );
       const second = await hubPayments.initiate(
         portalPrincipal,
         {
-          application_id: submitted.id,
+          application_id: draft.id,
           amount_paise: 5000,
           method: 'upi',
+          fee_code: 'application',
         },
         'portal-kmc-pay-idem',
       );
@@ -383,6 +442,12 @@ describe('PaymentsService', () => {
       });
 
       expect(ledger.receipt.receipt_number.toUpperCase()).toContain('KMC');
+
+      const submitted = await hubApplications.submitDraft(portalPrincipal, draft.id, {
+        enforceCleanDocuments: false,
+      });
+      expect(submitted.status).not.toBe('draft');
+      expect(submitted.fee_settlement?.application?.status).toBe('paid');
     });
   });
 });

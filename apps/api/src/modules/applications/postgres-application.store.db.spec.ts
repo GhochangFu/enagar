@@ -12,7 +12,6 @@ describeDb('PostgresApplicationStore DB integration', () => {
   const prisma = new PrismaService();
   const store = new PostgresApplicationStore(prisma);
   const tenantId = randomUUID();
-  const categoryCode = `phase-31a-${Date.now()}`;
   const tenantCode = `T${Date.now().toString().slice(-8)}`;
   const serviceCode = 'birth-cert-db';
   const citizenSubject = `citizen-${Date.now()}`;
@@ -56,7 +55,6 @@ describeDb('PostgresApplicationStore DB integration', () => {
 
   beforeAll(async () => {
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
-    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
 
     const tenant = await prisma.tenant.create({
       data: {
@@ -66,11 +64,19 @@ describeDb('PostgresApplicationStore DB integration', () => {
         languagesEnabled: ['en', 'bn', 'hi'],
       },
     });
-    const category = await prisma.serviceCategory.create({
+    const department = await prisma.tenantDepartment.create({
       data: {
-        code: categoryCode,
+        tenantId: tenant.id,
+        code: 'birth-death',
+        name: { en: 'Birth & Death', bn: 'Birth & Death', hi: 'Birth & Death' },
+      },
+    });
+    const category = await prisma.tenantServiceCategory.create({
+      data: {
+        tenantId: tenant.id,
+        departmentId: department.id,
+        code: 'cert',
         name: { en: 'Test', bn: 'Test', hi: 'Test' },
-        description: { en: 'Test', bn: 'Test', hi: 'Test' },
       },
     });
     await prisma.citizen.create({
@@ -86,6 +92,8 @@ describeDb('PostgresApplicationStore DB integration', () => {
         tenantId: tenant.id,
         code: serviceCode,
         categoryId: category.id,
+        departmentId: department.id,
+        globalCategoryCode: 'cert',
         name: { en: 'Birth Certificate', bn: 'Birth Certificate', hi: 'Birth Certificate' },
         description: { en: 'Test service', bn: 'Test service', hi: 'Test service' },
         effectiveFeeConfig: { amount_paise: 5000, currency: 'INR' },
@@ -96,7 +104,6 @@ describeDb('PostgresApplicationStore DB integration', () => {
 
   afterAll(async () => {
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
-    await prisma.serviceCategory.deleteMany({ where: { code: categoryCode } });
     await prisma.$disconnect();
   });
 

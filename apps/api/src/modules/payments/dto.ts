@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsString, IsUUID, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+
+export const paymentFeeCodes = ['application', 'approval'] as const;
+export type PaymentFeeCode = (typeof paymentFeeCodes)[number];
 
 export const paymentMethods = ['upi', 'card', 'netbanking', 'wallet'] as const;
 
@@ -21,6 +24,11 @@ export class InitiatePaymentDto {
   @IsNotEmpty()
   @IsIn(paymentMethods)
   method!: PaymentMethod;
+
+  @ApiProperty({ enum: paymentFeeCodes, example: 'application', required: false })
+  @IsOptional()
+  @IsIn(paymentFeeCodes)
+  fee_code?: PaymentFeeCode;
 }
 
 export interface PaymentResponse {
@@ -28,6 +36,7 @@ export interface PaymentResponse {
   tenant_id: string;
   citizen_subject: string;
   application_id: string;
+  fee_code: PaymentFeeCode;
   amount_paise: number;
   currency: 'INR';
   method: PaymentMethod;

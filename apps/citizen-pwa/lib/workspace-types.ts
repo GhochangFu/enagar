@@ -15,6 +15,10 @@ export interface ServiceSummary {
   tenant_code: string;
   code: string;
   category_code: string;
+  global_category_code?: string;
+  department_id?: string | null;
+  department_code?: string | null;
+  department_name?: Partial<Record<PwaLocaleCode, string>> | null;
   revenue_head_code: string | null;
   accounting_code?: string | null;
   name: Record<PwaLocaleCode, string>;
@@ -23,6 +27,17 @@ export interface ServiceSummary {
   active: boolean;
   fee_type: string;
   fee_config: Record<string, unknown>;
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_lines?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        label: Partial<Record<PwaLocaleCode, string>>;
+        rule: Record<string, unknown>;
+      }
+    >
+  >;
+  fee_line_previews?: Partial<Record<'application' | 'approval', number | null>>;
   sla_days: number | null;
   required_documents: string[];
   pushes_to_digilocker: boolean;
@@ -46,7 +61,22 @@ export interface ApplicationSummary {
   status: string;
   status_label: string;
   pending_role: string | null;
+  pending_designation?: string | null;
+  pending_at_label?: string | null;
   payment_status: string;
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_settlement?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        status: 'not_required' | 'pending' | 'paid' | 'failed';
+        payment_id: string | null;
+        amount_paise: number | null;
+      }
+    >
+  >;
+  payment_redirect_url?: string | null;
+  active_payment_id?: string | null;
   submitted_at: string;
 }
 
@@ -83,6 +113,7 @@ export interface PaymentApiResponse {
   id: string;
   tenant_id: string;
   application_id: string;
+  fee_code?: 'application' | 'approval';
   amount_paise: number;
   currency: 'INR';
   method: PaymentGatewayMethod;

@@ -17,6 +17,23 @@ export type ProvisionTenantAdminResult = {
   password_hint: string;
 };
 
+export type ProvisionTenantStaffInput = {
+  tenantId: string;
+  tenantCode: string;
+  username: string;
+  displayName: string;
+  email?: string;
+  roleCodes: string[];
+  password?: string;
+};
+
+const TENANT_OPERATOR_REALM_ROLES = new Set([
+  'tenant_clerk',
+  'municipality_clerk',
+  'municipality_admin',
+  'tenant_admin',
+]);
+
 /**
  * Idempotent Keycloak Admin API provisioning for tenant_admin users during State onboarding.
  */
@@ -32,37 +49,110 @@ export class KeycloakAdminProvisionerService {
     const tenantCode = input.tenantCode.trim().toLowerCase();
     const username = (input.username?.trim() || `${tenantCode}-tenant-admin`).toLowerCase();
     const email = input.email?.trim() || `${username}@tenant.enagar.local`;
-    const password =
-      input.temporaryPassword?.trim() ||
-      this.config.get<string>('KEYCLOAK_DUMMY_USER_PASSWORD') ||
-      'DummyDev_2026!ChangeMe';
+    const password = this.resolveDefaultPassword(input.temporaryPassword);
+    const { firstName, lastName } = splitPersonName(
+      `${input.firstName?.trim() ?? ''} ${input.lastName?.trim() ?? ''}`.trim() ||
+        'Tenant Administrator',
+    );
 
-    const baseUrl = this.resolveKeycloakBaseUrl();
-    const realm = this.config.get<string>('KEYCLOAK_REALM') ?? 'enagar';
-    const adminUser = this.config.get<string>('KEYCLOAK_ADMIN') ?? 'admin';
-    const adminPassword = this.config.get<string>('KEYCLOAK_ADMIN_PASSWORD');
-    if (!adminPassword) {
-      throw new Error('KEYCLOAK_ADMIN_PASSWORD is required for tenant admin provisioning');
-    }
-
-    const token = await this.fetchAdminToken(baseUrl, adminUser, adminPassword);
-    await this.ensureUserProfileAttributes(baseUrl, realm, token);
-    const userId = await this.upsertRealmUser(baseUrl, realm, token, {
-      username,
-      email,
-      firstName: input.firstName?.trim() || 'Tenant',
-      lastName: input.lastName?.trim() || 'Administrator',
+    const { userId } = await this.provisionRealmOperatorUser({
       tenantId: input.tenantId,
       tenantCode: input.tenantCode.trim().toUpperCase(),
+      username,
+      email,
+      firstName,
+      lastName,
       password,
+      roleCodes: ['tenant_admin'],
     });
-    await this.assignRealmRole(baseUrl, realm, token, userId, 'tenant_admin');
 
     return {
       username,
       keycloak_user_id: userId,
       password_hint: password,
     };
+  }
+
+  /** Tenant Admin UI — create operator staff with Keycloak login (no email invite). */
+  async provisionTenantStaff(
+    input: ProvisionTenantStaffInput,
+  ): Promise<ProvisionTenantAdminResult> {
+    const username = input.username.trim().toLowerCase();
+    const roleCodes = Array.from(
+      new Set(input.roleCodes.map((code) => code.trim()).filter(Boolean)),
+    );
+    if (!roleCodes.length) {
+      throw new Error('At least one role code is required');
+    }
+    for (const roleCode of roleCodes) {
+      if (!TENANT_OPERATOR_REALM_ROLES.has(roleCode)) {
+        throw new Error(`Unsupported staff realm role: ${roleCode}`);
+      }
+    }
+
+    const email = input.email?.trim() || `${username}@tenant.enagar.local`;
+    const password = this.resolveDefaultPassword(input.password);
+    const { firstName, lastName } = splitPersonName(input.displayName.trim());
+
+    const { userId } = await this.provisionRealmOperatorUser({
+      tenantId: input.tenantId,
+      tenantCode: input.tenantCode.trim().toUpperCase(),
+      username,
+      email,
+      firstName,
+      lastName,
+      password,
+      roleCodes,
+    });
+
+    return {
+      username,
+      keycloak_user_id: userId,
+      password_hint: password,
+    };
+  }
+
+  private resolveDefaultPassword(explicit?: string): string {
+    return (
+      explicit?.trim() ||
+      this.config.get<string>('KEYCLOAK_DUMMY_USER_PASSWORD') ||
+      'DummyDev_2026!ChangeMe'
+    );
+  }
+
+  private async provisionRealmOperatorUser(spec: {
+    tenantId: string;
+    tenantCode: string;
+    username: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    roleCodes: string[];
+  }): Promise<{ userId: string }> {
+    const baseUrl = this.resolveKeycloakBaseUrl();
+    const realm = this.config.get<string>('KEYCLOAK_REALM') ?? 'enagar';
+    const adminUser = this.config.get<string>('KEYCLOAK_ADMIN') ?? 'admin';
+    const adminPassword = this.config.get<string>('KEYCLOAK_ADMIN_PASSWORD');
+    if (!adminPassword) {
+      throw new Error('KEYCLOAK_ADMIN_PASSWORD is required for Keycloak user provisioning');
+    }
+
+    const token = await this.fetchAdminToken(baseUrl, adminUser, adminPassword);
+    await this.ensureUserProfileAttributes(baseUrl, realm, token);
+    const userId = await this.upsertRealmUser(baseUrl, realm, token, {
+      username: spec.username,
+      email: spec.email,
+      firstName: spec.firstName,
+      lastName: spec.lastName,
+      tenantId: spec.tenantId,
+      tenantCode: spec.tenantCode,
+      password: spec.password,
+    });
+    for (const roleCode of spec.roleCodes) {
+      await this.assignRealmRole(baseUrl, realm, token, userId, roleCode);
+    }
+    return { userId };
   }
 
   /**
@@ -315,4 +405,15 @@ export class KeycloakAdminProvisionerService {
       throw new Error(`Keycloak assign role failed: HTTP ${assign.status}`);
     }
   }
+}
+
+function splitPersonName(displayName: string): { firstName: string; lastName: string } {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { firstName: 'Staff', lastName: 'Member' };
+  }
+  if (parts.length === 1) {
+    return { firstName: parts[0]!, lastName: 'Staff' };
+  }
+  return { firstName: parts[0]!, lastName: parts.slice(1).join(' ') };
 }

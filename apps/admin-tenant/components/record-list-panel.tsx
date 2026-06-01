@@ -1,8 +1,7 @@
 'use client';
 
 import { Button } from '@enagar/ui';
-
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 
 export function RecordListPanel({
   title,
@@ -19,7 +18,7 @@ export function RecordListPanel({
   newLabel?: string;
   children: ReactNode;
 }): JSX.Element {
-  const hasChildren = Boolean(children);
+  const hasChildren = Children.count(children) > 0;
 
   return (
     <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">

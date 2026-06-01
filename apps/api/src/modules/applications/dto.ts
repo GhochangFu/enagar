@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import type { FormSubmission } from '@enagar/forms';
 
@@ -31,12 +41,29 @@ export class CancelApplicationDto {
   reason?: string;
 }
 
+/** Citizen feedback at `citizen-feedback` stage (ADR-0012 Phase 12). */
+export class ApplicationFeedbackDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comment?: string;
+}
+
 export interface ApplicationTimelineResponse {
   id: string;
   from_stage: string | null;
   to_stage: string;
   verb: string;
   actor_role: string;
+  actor_designation?: string | null;
   comment: string | null;
   created_at: string;
 }
@@ -76,12 +103,41 @@ export interface ApplicationResponse {
   status: string;
   status_label: string;
   pending_role: string | null;
+  pending_designation?: string | null;
+  /** Human-readable queue owner for citizen detail (designation + department or legacy role). */
+  pending_at_label?: string | null;
   payment_status: 'not_required' | 'pending' | 'paid' | 'failed';
+  payment_schedule?: 'upfront_only' | 'deferred_only' | 'upfront_and_deferred';
+  fee_settlement?: Partial<
+    Record<
+      'application' | 'approval',
+      {
+        status: 'not_required' | 'pending' | 'paid' | 'failed';
+        payment_id: string | null;
+        amount_paise: number | null;
+      }
+    >
+  >;
+  /** Set when dept head transition runs `generate_payment_link` (Phase 11). */
+  payment_redirect_url?: string | null;
+  active_payment_id?: string | null;
   form_data: FormSubmission;
   submitted_at: string;
   timeline: ApplicationTimelineResponse[];
   comments: ApplicationCommentResponse[];
   documents: ApplicationDocumentResponse[];
+  citizen_feedback?: {
+    rating: number;
+    comment: string | null;
+    submitted_at: string;
+  } | null;
+  work_order?: {
+    id: string;
+    work_order_no: string;
+    status: string;
+    vendor_id: string | null;
+    assigned_user_id: string | null;
+  } | null;
 }
 
 export type ApplicationSummaryResponse = Omit<

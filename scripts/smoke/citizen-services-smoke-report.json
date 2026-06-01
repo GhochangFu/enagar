@@ -1,0 +1,507 @@
+{
+  "ranAt": "2026-05-23T12:08:09.901Z",
+  "mobile": "9837565596",
+  "totalAttempts": 39,
+  "successCount": 22,
+  "failCount": 17,
+  "results": [
+    {
+      "tenant": "KMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "",
+      "pageRefresh": false,
+      "error": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByLabel('Mobile number').first() to be visible\n"
+    },
+    {
+      "tenant": "KMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": false,
+      "docket": null,
+      "status": "",
+      "pageRefresh": false,
+      "error": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByLabel('Event details').first() to be visible\n"
+    },
+    {
+      "tenant": "KMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/KMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "KMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/KMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "KMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "HMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "HMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/HMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "HMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/HMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "HMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "CMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "CMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/CMC/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "CMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/CMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "CMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/CMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "CMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "BMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "BMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/BMC/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "BMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/BMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "BMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/BMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "BMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SMC/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "AMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "AMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/AMC/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "AMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/AMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "AMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/AMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "AMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "DMC",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "DMC",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/DMC/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "DMC",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/DMC/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "DMC",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/DMC/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "DMC",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SDDM",
+      "serviceCode": "birth-cert",
+      "serviceName": "Birth Certificate",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SDDM",
+      "serviceCode": "community-hall",
+      "serviceName": "Community Hall Booking",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SDDM/community-hall/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SDDM",
+      "serviceCode": "prop-tax",
+      "serviceName": "Property Tax Payment",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SDDM/prop-tax/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SDDM",
+      "serviceCode": "rti",
+      "serviceName": "RTI Application",
+      "ok": true,
+      "docket": "WBM",
+      "status": "Submitted WBM/SDDM/rti/2026/00001",
+      "pageRefresh": false,
+      "error": null
+    },
+    {
+      "tenant": "SDDM",
+      "serviceCode": "trade-licence",
+      "serviceName": "Trade Licence",
+      "ok": false,
+      "docket": null,
+      "status": "Uploading and scanning documents before submission...",
+      "pageRefresh": false,
+      "error": null
+    }
+  ],
+  "anomalies": [
+    {
+      "type": "exception",
+      "tenant": "KMC",
+      "serviceCode": "birth-cert",
+      "message": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByLabel('Mobile number').first() to be visible\n"
+    },
+    {
+      "type": "exception",
+      "tenant": "KMC",
+      "serviceCode": "community-hall",
+      "message": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByLabel('Event details').first() to be visible\n"
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "KMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "HMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "pageerror",
+      "message": "Document scan timed out"
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "HMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "CMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "CMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "BMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "BMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "SMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "SMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "AMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "AMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "DMC",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "DMC",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "SDDM",
+      "serviceCode": "birth-cert",
+      "status": "Uploading and scanning documents before submission..."
+    },
+    {
+      "type": "submit-failed",
+      "tenant": "SDDM",
+      "serviceCode": "trade-licence",
+      "status": "Uploading and scanning documents before submission..."
+    }
+  ]
+}

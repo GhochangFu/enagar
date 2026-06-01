@@ -55,13 +55,20 @@ import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { TenantBanners } from '../components/tenant-banners';
 import { applyFieldExamplesToRenderPlan, fieldExamplesForSchema } from '../lib/form-field-examples';
+import { applicationFeePaid } from '../lib/payment-eligibility';
+import {
+  applicationFeeLineForService,
+  approvalFeeLineForService,
+  inferPaymentSchedule,
+  requiresApplicationFeeBeforeSubmit,
+  resolvePaymentLineForApplication,
+} from '../lib/service-payment';
 import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
 import { resolveTenantFromCatalogue } from '../lib/tenant-catalogue';
 import {
   authHeaders,
   CITIZEN_PORTAL_OPTION_A_TENANT_CODE,
   formatInrFromPaise,
-  getFixedFeePaise,
   readApiError,
 } from '../lib/workspace-http';
 
@@ -117,11 +124,39 @@ interface UploadIntentResponse {
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
 
+const CITIZEN_GLOBAL_CATEGORIES: Array<{ code: string; label: string }> = [
+  { code: 'cert', label: 'Certificates' },
+  { code: 'tax', label: 'Tax & Property' },
+  { code: 'water', label: 'Water & Sanitation' },
+  { code: 'building', label: 'Building & Plan' },
+  { code: 'health', label: 'Health' },
+  { code: 'infra', label: 'Infrastructure' },
+  { code: 'welfare', label: 'Welfare' },
+  { code: 'adv', label: 'Advertising & Hoarding' },
+  { code: 'rent', label: 'Bookings & Rentals' },
+  { code: 'smart', label: 'Smart City' },
+  { code: 'fines', label: 'Fines' },
+  { code: 'tender', label: 'Tenders' },
+  { code: 'info', label: 'Information & RTI' },
+  { code: 'misc', label: 'Misc NOCs' },
+];
+
 async function fetchActiveTenantServices(
   apiRoot: string,
   tenantCode: string,
+  filters?: { globalCategory?: string | null; departmentId?: string | null },
 ): Promise<ServiceSummary[]> {
-  const response = await fetch(`${apiRoot}/services/tenants/${encodeURIComponent(tenantCode)}`);
+  const params = new URLSearchParams();
+  if (filters?.globalCategory) {
+    params.set('global_category', filters.globalCategory);
+  }
+  if (filters?.departmentId) {
+    params.set('department_id', filters.departmentId);
+  }
+  const query = params.toString();
+  const response = await fetch(
+    `${apiRoot}/services/tenants/${encodeURIComponent(tenantCode)}${query ? `?${query}` : ''}`,
+  );
   if (!response.ok) {
     throw new Error('Unable to load services');
   }
@@ -194,6 +229,9 @@ export default function HomePage(): JSX.Element {
   const [hubDashboard, setHubDashboard] = useState<CitizenHubDashboardResponse | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantSummary | null>(null);
   const [services, setServices] = useState<ServiceSummary[]>([]);
+  const [workspaceGlobalCategory, setWorkspaceGlobalCategory] = useState<string | null>(null);
+  const [workspaceDepartmentId, setWorkspaceDepartmentId] = useState<string | null>(null);
+  const [workspaceCategoryServices, setWorkspaceCategoryServices] = useState<ServiceSummary[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceSummary | null>(null);
   const [formValues, setFormValues] = useState<FormSubmission>({});
   const [applicationFileBlobs, setApplicationFileBlobs] = useState<Record<string, File>>({});
@@ -231,6 +269,10 @@ export default function HomePage(): JSX.Element {
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [comment, setComment] = useState('');
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [applyDraft, setApplyDraft] = useState<ApplicationDetail | null>(null);
+  const [applyDraftDocsReady, setApplyDraftDocsReady] = useState(false);
+  const [applyPendingPayment, setApplyPendingPayment] = useState<PaymentApiResponse | null>(null);
+  const [applyPaymentMethod, setApplyPaymentMethod] = useState<PaymentGatewayMethod>('upi');
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -302,6 +344,24 @@ export default function HomePage(): JSX.Element {
     () => tenants.filter((tenant) => tenantMatchesBrowseQuery(tenant, shortcutPinsSearch)),
     [tenants, shortcutPinsSearch],
   );
+
+  const workspaceDepartmentOptions = useMemo(() => {
+    const source = workspaceGlobalCategory ? workspaceCategoryServices : services;
+    const map = new Map<string, string>();
+    for (const service of source) {
+      if (service.department_id) {
+        const label =
+          service.department_name?.[language] ??
+          service.department_name?.en ??
+          service.department_code ??
+          service.department_id;
+        map.set(service.department_id, label);
+      }
+    }
+    return [...map.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [language, services, workspaceCategoryServices, workspaceGlobalCategory]);
 
   const workspaceServicesFiltered = useMemo(() => {
     if (!workspaceServiceCodesFilter?.length) {
@@ -382,6 +442,38 @@ export default function HomePage(): JSX.Element {
   /** Fee catalogue for dossier sidebar: workspace list vs hub-only fetch keyed by application's ULB. */
   const feeServicesForDetailPanel =
     step === 'workspace' && selectedTenant ? services : detailFeeServices;
+  const detailPaymentLine = useMemo(() => {
+    if (!applicationDetail) {
+      return null;
+    }
+    return resolvePaymentLineForApplication(applicationDetail, feeServicesForDetailPanel, language);
+  }, [applicationDetail, feeServicesForDetailPanel, language]);
+  const detailApprovalFeeHint = useMemo(() => {
+    if (!applicationDetail) {
+      return null;
+    }
+    const service = feeServicesForDetailPanel.find(
+      (entry) => entry.code === applicationDetail.service_code,
+    );
+    return service ? approvalFeeLineForService(service, language) : null;
+  }, [applicationDetail, feeServicesForDetailPanel, language]);
+  const applyUpfrontFeeLine = useMemo(
+    () => (selectedService ? applicationFeeLineForService(selectedService, language) : null),
+    [selectedService, language],
+  );
+  const applyRequiresUpfront = useMemo(
+    () =>
+      selectedService
+        ? requiresApplicationFeeBeforeSubmit(inferPaymentSchedule(selectedService))
+        : false,
+    [selectedService],
+  );
+  const applyCanSubmit = useMemo(() => {
+    if (!applyRequiresUpfront) {
+      return true;
+    }
+    return applyDraft ? applicationFeePaid(applyDraft) : false;
+  }, [applyRequiresUpfront, applyDraft]);
   const selectedSchema = selectedService?.form_schema;
   const renderPlan = useMemo(() => {
     if (!selectedSchema) {
@@ -860,10 +952,42 @@ export default function HomePage(): JSX.Element {
     }
   }
 
-  async function loadServices(tenantCode: string): Promise<void> {
+  async function loadServices(
+    tenantCode: string,
+    filters?: { globalCategory?: string | null; departmentId?: string | null },
+  ): Promise<void> {
     try {
-      const nextServices = await fetchActiveTenantServices(apiBaseUrl, tenantCode);
+      const nextServices = await fetchActiveTenantServices(apiBaseUrl, tenantCode, filters);
       setServices(nextServices);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to load services');
+    }
+  }
+
+  async function applyWorkspaceCatalogueFilters(
+    globalCategory: string | null,
+    departmentId: string | null,
+  ): Promise<void> {
+    setWorkspaceGlobalCategory(globalCategory);
+    setWorkspaceDepartmentId(departmentId);
+    if (!selectedTenant) {
+      return;
+    }
+    if (!globalCategory) {
+      setWorkspaceCategoryServices([]);
+      await loadServices(selectedTenant.code);
+      return;
+    }
+    try {
+      const categoryRows = await fetchActiveTenantServices(apiBaseUrl, selectedTenant.code, {
+        globalCategory,
+        departmentId: null,
+      });
+      setWorkspaceCategoryServices(categoryRows);
+      const filtered = departmentId
+        ? categoryRows.filter((service) => service.department_id === departmentId)
+        : categoryRows;
+      setServices(filtered);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load services');
     }
@@ -910,6 +1034,9 @@ export default function HomePage(): JSX.Element {
     setHoldingLookup(null);
     setApplicationDetail(null);
     setApplyError(null);
+    setApplyDraft(null);
+    setApplyDraftDocsReady(false);
+    setApplyPendingPayment(null);
     setActiveTab('apply');
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
@@ -934,6 +1061,25 @@ export default function HomePage(): JSX.Element {
     setStatus(result.found ? 'Holding found.' : 'Holding not found; you can still proceed.');
   }
 
+  async function refreshApplyDraft(docketNo: string): Promise<ApplicationDetail | null> {
+    if (!token) {
+      return null;
+    }
+    try {
+      const response = await fetch(`${apiBaseUrl}/applications/${encodeURIComponent(docketNo)}`, {
+        headers: authHeaders(token, false, workspaceLoadScope()),
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const detail = (await response.json()) as ApplicationDetail;
+      setApplyDraft(detail);
+      return detail;
+    } catch {
+      return null;
+    }
+  }
+
   async function submitApplication(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!selectedService || !selectedSchema || !token) {
@@ -950,36 +1096,57 @@ export default function HomePage(): JSX.Element {
       return;
     }
 
-    setStatus('Creating draft application...');
-    let draftResponse: Response;
-    try {
-      draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
-        method: 'POST',
-        headers: authHeaders(token, true, workspaceLoadScope()),
-        body: JSON.stringify({
-          service_code: selectedService.code,
-          form_data: formValues,
-        }),
-      });
-    } catch {
-      const message = 'Could not reach the API while creating your draft.';
-      setApplyError(message);
-      setStatus(message);
-      return;
-    }
-    if (!draftResponse.ok) {
-      const message = await readApiError(draftResponse);
-      setApplyError(message);
-      setStatus('Draft creation failed.');
-      return;
+    const schedule = inferPaymentSchedule(selectedService);
+    const requiresUpfront = requiresApplicationFeeBeforeSubmit(schedule);
+    const upfrontLine = applicationFeeLineForService(selectedService, language);
+
+    let draft = applyDraft;
+    if (!draft) {
+      setStatus('Creating draft application...');
+      let draftResponse: Response;
+      try {
+        draftResponse = await fetch(`${apiBaseUrl}/applications/drafts`, {
+          method: 'POST',
+          headers: authHeaders(token, true, workspaceLoadScope()),
+          body: JSON.stringify({
+            service_code: selectedService.code,
+            form_data: formValues,
+          }),
+        });
+      } catch {
+        const message = 'Could not reach the API while creating your draft.';
+        setApplyError(message);
+        setStatus(message);
+        return;
+      }
+      if (!draftResponse.ok) {
+        const message = await readApiError(draftResponse);
+        setApplyError(message);
+        setStatus('Draft creation failed.');
+        return;
+      }
+      draft = (await draftResponse.json()) as ApplicationDetail;
+      setApplyDraft(draft);
     }
 
-    const draft = (await draftResponse.json()) as ApplicationDetail;
-    setStatus('Uploading and scanning documents before submission...');
-    const documentsReady = await createDocumentIntents(draft, selectedSchema);
-    if (!documentsReady.ok) {
-      setApplyError(documentsReady.error);
-      setStatus('Document upload failed. Submit after all required documents are ready.');
+    if (!applyDraftDocsReady) {
+      setStatus('Uploading and scanning documents before submission...');
+      const documentsReady = await createDocumentIntents(draft, selectedSchema);
+      if (!documentsReady.ok) {
+        setApplyError(documentsReady.error);
+        setStatus('Document upload failed. Submit after all required documents are ready.');
+        return;
+      }
+      setApplyDraftDocsReady(true);
+      draft = (await refreshApplyDraft(draft.docket_no)) ?? draft;
+    }
+
+    if (requiresUpfront && !applicationFeePaid(draft)) {
+      setStatus(
+        upfrontLine
+          ? `Pay ${upfrontLine.label} (${formatInrFromPaise(upfrontLine.amountPaise)}) below, then submit.`
+          : 'Pay the application fee below, then submit.',
+      );
       return;
     }
 
@@ -1011,6 +1178,9 @@ export default function HomePage(): JSX.Element {
     setFormValues({});
     setApplicationFileBlobs({});
     setApplyError(null);
+    setApplyDraft(null);
+    setApplyDraftDocsReady(false);
+    setApplyPendingPayment(null);
     setActiveTab('applications');
     setStatus(`Submitted ${docket}`);
 
@@ -1167,7 +1337,26 @@ export default function HomePage(): JSX.Element {
       setStatus('Unable to open application.');
       return;
     }
-    setApplicationDetail((await response.json()) as ApplicationDetail);
+    const detail = (await response.json()) as ApplicationDetail;
+    setApplicationDetail(detail);
+    const linkedPaymentId = detail.active_payment_id?.trim();
+    if (linkedPaymentId && token) {
+      try {
+        const payResponse = await fetch(
+          `${apiBaseUrl}/payments/${encodeURIComponent(linkedPaymentId)}`,
+          { headers: authHeaders(token, false, scope) },
+        );
+        if (payResponse.ok) {
+          const linked = (await payResponse.json()) as PaymentApiResponse;
+          setPayments((current) => {
+            const rest = current.filter((row) => row.id !== linked.id);
+            return [linked, ...rest];
+          });
+        }
+      } catch {
+        // Linked payment fetch is best-effort; stub panel shows reload hint if missing.
+      }
+    }
   }
 
   useEffect(() => {
@@ -1292,6 +1481,7 @@ export default function HomePage(): JSX.Element {
     applicationId: string,
     amountPaise: number,
     method: PaymentGatewayMethod,
+    feeCode: 'application' | 'approval' = 'application',
   ): Promise<PaymentApiResponse | null> {
     if (!token) {
       return null;
@@ -1312,6 +1502,7 @@ export default function HomePage(): JSX.Element {
           application_id: applicationId,
           amount_paise: amountPaise,
           method,
+          fee_code: feeCode,
         }),
       });
     } catch {
@@ -1325,10 +1516,18 @@ export default function HomePage(): JSX.Element {
     }
 
     const payment = (await response.json()) as PaymentApiResponse;
+    setPayments((current) => {
+      const rest = current.filter((row) => row.id !== payment.id);
+      return [payment, ...rest];
+    });
     if (step === 'hub') {
       await reloadHubPortfolioLists('payments');
     } else {
       await loadPayments();
+    }
+    if (applyDraft?.id === applicationId) {
+      setApplyPendingPayment(payment);
+      await refreshApplyDraft(applyDraft.docket_no);
     }
     if (applicationDetail?.id === applicationId) {
       await openApplication(
@@ -1336,7 +1535,11 @@ export default function HomePage(): JSX.Element {
         step === 'hub' ? applicationDetail.tenant_code : undefined,
       );
     }
-    setStatus(`Payment ${payment.id.slice(0, 8)}… awaiting stub capture.`);
+    setStatus(
+      payment.status === 'requires_action'
+        ? `Payment ${payment.id.slice(0, 8)}… — use Simulate PSP capture below.`
+        : `Payment ${payment.id.slice(0, 8)}… recorded.`,
+    );
     return payment;
   }
 
@@ -1412,6 +1615,10 @@ export default function HomePage(): JSX.Element {
         await loadApplications();
       }
       await loadPayments();
+    }
+    if (applyDraft?.id === payment.application_id) {
+      await refreshApplyDraft(applyDraft.docket_no);
+      setApplyPendingPayment(null);
     }
     setStatus('Payment settled. Open My Payments for receipt metadata (PDF later).');
     return true;
@@ -2028,11 +2235,8 @@ export default function HomePage(): JSX.Element {
                 apiBaseUrl={apiBaseUrl}
                 application={applicationDetail}
                 comment={comment}
-                feePaise={
-                  applicationDetail
-                    ? getFixedFeePaise(feeServicesForDetailPanel, applicationDetail.service_code)
-                    : null
-                }
+                paymentLine={detailPaymentLine}
+                scheduledApprovalFee={detailApprovalFeeHint}
                 onCancel={() => void cancelCurrentApplication()}
                 onCommentChange={setComment}
                 onInitiatePayment={initiateApplicationPayment}
@@ -2220,41 +2424,114 @@ export default function HomePage(): JSX.Element {
           )}
 
           {activeTab === 'services' && (
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {workspaceServiceCodesFilter?.length ? (
-                <ShortcutFilterBanner
-                  codes={workspaceServiceCodesFilter}
-                  onClear={() => setWorkspaceServiceCodesFilter(null)}
-                />
-              ) : null}
-              {workspaceServicesFiltered.length === 0 ? (
-                <div className="col-span-full">
-                  <WorkspaceEmptyState
-                    action={
-                      workspaceServiceCodesFilter ? (
+            <section className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-slate-800">Browse by category</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      !workspaceGlobalCategory
+                        ? 'bg-brand text-white'
+                        : 'border border-slate-200 text-slate-700'
+                    }`}
+                    onClick={() => void applyWorkspaceCatalogueFilters(null, null)}
+                    type="button"
+                  >
+                    All
+                  </button>
+                  {CITIZEN_GLOBAL_CATEGORIES.map((category) => (
+                    <button
+                      key={category.code}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        workspaceGlobalCategory === category.code
+                          ? 'bg-brand text-white'
+                          : 'border border-slate-200 text-slate-700'
+                      }`}
+                      onClick={() => void applyWorkspaceCatalogueFilters(category.code, null)}
+                      type="button"
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+                {workspaceGlobalCategory && workspaceDepartmentOptions.length > 1 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Department
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          !workspaceDepartmentId
+                            ? 'bg-emerald-800 text-white'
+                            : 'border border-slate-200 text-slate-700'
+                        }`}
+                        onClick={() =>
+                          void applyWorkspaceCatalogueFilters(workspaceGlobalCategory, null)
+                        }
+                        type="button"
+                      >
+                        All departments
+                      </button>
+                      {workspaceDepartmentOptions.map((department) => (
                         <button
-                          className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-                          onClick={() => setWorkspaceServiceCodesFilter(null)}
+                          key={department.id}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            workspaceDepartmentId === department.id
+                              ? 'bg-emerald-800 text-white'
+                              : 'border border-slate-200 text-slate-700'
+                          }`}
+                          onClick={() =>
+                            void applyWorkspaceCatalogueFilters(
+                              workspaceGlobalCategory,
+                              department.id,
+                            )
+                          }
                           type="button"
                         >
-                          Show all services
+                          {department.label}
                         </button>
-                      ) : null
-                    }
-                    title="No services match"
-                  >
-                    Clear the shortcut filter or pick another ULB.
-                  </WorkspaceEmptyState>
-                </div>
-              ) : null}
-              {workspaceServicesFiltered.map((service) => (
-                <WorkspaceServiceCard
-                  key={service.code}
-                  language={language}
-                  onApply={startApplication}
-                  service={service}
-                />
-              ))}
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {workspaceServiceCodesFilter?.length ? (
+                  <ShortcutFilterBanner
+                    codes={workspaceServiceCodesFilter}
+                    onClear={() => setWorkspaceServiceCodesFilter(null)}
+                  />
+                ) : null}
+                {workspaceServicesFiltered.length === 0 ? (
+                  <div className="col-span-full">
+                    <WorkspaceEmptyState
+                      action={
+                        workspaceServiceCodesFilter ? (
+                          <button
+                            className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                            onClick={() => setWorkspaceServiceCodesFilter(null)}
+                            type="button"
+                          >
+                            Show all services
+                          </button>
+                        ) : null
+                      }
+                      title="No services match"
+                    >
+                      Clear the shortcut filter or pick another ULB.
+                    </WorkspaceEmptyState>
+                  </div>
+                ) : null}
+                {workspaceServicesFiltered.map((service) => (
+                  <WorkspaceServiceCard
+                    key={service.code}
+                    language={language}
+                    onApply={startApplication}
+                    service={service}
+                  />
+                ))}
+              </div>
             </section>
           )}
 
@@ -2314,11 +2591,96 @@ export default function HomePage(): JSX.Element {
                     </div>
                   )}
 
+                  {applyRequiresUpfront && applyUpfrontFeeLine ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                      <h4 className="font-bold text-amber-950">Pay before submit</h4>
+                      <p className="mt-1 text-sm text-amber-900">
+                        {applyUpfrontFeeLine.label}:{' '}
+                        <strong>{formatInrFromPaise(applyUpfrontFeeLine.amountPaise)}</strong>
+                        {applyDraft?.fee_settlement?.application?.status === 'paid'
+                          ? ' — paid'
+                          : ' — required before you can submit'}
+                      </p>
+                      {applyDraft && !applicationFeePaid(applyDraft) && token ? (
+                        <div className="mt-3 space-y-2">
+                          {!applyPendingPayment ? (
+                            <>
+                              <label className="block text-xs font-semibold uppercase text-amber-900">
+                                Method
+                                <select
+                                  className="mt-1 w-full rounded-2xl border border-amber-200 px-3 py-2 text-sm"
+                                  onChange={(event) =>
+                                    setApplyPaymentMethod(
+                                      event.target.value as PaymentGatewayMethod,
+                                    )
+                                  }
+                                  value={applyPaymentMethod}
+                                >
+                                  <option value="upi">UPI</option>
+                                  <option value="card">Card</option>
+                                  <option value="netbanking">Net banking</option>
+                                  <option value="wallet">Wallet</option>
+                                </select>
+                              </label>
+                              <button
+                                className="w-full rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                                onClick={() =>
+                                  void initiateApplicationPayment(
+                                    applyDraft.id,
+                                    applyUpfrontFeeLine.amountPaise,
+                                    applyPaymentMethod,
+                                    'application',
+                                  )
+                                }
+                                type="button"
+                              >
+                                Initiate stub payment
+                              </button>
+                            </>
+                          ) : (
+                            <div className="rounded-xl bg-white p-3 text-sm">
+                              <p>
+                                Order <strong>{applyPendingPayment.gateway_order_id}</strong> —
+                                simulate capture to record payment.
+                              </p>
+                              <button
+                                className="mt-2 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                                onClick={() =>
+                                  void simulateStubSettlement(applyPendingPayment).then(() => {
+                                    setApplyPendingPayment(null);
+                                  })
+                                }
+                                type="button"
+                              >
+                                Simulate PSP capture
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                      {!applyDraft ? (
+                        <p className="mt-2 text-xs text-amber-800">
+                          Continue once — the form saves a draft and uploads documents first, then
+                          shows payment.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : selectedService &&
+                    inferPaymentSchedule(selectedService) === 'deferred_only' ? (
+                    <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      No fee is collected at apply. You will pay after the ULB issues a payment link
+                      following approval.
+                    </p>
+                  ) : null}
+
                   <button
-                    className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white"
+                    className="rounded-2xl bg-brand px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={applyRequiresUpfront && !applyCanSubmit && Boolean(applyDraft)}
                     type="submit"
                   >
-                    Submit Application
+                    {applyRequiresUpfront && applyDraft && !applyCanSubmit
+                      ? 'Pay application fee to enable submit'
+                      : 'Submit Application'}
                   </button>
                 </form>
               ) : (
@@ -2366,11 +2728,8 @@ export default function HomePage(): JSX.Element {
                 apiBaseUrl={apiBaseUrl}
                 application={applicationDetail}
                 comment={comment}
-                feePaise={
-                  applicationDetail
-                    ? getFixedFeePaise(feeServicesForDetailPanel, applicationDetail.service_code)
-                    : null
-                }
+                paymentLine={detailPaymentLine}
+                scheduledApprovalFee={detailApprovalFeeHint}
                 onCancel={() => void cancelCurrentApplication()}
                 onCommentChange={setComment}
                 onInitiatePayment={initiateApplicationPayment}

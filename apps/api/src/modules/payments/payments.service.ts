@@ -10,9 +10,18 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { tryAdvancePostApprovalOnPaymentPaid } from '../admin-tenant/post-approval-workflow.util';
 import { ApplicationsService } from '../applications/applications.service';
 import { ServicesService } from '../services/services.service';
+import { PostApprovalExecutionService } from '../work-orders/post-approval-execution.service';
 
+import {
+  buildInitialFeeSettlement,
+  coerceFeeSettlementSnapshot,
+  feeLineAllowsCitizenInitiate,
+  feeLineAmountPaise,
+  parseFeeLineCode,
+} from './fee-settlement.util';
 import { indianBusinessDayUtcBounds } from './finance-date';
 import { PAYMENT_STORE } from './payment-store';
 import { RECONCILIATION_EXPORT_ROLES } from './payments-finance-roles';
@@ -28,8 +37,8 @@ import type {
 import type { IPaymentGateway } from './payment-gateway';
 import type { PaymentStore, SettlementLedgerContext } from './payment-store';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
 import type { ApplicationReadScope } from '../applications/dto';
-import type { EffectiveServiceSummary } from '../services/service-catalogue.seed';
 
 function csvEscape(value: string | number): string {
   const asString = String(value);
@@ -44,6 +53,7 @@ export class PaymentsService {
   constructor(
     private readonly applications: ApplicationsService,
     private readonly services: ServicesService,
+    private readonly postApprovalExecution: PostApprovalExecutionService,
     @Inject('IPaymentGateway')
     private readonly gateway: IPaymentGateway,
     @Inject(PAYMENT_STORE)
@@ -55,6 +65,7 @@ export class PaymentsService {
     principal: AuthenticatedPrincipal,
     dto: InitiatePaymentDto,
     idempotencyKey: string | undefined,
+    readScope?: ApplicationReadScope,
   ): Promise<PaymentResponse> {
     const normalizedIdempotencyKey = idempotencyKey?.trim();
     if (!normalizedIdempotencyKey) {
@@ -62,12 +73,7 @@ export class PaymentsService {
     }
 
     const application = await this.applications.getOwnedApplication(principal, dto.application_id);
-    if (application.payment_status === 'not_required') {
-      throw new BadRequestException('Application does not require payment');
-    }
-    if (application.payment_status === 'paid') {
-      throw new BadRequestException('Application is already paid');
-    }
+    const feeCode = parseFeeLineCode(dto.fee_code, 'application');
 
     const businessTenantCode = application.tenant_code?.trim();
     if (!businessTenantCode) {
@@ -75,16 +81,24 @@ export class PaymentsService {
     }
     const businessTenantId = application.tenant_id;
 
-    const service = await this.services.getTenantService(
+    const paymentConfig = await this.services.resolvePaymentConfig(
       businessTenantCode,
       application.service_code,
     );
-    const expectedAmountPaise = this.getFixedAmountPaise(service);
+
+    let expectedAmountPaise: number;
+    try {
+      expectedAmountPaise = feeLineAmountPaise(paymentConfig, feeCode);
+    } catch {
+      throw new BadRequestException(
+        'Only fixed-fee application payments are enabled in Sprint 3.1A',
+      );
+    }
     if (dto.amount_paise !== expectedAmountPaise) {
       throw new BadRequestException('Payment amount does not match the application fee');
     }
 
-    const fingerprint = this.fingerprint(dto);
+    const fingerprint = this.fingerprint(dto, feeCode);
     const existingIdempotencyRecord = await this.store.findIdempotencyRecord(
       principal,
       normalizedIdempotencyKey,
@@ -97,9 +111,31 @@ export class PaymentsService {
       return this.getOwnedPayment(principal, existingIdempotencyRecord.paymentId);
     }
 
-    const activePayment = await this.store.findActivePaymentByApplication(application.id);
+    const activePayment = await this.store.findActivePaymentByApplication(application.id, feeCode);
     if (activePayment) {
-      throw new ConflictException('Application already has an active payment attempt');
+      const existing = await this.store.findByIdForPrincipal(
+        principal,
+        activePayment.id,
+        readScope,
+      );
+      if (existing && existing.application_id === application.id) {
+        return existing;
+      }
+      throw new ConflictException(
+        'Application already has an active payment attempt for this fee line',
+      );
+    }
+
+    const settlement =
+      Object.keys(coerceFeeSettlementSnapshot(application.fee_settlement)).length > 0
+        ? coerceFeeSettlementSnapshot(application.fee_settlement)
+        : buildInitialFeeSettlement(paymentConfig);
+    const feeLine = settlement[feeCode];
+    if (!feeLineAllowsCitizenInitiate(paymentConfig.payment_schedule, feeCode, feeLine)) {
+      throw new BadRequestException(`Payment line "${feeCode}" is not open for citizen initiation`);
+    }
+    if (feeLine?.status === 'paid') {
+      throw new BadRequestException('This fee line is already paid');
     }
 
     const paymentId = randomUUID();
@@ -116,6 +152,7 @@ export class PaymentsService {
       tenantId: businessTenantId,
       citizenSubject: principal.subject,
       applicationId: application.id,
+      feeCode,
       amountPaise: dto.amount_paise,
       method: dto.method,
       gateway: gatewayResult.gateway,
@@ -125,7 +162,11 @@ export class PaymentsService {
       requestFingerprint: fingerprint,
       expiresAt: this.nextDay(),
     });
-    await this.applications.recordPaymentStatus(principal, application.id, 'pending');
+    await this.applications.updateFeeLineSettlement(principal, application.id, feeCode, {
+      status: 'pending',
+      payment_id: payment.id,
+      amount_paise: dto.amount_paise,
+    });
 
     return payment;
   }
@@ -193,9 +234,124 @@ export class PaymentsService {
       ctx,
     );
 
-    await this.applications.recordPaymentStatus(principal, application.id, 'paid');
+    const feeCode = parseFeeLineCode(payment.fee_code, 'application');
+    await this.applications.updateFeeLineSettlement(principal, application.id, feeCode, {
+      status: 'paid',
+      payment_id: payment.id,
+      amount_paise: payment.amount_paise,
+    });
+
+    await tryAdvancePostApprovalOnPaymentPaid(
+      this.prisma,
+      application.tenant_id,
+      application.id,
+      this.postApprovalExecution,
+    );
 
     return ledger;
+  }
+
+  /**
+   * Department head desk transition effect — issues a citizen payment link via the stub gateway (ADR-0012 §9).
+   */
+  async issueDeskPaymentLink(
+    tenantId: string,
+    applicationId: string,
+    feeCodeInput?: FeeLineCode,
+  ): Promise<PaymentResponse> {
+    const feeCode = feeCodeInput ?? 'approval';
+    const row = await this.prisma.application.findFirst({
+      where: { id: applicationId, tenantId },
+      select: {
+        id: true,
+        tenantId: true,
+        serviceCode: true,
+        paymentStatus: true,
+        runtimeSnapshot: true,
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Application not found');
+    }
+    const snapshot =
+      row.runtimeSnapshot &&
+      typeof row.runtimeSnapshot === 'object' &&
+      !Array.isArray(row.runtimeSnapshot)
+        ? (row.runtimeSnapshot as Record<string, unknown>)
+        : {};
+    const citizenSubject =
+      typeof snapshot.citizen_subject === 'string' ? snapshot.citizen_subject.trim() : '';
+    if (!citizenSubject) {
+      throw new BadRequestException('Application is missing citizen_subject in runtime snapshot');
+    }
+    const tenantCode = typeof snapshot.tenant_code === 'string' ? snapshot.tenant_code.trim() : '';
+    if (!tenantCode) {
+      throw new BadRequestException('Application is missing tenant_code');
+    }
+
+    const paymentConfig = await this.services.resolvePaymentConfig(tenantCode, row.serviceCode);
+    const settlement = coerceFeeSettlementSnapshot(snapshot.fee_settlement);
+    const feeLine = settlement[feeCode];
+    if (!feeLine) {
+      throw new BadRequestException(`Fee line "${feeCode}" is not configured for this service`);
+    }
+    if (feeLine.status === 'paid') {
+      throw new BadRequestException('This fee line is already paid');
+    }
+
+    let amountPaise: number;
+    try {
+      amountPaise = feeLineAmountPaise(paymentConfig, feeCode);
+    } catch {
+      throw new BadRequestException('Only fixed-fee desk payment links are enabled in Phase 11');
+    }
+
+    const existing = await this.store.findActivePaymentByApplication(applicationId, feeCode);
+    if (existing) {
+      return existing;
+    }
+
+    const paymentId = randomUUID();
+    const gatewayResult = await this.gateway.initiate({
+      paymentId,
+      tenantId,
+      applicationId,
+      amountPaise,
+      currency: 'INR',
+      method: 'upi',
+    });
+    const payment = await this.store.createPendingPayment({
+      id: paymentId,
+      tenantId,
+      citizenSubject,
+      applicationId,
+      feeCode,
+      amountPaise,
+      method: 'upi',
+      gateway: gatewayResult.gateway,
+      gatewayOrderId: gatewayResult.gatewayOrderId,
+      redirectUrl: gatewayResult.redirectUrl,
+      idempotencyKey: `desk-payment:${applicationId}:${feeCode}`,
+      requestFingerprint: `desk:${applicationId}:${feeCode}:${amountPaise}`,
+      expiresAt: this.nextDay(),
+    });
+
+    await this.applications.updateFeeLineSettlementForTenant(
+      tenantId,
+      applicationId,
+      feeCode,
+      {
+        status: 'pending',
+        payment_id: payment.id,
+        amount_paise: amountPaise,
+      },
+      {
+        payment_redirect_url: payment.redirect_url,
+        active_payment_id: payment.id,
+      },
+    );
+
+    return payment;
   }
 
   async receiptForOwnedPayment(
@@ -334,25 +490,12 @@ export class PaymentsService {
     return payment;
   }
 
-  private getFixedAmountPaise(service: EffectiveServiceSummary): number {
-    if (service.fee_type !== 'fixed') {
-      throw new BadRequestException(
-        'Only fixed-fee application payments are enabled in Sprint 3.1A',
-      );
-    }
-
-    const amountPaise = service.fee_config.amount_paise;
-    if (typeof amountPaise !== 'number' || !Number.isInteger(amountPaise) || amountPaise <= 0) {
-      throw new BadRequestException('Service fee is not payable through Phase 3.1A');
-    }
-    return amountPaise;
-  }
-
-  private fingerprint(dto: InitiatePaymentDto): string {
+  private fingerprint(dto: InitiatePaymentDto, feeCode: FeeLineCode): string {
     return createHash('sha256')
       .update(
         JSON.stringify({
           application_id: dto.application_id,
+          fee_code: feeCode,
           amount_paise: dto.amount_paise,
           method: dto.method,
         }),

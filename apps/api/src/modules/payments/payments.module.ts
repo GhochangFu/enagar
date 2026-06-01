@@ -4,6 +4,7 @@ import { DatabaseModule } from '../../common/database/database.module';
 import { ApplicationsModule } from '../applications/applications.module';
 import { ServicesModule } from '../services/services.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { WorkOrdersModule } from '../work-orders/work-orders.module';
 
 import { InMemoryPaymentStore } from './in-memory-payment.store';
 import { PAYMENT_STORE } from './payment-store';
@@ -15,7 +16,7 @@ import { ReceiptVerificationService } from './receipt-verification.service';
 import { StubPaymentGateway } from './stub-payment.gateway';
 
 @Module({
-  imports: [ApplicationsModule, DatabaseModule, ServicesModule, TenantsModule],
+  imports: [ApplicationsModule, DatabaseModule, ServicesModule, TenantsModule, WorkOrdersModule],
   controllers: [PaymentsController, PublicReceiptsController],
   providers: [
     InMemoryPaymentStore,

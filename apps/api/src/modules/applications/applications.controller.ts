@@ -5,7 +5,12 @@ import { CITIZEN_MUNICIPALITY_SCOPE_HEADER } from '../../common/auth/citizen-sco
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 
 import { ApplicationsService } from './applications.service';
-import { CancelApplicationDto, CommentApplicationDto, CreateApplicationDto } from './dto';
+import {
+  CancelApplicationDto,
+  CommentApplicationDto,
+  CreateApplicationDto,
+  ApplicationFeedbackDto,
+} from './dto';
 
 import type { ApplicationReadScope, ApplicationResponse, ApplicationSummaryResponse } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -100,6 +105,21 @@ export class ApplicationsController {
     @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ): Promise<ApplicationResponse> {
     return this.applications.comment(
+      principal,
+      id,
+      dto,
+      readScopeFromHeader(municipalityTenantCode),
+    );
+  }
+
+  @Post(':id/feedback')
+  submitFeedback(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Body() dto: ApplicationFeedbackDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ): Promise<ApplicationResponse> {
+    return this.applications.submitFeedback(
       principal,
       id,
       dto,

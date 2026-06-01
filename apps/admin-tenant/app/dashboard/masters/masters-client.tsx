@@ -5,18 +5,26 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { GrievanceCataloguePanel } from '../../../components/grievance-catalogue-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
+import { OrgDesignationsPanel } from '../../../components/org-designations-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
 import type { ReactNode } from 'react';
 
-type MastersSection = 'revenue' | 'tariffs' | 'address' | 'catalogue' | 'grievances';
+type MastersSection =
+  | 'revenue'
+  | 'tariffs'
+  | 'address'
+  | 'catalogue'
+  | 'grievances'
+  | 'organisation';
 
 const MASTERS_SECTIONS: Array<{ id: MastersSection; label: string }> = [
   { id: 'revenue', label: 'Revenue heads' },
   { id: 'tariffs', label: 'Tariffs' },
   { id: 'address', label: 'Address master' },
   { id: 'catalogue', label: 'Catalogue' },
+  { id: 'organisation', label: 'Departments & designations' },
   { id: 'grievances', label: 'Grievance catalogue' },
 ];
 
@@ -52,11 +60,23 @@ type CatalogueRow = {
   global_code: string | null;
   tenant_service_id: string | null;
   category_code: string;
+  department_id: string | null;
+  department_code: string | null;
+  department_name: unknown;
   name: unknown;
   description: unknown;
   is_active: boolean;
   has_local_override: boolean;
   updated_at: string | null;
+};
+
+type DepartmentRow = {
+  id: string;
+  code: string;
+  name: unknown;
+  sort_order: number;
+  is_active: boolean;
+  designation_count: number;
 };
 
 type AddressImportResult = {
@@ -127,6 +147,7 @@ export default function MastersClient(): JSX.Element {
   const [addressRows, setAddressRows] = useState<AddressRow[]>([]);
   const [tariffs, setTariffs] = useState<TariffRow[]>([]);
   const [catalogueRows, setCatalogueRows] = useState<CatalogueRow[]>([]);
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [revenueDraft, setRevenueDraft] = useState({
     code: 'cert-fee',
     name_en: 'Certificate Fees',
@@ -216,7 +237,7 @@ export default function MastersClient(): JSX.Element {
       return;
     }
     try {
-      const [revenueRes, addressRes, tariffRes, catalogueRes] = await Promise.all([
+      const [revenueRes, addressRes, tariffRes, catalogueRes, departmentsRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/revenue-heads`, {
           cache: 'no-store',
           headers: authHeaders(),
@@ -230,19 +251,30 @@ export default function MastersClient(): JSX.Element {
           cache: 'no-store',
           headers: authHeaders(),
         }),
+        fetch(`${apiBase}/admin/tenant/org/departments`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
       ]);
       if (
         revenueRes.status === 403 ||
         addressRes.status === 403 ||
         tariffRes.status === 403 ||
-        catalogueRes.status === 403
+        catalogueRes.status === 403 ||
+        departmentsRes.status === 403
       ) {
         setStatus('Administrator access required for Masters.');
         return;
       }
-      if (!revenueRes.ok || !addressRes.ok || !tariffRes.ok || !catalogueRes.ok) {
+      if (
+        !revenueRes.ok ||
+        !addressRes.ok ||
+        !tariffRes.ok ||
+        !catalogueRes.ok ||
+        !departmentsRes.ok
+      ) {
         setStatus(
-          `Master load failed (${revenueRes.status}/${addressRes.status}/${tariffRes.status}/${catalogueRes.status}).`,
+          `Master load failed (${revenueRes.status}/${addressRes.status}/${tariffRes.status}/${catalogueRes.status}/${departmentsRes.status}).`,
         );
         return;
       }
@@ -250,6 +282,7 @@ export default function MastersClient(): JSX.Element {
       setAddressRows((await addressRes.json()) as AddressRow[]);
       setTariffs((await tariffRes.json()) as TariffRow[]);
       setCatalogueRows((await catalogueRes.json()) as CatalogueRow[]);
+      setDepartments((await departmentsRes.json()) as DepartmentRow[]);
       setStatus(null);
     } catch {
       setStatus(`Could not reach the API at ${apiBase}.`);
@@ -505,6 +538,24 @@ export default function MastersClient(): JSX.Element {
       return;
     }
     setStatus(`Catalogue ${action} complete for ${code}.`);
+    await loadMasters();
+  }
+
+  async function assignServiceDepartment(serviceId: string, departmentId: string): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ department_id: departmentId }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      setStatus(`Department assign failed (${res.status}). ${text.slice(0, 180)}`);
+      return;
+    }
+    setStatus('Service department updated.');
     await loadMasters();
   }
 
@@ -806,6 +857,22 @@ export default function MastersClient(): JSX.Element {
         </section>
       ) : null}
 
+      {section === 'organisation' ? (
+        <section className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-forest">
+              ADR-0011 · Phase 1
+            </p>
+            <h2 className="text-lg font-semibold text-ink-primary">Departments & designations</h2>
+            <p className="mt-1 text-sm text-ink-secondary">
+              ULB organisation master for workflow designations. Assign multiple designations per
+              staff member for Desk queue routing (Phase 4+).
+            </p>
+          </div>
+          <OrgDesignationsPanel />
+        </section>
+      ) : null}
+
       {section === 'grievances' ? (
         <section className="space-y-4">
           <div>
@@ -833,7 +900,7 @@ export default function MastersClient(): JSX.Element {
             </h2>
             <p className="mt-1 text-sm text-ink-secondary">
               Adopt global templates, fork local copies, or deactivate this tenant&apos;s view
-              without changing global catalogue rows.
+              without changing global catalogue rows. Assign adopted services to a department below.
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -841,6 +908,7 @@ export default function MastersClient(): JSX.Element {
               <CatalogueServiceCard
                 key={`${row.source}:${row.code}`}
                 row={row}
+                departments={departments}
                 onAdopt={
                   row.global_code
                     ? () => void catalogueAction(row.global_code ?? row.code, 'adopt')
@@ -848,6 +916,12 @@ export default function MastersClient(): JSX.Element {
                 }
                 onFork={() => void catalogueAction(row.global_code ?? row.code, 'fork')}
                 onDeactivate={() => void catalogueAction(row.code, 'deactivate')}
+                onAssignDepartment={
+                  row.tenant_service_id
+                    ? (departmentId) =>
+                        void assignServiceDepartment(row.tenant_service_id!, departmentId)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -893,15 +967,20 @@ function CatalogueSourceBadge({ source }: { source: CatalogueRow['source'] }): J
 
 function CatalogueServiceCard({
   row,
+  departments,
   onAdopt,
   onFork,
   onDeactivate,
+  onAssignDepartment,
 }: {
   row: CatalogueRow;
+  departments: DepartmentRow[];
   onAdopt?: () => void;
   onFork: () => void;
   onDeactivate: () => void;
+  onAssignDepartment?: (departmentId: string) => void;
 }): JSX.Element {
+  const activeDepartments = departments.filter((department) => department.is_active);
   return (
     <article className="rounded-2xl border border-warm-border bg-canvas p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -927,6 +1006,29 @@ function CatalogueServiceCard({
             Global template: {row.global_code ?? 'none'}
             {row.tenant_service_id ? ` · local id ${row.tenant_service_id}` : ''}
           </p>
+          {row.department_code ? (
+            <p className="text-xs text-ink-secondary">
+              Department: {pickLabel(row.department_name)} ({row.department_code})
+            </p>
+          ) : null}
+          {onAssignDepartment && activeDepartments.length > 0 ? (
+            <label className="block pt-1 text-xs font-medium uppercase tracking-wide text-ink-secondary">
+              Assign department
+              <select
+                className="mt-1 w-full rounded border border-warm-border bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
+                value={row.department_id ?? activeDepartments[0]?.id ?? ''}
+                onChange={(event) => onAssignDepartment(event.target.value)}
+              >
+                {activeDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {pickLabel(department.name)} ({department.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : row.tenant_service_id ? null : (
+            <p className="text-xs text-ink-secondary">Adopt this service to assign a department.</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {onAdopt ? (
