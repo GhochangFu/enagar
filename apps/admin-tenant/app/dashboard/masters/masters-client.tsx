@@ -233,6 +233,19 @@ export default function MastersClient(): JSX.Element {
     [token],
   );
 
+  const loadDepartments = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    const departmentsRes = await fetch(`${apiBase}/admin/tenant/org/departments`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (departmentsRes.ok) {
+      setDepartments((await departmentsRes.json()) as DepartmentRow[]);
+    }
+  }, [apiBase, authHeaders, token]);
+
   const loadMasters = useCallback(async () => {
     if (!token) {
       return;
@@ -293,6 +306,12 @@ export default function MastersClient(): JSX.Element {
   useEffect(() => {
     void loadMasters();
   }, [loadMasters]);
+
+  useEffect(() => {
+    if (section === 'catalogue' || section === 'organisation') {
+      void loadDepartments();
+    }
+  }, [loadDepartments, section]);
 
   async function upsert(path: string, bodyText: string, label: string): Promise<void> {
     if (!token) {
@@ -871,7 +890,7 @@ export default function MastersClient(): JSX.Element {
                   per staff member for Desk queue routing (Phase 4+).
                 </p>
               </div>
-              <OrgDesignationsPanel />
+              <OrgDesignationsPanel onOrgChanged={() => void loadDepartments()} />
             </section>
           ) : null}
 
@@ -1016,21 +1035,33 @@ function CatalogueServiceCard({
               Department: {pickLabel(row.department_name)} ({row.department_code})
             </p>
           ) : null}
-          {onAssignDepartment && activeDepartments.length > 0 ? (
-            <label className="block pt-1 text-xs font-medium uppercase tracking-wide text-ink-secondary">
-              Assign department
-              <select
-                className="mt-1 w-full rounded border border-warm-border bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
-                value={row.department_id ?? activeDepartments[0]?.id ?? ''}
-                onChange={(event) => onAssignDepartment(event.target.value)}
-              >
-                {activeDepartments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {pickLabel(department.name)} ({department.code})
-                  </option>
-                ))}
-              </select>
-            </label>
+          {onAssignDepartment ? (
+            activeDepartments.length > 0 ? (
+              <label className="block pt-1 text-xs font-medium uppercase tracking-wide text-ink-secondary">
+                Assign department
+                <select
+                  className="mt-1 w-full rounded border border-warm-border bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink-primary"
+                  value={
+                    row.department_id &&
+                    activeDepartments.some((department) => department.id === row.department_id)
+                      ? row.department_id
+                      : (activeDepartments[0]?.id ?? '')
+                  }
+                  onChange={(event) => onAssignDepartment(event.target.value)}
+                >
+                  {activeDepartments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {pickLabel(department.name)} ({department.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="pt-1 text-xs text-ink-secondary">
+                No active departments. Add one under Departments &amp; designations, then refresh or
+                reopen Catalogue.
+              </p>
+            )
           ) : row.tenant_service_id ? null : (
             <p className="text-xs text-ink-secondary">Adopt this service to assign a department.</p>
           )}

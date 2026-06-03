@@ -58,7 +58,12 @@ const EMPTY_DESIG = {
   is_active: true,
 };
 
-export function OrgDesignationsPanel(): JSX.Element {
+export function OrgDesignationsPanel({
+  onOrgChanged,
+}: {
+  /** Called after department/designation mutations so parent views (e.g. catalogue) can refresh lists. */
+  onOrgChanged?: () => void;
+} = {}): JSX.Element {
   const { token, apiBase } = useTenantAdminSession();
   const [status, setStatus] = useState<string | null>(null);
   const [tab, setTab] = useState<'departments' | 'designations' | 'staff'>('departments');
@@ -190,7 +195,14 @@ export function OrgDesignationsPanel(): JSX.Element {
     setSelectedDeptCode(null);
     setDeptDraft(EMPTY_DEPT);
     await loadAll();
+    onOrgChanged?.();
     setStatus('Department saved.');
+  }
+
+  function newDepartment(): void {
+    setSelectedDeptCode(null);
+    setDeptDraft(EMPTY_DEPT);
+    setStatus(null);
   }
 
   async function saveDesignation(): Promise<void> {
@@ -226,6 +238,7 @@ export function OrgDesignationsPanel(): JSX.Element {
     setSelectedDesigCode(null);
     setDesigDraft(EMPTY_DESIG);
     await loadAll();
+    onOrgChanged?.();
     setStatus('Designation saved.');
   }
 
@@ -280,7 +293,10 @@ export function OrgDesignationsPanel(): JSX.Element {
         <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
           <RecordListPanel
             title="Departments"
-            emptyLabel="No departments yet. Seed on migrate or add one."
+            selectedKey={selectedDeptCode}
+            onNew={newDepartment}
+            newLabel="New department"
+            emptyLabel="No departments yet. Use New department to add one."
           >
             {departments.map((row) => (
               <RecordListItem
