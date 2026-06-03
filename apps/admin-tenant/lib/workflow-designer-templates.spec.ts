@@ -1,6 +1,7 @@
 import { createLinearWorkflowDraft, validateWorkflowDefinition } from '@enagar/workflow';
 
 import {
+  applyBookingHallTemplate,
   applyHoardingScrutinyTemplate,
   applyMunicipalLadderTemplate,
   applyPwdWorksTemplate,
@@ -60,5 +61,13 @@ describe('workflow designer templates', () => {
       'forward-to-dept-head-final',
       'reject',
     ]);
+  });
+
+  it('validates hall booking template with slot-review and tenant-prefixed code', () => {
+    const workflow = applyBookingHallTemplate(base(), 'community-hall');
+    expect(validateWorkflowDefinition(workflow).ok).toBe(true);
+    expect(workflow.code).toBe('community-hall-booking-v1');
+    expect(workflow.stages.some((stage) => stage.code === 'slot-review')).toBe(true);
+    expect(workflow.transitions.some((transition) => transition.verb === 'review-slot')).toBe(true);
   });
 });

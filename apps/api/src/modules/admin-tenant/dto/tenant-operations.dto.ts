@@ -1,12 +1,23 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
+
+function toOptionalString(value: unknown): string | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+  return String(value);
+}
 
 export class UpsertTenantBannerDto {
   @IsString()
@@ -173,12 +184,40 @@ export class UpsertBookableAssetDto {
   name!: Record<string, unknown>;
 
   @IsOptional()
+  @IsString()
+  asset_type?: string;
+
+  @IsOptional()
   @IsObject()
   location?: Record<string, unknown>;
 
   @IsOptional()
+  @Transform(({ value }) => toOptionalString(value))
   @IsString()
   capacity?: string;
+
+  @IsOptional()
+  @IsString()
+  rate_unit?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toOptionalString(value))
+  @IsString()
+  base_rate_paise?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toOptionalString(value))
+  @IsString()
+  security_deposit_paise?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toOptionalString(value))
+  @IsString()
+  slot_step_minutes?: string;
+
+  @IsOptional()
+  @IsObject()
+  rules?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()
@@ -207,6 +246,46 @@ export class UpsertBookableAvailabilityDto {
   note?: string;
 }
 
+export class BulkBookableAvailabilityDto {
+  @IsString()
+  asset_code!: string;
+
+  @IsString()
+  @IsIn(['available', 'blackout'])
+  kind!: 'available' | 'blackout';
+
+  /** IST civil dates inclusive, YYYY-MM-DD. */
+  @IsString()
+  from_date!: string;
+
+  @IsString()
+  to_date!: string;
+
+  /** IST local times HH:mm (e.g. 09:00). */
+  @IsString()
+  start_time!: string;
+
+  @IsString()
+  end_time!: string;
+
+  /** IST weekday numbers: 0 = Sunday … 6 = Saturday. Default Mon–Fri when omitted. */
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  weekdays?: number[];
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  /** When true (default), skip windows that already exist for the same slot. */
+  @IsOptional()
+  @IsBoolean()
+  skip_existing?: boolean;
+}
+
 export class UpsertBookingReservationDto {
   @IsString()
   asset_code!: string;
@@ -217,6 +296,18 @@ export class UpsertBookingReservationDto {
   @IsOptional()
   @IsString()
   holder_mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  booking_no?: string;
+
+  @IsOptional()
+  @IsString()
+  citizen_id?: string;
+
+  @IsOptional()
+  @IsString()
+  deposit_id?: string;
 
   @IsOptional()
   @IsString()

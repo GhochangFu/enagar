@@ -154,8 +154,8 @@ export class ChatbotContextService {
         status: row.status,
         amountPaise: row.amountPaise,
         createdAt: row.createdAt,
-        docketNo: row.application.docketNo,
-        serviceCode: row.application.serviceCode,
+        docketNo: row.application?.docketNo ?? '',
+        serviceCode: row.application?.serviceCode ?? '',
       })),
     });
   }

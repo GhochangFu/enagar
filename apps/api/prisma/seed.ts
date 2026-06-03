@@ -167,6 +167,30 @@ const priorityServiceFormSchemas = [
   },
   {
     schema_version: 1,
+    service_code: 'other-facility-booking',
+    version: 1,
+    title: label('Other Facility Booking', 'অন্যান্য সুবিধা বুকিং', 'अन्य सुविधा बुकिंग'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+      }),
+      dateField('event_date', 'Event date', 'অনুষ্ঠানের তারিখ', 'कार्यक्रम तिथि', {
+        required: true,
+      }),
+      numberField('guest_count', 'Guest count', 'অতিথির সংখ্যা', 'अतिथि संख्या', {
+        required: true,
+        min: 1,
+        max: 500,
+      }),
+      textarea('event_details', 'Event details', 'অনুষ্ঠানের বিবরণ', 'कार्यक्रम विवरण', {
+        required: true,
+        min_length: 10,
+        max_length: 1000,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
     service_code: 'rti',
     version: 1,
     title: label('RTI Application', 'আরটিআই আবেদন', 'आरटीआई आवेदन'),
@@ -888,6 +912,7 @@ async function seedServiceCatalogue(prisma: PrismaClient): Promise<void> {
           source: service.source,
           ...(service.payment_schedule ? { payment_schedule: service.payment_schedule } : {}),
           ...(service.fee_lines ? { fee_lines: service.fee_lines } : {}),
+          ...(override?.override_config ?? {}),
         } as Prisma.InputJsonValue,
         effectiveFeeConfig: {
           type: service.fee_type,
@@ -1042,6 +1067,9 @@ async function main(): Promise<void> {
     }
     await seedServiceCatalogue(prisma);
     console.info('Seeded service catalogue for operational tenants');
+    const { seedBookableAssetsForKmc } = await import('./seed/bookable-assets');
+    await seedBookableAssetsForKmc(prisma);
+    console.info('Seeded Sprint 8.1A KMC bookable hall asset and availability');
     const kbCount = await seedSahayakServiceHelpArticles(prisma);
     console.info(`Seeded ${kbCount} Sahayak service-help KB articles (all ULBs)`);
     await seedChatbotTenantConfig(prisma);

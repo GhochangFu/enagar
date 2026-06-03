@@ -13,6 +13,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
+import { BookingsService } from '../bookings/bookings.service';
+import { BookingCancelDto } from '../bookings/dto/bookings.dto';
 
 import { AdminTenantGrievanceConfigService } from './admin-tenant-grievance-config.service';
 import { AdminTenantGrievanceGovernanceService } from './admin-tenant-grievance-governance.service';
@@ -56,6 +58,7 @@ import {
   RequeueKbArticleDto,
   UpdateStaffInviteDto,
   UpsertBookableAssetDto,
+  BulkBookableAvailabilityDto,
   UpsertBookableAvailabilityDto,
   UpsertBookingReservationDto,
   CreateBrandingAssetUploadIntentDto,
@@ -75,6 +78,7 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 export class AdminTenantController {
   constructor(
     private readonly adminTenant: AdminTenantService,
+    private readonly bookings: BookingsService,
     private readonly grievanceConfig: AdminTenantGrievanceConfigService,
     private readonly grievanceGovernance: AdminTenantGrievanceGovernanceService,
     private readonly org: AdminTenantOrgService,
@@ -591,6 +595,18 @@ export class AdminTenantController {
     return this.adminTenant.addBookableAvailability(principal, dto);
   }
 
+  @Post('bookings/availability/bulk')
+  @ApiOperation({
+    summary:
+      'Bulk-generate availability or blackout windows (IST date range + weekdays + daily hours)',
+  })
+  bulkAddBookableAvailability(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: BulkBookableAvailabilityDto,
+  ) {
+    return this.adminTenant.bulkAddBookableAvailability(principal, dto);
+  }
+
   @Post('bookings/reservations')
   @ApiOperation({ summary: 'Create a conflict-checked reservation hold or booking' })
   addBookingReservation(
@@ -598,6 +614,16 @@ export class AdminTenantController {
     @Body() dto: UpsertBookingReservationDto,
   ) {
     return this.adminTenant.addBookingReservation(principal, dto);
+  }
+
+  @Post('bookings/reservations/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a booking reservation (staff, Sprint 8.1B)' })
+  cancelBookingReservation(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') reservationId: string,
+    @Body() dto: BookingCancelDto,
+  ) {
+    return this.bookings.cancelReservation(principal, reservationId, dto);
   }
 
   @Get('org/departments')

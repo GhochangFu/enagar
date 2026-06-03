@@ -47,6 +47,7 @@ function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
     receipt_number: receiptRow.receiptNumber,
     payment_id: receiptRow.paymentId,
     application_id: receiptRow.applicationId,
+    booking_reservation_id: receiptRow.bookingReservationId,
     service_code: receiptRow.serviceCode,
     revenue_head_code: receiptRow.revenueHeadCode,
     amount_paise: receiptRow.amountPaise,
@@ -109,14 +110,30 @@ export class PostgresPaymentStore implements PaymentStore {
     return payment ? this.toPaymentResponse(payment) : null;
   }
 
+  async findActivePaymentByBookingReservation(
+    bookingReservationId: string,
+  ): Promise<PaymentResponse | null> {
+    const payment = await this.db.payment.findFirst({
+      where: {
+        bookingReservationId,
+        status: 'requires_action',
+      },
+    });
+    return payment ? this.toPaymentResponse(payment) : null;
+  }
+
   async createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse> {
     const payment = await this.db.$transaction(async (tx) => {
+      if (!input.applicationId && !input.bookingReservationId) {
+        throw new BadRequestException('Payment must target an application or booking hold');
+      }
       const created = await tx.payment.create({
         data: {
           id: input.id,
           tenantId: input.tenantId,
           citizenSubject: input.citizenSubject,
-          applicationId: input.applicationId,
+          applicationId: input.applicationId ?? null,
+          bookingReservationId: input.bookingReservationId ?? null,
           feeCode: input.feeCode,
           amountPaise: input.amountPaise,
           currency: 'INR',
@@ -258,6 +275,7 @@ export class PostgresPaymentStore implements PaymentStore {
           revenueHeadCode: ctx.revenueHeadCode,
           accountingCode: ctx.accountingCode,
           applicationId: paymentOwned.applicationId,
+          bookingReservationId: paymentOwned.bookingReservationId,
           serviceCode: ctx.serviceCode,
           amountPaise: paymentOwned.amountPaise,
           gateway: paymentOwned.gateway,
@@ -288,6 +306,19 @@ export class PostgresPaymentStore implements PaymentStore {
           settledAt: new Date(),
         },
       });
+
+      if (paymentOwned.bookingReservationId) {
+        const reservation = await tx.bookingReservation.findUnique({
+          where: { id: paymentOwned.bookingReservationId },
+          select: { depositId: true },
+        });
+        if (reservation?.depositId) {
+          await tx.deposit.update({
+            where: { id: reservation.depositId },
+            data: { capturePaymentId: paymentOwned.id },
+          });
+        }
+      }
 
       return {
         payment: settledPayment,
@@ -331,6 +362,7 @@ export class PostgresPaymentStore implements PaymentStore {
       tenant_id: row.tenantId,
       citizen_subject: row.citizenSubject,
       application_id: row.applicationId,
+      booking_reservation_id: row.bookingReservationId,
       fee_code: row.feeCode as PaymentResponse['fee_code'],
       amount_paise: row.amountPaise,
       currency: 'INR',

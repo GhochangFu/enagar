@@ -5,12 +5,14 @@ import { AlertBanner, Button, PageHeader } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { BookingsCalendarPanel } from '../../../components/bookings-calendar-panel';
 import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
 import { SectionNav } from '../../../components/section-nav';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 import { clearStoredAuth } from '../../../lib/admin-auth';
+import { addDaysYmd, istWindowToIso, ymdTodayIst } from '../../../lib/bookings-calendar.util';
 
 import type { ReactNode } from 'react';
 
@@ -118,6 +120,12 @@ type BookableAssetRow = {
   name: unknown;
   capacity: number | null;
   is_active: boolean;
+  rate_unit?: string;
+  base_rate_paise?: number;
+  security_deposit_paise?: number;
+  slot_step_minutes?: number;
+  rules?: Record<string, unknown> | null;
+  location?: Record<string, unknown> | null;
 };
 
 type AvailabilityRow = {
@@ -269,14 +277,40 @@ export default function OperationsClient(): JSX.Element {
     address: 'Main municipal hall',
     capacity: '120',
     is_active: true,
+    rate_unit: 'HOUR',
+    base_rate_paise: '50000',
+    security_deposit_paise: '500000',
+    slot_step_minutes: '60',
+    open_time: '09:00',
+    close_time: '21:00',
+    min_duration_hours: '1',
+    max_duration_hours: '8',
   });
+  const [bookingCalendarAssetFilter, setBookingCalendarAssetFilter] = useState('');
   const [bookingAvailabilityDraft, setBookingAvailabilityDraft] = useState({
     asset_code: 'community-hall-main',
     kind: 'available',
+    avail_date: '',
+    start_time: '09:00',
+    end_time: '21:00',
     starts_at: '',
     ends_at: '',
     note: 'General booking window',
   });
+  const [bookingBulkAvailDraft, setBookingBulkAvailDraft] = useState(() => {
+    const from = addDaysYmd(ymdTodayIst(), 1);
+    return {
+      asset_code: '',
+      kind: 'available' as 'available' | 'blackout',
+      from_date: from,
+      to_date: addDaysYmd(from, 55),
+      start_time: '09:00',
+      end_time: '21:00',
+      weekdays: [1, 2, 3, 4, 5] as number[],
+      note: 'Weekday booking hours (bulk generated)',
+    };
+  });
+  const [bulkAvailBusy, setBulkAvailBusy] = useState(false);
   const [bookingReservationDraft, setBookingReservationDraft] = useState({
     asset_code: 'community-hall-main',
     holder_name: 'Citizen booking smoke',
@@ -612,6 +646,7 @@ export default function OperationsClient(): JSX.Element {
 
   async function upsert(path: string, bodyText: string, label: string): Promise<void> {
     if (!token) {
+      setStatus('Sign in again — your session token is missing.');
       return;
     }
     let body: unknown;
@@ -621,11 +656,20 @@ export default function OperationsClient(): JSX.Element {
       setStatus(`${label} JSON is invalid.`);
       return;
     }
-    const res = await fetch(`${apiBase}/admin/tenant/${path}`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${apiBase}/admin/tenant/${path}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      const hint = err instanceof Error ? err.message : 'Network error';
+      setStatus(
+        `${label}: cannot reach API at ${apiBase}. Start the API (pnpm dev:portals). (${hint})`,
+      );
+      return;
+    }
     if (!res.ok) {
       if (redirectIfUnauthorized(res)) {
         return;
@@ -752,6 +796,10 @@ export default function OperationsClient(): JSX.Element {
     method: 'PATCH' | 'POST',
     label: string,
   ): Promise<void> {
+    if (!token) {
+      setStatus('Sign in again — your session token is missing.');
+      return;
+    }
     let body: unknown;
     try {
       body = JSON.parse(bodyText);
@@ -759,11 +807,20 @@ export default function OperationsClient(): JSX.Element {
       setStatus(`${label} JSON is invalid.`);
       return;
     }
-    const res = await fetch(`${apiBase}/admin/tenant/${path}`, {
-      method,
-      headers: authHeaders(),
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${apiBase}/admin/tenant/${path}`, {
+        method,
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      const hint = err instanceof Error ? err.message : 'Network error';
+      setStatus(
+        `${label}: cannot reach API at ${apiBase}. Start the API (e.g. pnpm dev:portals) and confirm NEXT_PUBLIC_API_BASE_URL ends with /api. (${hint})`,
+      );
+      return;
+    }
     if (!res.ok) {
       if (redirectIfUnauthorized(res)) return;
       const text = await res.text().catch(() => '');
@@ -858,14 +915,115 @@ export default function OperationsClient(): JSX.Element {
 
   function selectBookableAsset(asset: BookableAssetRow): void {
     setSelectedBookableCode(asset.code);
+    const location = asset.location as { ward?: string; address?: string } | null;
+    const rules = asset.rules ?? {};
+    const openTime = typeof rules.open_time === 'string' ? rules.open_time : '09:00';
+    const closeTime = typeof rules.close_time === 'string' ? rules.close_time : '21:00';
+    setBookingAvailabilityDraft((draft) => ({
+      ...draft,
+      asset_code: asset.code,
+      start_time: openTime,
+      end_time: closeTime,
+    }));
+    setBookingBulkAvailDraft((draft) => ({
+      ...draft,
+      asset_code: asset.code,
+      start_time: openTime,
+      end_time: closeTime,
+    }));
+    setBookingCalendarAssetFilter(asset.code);
+    const minH =
+      typeof rules.min_duration_minutes === 'number'
+        ? String(Math.max(1, Math.round(rules.min_duration_minutes / 60)))
+        : '1';
+    const maxH =
+      typeof rules.max_duration_minutes === 'number'
+        ? String(Math.max(1, Math.round(rules.max_duration_minutes / 60)))
+        : '8';
     setBookingAssetDraft({
       code: asset.code,
       name_en: pickLabel(asset.name),
-      ward: '',
-      address: '',
+      ward: location?.ward ?? '',
+      address: typeof location?.address === 'string' ? location.address : '',
       capacity: asset.capacity === null ? '' : String(asset.capacity),
       is_active: asset.is_active,
+      rate_unit: asset.rate_unit ?? 'HOUR',
+      base_rate_paise: asset.base_rate_paise != null ? String(asset.base_rate_paise) : '0',
+      security_deposit_paise:
+        asset.security_deposit_paise != null ? String(asset.security_deposit_paise) : '0',
+      slot_step_minutes: asset.slot_step_minutes != null ? String(asset.slot_step_minutes) : '60',
+      open_time: openTime,
+      close_time: closeTime,
+      min_duration_hours: minH,
+      max_duration_hours: maxH,
     });
+  }
+
+  function toggleBulkWeekday(day: number): void {
+    setBookingBulkAvailDraft((draft) => {
+      const has = draft.weekdays.includes(day);
+      const weekdays = has
+        ? draft.weekdays.filter((value) => value !== day)
+        : [...draft.weekdays, day].sort((a, b) => a - b);
+      return { ...draft, weekdays };
+    });
+  }
+
+  async function saveBulkAvailability(): Promise<void> {
+    if (!token) {
+      setStatus('Sign in again — your session token is missing.');
+      return;
+    }
+    const assetCode = bookingBulkAvailDraft.asset_code.trim();
+    if (!assetCode) {
+      setStatus('Bulk availability: choose an asset.');
+      return;
+    }
+    if (bookingBulkAvailDraft.weekdays.length === 0) {
+      setStatus('Bulk availability: select at least one weekday.');
+      return;
+    }
+    setBulkAvailBusy(true);
+    const payload = {
+      asset_code: assetCode,
+      kind: bookingBulkAvailDraft.kind,
+      from_date: bookingBulkAvailDraft.from_date.trim(),
+      to_date: bookingBulkAvailDraft.to_date.trim(),
+      start_time: bookingBulkAvailDraft.start_time.trim(),
+      end_time: bookingBulkAvailDraft.end_time.trim(),
+      weekdays: bookingBulkAvailDraft.weekdays,
+      note: bookingBulkAvailDraft.note.trim() || undefined,
+      skip_existing: true,
+    };
+    try {
+      const res = await fetch(`${apiBase}/admin/tenant/bookings/availability/bulk`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        if (redirectIfUnauthorized(res)) {
+          return;
+        }
+        const text = await res.text().catch(() => '');
+        setStatus(`Bulk availability failed (${res.status}). ${text.slice(0, 220)}`);
+        return;
+      }
+      const result = (await res.json()) as {
+        created: number;
+        skipped: number;
+        days_matched: number;
+      };
+      setStatus(
+        `Bulk availability for ${assetCode}: created ${result.created}, skipped ${result.skipped} (${result.days_matched} matching days).`,
+      );
+      await loadOperations();
+    } catch (err) {
+      const hint = err instanceof Error ? err.message : 'Network error';
+      setStatus(`Bulk availability: cannot reach API at ${apiBase}. (${hint})`);
+    } finally {
+      setBulkAvailBusy(false);
+    }
   }
 
   async function saveGuidedSettings(): Promise<void> {
@@ -965,12 +1123,67 @@ export default function OperationsClient(): JSX.Element {
     await saveJsonEndpoint('branding-assets', pretty(payload), 'PATCH', 'Branding asset');
   }
 
+  function newBookableAsset(): void {
+    setSelectedBookableCode(null);
+    setBookingAssetDraft({
+      code: '',
+      name_en: '',
+      ward: '',
+      address: '',
+      capacity: '',
+      is_active: true,
+      rate_unit: 'HOUR',
+      base_rate_paise: '50000',
+      security_deposit_paise: '500000',
+      slot_step_minutes: '60',
+      open_time: '09:00',
+      close_time: '21:00',
+      min_duration_hours: '1',
+      max_duration_hours: '8',
+    });
+    setBookingAssetText(
+      pretty({
+        code: '',
+        asset_type: 'HALL',
+        name: { en: '', bn: '', hi: '' },
+        location: { ward: '', address: '' },
+        rate_unit: 'HOUR',
+        base_rate_paise: '50000',
+        security_deposit_paise: '500000',
+        slot_step_minutes: '60',
+        rules: { min_duration_minutes: 60, max_duration_minutes: 480 },
+        is_active: true,
+        metadata: {},
+      }),
+    );
+  }
+
   async function saveGuidedBookableAsset(): Promise<void> {
+    const code = bookingAssetDraft.code.trim();
+    const nameEn = bookingAssetDraft.name_en.trim();
+    if (!code || !nameEn) {
+      setStatus('Bookable asset requires a code and name (EN).');
+      return;
+    }
+    const minMinutes = Math.max(1, Number(bookingAssetDraft.min_duration_hours || '1')) * 60;
+    const maxMinutes =
+      Math.max(minMinutes, Number(bookingAssetDraft.max_duration_hours || '8')) * 60;
     const payload = {
-      code: bookingAssetDraft.code,
-      name: asLocaleMap(bookingAssetDraft.name_en),
+      code,
+      asset_type: 'HALL',
+      name: asLocaleMap(nameEn),
       location: { ward: bookingAssetDraft.ward, address: bookingAssetDraft.address },
-      capacity: bookingAssetDraft.capacity ? Number(bookingAssetDraft.capacity) : null,
+      capacity: bookingAssetDraft.capacity.trim() || undefined,
+      rate_unit: bookingAssetDraft.rate_unit || 'HOUR',
+      base_rate_paise: bookingAssetDraft.base_rate_paise || '0',
+      security_deposit_paise: bookingAssetDraft.security_deposit_paise || '0',
+      slot_step_minutes: bookingAssetDraft.slot_step_minutes || '60',
+      rules: {
+        min_duration_minutes: minMinutes,
+        max_duration_minutes: maxMinutes,
+        open_time: bookingAssetDraft.open_time,
+        close_time: bookingAssetDraft.close_time,
+      },
       is_active: bookingAssetDraft.is_active,
       metadata: {},
     };
@@ -979,11 +1192,19 @@ export default function OperationsClient(): JSX.Element {
   }
 
   async function saveGuidedAvailability(): Promise<void> {
+    const date =
+      bookingAvailabilityDraft.avail_date ||
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const window = istWindowToIso(
+      date,
+      bookingAvailabilityDraft.start_time || '09:00',
+      bookingAvailabilityDraft.end_time || '21:00',
+    );
     const payload = {
       asset_code: bookingAvailabilityDraft.asset_code,
       kind: bookingAvailabilityDraft.kind,
-      starts_at: bookingAvailabilityDraft.starts_at || new Date().toISOString(),
-      ends_at: bookingAvailabilityDraft.ends_at || new Date(Date.now() + 3600000).toISOString(),
+      starts_at: bookingAvailabilityDraft.starts_at || window.starts_at,
+      ends_at: bookingAvailabilityDraft.ends_at || window.ends_at,
       note: bookingAvailabilityDraft.note,
     };
     setBookingAvailabilityText(pretty(payload));
@@ -1545,9 +1766,13 @@ export default function OperationsClient(): JSX.Element {
                     title={
                       selectedBookableCode
                         ? `Edit bookable asset · ${selectedBookableCode}`
-                        : 'Bookable asset'
+                        : 'New bookable asset'
                     }
                     saveLabel="Save asset"
+                    saveTestId="ops-save-bookable-asset"
+                    newLabel="New asset"
+                    newTestId="ops-new-bookable-asset"
+                    onNew={newBookableAsset}
                     onSave={() => void saveGuidedBookableAsset()}
                   >
                     <div className="grid gap-3 md:grid-cols-2">
@@ -1580,6 +1805,62 @@ export default function OperationsClient(): JSX.Element {
                         value={bookingAssetDraft.capacity}
                         onChange={(value) =>
                           setBookingAssetDraft((d) => ({ ...d, capacity: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Rate unit"
+                        value={bookingAssetDraft.rate_unit}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, rate_unit: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Base rate (paise / hour)"
+                        value={bookingAssetDraft.base_rate_paise}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, base_rate_paise: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Security deposit (paise)"
+                        value={bookingAssetDraft.security_deposit_paise}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, security_deposit_paise: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Slot step (minutes)"
+                        value={bookingAssetDraft.slot_step_minutes}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, slot_step_minutes: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Open time (IST)"
+                        value={bookingAssetDraft.open_time}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, open_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Close time (IST)"
+                        value={bookingAssetDraft.close_time}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, close_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Min duration (hours)"
+                        value={bookingAssetDraft.min_duration_hours}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, min_duration_hours: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Max duration (hours)"
+                        value={bookingAssetDraft.max_duration_hours}
+                        onChange={(value) =>
+                          setBookingAssetDraft((d) => ({ ...d, max_duration_hours: value }))
                         }
                       />
                       <label className="flex items-center gap-2 text-sm text-ink-primary">
@@ -1630,8 +1911,112 @@ export default function OperationsClient(): JSX.Element {
               <section className="grid gap-6 xl:grid-cols-2">
                 <div className="space-y-4">
                   <GuidedOpsCard
-                    title="Availability / blackout window"
-                    saveLabel="Save availability"
+                    title="Bulk generate availability (IST)"
+                    saveLabel={bulkAvailBusy ? 'Generating…' : 'Generate windows'}
+                    onSave={() => void saveBulkAvailability()}
+                  >
+                    <p className="text-sm text-ink-secondary">
+                      Creates one window per matching weekday between the dates, using the daily
+                      open/close times below. Skips slots that already exist. Use this after adding
+                      a new hall (e.g. Rabindra Bhawan).
+                    </p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="font-semibold text-ink-primary">Asset</span>
+                        <select
+                          className="mt-1 w-full rounded-xl border border-warm-border px-3 py-2"
+                          onChange={(event) =>
+                            setBookingBulkAvailDraft((draft) => ({
+                              ...draft,
+                              asset_code: event.target.value,
+                            }))
+                          }
+                          value={bookingBulkAvailDraft.asset_code}
+                        >
+                          <option value="">Select asset…</option>
+                          {bookings.assets.map((asset) => (
+                            <option key={asset.code} value={asset.code}>
+                              {pickLabel(asset.name)} ({asset.code})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <OpsField
+                        label="Kind"
+                        value={bookingBulkAvailDraft.kind}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({
+                            ...draft,
+                            kind: value === 'blackout' ? 'blackout' : 'available',
+                          }))
+                        }
+                      />
+                      <OpsField
+                        label="From date (IST)"
+                        value={bookingBulkAvailDraft.from_date}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({ ...draft, from_date: value }))
+                        }
+                      />
+                      <OpsField
+                        label="To date (IST)"
+                        value={bookingBulkAvailDraft.to_date}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({ ...draft, to_date: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Daily start (IST)"
+                        value={bookingBulkAvailDraft.start_time}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({ ...draft, start_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Daily end (IST)"
+                        value={bookingBulkAvailDraft.end_time}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({ ...draft, end_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Note"
+                        value={bookingBulkAvailDraft.note}
+                        onChange={(value) =>
+                          setBookingBulkAvailDraft((draft) => ({ ...draft, note: value }))
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {(
+                        [
+                          [0, 'Sun'],
+                          [1, 'Mon'],
+                          [2, 'Tue'],
+                          [3, 'Wed'],
+                          [4, 'Thu'],
+                          [5, 'Fri'],
+                          [6, 'Sat'],
+                        ] as const
+                      ).map(([day, label]) => (
+                        <label
+                          className="inline-flex items-center gap-1.5 rounded-full border border-warm-border px-3 py-1 text-sm"
+                          key={day}
+                        >
+                          <input
+                            checked={bookingBulkAvailDraft.weekdays.includes(day)}
+                            onChange={() => toggleBulkWeekday(day)}
+                            type="checkbox"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </GuidedOpsCard>
+
+                  <GuidedOpsCard
+                    title="Single day availability / blackout"
+                    saveLabel="Save one day"
                     onSave={() => void saveGuidedAvailability()}
                   >
                     <div className="grid gap-3 md:grid-cols-2">
@@ -1650,14 +2035,35 @@ export default function OperationsClient(): JSX.Element {
                         }
                       />
                       <OpsField
-                        label="Starts at (ISO)"
+                        label="Date (IST, YYYY-MM-DD)"
+                        value={bookingAvailabilityDraft.avail_date}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, avail_date: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Start time (IST)"
+                        value={bookingAvailabilityDraft.start_time}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, start_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="End time (IST)"
+                        value={bookingAvailabilityDraft.end_time}
+                        onChange={(value) =>
+                          setBookingAvailabilityDraft((d) => ({ ...d, end_time: value }))
+                        }
+                      />
+                      <OpsField
+                        label="Starts at (ISO override)"
                         value={bookingAvailabilityDraft.starts_at}
                         onChange={(value) =>
                           setBookingAvailabilityDraft((d) => ({ ...d, starts_at: value }))
                         }
                       />
                       <OpsField
-                        label="Ends at (ISO)"
+                        label="Ends at (ISO override)"
                         value={bookingAvailabilityDraft.ends_at}
                         onChange={(value) =>
                           setBookingAvailabilityDraft((d) => ({ ...d, ends_at: value }))
@@ -1732,52 +2138,39 @@ export default function OperationsClient(): JSX.Element {
                 </div>
               </section>
 
-              <RecordListPanel
-                title="Booking calendar"
-                emptyLabel="No availability or reservations."
-              >
-                {bookings.availability.map((row) => (
-                  <RecordListItem
-                    key={row.id}
-                    itemKey={row.id}
-                    selected={false}
-                    title={`${row.asset_code} · ${row.kind}`}
-                    subtitle={new Date(row.starts_at).toLocaleString()}
-                    meta={new Date(row.ends_at).toLocaleString()}
-                    onSelect={() => {
-                      setBookingAvailabilityDraft({
-                        asset_code: row.asset_code,
-                        kind: row.kind,
-                        starts_at: row.starts_at,
-                        ends_at: row.ends_at,
-                        note: row.note ?? '',
-                      });
-                    }}
-                  />
-                ))}
-                {bookings.reservations.map((row) => (
-                  <RecordListItem
-                    key={row.id}
-                    itemKey={row.id}
-                    selected={false}
-                    title={`${row.asset_code} · ${row.status}`}
-                    subtitle={row.holder_name}
-                    meta={`${new Date(row.starts_at).toLocaleString()} → ${new Date(row.ends_at).toLocaleString()}`}
-                    onSelect={() => {
-                      setBookingReservationDraft({
-                        asset_code: row.asset_code,
-                        holder_name: row.holder_name,
-                        holder_mobile: '',
-                        docket_no: row.docket_no ?? '',
-                        starts_at: row.starts_at,
-                        ends_at: row.ends_at,
-                        status: row.status,
-                        note: '',
-                      });
-                    }}
-                  />
-                ))}
-              </RecordListPanel>
+              <BookingsCalendarPanel
+                assetFilter={bookingCalendarAssetFilter}
+                assets={bookings.assets}
+                availability={bookings.availability}
+                onAssetFilterChange={setBookingCalendarAssetFilter}
+                onSelectEvent={(event) => {
+                  if (event.kind === 'reservation') {
+                    setBookingReservationDraft({
+                      asset_code: event.asset_code,
+                      holder_name: event.title.split(' (')[0] ?? event.title,
+                      holder_mobile: '',
+                      docket_no: '',
+                      starts_at: event.starts_at,
+                      ends_at: event.ends_at,
+                      status: event.status ?? 'hold',
+                      note: '',
+                    });
+                    return;
+                  }
+                  setBookingAvailabilityDraft({
+                    asset_code: event.asset_code,
+                    kind: event.kind === 'blackout' ? 'blackout' : 'available',
+                    avail_date: '',
+                    start_time: '09:00',
+                    end_time: '21:00',
+                    starts_at: event.starts_at,
+                    ends_at: event.ends_at,
+                    note: event.status ?? '',
+                  });
+                }}
+                pickLabel={pickLabel}
+                reservations={bookings.reservations}
+              />
             </section>
           ) : null}
 
@@ -2321,21 +2714,43 @@ function TemplateTextInput({
 function GuidedOpsCard({
   title,
   saveLabel,
+  saveTestId,
+  onNew,
+  newLabel = 'New',
+  newTestId,
   onSave,
   children,
 }: {
   title: string;
   saveLabel: string;
+  saveTestId?: string;
+  onNew?: () => void;
+  newLabel?: string;
+  newTestId?: string;
   onSave: () => void;
   children: ReactNode;
 }): JSX.Element {
   return (
     <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink-primary">{title}</h2>
-        <Button type="button" size="sm" onClick={onSave}>
-          {saveLabel}
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {onNew ? (
+            <Button
+              data-testid={newTestId}
+              icon="file-plus"
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onNew}
+            >
+              {newLabel}
+            </Button>
+          ) : null}
+          <Button data-testid={saveTestId} type="button" size="sm" onClick={onSave}>
+            {saveLabel}
+          </Button>
+        </div>
       </div>
       {children}
     </article>

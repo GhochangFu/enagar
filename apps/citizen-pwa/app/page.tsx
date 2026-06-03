@@ -24,6 +24,7 @@ import {
   ApplicationDetailPanel,
   ReceiptPreviewPlaceholder,
 } from '../components/application-detail-panel';
+import { BookingWorkspace } from '../components/booking-workspace';
 import {
   LanguageStep,
   LoginStep,
@@ -273,12 +274,19 @@ export default function HomePage(): JSX.Element {
   const [applyDraftDocsReady, setApplyDraftDocsReady] = useState(false);
   const [applyPendingPayment, setApplyPendingPayment] = useState<PaymentApiResponse | null>(null);
   const [applyPaymentMethod, setApplyPaymentMethod] = useState<PaymentGatewayMethod>('upi');
+  const [bookingFlowActive, setBookingFlowActive] = useState(false);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
   const [urlApplicationDocket, setUrlApplicationDocket] = useState<string | null>(null);
+  /** Sprint 8.1E — `?tenant=KMC&service=other-facility-booking&book=1` opens workspace booking. */
+  const [urlBookingTenantCode, setUrlBookingTenantCode] = useState<string | null>(null);
+  const [urlBookingServiceCode, setUrlBookingServiceCode] = useState<string | null>(null);
+  const [urlBookingStart, setUrlBookingStart] = useState(false);
   const applicationDeepLinkConsumed = useRef(false);
   const workspaceApplicationDeepLinkConsumed = useRef(false);
+  const bookingTenantDeepLinkConsumed = useRef(false);
+  const bookingServiceDeepLinkConsumed = useRef(false);
 
   const cataloguedDashboardRows = useMemo(() => {
     if (!hubDashboard) {
@@ -679,6 +687,12 @@ export default function HomePage(): JSX.Element {
       return;
     }
 
+    const bookingTenant = urlBookingTenantCode?.trim().toUpperCase();
+    if (bookingTenant && tenants.some((row) => row.code.toUpperCase() === bookingTenant)) {
+      setStep('hub');
+      return;
+    }
+
     setPinsDraftCodes([]);
     setPinsSearch('');
     setStep('pins');
@@ -1027,6 +1041,15 @@ export default function HomePage(): JSX.Element {
     }
   }
 
+  function isBookingService(service: ServiceSummary): boolean {
+    return (
+      service.code === 'community-hall' ||
+      service.code === 'other-facility-booking' ||
+      service.global_category_code === 'bookings' ||
+      service.category_code === 'bookings'
+    );
+  }
+
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues({});
@@ -1038,6 +1061,12 @@ export default function HomePage(): JSX.Element {
     setApplyDraftDocsReady(false);
     setApplyPendingPayment(null);
     setActiveTab('apply');
+    if (isBookingService(service)) {
+      setBookingFlowActive(true);
+      setStatus(`Book a slot — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
+    setBookingFlowActive(false);
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
 
@@ -1366,11 +1395,23 @@ export default function HomePage(): JSX.Element {
     const params = new URLSearchParams(window.location.search);
     const g = params.get('grievance') ?? params.get('grievance_no');
     const a = params.get('application') ?? params.get('docket');
+    const tenant = params.get('tenant') ?? params.get('municipality');
+    const service = params.get('service') ?? params.get('service_code');
+    const book = params.get('book');
     if (g?.trim()) {
       setUrlGrievanceRef(g.trim());
     }
     if (a?.trim()) {
       setUrlApplicationDocket(a.trim());
+    }
+    if (tenant?.trim()) {
+      setUrlBookingTenantCode(tenant.trim());
+    }
+    if (service?.trim()) {
+      setUrlBookingServiceCode(service.trim());
+    }
+    if (book === '1' || book === 'true' || book === 'yes') {
+      setUrlBookingStart(true);
     }
   }, []);
 
@@ -1436,6 +1477,50 @@ export default function HomePage(): JSX.Element {
       setApplicationDetail((await response.json()) as ApplicationDetail);
     })();
   }, [token, step, urlApplicationDocket, selectedTenant?.code]);
+
+  useEffect(() => {
+    const tenantCode = urlBookingTenantCode?.trim().toUpperCase();
+    if (
+      !token ||
+      (step !== 'hub' && step !== 'pins') ||
+      !tenantCode ||
+      bookingTenantDeepLinkConsumed.current
+    ) {
+      return;
+    }
+    const tenant = tenants.find((row) => row.code.toUpperCase() === tenantCode);
+    if (!tenant) {
+      return;
+    }
+    bookingTenantDeepLinkConsumed.current = true;
+    const serviceCode = urlBookingServiceCode?.trim();
+    void chooseTenant(tenant, {
+      workspaceServiceCodes: serviceCode ? [serviceCode] : null,
+      workspaceTab: urlBookingStart || serviceCode ? 'services' : 'home',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, step, urlBookingTenantCode, urlBookingServiceCode, urlBookingStart, tenants]);
+
+  useEffect(() => {
+    const serviceCode = urlBookingServiceCode?.trim().toLowerCase();
+    if (
+      !token ||
+      step !== 'workspace' ||
+      !urlBookingStart ||
+      !serviceCode ||
+      bookingServiceDeepLinkConsumed.current ||
+      services.length === 0
+    ) {
+      return;
+    }
+    const service = services.find((row) => row.code.toLowerCase() === serviceCode);
+    if (!service || !isBookingService(service)) {
+      return;
+    }
+    bookingServiceDeepLinkConsumed.current = true;
+    startApplication(service);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, step, urlBookingStart, urlBookingServiceCode, services]);
 
   async function addComment(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1589,9 +1674,11 @@ export default function HomePage(): JSX.Element {
         if (appsResponseHub.ok) {
           const refreshedApps = (await appsResponseHub.json()) as ApplicationSummary[];
           setHubApplications(refreshedApps);
-          const refreshedMatch = refreshedApps.find((row) => row.id === payment.application_id);
-          if (refreshedMatch?.tenant_code) {
-            await openApplication(refreshedMatch.docket_no, refreshedMatch.tenant_code);
+          if (payment.application_id) {
+            const refreshedMatch = refreshedApps.find((row) => row.id === payment.application_id);
+            if (refreshedMatch?.tenant_code) {
+              await openApplication(refreshedMatch.docket_no, refreshedMatch.tenant_code);
+            }
           }
         }
         if (paymentsResponseHub.ok) {
@@ -1607,16 +1694,18 @@ export default function HomePage(): JSX.Element {
       if (appsResponse.ok) {
         const list = (await appsResponse.json()) as ApplicationSummary[];
         setApplications(list);
-        const match = list.find((row) => row.id === payment.application_id);
-        if (match) {
-          await openApplication(match.docket_no, match.tenant_code);
+        if (payment.application_id) {
+          const match = list.find((row) => row.id === payment.application_id);
+          if (match) {
+            await openApplication(match.docket_no, match.tenant_code);
+          }
         }
       } else {
         await loadApplications();
       }
       await loadPayments();
     }
-    if (applyDraft?.id === payment.application_id) {
+    if (payment.application_id && applyDraft?.id === payment.application_id) {
       await refreshApplyDraft(applyDraft.docket_no);
       setApplyPendingPayment(null);
     }
@@ -2129,6 +2218,7 @@ export default function HomePage(): JSX.Element {
                             </h4>
                             <button
                               className="mt-4 w-full rounded-2xl border border-brand px-3 py-2 text-sm font-semibold text-brand"
+                              data-testid={`open-service-${tenantCode}-${serviceRow.code}`}
                               onClick={() =>
                                 void chooseTenant(resolved, {
                                   workspaceServiceCodes: [serviceRow.code],
@@ -2537,7 +2627,42 @@ export default function HomePage(): JSX.Element {
 
           {activeTab === 'apply' && (
             <section className="rounded-3xl bg-white p-6 shadow-sm">
-              {selectedService && selectedSchema && renderPlan ? (
+              {bookingFlowActive && token && selectedTenant ? (
+                <BookingWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  applicationForm={
+                    selectedService && selectedSchema && renderPlan
+                      ? {
+                          schema: selectedSchema,
+                          renderPlan,
+                          values: formValues,
+                          onChange: updateFormValue,
+                          onFileBlob: (fieldId, file) => {
+                            setApplicationFileBlobs((current) => {
+                              const next = { ...current };
+                              if (file) {
+                                next[fieldId] = file;
+                              } else {
+                                delete next[fieldId];
+                              }
+                              return next;
+                            });
+                          },
+                        }
+                      : undefined
+                  }
+                  language={language}
+                  linkedService={selectedService}
+                  onBack={() => {
+                    setBookingFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('Booking cancelled.');
+                  }}
+                  onStatus={setStatus}
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                />
+              ) : selectedService && selectedSchema && renderPlan ? (
                 <form className="space-y-5" onSubmit={submitApplication}>
                   <div>
                     <p className="text-sm font-semibold uppercase text-brand">Apply</p>

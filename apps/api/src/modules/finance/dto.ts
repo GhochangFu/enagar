@@ -13,7 +13,14 @@ import {
 
 import type { DepositStatus } from './deposit-lifecycle';
 
-const DEPOSIT_TYPES = ['emd', 'security', 'rent_deposit', 'other'] as const;
+const DEPOSIT_TYPES = [
+  'emd',
+  'security',
+  'rent_deposit',
+  'other',
+  'booking_security',
+  'hall_booking',
+] as const;
 
 export class CreateDepositDto {
   @IsUUID('4')

@@ -35,6 +35,6 @@ import { StubPaymentGateway } from './stub-payment.gateway';
     },
     PaymentsService,
   ],
-  exports: [PaymentsService],
+  exports: [PaymentsService, PAYMENT_STORE, 'IPaymentGateway'],
 })
 export class PaymentsModule {}

@@ -10,6 +10,8 @@ import {
 } from '../lib/payment-eligibility';
 import { authHeaders, formatInrFromPaise, readApiError } from '../lib/workspace-http';
 
+import { BookingChargesPanel } from './booking-charges-panel';
+
 import type { FeeLineDisplay } from '../lib/service-payment';
 import type {
   ApplicationDetail,
@@ -95,6 +97,19 @@ export function ReceiptPreviewPlaceholder({
   );
 }
 
+function paymentReceiptHeading(payment: PaymentApiResponse): string {
+  if (payment.fee_code === 'booking_deposit') {
+    return 'Receipt — hall rent & security deposit';
+  }
+  if (payment.fee_code === 'application') {
+    return 'Receipt — application fee';
+  }
+  if (payment.booking_reservation_id) {
+    return 'Receipt — hall booking payment';
+  }
+  return 'Receipt';
+}
+
 /** Right-hand application dossier — payments stub, timeline, documents, citizen comment box. */
 export function ApplicationDetailPanel({
   apiBaseUrl,
@@ -136,10 +151,25 @@ export function ApplicationDetailPanel({
     if (!application) {
       return [];
     }
+    if (application.related_payments && application.related_payments.length > 0) {
+      return [...application.related_payments].sort(
+        (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+      );
+    }
+    const reservationId = application.booking_charges?.reservation_id ?? null;
     return payments
-      .filter((row) => row.application_id === application.id)
+      .filter(
+        (row) =>
+          row.application_id === application.id ||
+          (reservationId != null && row.booking_reservation_id === reservationId),
+      )
       .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   }, [application, payments]);
+
+  const settledPayments = useMemo(
+    () => appPayments.filter((row) => row.status === 'settled'),
+    [appPayments],
+  );
 
   if (!application) {
     return (
@@ -163,7 +193,6 @@ export function ApplicationDetailPanel({
         row.status === 'requires_action' &&
         (!deskIssuedPaymentId || row.id === deskIssuedPaymentId),
     ) ?? appPayments.find((row) => row.status === 'requires_action');
-  const latestSettled = appPayments.find((row) => row.status === 'settled');
   const activeFeeCode = paymentLine?.feeCode;
   const canStartNewPayment =
     Boolean(token) &&
@@ -214,6 +243,10 @@ export function ApplicationDetailPanel({
           ['Submitted', new Date(application.submitted_at).toLocaleString()],
         ]}
       />
+
+      {application.booking_charges ? (
+        <BookingChargesPanel charges={application.booking_charges} variant="citizen" />
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 p-4">
         <h4 className="font-bold">Fees &amp; payment (stub)</h4>
@@ -342,14 +375,23 @@ export function ApplicationDetailPanel({
         {!token && (paymentRollup === 'pending' || paymentRollup === 'failed') && (
           <p className="mt-2 text-sm text-red-700">Sign in is required to initiate payment.</p>
         )}
-        {latestSettled && token && !pendingStub && (
-          <ReceiptPreviewPlaceholder
-            apiBaseUrl={apiBaseUrl}
-            payment={latestSettled}
-            tenantScopeCode={tenantScopeCode}
-            token={token}
-          />
-        )}
+        {settledPayments.length > 0 && token && !pendingStub ? (
+          <div className="mt-4 space-y-4">
+            {settledPayments.map((row) => (
+              <div key={row.id}>
+                <p className="text-xs font-semibold uppercase text-slate-600">
+                  {paymentReceiptHeading(row)}
+                </p>
+                <ReceiptPreviewPlaceholder
+                  apiBaseUrl={apiBaseUrl}
+                  payment={row}
+                  tenantScopeCode={tenantScopeCode}
+                  token={token}
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {application.current_stage === 'citizen-feedback' && token && (

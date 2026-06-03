@@ -35,8 +35,9 @@ export interface PaymentResponse {
   id: string;
   tenant_id: string;
   citizen_subject: string;
-  application_id: string;
-  fee_code: PaymentFeeCode;
+  application_id: string | null;
+  booking_reservation_id: string | null;
+  fee_code: PaymentFeeCode | string;
   amount_paise: number;
   currency: 'INR';
   method: PaymentMethod;
@@ -67,7 +68,8 @@ export interface ReceiptCitizenDto {
   id: string;
   receipt_number: string;
   payment_id: string;
-  application_id: string;
+  application_id: string | null;
+  booking_reservation_id?: string | null;
   service_code: string;
   revenue_head_code: string;
   amount_paise: number;

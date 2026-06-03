@@ -45,6 +45,17 @@ type ApplicationRow = {
   >;
   payment_redirect_url?: string | null;
   active_payment_id?: string | null;
+  booking_charges?: {
+    application_fee_paise: number;
+    hall_rent_paise: number;
+    security_deposit_paise: number;
+    upfront_total_paise: number;
+    upfront_paid_paise: number;
+    application_fee_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    hall_rent_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    security_deposit_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    slot_summary: string | null;
+  };
   submitted_at: string;
 };
 
@@ -159,6 +170,46 @@ function formatInrFromPaise(paise: number | null | undefined): string {
     return '—';
   }
   return `₹${(paise / 100).toFixed(2)}`;
+}
+
+function DeskBookingChargesPanel({
+  charges,
+}: {
+  charges: NonNullable<ApplicationRow['booking_charges']>;
+}): JSX.Element {
+  const line = (label: string, amount: number, status: string): JSX.Element | null => {
+    if (amount <= 0 && status === 'not_required') {
+      return null;
+    }
+    return (
+      <li>
+        {label}: {status}
+        {amount > 0 ? ` · ${formatInrFromPaise(amount)}` : ''}
+      </li>
+    );
+  };
+
+  return (
+    <div className="rounded-2xl border border-warm-border bg-surface px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+        Hall booking charges
+      </p>
+      {charges.slot_summary ? (
+        <p className="mt-1 text-sm text-ink-primary">
+          Slot: <strong>{charges.slot_summary}</strong>
+        </p>
+      ) : null}
+      <ul className="mt-2 space-y-1 text-sm text-ink-primary">
+        {line('Application fee', charges.application_fee_paise, charges.application_fee_status)}
+        {line('Hall rent (slot hours)', charges.hall_rent_paise, charges.hall_rent_status)}
+        {line('Security deposit', charges.security_deposit_paise, charges.security_deposit_status)}
+      </ul>
+      <p className="mt-2 text-sm font-semibold text-ink-primary">
+        Upfront total: {formatInrFromPaise(charges.upfront_total_paise)} · Paid:{' '}
+        {formatInrFromPaise(charges.upfront_paid_paise)}
+      </p>
+    </div>
+  );
 }
 
 function DeskFeeSettlementPanel({
@@ -633,6 +684,11 @@ export default function DeskClient(): JSX.Element {
                 />
                 {appDetailTab === 'summary' ? (
                   <>
+                    {applicationDetail.application.booking_charges ? (
+                      <DeskBookingChargesPanel
+                        charges={applicationDetail.application.booking_charges}
+                      />
+                    ) : null}
                     <DeskFeeSettlementPanel application={applicationDetail.application} />
                     <DeskWorkOrderPanel
                       applicationDetail={applicationDetail}

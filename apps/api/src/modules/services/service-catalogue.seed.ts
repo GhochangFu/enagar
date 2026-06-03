@@ -59,6 +59,11 @@ export interface TenantServiceOverrideSeed {
   required_documents?: string[];
   form_schema_additions?: Record<string, unknown>;
   workflow_overrides?: Record<string, unknown>;
+  /**
+   * Merged into `tenant_services.override_config`.
+   * Booking services: `bookable_asset_code` (one hall) or `bookable_asset_codes` (several).
+   */
+  override_config?: Record<string, unknown>;
   tenant_only?: boolean;
   name?: LocaleMap;
   description?: LocaleMap;
@@ -226,9 +231,35 @@ export const globalServices: GlobalServiceSeed[] = [
     default_sla_days: 3,
     fee_type: 'fixed',
     fee_config: { amount_paise: 500000, deposit_paise: 500000, currency: 'INR' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Application fee', 'আবেদন ফি', 'आवेदन शुल्क', 500_000),
+    },
     required_documents: ['aadhaar', 'event-details'],
     pushes_to_digilocker: false,
     popular: true,
+  },
+  {
+    code: 'other-facility-booking',
+    category_code: 'bookings',
+    revenue_head_code: 'booking-fee',
+    name: label('Other Facility Booking', 'অন্যান্য সুবিধা বুকিং', 'अन्य सुविधा बुकिंग'),
+    description: label(
+      'Book sports grounds, courts, and other municipal facilities.',
+      'ক্রীড়া মাঠ, কোর্ট ও অন্যান্য পৌর সুবিধা বুক করুন।',
+      'खेल मैदान, कोर्ट और अन्य नगरपालिका सुविधाएँ बुक करें।',
+    ),
+    workflow_pattern: 'booking',
+    default_sla_days: 3,
+    fee_type: 'fixed',
+    fee_config: { amount_paise: 500000, deposit_paise: 300000, currency: 'INR' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Application fee', 'আবেদন ফি', 'आवेदन शुल्क', 500_000),
+    },
+    required_documents: ['aadhaar', 'event-details'],
+    pushes_to_digilocker: false,
+    popular: false,
   },
   {
     code: 'sanitation-grievance',
@@ -345,6 +376,20 @@ export const tenantServiceOverrides: TenantServiceOverrideSeed[] = [
     sla_days: 5,
     fee_config: { amount_paise: 5000, urgent_amount_paise: 15000, currency: 'INR' },
     workflow_overrides: { add_stages: ['borough-health-review'] },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'community-hall',
+    override_config: {
+      bookable_asset_codes: ['community-hall-main', 'rabindra-bhawan'],
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'other-facility-booking',
+    override_config: {
+      bookable_asset_codes: ['kmc-multipurpose-ground', 'kmc-tennis-court-a'],
+    },
   },
   {
     tenant_code: 'HMC',

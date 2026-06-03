@@ -183,6 +183,13 @@ export class PaymentsService {
 
     const payment = await this.getOwnedPayment(principal, dto.payment_id);
 
+    if (payment.booking_reservation_id) {
+      return this.completeBookingStubPayment(principal, payment, dto);
+    }
+    if (!payment.application_id) {
+      throw new BadRequestException('Payment is not linked to an application or booking hold');
+    }
+
     if (this.gateway.id !== 'stub') {
       throw new BadRequestException('Only the stub gateway supports synchronous completion');
     }
@@ -249,6 +256,57 @@ export class PaymentsService {
     );
 
     return ledger;
+  }
+
+  /** Sprint 8.1C — stub capture for hall-booking security deposit (+ optional rent in one payment). */
+  private async completeBookingStubPayment(
+    principal: AuthenticatedPrincipal,
+    payment: PaymentResponse,
+    dto: StubCompletePaymentDto,
+  ): Promise<LedgerSettlementDto> {
+    if (this.gateway.id !== 'stub') {
+      throw new BadRequestException('Only the stub gateway supports synchronous completion');
+    }
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_STUB_PAYMENT_SETTLEMENT !== 'true'
+    ) {
+      throw new ForbiddenException('Stub payment settlement is disabled in production');
+    }
+
+    const expectedStubOrder = StubPaymentGateway.expectedOrderIdForPayment(dto.payment_id).trim();
+    const normalizedOrder = dto.gateway_order_id.trim();
+    if (
+      normalizedOrder !== expectedStubOrder ||
+      normalizedOrder !== payment.gateway_order_id.trim()
+    ) {
+      throw new BadRequestException('gateway_order_id does not match the stub redirect contract');
+    }
+    if (payment.status !== 'requires_action') {
+      throw new ConflictException('Payment is not awaiting deterministic completion');
+    }
+
+    const reservation = await this.prisma.bookingReservation.findFirst({
+      where: { id: payment.booking_reservation_id ?? '', tenantId: payment.tenant_id },
+      select: { id: true, depositId: true },
+    });
+    if (!reservation) {
+      throw new NotFoundException('Booking hold not found for this payment');
+    }
+
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: payment.tenant_id },
+      select: { code: true },
+    });
+    const service = await this.services.getTenantService(tenant.code, 'community-hall');
+    const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
+    const ctx: SettlementLedgerContext = {
+      serviceCode: service.code,
+      revenueHeadCode: ledgerAllocation.revenue_head_code,
+      accountingCode: ledgerAllocation.accounting_code,
+    };
+
+    return this.store.settleStubLedger(principal, dto.payment_id, normalizedOrder, ctx);
   }
 
   /**
@@ -435,7 +493,7 @@ export class PaymentsService {
           csvEscape(row.id),
           csvEscape(row.receipt.receiptNumber),
           csvEscape(row.paymentId),
-          csvEscape(row.payment.applicationId),
+          csvEscape(row.payment.applicationId ?? ''),
           csvEscape(row.receipt.serviceCode),
           csvEscape(row.revenueHeadCode),
           csvEscape(row.amountPaise),

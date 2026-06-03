@@ -77,10 +77,26 @@ export interface ApplicationSummary {
   >;
   payment_redirect_url?: string | null;
   active_payment_id?: string | null;
+  booking_charges?: BookingChargesSummary;
   submitted_at: string;
 }
 
+export type BookingChargesSummary = {
+  application_fee_paise: number;
+  hall_rent_paise: number;
+  security_deposit_paise: number;
+  upfront_total_paise: number;
+  upfront_paid_paise: number;
+  application_fee_status: 'not_required' | 'pending' | 'paid' | 'failed';
+  hall_rent_status: 'not_required' | 'pending' | 'paid' | 'failed';
+  security_deposit_status: 'not_required' | 'pending' | 'paid' | 'failed';
+  slot_summary: string | null;
+  reservation_id: string | null;
+};
+
 export interface ApplicationDetail extends ApplicationSummary {
+  /** All payments for this dossier (application fee + linked hall booking), from API. */
+  related_payments?: PaymentApiResponse[];
   form_data: FormSubmission;
   timeline: Array<{
     id: string;
@@ -112,8 +128,9 @@ export type PaymentGatewayMethod = 'upi' | 'card' | 'netbanking' | 'wallet';
 export interface PaymentApiResponse {
   id: string;
   tenant_id: string;
-  application_id: string;
-  fee_code?: 'application' | 'approval';
+  application_id: string | null;
+  booking_reservation_id?: string | null;
+  fee_code?: 'application' | 'approval' | 'booking_deposit' | string;
   amount_paise: number;
   currency: 'INR';
   method: PaymentGatewayMethod;
@@ -154,7 +171,8 @@ export interface ReceiptCitizenPayload {
   id: string;
   receipt_number: string;
   payment_id: string;
-  application_id: string;
+  application_id: string | null;
+  booking_reservation_id?: string | null;
   service_code: string;
   revenue_head_code: string;
   amount_paise: number;

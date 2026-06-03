@@ -142,6 +142,7 @@ model Citizen {
   chatbotConsents    ChatbotConsent[]
   chatbotFeedback    ChatbotFeedback[]
   deposits           Deposit[]
+  bookingReservations BookingReservation[]
   challans           Challan[]
   grievances         Grievance[]
 
@@ -936,10 +937,11 @@ model ApplicationDocument {
 }
 
 model Payment {
-  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String                  @map("tenant_id") @db.Uuid
-  applicationId      String                  @map("application_id") @db.Uuid
-  citizenSubject     String                  @map("citizen_subject") @db.VarChar(255)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String               @map("tenant_id") @db.Uuid
+  applicationId        String?              @map("application_id") @db.Uuid
+  bookingReservationId String?              @map("booking_reservation_id") @db.Uuid
+  citizenSubject       String               @map("citizen_subject") @db.VarChar(255)
   amountPaise        Int                     @map("amount_paise")
   feeCode            String                  @map("fee_code") @db.VarChar(30)
   currency           String                  @default("INR") @db.Char(3)
@@ -953,17 +955,19 @@ model Payment {
   createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
   settledAt          DateTime?               @map("settled_at") @db.Timestamptz(6)
-  application        Application             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  idempotencyRecords PaymentIdempotencyKey[]
-  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  receipt            Receipt?
-  glPosting          GlPosting?
-  depositCaptures    Deposit[]               @relation("DepositCapturePayment")
-  challansSettled    Challan[]               @relation("ChallanPaidPayment")
+  application          Application?          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  bookingReservation   BookingReservation?   @relation(fields: [bookingReservationId], references: [id], onDelete: Cascade)
+  idempotencyRecords   PaymentIdempotencyKey[]
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipt              Receipt?
+  glPosting            GlPosting?
+  depositCaptures      Deposit[]             @relation("DepositCapturePayment")
+  challansSettled      Challan[]             @relation("ChallanPaidPayment")
 
   @@unique([tenantId, gateway, gatewayOrderId])
   @@index([tenantId, citizenSubject, createdAt])
   @@index([tenantId, applicationId, status])
+  @@index([tenantId, bookingReservationId])
   @@map("payments")
 }
 
@@ -985,15 +989,16 @@ model PaymentIdempotencyKey {
 }
 
 model Receipt {
-  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String      @map("tenant_id") @db.Uuid
-  paymentId         String      @unique @map("payment_id") @db.Uuid
-  receiptNumber     String      @map("receipt_number") @db.VarChar(48)
-  verificationToken String      @unique @map("verification_token") @db.Uuid
-  revenueHeadCode   String      @map("revenue_head_code") @db.VarChar(50)
-  accountingCode    String      @map("accounting_code") @db.VarChar(50)
-  applicationId     String      @map("application_id") @db.Uuid
-  serviceCode       String      @map("service_code") @db.VarChar(80)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String               @map("tenant_id") @db.Uuid
+  paymentId            String               @unique @map("payment_id") @db.Uuid
+  receiptNumber        String               @map("receipt_number") @db.VarChar(48)
+  verificationToken    String               @unique @map("verification_token") @db.Uuid
+  revenueHeadCode      String               @map("revenue_head_code") @db.VarChar(50)
+  accountingCode       String               @map("accounting_code") @db.VarChar(50)
+  applicationId        String?              @map("application_id") @db.Uuid
+  bookingReservationId String?              @map("booking_reservation_id") @db.Uuid
+  serviceCode          String               @map("service_code") @db.VarChar(80)
   amountPaise       Int         @map("amount_paise")
   currency          String      @default("INR") @db.Char(3)
   gateway           String      @db.VarChar(80)
@@ -1001,14 +1006,16 @@ model Receipt {
   gatewayPaymentRef String?     @map("gateway_payment_ref") @db.VarChar(160)
   qrPayloadVersion  Int         @default(1) @map("qr_payload_version")
   issuedAt          DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
-  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  payment           Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  glPosting         GlPosting?
+  application          Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)
+  payment              Payment             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  glPosting            GlPosting?
 
   @@unique([tenantId, receiptNumber])
   @@index([tenantId, issuedAt])
   @@index([tenantId, applicationId])
+  @@index([tenantId, bookingReservationId])
   @@map("receipts")
 }
 
@@ -1054,6 +1061,7 @@ model Deposit {
   citizen           Citizen          @relation(fields: [citizenId], references: [id], onDelete: Restrict)
   tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refundDispatches  RefundDispatch[]
+  bookingReservations BookingReservation[]
 
   @@index([tenantId, citizenId, status])
   @@index([tenantId, applicationId])
@@ -1112,19 +1120,25 @@ model Challan {
 }
 
 model BookableAsset {
-  id           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String                      @map("tenant_id") @db.Uuid
-  code         String                      @db.VarChar(80)
-  name         Json
-  location     Json                        @default(dbgenerated("'{}'::jsonb"))
-  capacity     Int?
-  isActive     Boolean                     @default(true) @map("is_active")
-  metadata     Json                        @default(dbgenerated("'{}'::jsonb"))
-  createdAt    DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  availability BookableAssetAvailability[]
-  reservations BookingReservation[]
-  tenant       Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                    String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                      @map("tenant_id") @db.Uuid
+  code                  String                      @db.VarChar(80)
+  assetType             String                      @default("HALL") @map("asset_type") @db.VarChar(50)
+  name                  Json
+  location              Json                        @default(dbgenerated("'{}'::jsonb"))
+  capacity              Int?
+  rateUnit              String                      @default("HOUR") @map("rate_unit") @db.VarChar(10)
+  baseRatePaise         Int                         @default(0) @map("base_rate_paise")
+  securityDepositPaise  Int                         @default(0) @map("security_deposit_paise")
+  slotStepMinutes       Int                         @default(60) @map("slot_step_minutes")
+  rules                 Json                        @default(dbgenerated("'{}'::jsonb"))
+  isActive              Boolean                     @default(true) @map("is_active")
+  metadata              Json                        @default(dbgenerated("'{}'::jsonb"))
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  availability          BookableAssetAvailability[]
+  reservations          BookingReservation[]
+  tenant                Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
@@ -1150,6 +1164,9 @@ model BookingReservation {
   id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String        @map("tenant_id") @db.Uuid
   assetId       String        @map("asset_id") @db.Uuid
+  bookingNo     String?       @map("booking_no") @db.VarChar(50)
+  citizenId     String?       @map("citizen_id") @db.Uuid
+  depositId     String?       @map("deposit_id") @db.Uuid
   applicationId String?       @map("application_id") @db.Uuid
   docketNo      String?       @map("docket_no") @db.VarChar(80)
   holderName    String        @map("holder_name") @db.VarChar(255)
@@ -1157,15 +1174,23 @@ model BookingReservation {
   startsAt      DateTime      @map("starts_at") @db.Timestamptz(6)
   endsAt        DateTime      @map("ends_at") @db.Timestamptz(6)
   status        String        @default("hold") @db.VarChar(20)
+  cancelledAt   DateTime?     @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason  String?       @map("cancel_reason")
   note          String?
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   asset         BookableAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  citizen       Citizen?      @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  deposit       Deposit?      @relation(fields: [depositId], references: [id], onDelete: SetNull)
+  payments      Payment[]
+  receipts      Receipt[]
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, bookingNo])
   @@index([tenantId, assetId, startsAt, endsAt])
   @@index([tenantId, status])
+  @@index([tenantId, citizenId])
   @@map("booking_reservations")
 }
 

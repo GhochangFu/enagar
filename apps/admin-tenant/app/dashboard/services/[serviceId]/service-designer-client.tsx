@@ -39,6 +39,7 @@ import { clearStoredAuth } from '../../../../lib/admin-auth';
 import {
   addDesignationStage,
   addForwardReturnPair,
+  applyBookingHallTemplate,
   applyHoardingScrutinyTemplate,
   applyMunicipalLadderTemplate,
   applyPwdWorksTemplate,
@@ -47,6 +48,10 @@ import {
   WORKFLOW_GUARD_PRESETS,
 } from '../../../../lib/workflow-designer-templates';
 
+import {
+  BookableAssetsMappingPanel,
+  workflowDefinitionIsBooking,
+} from './bookable-assets-mapping-panel';
 import { ServiceConfigPanel, coerceDocuments, type FeeLinesDraft } from './service-config-panel';
 
 import type { Route } from 'next';
@@ -57,6 +62,7 @@ type ServiceDesignerResponse = {
     code: string;
     name: unknown;
   };
+  workflow_pattern: string | null;
   form_draft: { form_schema: unknown; status: string; version: number } | null;
   form_published: {
     form_schema: unknown;
@@ -98,6 +104,13 @@ type ServiceConfigResponse = {
   municipal_signoff_policy: MunicipalSignoffPolicy;
   municipal_signoff_threshold_paise: number;
   revenue_head: { code: string; accounting_code: string } | null;
+  bookable_asset_codes: string[];
+};
+
+type BookableAssetRow = {
+  code: string;
+  name: unknown;
+  is_active: boolean;
 };
 
 type RevenueHeadRow = {
@@ -272,6 +285,8 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
   const { token, apiBase } = useTenantAdminSession();
   const [designer, setDesigner] = useState<ServiceDesignerResponse | null>(null);
   const [serviceConfig, setServiceConfig] = useState<ServiceConfigResponse | null>(null);
+  const [bookableAssets, setBookableAssets] = useState<BookableAssetRow[]>([]);
+  const [bookableAssetCodes, setBookableAssetCodes] = useState<string[]>([]);
   const [revenueHeads, setRevenueHeads] = useState<RevenueHeadRow[]>([]);
   const [formText, setFormText] = useState('');
   const [workflowText, setWorkflowText] = useState('');
@@ -313,7 +328,7 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     }
     setStatus(null);
     try {
-      const [designerRes, configRes, revenueRes, desigRes] = await Promise.all([
+      const [designerRes, configRes, revenueRes, desigRes, bookingsRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/services/${serviceId}/designer`, {
           cache: 'no-store',
           headers: authHeaders(),
@@ -327,6 +342,10 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
           headers: authHeaders(),
         }),
         fetch(`${apiBase}/admin/tenant/org/designations`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        }),
+        fetch(`${apiBase}/admin/tenant/bookings`, {
           cache: 'no-store',
           headers: authHeaders(),
         }),
@@ -375,6 +394,13 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       }
       setDesigner(data);
       setServiceConfig(config);
+      setBookableAssetCodes(config.bookable_asset_codes ?? []);
+      if (bookingsRes.ok) {
+        const bookings = (await bookingsRes.json()) as { assets: BookableAssetRow[] };
+        setBookableAssets(bookings.assets ?? []);
+      } else {
+        setBookableAssets([]);
+      }
       setRevenueHeads(heads.filter((head) => head.is_active));
       setFeeText(pretty(config.fee_rule));
       setPaymentSchedule(config.payment_schedule ?? 'upfront_only');
@@ -812,6 +838,38 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     await loadDesigner();
   }
 
+  function toggleBookableAsset(code: string, checked: boolean): void {
+    setBookableAssetCodes((prev) => {
+      if (checked) {
+        return prev.includes(code) ? prev : [...prev, code];
+      }
+      return prev.filter((item) => item !== code);
+    });
+  }
+
+  async function saveBookableAssetMapping(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ bookable_asset_codes: bookableAssetCodes }),
+    });
+    if (!res.ok) {
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
+      const body = await res.text().catch(() => '');
+      setStatus(`Asset mapping save failed (${res.status}). ${body.slice(0, 180)}`);
+      return;
+    }
+    setStatus('Bookable asset mapping saved.');
+    await loadDesigner();
+  }
+
+  const showBookableAssetsPanel = workflowDefinitionIsBooking(parsedWorkflow.workflow);
+
   if (!token || !designer || !serviceConfig) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-10">
@@ -895,6 +953,8 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             }
           />
           <WorkflowCanvasPanel
+            serviceCode={designer.service.code}
+            catalogueWorkflowPattern={designer.workflow_pattern}
             workflow={parsedWorkflow.workflow}
             valid={parsedWorkflow.validation.ok}
             nodes={workflowNodes}
@@ -921,6 +981,15 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
             onSave={() => void saveWorkflow()}
             onPublish={() => void publishWorkflow()}
           />
+          {showBookableAssetsPanel ? (
+            <BookableAssetsMappingPanel
+              serviceCode={designer.service.code}
+              selectedCodes={bookableAssetCodes}
+              assets={bookableAssets}
+              onToggle={toggleBookableAsset}
+              onSave={() => void saveBookableAssetMapping()}
+            />
+          ) : null}
           {/* Fee, documents, and revenue mapping stays on the Sprint 6.3 config contract. */}
           <ServiceConfigPanel
             serviceConfig={serviceConfig}
@@ -960,6 +1029,8 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
 }
 
 function WorkflowCanvasPanel({
+  serviceCode,
+  catalogueWorkflowPattern,
   workflow,
   valid,
   nodes,
@@ -974,6 +1045,8 @@ function WorkflowCanvasPanel({
   onUpdateWorkflow,
   onApplyTemplate,
 }: {
+  serviceCode: string;
+  catalogueWorkflowPattern: string | null;
   workflow: WorkflowDefinition | null;
   valid: boolean;
   nodes: Node[];
@@ -1013,6 +1086,9 @@ function WorkflowCanvasPanel({
           <p className="text-xs text-ink-secondary">
             Pick ULB designations per stage and forward/return verbs. Template buttons replace the
             draft (legacy approved/closed paths are removed). Orange dashed edges are returns.
+            {catalogueWorkflowPattern === 'booking'
+              ? ' For hall booking services, start with Hall & facility booking — asset mapping appears after that template is applied.'
+              : ''}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1034,6 +1110,18 @@ function WorkflowCanvasPanel({
       </div>
       {workflow ? (
         <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand"
+            onClick={() =>
+              applyTemplate(
+                (draft) => applyBookingHallTemplate(draft, serviceCode),
+                'Replaced workflow with hall booking (submitted → slot review → confirmed/rejected). Bookable asset mapping is now available — link halls, then save and publish the workflow.',
+              )
+            }
+          >
+            Hall &amp; facility booking (replace)
+          </button>
           <button
             type="button"
             className="rounded border border-warm-border bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-primary"

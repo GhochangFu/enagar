@@ -1,7 +1,7 @@
 import { DEFAULT_TENANT_ORG_IMPORT } from '../../src/modules/tenant-org-onboarding/tenant-org-onboarding.data';
 import { provisionTenantOrgFromImport } from '../../src/modules/tenant-org-onboarding/tenant-org-onboarding.provision';
 
-import type { PrismaClient } from '../../generated/prisma';
+import type { PrismaClient } from '../../src/generated/prisma';
 
 /** Prisma seed hook — full Appendix A departments + Appendix B designations for every ULB. */
 export async function seedTenantOrgForTenant(

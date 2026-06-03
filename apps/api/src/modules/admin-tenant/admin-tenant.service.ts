@@ -16,19 +16,32 @@ import {
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { KeycloakAdminProvisionerService } from '../../common/keycloak/keycloak-admin-provisioner.service';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
+import { renderSimplePdf } from '../../common/pdf/simple-pdf';
 import {
   countFormInputFields,
   isUsableFormSchema,
   resolveOnboardingFormSchema,
 } from '../admin-state/tenant-service-onboarding-forms';
+import { bookableAssetCodesFromOverrideConfig } from '../bookings/bookable-asset-scope.util';
+import { assertBookableWindow } from '../bookings/bookable-window';
+import { resolveBookingChargesSummary } from '../bookings/booking-charges-summary.util';
+import { BookingsService } from '../bookings/bookings.service';
+import {
+  assertHm,
+  istWindowToIso,
+  listIstDatesMatchingWeekdays,
+  parseIstYmd,
+} from '../bookings/bulk-availability.util';
 import { decimalToNumber } from '../documents/application-document.mapper';
 import {
   assertGrievanceTransition,
@@ -114,6 +127,7 @@ import type {
   RequeueKbArticleDto,
   UpdateStaffInviteDto,
   UpsertBookableAssetDto,
+  BulkBookableAvailabilityDto,
   UpsertBookableAvailabilityDto,
   UpsertBookingReservationDto,
   UpsertBrandingAssetDto,
@@ -220,6 +234,8 @@ export type TenantAdminServiceConfig = TenantAdminServiceRow & {
     name: Prisma.JsonValue;
     accounting_code: string;
   } | null;
+  /** Asset codes linked for citizen booking (from override_config). */
+  bookable_asset_codes: string[];
 };
 
 export type TenantAdminRevenueHeadRow = {
@@ -279,6 +295,8 @@ export type TenantAdminGlobalFormTemplate = {
 
 export type TenantAdminServiceDesigner = {
   service: TenantAdminServiceRow;
+  /** From global catalogue (e.g. booking, cert-issuance). Drives starter workflow and booking UI. */
+  workflow_pattern: string | null;
   form_draft: TenantAdminFormVersionRow | null;
   form_published: TenantAdminFormVersionRow | null;
   workflow_draft: TenantAdminWorkflowRow | null;
@@ -361,9 +379,15 @@ export type TenantAdminBrandingAssetRow = {
 export type TenantAdminBookableAssetRow = {
   id: string;
   code: string;
+  asset_type: string;
   name: Prisma.JsonValue;
   location: Prisma.JsonValue;
   capacity: number | null;
+  rate_unit: string;
+  base_rate_paise: number;
+  security_deposit_paise: number;
+  slot_step_minutes: number;
+  rules: Prisma.JsonValue;
   is_active: boolean;
   updated_at: string;
 };
@@ -380,12 +404,17 @@ export type TenantAdminBookableAvailabilityRow = {
 export type TenantAdminBookingReservationRow = {
   id: string;
   asset_code: string;
+  booking_no: string | null;
+  citizen_id: string | null;
+  deposit_id: string | null;
   docket_no: string | null;
   holder_name: string;
   holder_mobile: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
   note: string | null;
   updated_at: string;
 };
@@ -497,6 +526,18 @@ export type TenantDeskApplicationListItem = {
   >;
   payment_redirect_url?: string | null;
   active_payment_id?: string | null;
+  booking_charges?: {
+    application_fee_paise: number;
+    hall_rent_paise: number;
+    security_deposit_paise: number;
+    upfront_total_paise: number;
+    upfront_paid_paise: number;
+    application_fee_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    hall_rent_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    security_deposit_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    slot_summary: string | null;
+    reservation_id: string | null;
+  };
   submitted_at: string;
   updated_at: string | null;
 };
@@ -630,6 +671,7 @@ export class AdminTenantService {
     private readonly workOrders: WorkOrdersService,
     private readonly postApprovalExecution: PostApprovalExecutionService,
     private readonly keycloakProvisioner: KeycloakAdminProvisionerService,
+    @Optional() @Inject(BookingsService) private readonly bookings?: BookingsService,
   ) {}
 
   async getDashboard(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardSnapshot> {
@@ -1125,8 +1167,8 @@ export class AdminTenantService {
         'settled_at',
       ],
       rows.map((row) => [
-        row.application.docketNo,
-        row.application.serviceCode,
+        row.application?.docketNo ?? '',
+        row.application?.serviceCode ?? '',
         row.gatewayOrderId,
         row.gatewayPaymentId ?? '',
         row.amountPaise,
@@ -1561,6 +1603,23 @@ export class AdminTenantService {
       };
     }
 
+    if (dto.bookable_asset_codes !== undefined) {
+      const codes = [
+        ...new Set(dto.bookable_asset_codes.map((code) => code.trim()).filter(Boolean)),
+      ];
+      for (const code of codes) {
+        await this.getBookableAsset(principal.tenantId, code);
+      }
+      nextOverrideConfig = { ...(nextOverrideConfig ?? overrideBase) };
+      if (codes.length > 0) {
+        nextOverrideConfig.bookable_asset_codes = codes;
+        nextOverrideConfig.bookable_asset_code = codes[0];
+      } else {
+        delete nextOverrideConfig.bookable_asset_codes;
+        delete nextOverrideConfig.bookable_asset_code;
+      }
+    }
+
     if (
       dto.boc_policy !== undefined ||
       dto.municipal_signoff_policy !== undefined ||
@@ -1822,9 +1881,10 @@ export class AdminTenantService {
     const globalLink = await this.prisma.tenantService.findFirst({
       where: { id: serviceId, tenantId: principal.tenantId },
       select: {
-        globalService: { select: { code: true, formSchema: true } },
+        globalService: { select: { code: true, formSchema: true, workflowPattern: true } },
       },
     });
+    const workflowPattern = globalLink?.globalService?.workflowPattern ?? null;
     const globalFormTemplate = globalLink?.globalService
       ? {
           global_code: globalLink.globalService.code,
@@ -1856,13 +1916,17 @@ export class AdminTenantService {
 
     return {
       service,
+      workflow_pattern: workflowPattern,
       form_draft: formDraft ? toFormVersionRow(formDraft) : null,
       form_published: formPublished ? toFormVersionRow(formPublished) : null,
       workflow_draft: workflowDraft ? toWorkflowRow(workflowDraft) : null,
       workflow_published: workflowPublished ? toWorkflowRow(workflowPublished) : null,
       global_form_template: globalFormTemplate,
       starter_form_schema: createBlankFormSchemaDraft(service.code, labelFromJson(service.name)),
-      starter_workflow: createLinearWorkflowDraft(service.code),
+      starter_workflow:
+        workflowPattern && workflowPattern !== 'booking'
+          ? workflowForPattern(workflowPattern)
+          : createLinearWorkflowDraft(service.code),
     };
   }
 
@@ -2529,21 +2593,47 @@ export class AdminTenantService {
     assertCode(dto.code, 'bookable asset code');
     assertLocaleLabel(dto.name, 'bookable asset name');
     const capacity = dto.capacity ? parsePositiveInt(dto.capacity, 'capacity') : null;
+    const assetType = dto.asset_type ?? 'HALL';
+    assertBookableAssetType(assetType);
+    const rateUnit = dto.rate_unit ?? 'HOUR';
+    assertBookableRateUnit(rateUnit);
+    const baseRatePaise = dto.base_rate_paise
+      ? parseNonNegativeInt(dto.base_rate_paise, 'base_rate_paise')
+      : 0;
+    const securityDepositPaise = dto.security_deposit_paise
+      ? parseNonNegativeInt(dto.security_deposit_paise, 'security_deposit_paise')
+      : 0;
+    const slotStepMinutes = dto.slot_step_minutes
+      ? parsePositiveInt(dto.slot_step_minutes, 'slot_step_minutes')
+      : 60;
+    const rules = (dto.rules ?? {}) as Prisma.InputJsonValue;
     const row = await this.prisma.bookableAsset.upsert({
       where: { tenantId_code: { tenantId: principal.tenantId, code: dto.code } },
       create: {
         tenantId: principal.tenantId,
         code: dto.code,
+        assetType,
         name: dto.name as Prisma.InputJsonValue,
         location: (dto.location ?? {}) as Prisma.InputJsonValue,
         capacity,
+        rateUnit,
+        baseRatePaise,
+        securityDepositPaise,
+        slotStepMinutes,
+        rules,
         isActive: dto.is_active ?? true,
         metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
       },
       update: {
+        assetType,
         name: dto.name as Prisma.InputJsonValue,
         location: (dto.location ?? {}) as Prisma.InputJsonValue,
         capacity,
+        rateUnit,
+        baseRatePaise,
+        securityDepositPaise,
+        slotStepMinutes,
+        rules,
         isActive: dto.is_active ?? true,
         metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
       },
@@ -2574,6 +2664,107 @@ export class AdminTenantService {
     return toAvailabilityRow(row);
   }
 
+  async bulkAddBookableAvailability(
+    principal: AuthenticatedPrincipal,
+    dto: BulkBookableAvailabilityDto,
+  ): Promise<{
+    asset_code: string;
+    kind: string;
+    from_date: string;
+    to_date: string;
+    days_matched: number;
+    created: number;
+    skipped: number;
+  }> {
+    assertTenantPortalStaff(principal);
+    assertCode(dto.asset_code, 'asset code');
+    assertAvailabilityKind(dto.kind);
+    const fromDate = dto.from_date.trim();
+    const toDate = dto.to_date.trim();
+    try {
+      parseIstYmd(fromDate);
+      parseIstYmd(toDate);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'Invalid date');
+    }
+    let startHm: string;
+    let endHm: string;
+    try {
+      startHm = assertHm(dto.start_time, 'start_time');
+      endHm = assertHm(dto.end_time, 'end_time');
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'Invalid time');
+    }
+    const weekdays =
+      dto.weekdays && dto.weekdays.length > 0 ? [...new Set(dto.weekdays)] : [1, 2, 3, 4, 5];
+    let dates: string[];
+    try {
+      dates = listIstDatesMatchingWeekdays(fromDate, toDate, weekdays);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'Invalid date range');
+    }
+    if (dates.length === 0) {
+      throw new BadRequestException('No dates matched the selected weekdays in this range');
+    }
+    if (dates.length > 400) {
+      throw new BadRequestException(
+        'Date range yields too many windows (max 400). Narrow the range or weekdays.',
+      );
+    }
+    const asset = await this.getBookableAsset(principal.tenantId, dto.asset_code);
+    const skipExisting = dto.skip_existing !== false;
+    const note = dto.note?.trim() || null;
+    let created = 0;
+    let skipped = 0;
+
+    for (const ymd of dates) {
+      let window: { starts_at: string; ends_at: string };
+      try {
+        window = istWindowToIso(ymd, startHm, endHm);
+      } catch (err) {
+        throw new BadRequestException(err instanceof Error ? err.message : 'Invalid time window');
+      }
+      const startsAt = new Date(window.starts_at);
+      const endsAt = new Date(window.ends_at);
+      if (skipExisting) {
+        const existing = await this.prisma.bookableAssetAvailability.findFirst({
+          where: {
+            tenantId: principal.tenantId,
+            assetId: asset.id,
+            kind: dto.kind,
+            startsAt,
+            endsAt,
+          },
+        });
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+      }
+      await this.prisma.bookableAssetAvailability.create({
+        data: {
+          tenantId: principal.tenantId,
+          assetId: asset.id,
+          kind: dto.kind,
+          startsAt,
+          endsAt,
+          note,
+        },
+      });
+      created += 1;
+    }
+
+    return {
+      asset_code: dto.asset_code,
+      kind: dto.kind,
+      from_date: fromDate,
+      to_date: toDate,
+      days_matched: dates.length,
+      created,
+      skipped,
+    };
+  }
+
   async addBookingReservation(
     principal: AuthenticatedPrincipal,
     dto: UpsertBookingReservationDto,
@@ -2590,16 +2781,35 @@ export class AdminTenantService {
     if (!asset.isActive) {
       throw new BadRequestException('Bookable asset is inactive');
     }
-    await this.assertBookableWindow(principal.tenantId, asset.id, startsAt, endsAt);
+    await assertBookableWindow(this.prisma, principal.tenantId, asset, startsAt, endsAt);
     const application = dto.docket_no
       ? await this.prisma.application.findFirst({
           where: { tenantId: principal.tenantId, docketNo: dto.docket_no },
         })
       : null;
+    if (dto.citizen_id) {
+      const citizen = await this.prisma.citizen.findFirst({
+        where: { id: dto.citizen_id, tenantId: principal.tenantId },
+      });
+      if (!citizen) {
+        throw new BadRequestException('citizen_id not found for this tenant');
+      }
+    }
+    if (dto.deposit_id) {
+      const deposit = await this.prisma.deposit.findFirst({
+        where: { id: dto.deposit_id, tenantId: principal.tenantId },
+      });
+      if (!deposit) {
+        throw new BadRequestException('deposit_id not found for this tenant');
+      }
+    }
     const row = await this.prisma.bookingReservation.create({
       data: {
         tenantId: principal.tenantId,
         assetId: asset.id,
+        bookingNo: dto.booking_no?.trim() || null,
+        citizenId: dto.citizen_id ?? null,
+        depositId: dto.deposit_id ?? null,
         applicationId: application?.id ?? null,
         docketNo: dto.docket_no?.trim() || null,
         holderName: dto.holder_name,
@@ -3352,9 +3562,21 @@ export class AdminTenantService {
     };
     const workOrder = await this.workOrders.getByApplicationId(principal.tenantId, row.id);
     const vendors = await this.workOrders.listVendors(principal.tenantId);
+    const formData =
+      typeof snapshot.form_data === 'object' && snapshot.form_data !== null
+        ? (snapshot.form_data as Record<string, unknown>)
+        : {};
+    const bookingCharges = await resolveBookingChargesSummary(
+      this.prisma,
+      principal.tenantId,
+      row.id,
+      formData,
+      coerceFeeSettlementSnapshot(snapshot.fee_settlement),
+    );
     return {
       application: {
         ...applicationRow,
+        booking_charges: bookingCharges ?? undefined,
         form_data: (snapshot.form_data ?? {}) as Prisma.JsonValue,
         timeline: Array.isArray(snapshot.timeline)
           ? (snapshot.timeline as TenantDeskApplicationDetail['application']['timeline'])
@@ -3615,6 +3837,16 @@ export class AdminTenantService {
       row.id,
       evaluated.to.code,
     );
+
+    if (this.bookings) {
+      await this.bookings.syncDeskWorkflowToReservation(principal, {
+        workflowCode: workflow.definition.code,
+        applicationId: row.id,
+        verb: evaluated.transition.verb,
+        toStage: evaluated.to.code,
+        cancelReason: dto.comment,
+      });
+    }
 
     await this.auditTenantMutation(principal, 'desk.application.transition', {
       docket_no: row.docketNo,
@@ -4095,38 +4327,6 @@ export class AdminTenantService {
       throw new NotFoundException('Bookable asset not found');
     }
     return asset;
-  }
-
-  private async assertBookableWindow(
-    tenantId: string,
-    assetId: string,
-    startsAt: Date,
-    endsAt: Date,
-  ): Promise<void> {
-    const blackout = await this.prisma.bookableAssetAvailability.findFirst({
-      where: {
-        tenantId,
-        assetId,
-        kind: 'blackout',
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
-      },
-    });
-    if (blackout) {
-      throw new BadRequestException('Requested window overlaps a blackout');
-    }
-    const overlap = await this.prisma.bookingReservation.findFirst({
-      where: {
-        tenantId,
-        assetId,
-        status: { in: ['hold', 'confirmed'] },
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
-      },
-    });
-    if (overlap) {
-      throw new BadRequestException('Requested window overlaps an existing booking');
-    }
   }
 
   private async getOwnedService(
@@ -4649,18 +4849,30 @@ function toBrandingAssetRow(
 function toBookableAssetRow(row: {
   id: string;
   code: string;
+  assetType: string;
   name: Prisma.JsonValue;
   location: Prisma.JsonValue;
   capacity: number | null;
+  rateUnit: string;
+  baseRatePaise: number;
+  securityDepositPaise: number;
+  slotStepMinutes: number;
+  rules: Prisma.JsonValue;
   isActive: boolean;
   updatedAt: Date;
 }): TenantAdminBookableAssetRow {
   return {
     id: row.id,
     code: row.code,
+    asset_type: row.assetType,
     name: row.name,
     location: row.location,
     capacity: row.capacity,
+    rate_unit: row.rateUnit,
+    base_rate_paise: row.baseRatePaise,
+    security_deposit_paise: row.securityDepositPaise,
+    slot_step_minutes: row.slotStepMinutes,
+    rules: row.rules,
     is_active: row.isActive,
     updated_at: row.updatedAt.toISOString(),
   };
@@ -4686,12 +4898,17 @@ function toAvailabilityRow(row: {
 
 function toReservationRow(row: {
   id: string;
+  bookingNo: string | null;
+  citizenId: string | null;
+  depositId: string | null;
   docketNo: string | null;
   holderName: string;
   holderMobile: string | null;
   startsAt: Date;
   endsAt: Date;
   status: string;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
   note: string | null;
   updatedAt: Date;
   asset: { code: string };
@@ -4699,12 +4916,17 @@ function toReservationRow(row: {
   return {
     id: row.id,
     asset_code: row.asset.code,
+    booking_no: row.bookingNo,
+    citizen_id: row.citizenId,
+    deposit_id: row.depositId,
     docket_no: row.docketNo,
     holder_name: row.holderName,
     holder_mobile: row.holderMobile,
     starts_at: row.startsAt.toISOString(),
     ends_at: row.endsAt.toISOString(),
     status: row.status,
+    cancelled_at: row.cancelledAt?.toISOString() ?? null,
+    cancel_reason: row.cancelReason,
     note: row.note,
     updated_at: row.updatedAt.toISOString(),
   };
@@ -4872,6 +5094,9 @@ function toServiceConfigRow(
           accounting_code: row.revenueHead.accountingCode,
         }
       : null,
+    bookable_asset_codes: bookableAssetCodesFromOverrideConfig(
+      row.overrideConfig as Record<string, unknown> | null,
+    ),
   };
 }
 
@@ -5254,32 +5479,6 @@ function reportTitle(kind: string): string {
   return title;
 }
 
-function renderSimplePdf(lines: string[]): Buffer {
-  const text = lines.map((line) => line.replace(/[()\\]/g, '\\$&')).join('\\n');
-  const stream = `BT /F1 11 Tf 50 780 Td (${text}) Tj ET`;
-  const objects = [
-    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
-    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
-    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
-    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
-    `5 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj`,
-  ];
-  const header = '%PDF-1.4\n';
-  let body = header;
-  const offsets = [0];
-  for (const object of objects) {
-    offsets.push(Buffer.byteLength(body, 'utf8'));
-    body += `${object}\n`;
-  }
-  const xrefOffset = Buffer.byteLength(body, 'utf8');
-  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets.slice(1)) {
-    body += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  }
-  body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  return Buffer.from(body, 'utf8');
-}
-
 function brandingThemeColor(value: Prisma.JsonValue): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -5333,6 +5532,26 @@ function assertBookingStatus(value: unknown): asserts value is string {
   if (!['hold', 'confirmed', 'cancelled'].includes(String(value))) {
     throw new BadRequestException('Unsupported booking status');
   }
+}
+
+function assertBookableAssetType(value: unknown): asserts value is string {
+  if (!['HALL', 'AUDITORIUM', 'GROUND', 'EQUIPMENT'].includes(String(value))) {
+    throw new BadRequestException('Unsupported bookable asset_type');
+  }
+}
+
+function assertBookableRateUnit(value: unknown): asserts value is string {
+  if (!['HOUR', 'DAY'].includes(String(value))) {
+    throw new BadRequestException('Unsupported bookable rate_unit');
+  }
+}
+
+function parseNonNegativeInt(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new BadRequestException(`${field} must be a non-negative integer`);
+  }
+  return parsed;
 }
 
 function parsePositiveInt(value: unknown, field: string): number {

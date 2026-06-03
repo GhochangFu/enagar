@@ -45,6 +45,12 @@ export class PatchTenantServiceConfigDto {
   @IsInt()
   @Min(0)
   municipal_signoff_threshold_paise?: number;
+
+  /** Booking services: asset codes citizens may book under this service (see Operations → Bookings). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  bookable_asset_codes?: string[];
 }
 
 export class UpsertRevenueHeadDto {

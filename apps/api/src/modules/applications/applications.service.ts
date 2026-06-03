@@ -29,6 +29,7 @@ import {
   resolveCitizenMunicipalityForWrite,
 } from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
+import { resolveBookingChargesSummary } from '../bookings/booking-charges-summary.util';
 import {
   mapApplicationDocumentRow,
   toApplicationDocumentResponse,
@@ -62,8 +63,9 @@ import type {
   CreateApplicationDto,
 } from './dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-import type { Prisma } from '../../generated/prisma';
+import type { Prisma, Payment as PrismaPayment } from '../../generated/prisma';
 import type { FeeLineCode } from '../admin-tenant/admin-tenant-config.contracts';
+import type { PaymentResponse } from '../payments/dto';
 import type { FeeLineSettlement } from '../payments/fee-settlement.util';
 import type { EnagarFormSchema } from '@enagar/forms';
 
@@ -320,7 +322,8 @@ export class ApplicationsService {
         await this.hydratePaymentSnapshot(await this.withPersistedDocuments(application)),
       ),
     );
-    return enriched;
+    const withBooking = await this.attachBookingCharges(enriched);
+    return this.attachRelatedPayments(withBooking);
   }
 
   async cancel(
@@ -479,7 +482,80 @@ export class ApplicationsService {
     if (!application || !this.canAccess(principal, application, readScope)) {
       throw new NotFoundException('Application not found');
     }
-    return this.hydratePaymentSnapshot(await this.withPersistedDocuments(application));
+    const hydrated = await this.hydratePaymentSnapshot(
+      await this.withPersistedDocuments(application),
+    );
+    const withBooking = await this.attachBookingCharges(hydrated);
+    return this.attachRelatedPayments(withBooking);
+  }
+
+  private async attachBookingCharges(
+    application: ApplicationResponse,
+  ): Promise<ApplicationResponse> {
+    if (!this.prisma) {
+      return application;
+    }
+    const formData =
+      typeof application.form_data === 'object' && application.form_data !== null
+        ? (application.form_data as Record<string, unknown>)
+        : {};
+    const summary = await resolveBookingChargesSummary(
+      this.prisma,
+      application.tenant_id,
+      application.id,
+      formData,
+      coerceFeeSettlementSnapshot(application.fee_settlement),
+    );
+    if (!summary) {
+      return application;
+    }
+    return { ...application, booking_charges: summary };
+  }
+
+  private async attachRelatedPayments(
+    application: ApplicationResponse,
+  ): Promise<ApplicationResponse> {
+    if (!this.prisma) {
+      return application;
+    }
+    const reservationId = application.booking_charges?.reservation_id ?? null;
+    const orFilters: Prisma.PaymentWhereInput[] = [{ applicationId: application.id }];
+    if (reservationId) {
+      orFilters.push({ bookingReservationId: reservationId });
+    }
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        tenantId: application.tenant_id,
+        OR: orFilters,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      ...application,
+      related_payments: rows.map((row) => this.mapPaymentRow(row)),
+    };
+  }
+
+  private mapPaymentRow(row: PrismaPayment): PaymentResponse {
+    return {
+      id: row.id,
+      tenant_id: row.tenantId,
+      citizen_subject: row.citizenSubject,
+      application_id: row.applicationId,
+      booking_reservation_id: row.bookingReservationId,
+      fee_code: row.feeCode,
+      amount_paise: row.amountPaise,
+      currency: 'INR',
+      method: row.method as PaymentResponse['method'],
+      status: row.status as PaymentResponse['status'],
+      gateway: 'stub',
+      gateway_order_id: row.gatewayOrderId,
+      gateway_payment_id: row.gatewayPaymentId,
+      settled_at: row.settledAt ? row.settledAt.toISOString() : null,
+      redirect_url: `/payments/stub/complete?payment_id=${row.id}&order_id=${row.gatewayOrderId}`,
+      created_at: row.createdAt.toISOString(),
+      updated_at: row.updatedAt.toISOString(),
+    };
   }
 
   private async hydratePaymentSnapshot(

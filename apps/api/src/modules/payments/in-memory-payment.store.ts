@@ -68,6 +68,20 @@ export class InMemoryPaymentStore implements PaymentStore {
     );
   }
 
+  async findActivePaymentByBookingReservation(
+    bookingReservationId: string,
+  ): Promise<PaymentResponse | null> {
+    for (const payment of this.payments.values()) {
+      if (
+        payment.booking_reservation_id === bookingReservationId &&
+        payment.status === 'requires_action'
+      ) {
+        return clonePayment(payment);
+      }
+    }
+    return null;
+  }
+
   async findActivePaymentByApplication(
     applicationId: string,
     feeCode?: FeeLineCode,
@@ -95,7 +109,8 @@ export class InMemoryPaymentStore implements PaymentStore {
       id: input.id,
       tenant_id: input.tenantId,
       citizen_subject: input.citizenSubject,
-      application_id: input.applicationId,
+      application_id: input.applicationId ?? null,
+      booking_reservation_id: input.bookingReservationId ?? null,
       fee_code: input.feeCode,
       amount_paise: input.amountPaise,
       currency: 'INR',
@@ -109,10 +124,12 @@ export class InMemoryPaymentStore implements PaymentStore {
     };
 
     this.payments.set(payment.id, payment);
-    this.activePaymentByApplication.set(
-      activePaymentKey(payment.application_id, input.feeCode),
-      payment.id,
-    );
+    if (payment.application_id) {
+      this.activePaymentByApplication.set(
+        activePaymentKey(payment.application_id, input.feeCode as FeeLineCode),
+        payment.id,
+      );
+    }
     this.idempotencyRecords.set(
       `${input.tenantId}:${input.citizenSubject}:${input.idempotencyKey}`,
       {
@@ -176,13 +193,15 @@ export class InMemoryPaymentStore implements PaymentStore {
 
     this.payments.set(paymentId, settled);
 
-    const activePaymentId = this.activePaymentByApplication.get(
-      activePaymentKey(settled.application_id, settled.fee_code),
-    );
-    if (activePaymentId === paymentId) {
-      this.activePaymentByApplication.delete(
-        activePaymentKey(settled.application_id, settled.fee_code),
+    if (settled.application_id) {
+      const activePaymentId = this.activePaymentByApplication.get(
+        activePaymentKey(settled.application_id, settled.fee_code as FeeLineCode),
       );
+      if (activePaymentId === paymentId) {
+        this.activePaymentByApplication.delete(
+          activePaymentKey(settled.application_id, settled.fee_code as FeeLineCode),
+        );
+      }
     }
 
     const verificationToken = verificationTokenFresh();
@@ -194,6 +213,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       ),
       payment_id: paymentId,
       application_id: paymentRow.application_id,
+      booking_reservation_id: paymentRow.booking_reservation_id,
       service_code: ctx.serviceCode,
       revenue_head_code: ctx.revenueHeadCode,
       amount_paise: paymentRow.amount_paise,

@@ -139,6 +139,7 @@ export function ApplyMunicipalityCard({
   return (
     <button
       className="group relative overflow-hidden rounded-[1.75rem] border border-warm-border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+      data-testid={`enter-workspace-${tenant.code}`}
       onClick={onEnter}
       type="button"
     >

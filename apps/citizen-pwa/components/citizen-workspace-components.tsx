@@ -221,11 +221,26 @@ export function WorkspaceServiceCard({
         <WorkspaceInfo label="Docs" value={String(service.required_documents.length)} />
         <WorkspaceInfo label="DigiLocker" value={service.pushes_to_digilocker ? 'Yes' : 'No'} />
       </dl>
-      <Button className="mt-5 w-full" icon="file-plus" onClick={() => onApply(service)}>
+      <Button
+        className="mt-5 w-full"
+        data-testid={`apply-service-${service.code}`}
+        icon="file-plus"
+        onClick={() => onApply(service)}
+      >
         Apply
       </Button>
     </Card>
   );
+}
+
+function formatPaymentReferenceLabel(payment: PaymentApiResponse): string {
+  if (payment.application_id) {
+    return `Application ${payment.application_id.slice(0, 13)}…`;
+  }
+  if (payment.booking_reservation_id) {
+    return `Hall booking ${payment.booking_reservation_id.slice(0, 13)}…`;
+  }
+  return 'Reference unavailable';
 }
 
 export function PaymentAttemptCard({
@@ -253,7 +268,7 @@ export function PaymentAttemptCard({
         <strong className="text-2xl font-black text-ink-primary">{amount}</strong>
       </div>
       <dl className="mt-4 grid gap-2 text-xs text-ink-secondary md:grid-cols-2">
-        <span>Application: {payment.application_id.slice(0, 13)}...</span>
+        <span>{formatPaymentReferenceLabel(payment)}</span>
         <span>Gateway order: {payment.gateway_order_id}</span>
         <span>ULB: {scopeCode}</span>
         <span>Method: {payment.method}</span>

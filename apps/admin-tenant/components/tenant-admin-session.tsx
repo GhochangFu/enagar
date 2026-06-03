@@ -14,6 +14,7 @@ import {
 
 import { clearStoredAuth, readStoredAuth } from '../lib/admin-auth';
 import { publicEnv } from '../lib/env/public-env';
+import { normalizeApiBaseUrl } from '../lib/normalize-api-base';
 
 export type TenantAdminSessionMe = {
   tenant_code?: string;
@@ -53,7 +54,7 @@ function resolveStoredSession(fallbackApi: string): {
   }
   return {
     token: auth.access_token,
-    apiBase: auth.api_base_url ?? fallbackApi,
+    apiBase: normalizeApiBaseUrl(auth.api_base_url ?? fallbackApi),
     redirectToLogin: false,
   };
 }
@@ -101,7 +102,7 @@ export function TenantAdminSessionProvider({
   children: ReactNode;
   onUnauthorized: () => void;
 }): JSX.Element {
-  const fallbackApi = useMemo(() => publicEnv().apiBaseUrl, []);
+  const fallbackApi = useMemo(() => normalizeApiBaseUrl(publicEnv().apiBaseUrl), []);
   const [bootState, setBootState] = useState<BootState>('pending');
   const [token, setToken] = useState<string | null>(null);
   const [apiBase, setApiBase] = useState(fallbackApi);

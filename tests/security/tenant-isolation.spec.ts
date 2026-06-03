@@ -38,10 +38,17 @@ const requiredOrgDesignationTables = [
   'work_orders',
 ] as const;
 
+const requiredSprint81BookingTables = [
+  'bookable_assets',
+  'bookable_asset_availability',
+  'booking_reservations',
+] as const;
+
 const requiredTenantIsolationTables = [
   ...requiredSprint11Tables,
   ...requiredSprint21Tables,
   ...requiredOrgDesignationTables,
+  ...requiredSprint81BookingTables,
   'workflows',
   'workflow_stages',
   'workflow_transitions',

@@ -1,4 +1,5 @@
 import {
+  bookingWorkflow,
   CHAIRPERSON_REJECT_STAGE_CODE,
   CITIZEN_CORRECTION_VERB,
   type WorkflowDefinition,
@@ -196,6 +197,22 @@ export function resetDesignationWorkflow(workflow: WorkflowDefinition): Workflow
     version: workflow.version,
     stages: [submittedStage],
     transitions: [],
+  };
+}
+
+/**
+ * Hall / facility booking — clerk reviews held slot, then confirm or reject (replaces draft).
+ * Workflow code is `{serviceCode}-booking-v1` so it passes tenant save validation and desk sync.
+ */
+export function applyBookingHallTemplate(
+  workflow: WorkflowDefinition,
+  serviceCode: string,
+): WorkflowDefinition {
+  const slug = serviceCode.trim().toLowerCase();
+  return {
+    ...bookingWorkflow,
+    code: `${slug}-booking-v1`,
+    version: workflow.version ?? bookingWorkflow.version,
   };
 }
 

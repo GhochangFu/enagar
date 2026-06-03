@@ -31,6 +31,7 @@
             <li><a href="#desk">Desk — daily work</a></li>
             <li><a href="#masters">Master data</a></li>
             <li><a href="#operations">Operations settings</a></li>
+            <li><a href="#bookings-ops">Bookable facilities</a></li>
             <li><a href="#service-setup">Setting up a service</a></li>
             <li><a href="#forms">Building the application form</a></li>
             <li><a href="#workflows">Setting up approval steps</a></li>
@@ -401,6 +402,55 @@
             Prefer the normal form on each page. Use <strong>JSON advanced</strong> only if IT asks
             you to — it is easy to make a mistake there.
           </p>
+
+          <h3 id="bookings-ops">Bookable facilities (halls, grounds, courts)</h3>
+          <p>
+            <strong>Who can use this:</strong> ULB administrators only. Desk officers see
+            “Administrator access required” on Operations → Bookings.
+          </p>
+          <ol class="help-steps">
+            <li>
+              Open <strong>Operations</strong> → <strong>Bookings</strong>. On the left,
+              <strong>New bookable asset</strong> (or edit an existing asset from the list on the
+              right).
+            </li>
+            <li>
+              In the card header use <span class="btn-label">New asset</span> to clear the form for
+              another hall or ground, and <span class="btn-label">Save asset</span> when code, name,
+              rates, and open/close times are filled. You need a <strong>code</strong> (no spaces,
+              e.g. <em>community-hall-main</em>) and <strong>Name EN</strong> before save works.
+            </li>
+            <li>
+              On the right, <strong>Bookable assets</strong> lists everything active. Click a row to
+              load it into the form (the title changes to “Edit bookable asset · …”).
+            </li>
+            <li>
+              Scroll to <strong>Bulk generate availability</strong> to add weekday open windows
+              (e.g. 09:00–21:00 IST) for a date range.
+            </li>
+            <li>
+              The <strong>Booking calendar</strong> below uses <strong>Day hours</strong> by
+              default: pick a day, filter by asset, and click a coloured block to pre-fill a manual
+              reservation if needed. Switch to <strong>Agenda</strong> for a day-grouped list.
+            </li>
+            <li>
+              In <strong>Service setup</strong> for a booking service (e.g. Community Hall, Other
+              Facility Booking): apply <strong>Hall &amp; facility booking (replace)</strong> on the
+              workflow, then tick which asset codes this service may use in
+              <strong>Bookable asset mapping</strong>. Save and <strong>Publish</strong> the
+              workflow.
+            </li>
+            <li>
+              Citizens pick an hourly slot in the citizen app, pay fees, and submit; clerks use Desk
+              <strong>Review slot</strong> → Confirm or Reject. Rejecting releases the slot for
+              others.
+            </li>
+          </ol>
+          <div class="help-card tip">
+            <strong>Two services, two asset lists:</strong> Community Hall may map only hall assets;
+            Other Facility Booking may map sports grounds or courts. Do not map the same asset to
+            two services unless your policy allows it.
+          </div>
         </section>
 
         <section
@@ -440,7 +490,7 @@
         <section
           id="forms"
           class="help-section"
-          data-search="form builder field text date dropdown file upload required label Bangla Hindi publish save"
+          data-search="form builder field text date dropdown file upload required label Bangla Hindi publish save validation pattern min max show_if conditional cross-field equals mobile email regex"
         >
           <h2>Building the application form</h2>
           <p>
@@ -534,18 +584,233 @@
               <span class="btn-label">Publish</span>.
             </li>
           </ol>
-          <h3>Show a question only sometimes</h3>
+          <h3>Validation rules (per question)</h3>
           <p>
-            Example: show “FSSAI certificate” only when trade type is Food. In field settings, use
-            <strong>Show only when</strong> (another field equals a value). If you are unsure, ask
-            IT — do not use the hidden JSON box unless trained.
+            Click any field in the centre list. The right panel is the
+            <strong>Field validation inspector</strong>. Rules apply when the citizen submits;
+            hidden questions (see below) are not checked.
           </p>
-          <h3>Rules between two answers</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Field type</th>
+                <th>What you can set</th>
+                <th>Example</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Short / long text</td>
+                <td>
+                  <strong>Required</strong>; <strong>Min length</strong> /
+                  <strong>Max length</strong>; <strong>Pattern preset</strong> (Mobile 10-digit,
+                  Email) or <strong>Custom regex</strong>
+                </td>
+                <td>Mobile: required, pattern preset “Mobile (India 10-digit)”</td>
+              </tr>
+              <tr>
+                <td>Number</td>
+                <td><strong>Min</strong> and <strong>Max</strong></td>
+                <td>Plot area: min 1, max 10000</td>
+              </tr>
+              <tr>
+                <td>Date</td>
+                <td>
+                  <strong>Min date</strong> and <strong>Max date</strong> (calendar,
+                  <code>YYYY-MM-DD</code>)
+                </td>
+                <td>Event date cannot be before today (set min date)</td>
+              </tr>
+              <tr>
+                <td>Single choice / dropdown / radio</td>
+                <td>Options with value + labels; <strong>Required</strong></td>
+                <td>
+                  Trade type: values <code>general</code>, <code>food</code>, <code>retail</code>
+                </td>
+              </tr>
+              <tr>
+                <td>Multi select</td>
+                <td>Same as choice; used with “includes” visibility (below)</td>
+                <td>Amenities: citizen picks several tags</td>
+              </tr>
+              <tr>
+                <td>File upload</td>
+                <td>
+                  Allowed types (PDF/JPG), <strong>max size</strong> (MB), multiple files on/off
+                </td>
+                <td>FSSAI PDF only, max 5 MB</td>
+              </tr>
+            </tbody>
+          </table>
           <p>
-            Example: “End date cannot be before start date.” Use the
-            <strong>Cross-field rules</strong> panel below the form builder and follow the on-screen
-            labels.
+            <strong>Field ID</strong> is the internal name (lowercase, no spaces). It must stay
+            stable after citizens have applied — do not rename IDs on a live service without IT
+            guidance.
           </p>
+
+          <h3>Conditional visibility (“Show only when”)</h3>
+          <p>
+            In the same inspector, tick <strong>Show only when another field matches</strong>. The
+            question appears only when the rule is true; when hidden it is not required and answers
+            are ignored.
+          </p>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Condition (on screen)</th>
+                <th>Use when</th>
+                <th>Worked example</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Equals one value</strong></td>
+                <td>Dropdown, radio, short text, or number must match exactly</td>
+                <td>
+                  Controlling field <code>trade_type</code>, value <code>food</code> → show file
+                  upload
+                  <code>fssai_certificate</code>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Equals any of (OR)</strong></td>
+                <td>Show when the controlling field is one of several values</td>
+                <td>
+                  <code>trade_type</code> is <code>food</code> OR <code>retail</code> → show
+                  <code>shop_photo</code> (tick both values in the checklist)
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Includes one option</strong></td>
+                <td>Only when the controlling field is <strong>multi-select</strong></td>
+                <td>
+                  <code>amenities</code> includes <code>generator</code> → show
+                  <code>generator_noc</code>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Is not empty</strong></td>
+                <td>Any answer on the controlling field (text, number, choice)</td>
+                <td>
+                  After citizen fills <code>business_name</code>, show optional
+                  <code>trade_name_variant</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="help-card important">
+            <strong>Common mistake:</strong> “Includes one option” does not work on a normal
+            dropdown — use <strong>Equals one value</strong> instead. The builder shows a warning if
+            you pick the wrong type.
+          </div>
+          <details class="it-appendix">
+            <summary>JSON example — conditional field (for IT / advanced)</summary>
+            <pre>
+{
+  "id": "fssai_certificate",
+  "type": "file",
+  "label": { "en": "FSSAI certificate", "bn": "…", "hi": "…" },
+  "required": true,
+  "accept": ["application/pdf"],
+  "max_size_mb": 5,
+  "show_if": {
+    "field": "trade_type",
+    "equals": "food"
+  }
+}</pre
+            >
+          </details>
+          <details class="it-appendix">
+            <summary>JSON example — show when any of several values (OR)</summary>
+            <pre>
+{
+  "id": "shop_photo",
+  "type": "file",
+  "show_if": {
+    "field": "trade_type",
+    "equals_any": ["food", "retail"]
+  }
+}</pre
+            >
+          </details>
+
+          <h3>Cross-field rules (compare two answers)</h3>
+          <p>
+            Below the form builder, open <strong>Compare fields on submit</strong> (
+            <strong>Cross-field rules</strong>). Use this when one answer must relate to another —
+            not for simple “required” checks (use per-field validation above).
+          </p>
+          <ol class="help-steps">
+            <li>Click <span class="btn-label">Add rule</span>.</li>
+            <li>
+              Choose <strong>Left field</strong> and <strong>Right field</strong> (field IDs from
+              your form).
+            </li>
+            <li>
+              <strong>Compare</strong>: <em>After</em> = left date/number must be later than right;
+              <em>On or after</em>, <em>Before</em>, <em>On or before</em>, or <em>Equals</em> for
+              matching values.
+            </li>
+            <li>
+              Type <strong>Error message EN</strong> citizens see if the rule fails (e.g. “End date
+              must be on or after start date”).
+            </li>
+            <li>
+              Optional: tick <strong>Only when another field matches</strong> so the rule runs only
+              in some cases (e.g. only when <code>has_event</code> equals <code>yes</code>).
+            </li>
+            <li>Save the form, fix red errors, then <strong>Publish</strong>.</li>
+          </ol>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Goal</th>
+                <th>Left</th>
+                <th>Compare</th>
+                <th>Right</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>End date not before start</td>
+                <td><code>event_end_date</code></td>
+                <td>On or after</td>
+                <td><code>event_start_date</code></td>
+              </tr>
+              <tr>
+                <td>Guests within hall capacity</td>
+                <td><code>guest_count</code></td>
+                <td>On or before</td>
+                <td><code>hall_capacity</code></td>
+              </tr>
+              <tr>
+                <td>Refund amount equals deposit</td>
+                <td><code>refund_amount</code></td>
+                <td>Equals</td>
+                <td><code>deposit_amount</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <details class="it-appendix">
+            <summary>JSON example — cross-field rule (for IT / advanced)</summary>
+            <pre>
+{
+  "cross_field_rules": [
+    {
+      "id": "end_after_start",
+      "left": "event_end_date",
+      "op": "gte_field",
+      "right": "event_start_date",
+      "message": {
+        "en": "End date must be on or after the start date.",
+        "bn": "…",
+        "hi": "…"
+      }
+    }
+  ]
+}</pre
+            >
+          </details>
         </section>
 
         <section
@@ -620,6 +885,29 @@
             section (never / always / officer may decide). Only add BOC steps when your municipality
             rules require it.
           </p>
+          <h3>Hall and facility booking services</h3>
+          <p>
+            For community hall, auditorium, or sports-ground booking, use the
+            <strong>Hall &amp; facility booking (replace)</strong> template on the service workflow
+            page. Stages include citizen <strong>submitted</strong>, clerk
+            <strong>review-slot</strong>, then <strong>confirmed</strong> or
+            <strong>rejected</strong>. After applying the template:
+          </p>
+          <ol class="help-steps">
+            <li>
+              Map assets in <strong>Bookable asset mapping</strong> (which halls/grounds this
+              service may book).
+            </li>
+            <li>
+              Save and <strong>Publish</strong> the workflow — mapping stays hidden until the
+              booking pattern is active.
+            </li>
+            <li>
+              Desk officers use <strong>Review slot</strong> on the dossier, then Confirm (locks the
+              slot) or Reject (frees the hour for other citizens).
+            </li>
+          </ol>
+
           <h3>Save and publish the flow</h3>
           <ol class="help-steps">
             <li>Fix any red error text under the approval diagram.</li>
@@ -724,6 +1012,21 @@
               Ready-made service from the state government library — you can adjust it for your
               town.
             </dd>
+            <dt>Bookable asset</dt>
+            <dd>
+              A hall, ground, or facility with hourly slots (code, rates, open hours). Created in
+              Operations → Bookings, then linked to a booking service.
+            </dd>
+            <dt>Review slot</dt>
+            <dd>
+              Desk action for booking applications: officer checks the reserved hour before Confirm
+              or Reject.
+            </dd>
+            <dt>Show only when</dt>
+            <dd>
+              Conditional visibility — a form question appears only when another answer matches your
+              rule.
+            </dd>
           </dl>
         </section>
 
@@ -777,6 +1080,21 @@
                 <td>
                   Check fee type and which form question drives “slab” fees; amounts are in rupees
                   on screen.
+                </td>
+              </tr>
+              <tr>
+                <td>Bookable asset save failed</td>
+                <td>
+                  Fill <strong>Code</strong> and <strong>Name EN</strong>; check the status line at
+                  the top of Operations. Use header <strong>Save asset</strong>, not only JSON
+                  fallback.
+                </td>
+              </tr>
+              <tr>
+                <td>Conditional field always hidden</td>
+                <td>
+                  Check controlling field ID and value match option <code>value</code> (not the
+                  English label). For dropdowns use <strong>Equals one value</strong>, not Includes.
                 </td>
               </tr>
             </tbody>

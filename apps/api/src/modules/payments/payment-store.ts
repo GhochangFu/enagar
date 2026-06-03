@@ -9,8 +9,9 @@ export interface CreatePendingPaymentInput {
   id: string;
   tenantId: string;
   citizenSubject: string;
-  applicationId: string;
-  feeCode: FeeLineCode;
+  applicationId?: string;
+  bookingReservationId?: string;
+  feeCode: FeeLineCode | string;
   amountPaise: number;
   method: PaymentMethod;
   gateway: 'stub';
@@ -47,6 +48,9 @@ export interface PaymentStore {
   findActivePaymentByApplication(
     applicationId: string,
     feeCode?: FeeLineCode,
+  ): Promise<PaymentResponse | null>;
+  findActivePaymentByBookingReservation(
+    bookingReservationId: string,
   ): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;
   listByPrincipal(

@@ -11,6 +11,7 @@ import {
   Min,
 } from 'class-validator';
 
+import type { PaymentResponse } from '../payments/dto';
 import type { FormSubmission } from '@enagar/forms';
 
 export class CreateApplicationDto {
@@ -138,6 +139,21 @@ export interface ApplicationResponse {
     vendor_id: string | null;
     assigned_user_id: string | null;
   } | null;
+  /** Community-hall / linked booking: full fee breakdown (application + rent + deposit). */
+  booking_charges?: {
+    application_fee_paise: number;
+    hall_rent_paise: number;
+    security_deposit_paise: number;
+    upfront_total_paise: number;
+    upfront_paid_paise: number;
+    application_fee_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    hall_rent_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    security_deposit_status: 'not_required' | 'pending' | 'paid' | 'failed';
+    slot_summary: string | null;
+    reservation_id: string | null;
+  };
+  /** Application fee + linked hall booking payments (for receipts on detail). */
+  related_payments?: PaymentResponse[];
 }
 
 export type ApplicationSummaryResponse = Omit<
