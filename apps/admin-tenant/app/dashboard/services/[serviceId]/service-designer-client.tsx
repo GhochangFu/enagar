@@ -37,6 +37,10 @@ import { type DragEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { useTenantAdminSession } from '../../../../components/tenant-admin-session';
 import { clearStoredAuth } from '../../../../lib/admin-auth';
 import {
+  bookableAssetCodesMissingFromDb,
+  resolveBookableAssetCodesForMapping,
+} from '../../../../lib/bookable-assets-mapping.util';
+import {
   addDesignationStage,
   addForwardReturnPair,
   applyBookingHallTemplate,
@@ -394,13 +398,15 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
       }
       setDesigner(data);
       setServiceConfig(config);
-      setBookableAssetCodes(config.bookable_asset_codes ?? []);
+      let assets: BookableAssetRow[] = [];
       if (bookingsRes.ok) {
         const bookings = (await bookingsRes.json()) as { assets: BookableAssetRow[] };
-        setBookableAssets(bookings.assets ?? []);
-      } else {
-        setBookableAssets([]);
+        assets = bookings.assets ?? [];
       }
+      setBookableAssets(assets);
+      setBookableAssetCodes(
+        resolveBookableAssetCodesForMapping(config.bookable_asset_codes ?? [], assets),
+      );
       setRevenueHeads(heads.filter((head) => head.is_active));
       setFeeText(pretty(config.fee_rule));
       setPaymentSchedule(config.payment_schedule ?? 'upfront_only');
@@ -851,10 +857,11 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     if (!token) {
       return;
     }
+    const codes = resolveBookableAssetCodesForMapping(bookableAssetCodes, bookableAssets);
     const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
       method: 'PATCH',
       headers: authHeaders(),
-      body: JSON.stringify({ bookable_asset_codes: bookableAssetCodes }),
+      body: JSON.stringify({ bookable_asset_codes: codes }),
     });
     if (!res.ok) {
       if (redirectIfUnauthorized(res)) {
@@ -986,6 +993,10 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
               serviceCode={designer.service.code}
               selectedCodes={bookableAssetCodes}
               assets={bookableAssets}
+              configCodesMissingFromDb={bookableAssetCodesMissingFromDb(
+                serviceConfig.bookable_asset_codes ?? [],
+                bookableAssets,
+              )}
               onToggle={toggleBookableAsset}
               onSave={() => void saveBookableAssetMapping()}
             />

@@ -1607,13 +1607,16 @@ export class AdminTenantService {
       const codes = [
         ...new Set(dto.bookable_asset_codes.map((code) => code.trim()).filter(Boolean)),
       ];
-      for (const code of codes) {
-        await this.getBookableAsset(principal.tenantId, code);
-      }
+      const existingAssets = await this.prisma.bookableAsset.findMany({
+        where: { tenantId: principal.tenantId, code: { in: codes } },
+        select: { code: true },
+      });
+      const existingCodes = new Set(existingAssets.map((row) => row.code));
+      const validCodes = codes.filter((code) => existingCodes.has(code));
       nextOverrideConfig = { ...(nextOverrideConfig ?? overrideBase) };
-      if (codes.length > 0) {
-        nextOverrideConfig.bookable_asset_codes = codes;
-        nextOverrideConfig.bookable_asset_code = codes[0];
+      if (validCodes.length > 0) {
+        nextOverrideConfig.bookable_asset_codes = validCodes;
+        nextOverrideConfig.bookable_asset_code = validCodes[0];
       } else {
         delete nextOverrideConfig.bookable_asset_codes;
         delete nextOverrideConfig.bookable_asset_code;

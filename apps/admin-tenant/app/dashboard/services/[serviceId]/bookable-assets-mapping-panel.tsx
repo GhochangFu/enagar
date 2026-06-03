@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { WorkflowDefinition } from '@enagar/workflow';
 import type { Route } from 'next';
 
-type BookableAssetRow = {
+export type BookableAssetRow = {
   code: string;
   name: unknown;
   is_active: boolean;
@@ -45,17 +45,20 @@ export function BookableAssetsMappingPanel({
   serviceCode,
   selectedCodes,
   assets,
+  configCodesMissingFromDb,
   onToggle,
   onSave,
 }: {
   serviceCode: string;
   selectedCodes: string[];
   assets: BookableAssetRow[];
+  configCodesMissingFromDb?: string[];
   onToggle: (code: string, checked: boolean) => void;
   onSave: () => void;
 }): JSX.Element {
   const activeAssets = assets.filter((asset) => asset.is_active);
   const selectedSet = new Set(selectedCodes);
+  const staleConfigCodes = configCodesMissingFromDb ?? [];
 
   return (
     <article className="rounded-xl border border-warm-border bg-white p-5 shadow-sm">
@@ -89,6 +92,14 @@ export function BookableAssetsMappingPanel({
           Save asset mapping
         </button>
       </div>
+
+      {staleConfigCodes.length > 0 ? (
+        <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Service config still lists asset codes that are not in Operations → Bookings:{' '}
+          <span className="font-mono">{staleConfigCodes.join(', ')}</span>. They are ignored until
+          you create matching assets or save mapping with only real assets selected.
+        </p>
+      ) : null}
 
       {activeAssets.length === 0 ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
