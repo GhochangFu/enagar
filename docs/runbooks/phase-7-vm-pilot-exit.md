@@ -1,6 +1,6 @@
 # Phase 7 VM pilot exit — Sahayak (no Prometheus)
 
-**Status:** use this checklist on the **demo VM** after [`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md).  
+**Status:** optional VM pilot checklist (repo **Phase 7** closed **2026-06-03** per [`phase-7-exit.md`](./phase-7-exit.md)). Use on the **demo VM** after [`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md).  
 **Prometheus / cost dashboard:** **deferred** — not part of this exit.
 
 ## Prerequisites

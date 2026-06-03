@@ -49,6 +49,8 @@ pnpm test:security -- --runTestsByPath tests/security/master-sprint-74.spec.ts
 
 Sprints **7.1–7.4** deliver indexer, LLM adapter, query pipeline, and citizen UI.
 
-**Next (VM pilot):** [`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md) · exit [`phase-7-vm-pilot-exit.md`](./phase-7-vm-pilot-exit.md).
+**Master phase exit:** [`phase-7-exit.md`](./phase-7-exit.md) (**closed 2026-06-03**).
+
+**Optional VM pilot:** [`phase-7-vm-pilot-plan.md`](./phase-7-vm-pilot-plan.md) · [`phase-7-vm-pilot-exit.md`](./phase-7-vm-pilot-exit.md).
 
 **Deferred:** Prometheus / State Super-Admin cost dashboard (sponsor deferred). Production **legal DPA** with OpenAI/Google remains a sponsor gate outside VM demo (`dpa_signed` in seed is demo-only).
