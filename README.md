@@ -3,7 +3,7 @@
 > A unified, multi-tenant, multilingual municipal services platform for the Government of West Bengal.
 > Built once. Deployed everywhere. Owned by the state.
 
-[![Status](https://img.shields.io/badge/status-Phase_1_complete-brightgreen)]()
+[![Status](https://img.shields.io/badge/status-Phase_8_in_progress-blue)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)]()
 [![Stack](https://img.shields.io/badge/stack-NestJS%20%7C%20Next.js%20%7C%20Expo%20%7C%20Postgres%20%7C%20Qdrant-informational)]()
 
@@ -57,7 +57,8 @@ Each municipality is a **tenant**: its own services, fees, SLAs, workflows, bran
 | [`docs/runbooks/master-sprint-612-plan.md`](./docs/runbooks/master-sprint-612-plan.md)                       | Phase 6 P5 sprint plan: staff invites, global service library, integration cockpit, and audit/onboarding hardening                                                                  |
 | [`docs/runbooks/master-sprint-612-exit.md`](./docs/runbooks/master-sprint-612-exit.md)                       | Phase 6 P5 engineering exit: identity lifecycle, state library curation, metadata-only integrations, and hardening                                                                  |
 | [`docs/runbooks/object-storage-upload-programme.md`](./docs/runbooks/object-storage-upload-programme.md)     | Upload programme **6.25–6.30** (MinIO presign, real citizen uploads) — **closed engineering 2026-05-21** ([`master-sprint-630-exit.md`](./docs/runbooks/master-sprint-630-exit.md)) |
-| [`docs/runbooks/master-sprint-626-plan.md`](./docs/runbooks/master-sprint-626-plan.md)                       | **Next:** application documents in Postgres + real PWA/mobile file upload                                                                                                           |
+| [`docs/runbooks/phase-7-exit.md`](./docs/runbooks/phase-7-exit.md)                                           | **Phase 7 — Sahayak AI** programme exit (RAG, LLM adapter, citizen chatbot) — **closed engineering 2026-06-03**                                                                     |
+| [`docs/runbooks/master-sprint-81-exit.md`](./docs/runbooks/master-sprint-81-exit.md)                         | **Sprint 8.1** — hourly bookings calendar, deposit linkage, citizen booking UI, desk sync — **closed 2026-06-03**                                                                   |
 | [`docs/backlog/phase-6-vision-backlog-prioritized.md`](./docs/backlog/phase-6-vision-backlog-prioritized.md) | Phase 6 **roadmap vs shipped** backlog, **prioritized execution order** for optional 6.8+ / hardening slices                                                                        |
 
 ## Architecture at a glance
@@ -108,7 +109,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full picture.
 
 ## Quickstart
 
-> Phase 1 is closed. The monorepo, dev infrastructure, tenant identity core, Keycloak realm contract, citizen OTP-to-tenant flow, i18n, tenant theming, onboarding CLI, and security gates are in place. Phase 2 planning starts the service catalogue, application intake, and workflow foundations.
+> Phases **0–7** are closed in-repo (through **Sahayak AI**). **Phase 8 — Bookings, Smart-City & Tenders** is in progress (**Sprint 8.1** closed 2026-06-03). Bring up infra, migrate/seed, then run the portals and API as below.
 
 ### Prerequisites
 
@@ -241,6 +242,22 @@ enagarseba/
 └── docs/                       # Charter, ADRs (00x), glossary, threat model
 ```
 
+## Source repositories
+
+The same `main` branch is maintained on two remotes:
+
+| Remote   | URL                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `origin` | [github.com/GhochangFu/enagar](https://github.com/GhochangFu/enagar)                                             |
+| `gitlab` | [gitlab.euphoriainfotech.com/.../enagar](https://gitlab.euphoriainfotech.com/eiipl-learnings/eiipl-india/enagar) |
+
+After each merge to `main`, push both remotes to keep them aligned:
+
+```bash
+git push origin main
+git push gitlab main
+```
+
 ## Contributing
 
 Read [`AGENT.md`](./AGENT.md) before opening a PR. The TL;DR is:
@@ -259,23 +276,39 @@ AGPL-3.0-or-later. © Government of West Bengal.
 
 ## Status
 
-**Phase 0 — Foundation & Discovery** closed on 2026-05-06.
+_Last updated: 2026-06-05 · authoritative detail in [`ROADMAP.md`](./ROADMAP.md)_
 
-- Sprint 0.1 (`77a7355`) — monorepo, CI, dev infra, charter, ADRs 0001 / 0002 / 0003 / 0005 / 0008.
-- Sprint 0.2 (`7b604d2`) — glossary, threat model, service catalogue, design system, ADR-0009, ADR-0010.
+### In progress
 
-**Phase 1 — Tenant & Identity Core** closed on 2026-05-07.
+**Phase 8 — Bookings, Smart-City & Tenders** ([`ROADMAP.md` § Phase 8](./ROADMAP.md#phase-8--bookings-smart-city--tender-modules) · Jira [EN-10](https://ghochangfu.atlassian.net/browse/EN-10))
 
-- Sprint 1.1 — Postgres/Prisma tenant schema with RLS contract tests.
-- Sprint 1.2 — Keycloak realm, auth endpoints, JWT tenant binding, and admin MFA contract.
-- Sprint 1.3 — Citizen PWA/mobile onboarding contract: splash → language → OTP login → tenant picker → empty home.
-- Sprint 1.4 — i18n, runtime tenant theming, tenant onboarding CLI, CORS/security review, and OWASP ZAP auth scan.
+- **Sprint 8.1 — closed 2026-06-03** — [`master-sprint-81-exit.md`](./docs/runbooks/master-sprint-81-exit.md) · Jira [EN-15](https://ghochangfu.atlassian.net/browse/EN-15) **Done**
+  - Hourly slot grid, deposit linkage, confirmation PDF, citizen `BookingWorkspace`, desk `review-slot` sync
+  - Tenant Admin Operations → Bookings (assets, availability, calendar) and service-designer asset mapping
+  - KMC `community-hall` and `other-facility-booking` services; mapping saves **DB asset codes only** (no stale catalogue placeholders)
+- **Next:** Sprint **8.2** (smart-city modules and tender workflows per Phase 8 plan)
 
-**Phase 2 — Service & Workflow Engine** closed on 2026-05-07 (Sprints 2.1–2.6 per `ROADMAP.md`).
+### Closed (engineering)
 
-**Phase 3 — Payments, Receipts & Finance** is substantially complete on the **stub rail** (Sprints 3.1A–3.4A and 3.3A closed 2026-05-11). **Sprint 3.1B** (real PSP adapter + webhooks) remains blocked on aggregator sandbox credentials.
+| Phase / programme                  | Closed     | Highlights                                                                                                                                                                          |
+| ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 — Foundation**                 | 2026-05-06 | Monorepo, CI, charter, ADRs, glossary, threat model, service catalogue                                                                                                              |
+| **1 — Tenant & identity**          | 2026-05-07 | Postgres RLS, Keycloak, citizen OTP → tenant, i18n, theming, onboarding CLI                                                                                                         |
+| **2 — Service & workflow**         | 2026-05-07 | Catalogue, application intake, workflow engine (Sprints 2.1–2.6)                                                                                                                    |
+| **3 — Payments (stub rail)**       | 2026-05-11 | Stub payment rail, receipts, finance hooks — **Sprint 3.1B** (real PSP) **deferred**                                                                                                |
+| **4 — Grievances & SLA**           | 2026-05-14 | Citizen grievance tab, SLA engine, breach inbox, public KPI slices                                                                                                                  |
+| **5 — Citizen mobile + PWA**       | 2026-05-15 | Expo shell, native apply, PWA forms spine, push/deep links, Lighthouse CI                                                                                                           |
+| **6 — Admin portals**              | 2026-05-16 | Tenant + State admin, designer, desk, reporting, bookings MVP seed                                                                                                                  |
+| **Phase UX (6.14–6.20)**           | 2026-05-19 | **Tricolor Calm** cross-portal revamp — [`phase-ux-revamp-plan.md`](./docs/runbooks/phase-ux-revamp-plan.md)                                                                        |
+| **Grievance taxonomy (6.21–6.24)** | 2026-05-20 | Configurable categories, state library — [`grievance-taxonomy-programme.md`](./docs/runbooks/grievance-taxonomy-programme.md)                                                       |
+| **Upload programme (6.25–6.30)**   | 2026-05-21 | MinIO presign, `application_documents`, virus scan, grievance evidence                                                                                                              |
+| **7 — Sahayak AI**                 | 2026-06-03 | RAG indexer, `ILLMProvider`, chatbot API + citizen UI — [`phase-7-exit.md`](./docs/runbooks/phase-7-exit.md) · Jira [EN-14](https://ghochangfu.atlassian.net/browse/EN-14) **Done** |
 
-**Next:** **Phase UX (Sprints 6.14–6.19)** — cross-portal UI revamp (**Tricolor Calm** + per-tenant `theme_color`) on Citizen PWA, Tenant Admin/Desk, State Admin, and mobile parity in **6.19** — [`phase-ux-revamp-plan.md`](./docs/runbooks/phase-ux-revamp-plan.md); start [`master-sprint-614-plan.md`](./docs/runbooks/master-sprint-614-plan.md). **Phase 7 — Sahayak AI** follows **6.19** UX sign-off. **Sprint 6.13** (Operator Desk) is **closed** — [`master-sprint-613-exit.md`](./docs/runbooks/master-sprint-613-exit.md). **Sprint 3.1B** deferred.
+### Deferred / blocked
+
+- **Sprint 3.1B** — real payment-gateway adapter + webhooks (PSP sandbox credentials)
+- **Hub H5.1** — Keycloak Option A on staging/prod + staff bootstrap (repo slice done; realm deploy pending)
+- **Phase 7 production** — DPA with OpenAI/Google; Prometheus cost dashboard
 
 ---
 
