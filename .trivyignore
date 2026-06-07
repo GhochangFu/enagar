@@ -1,4 +1,7 @@
-# Next 14 LTS: vendor fixes for these CVEs are only published on Next 15+.
-# Tracked for a planned portal framework upgrade; not exploitable in our middleware usage.
+# Next 14 LTS: vendor fixes for these advisories are only published on Next 15+.
+# Tracked for a planned portal framework upgrade.
 CVE-2026-44573
 CVE-2026-44578
+GHSA-8h8q-6873-q5fj
+GHSA-h25m-26qc-wcjf
+GHSA-q4gf-8mx6-v5v3
