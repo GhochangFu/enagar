@@ -1,0 +1,4 @@
+# Next 14 LTS: vendor fixes for these CVEs are only published on Next 15+.
+# Tracked for a planned portal framework upgrade; not exploitable in our middleware usage.
+CVE-2026-44573
+CVE-2026-44578

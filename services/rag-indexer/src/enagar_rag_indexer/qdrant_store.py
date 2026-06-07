@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
@@ -137,7 +137,8 @@ def search(
         )
         hits = response.points
     else:
-        hits = client.search(
+        # Legacy qdrant-client API; stubs omit `.search` even though runtime may expose it.
+        hits = cast(Any, client).search(
             collection_name=collection_name,
             query_vector=vector,
             limit=limit,
