@@ -29,8 +29,8 @@ describe('Sprint 4.2 grievance PWA contract', () => {
   });
 
   it('declares category codes aligned with seeded grievance SLA examples', () => {
-    expect(workspace).toContain("'roads'");
-    expect(workspace).toContain("'sanitation'");
+    expect(workspace).toContain('@enagar/grievance-catalogue');
+    expect(workspace).toContain('categoryLabelFromCatalogue');
     expect(workspace).toContain('/citizen/register');
     expect(workspace).toContain('/citizen/profile');
   });

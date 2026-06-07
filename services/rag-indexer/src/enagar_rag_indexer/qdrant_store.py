@@ -8,7 +8,7 @@ from typing import Any
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
-from .config import Settings, collection_name_for_tenant
+from .config import Settings
 
 
 @dataclass(frozen=True)

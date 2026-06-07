@@ -25,12 +25,12 @@ describe('Master Sprint 6.11 — Phase 6 P4 reports, content, branding, and book
     expect(tenantService).toContain('exportReportPdf');
     expect(tenantService).toContain('reportSummaryRows');
     expect(tenantService).toContain('tenantId: principal.tenantId');
-    expect(tenantDashboard).toContain('downloadPdf');
+    expect(tenantDashboard).toContain('downloadExport');
     expect(tenantService).not.toContain('aadhaar');
   });
 
   it('keeps KB rich authoring markdown-safe and queues idempotent index jobs', () => {
-    expect(operationsClient).toContain('Sprint 6.11 · Rich KB authoring');
+    expect(operationsClient).toContain('Knowledge base');
     expect(operationsClient).toContain('JSON fallback');
     expect(tenantService).toContain('assertValidLocalizedMarkdown');
     expect(tenantService).toContain('queueKbIndexJob');
@@ -61,7 +61,9 @@ describe('Master Sprint 6.11 — Phase 6 P4 reports, content, branding, and book
     expect(tenantController).toContain("@Get('bookings')");
     expect(tenantController).toContain("@Post('bookings/reservations')");
     expect(tenantService).toContain('assertBookableWindow');
-    expect(tenantService).toContain('Requested window overlaps an existing booking');
-    expect(operationsClient).toContain('Booking calendar');
+    expect(readRepo('apps/api/src/modules/bookings/bookable-window.ts')).toContain(
+      'Requested window overlaps an existing booking',
+    );
+    expect(operationsClient).toContain('BookingsCalendarPanel');
   });
 });

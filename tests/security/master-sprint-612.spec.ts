@@ -20,6 +20,8 @@ describe('Master Sprint 6.12 — Phase 6 P5 identity, library, integrations, and
   const stateController = readRepo('apps/api/src/modules/admin-state/admin-state.controller.ts');
   const stateService = readRepo('apps/api/src/modules/admin-state/admin-state.service.ts');
   const stateClient = readRepo('apps/admin-state/app/dashboard/state-dashboard-client.tsx');
+  const stateConfigSections = readRepo('apps/admin-state/components/state-config-sections.tsx');
+  const stateDashboardForms = readRepo('apps/admin-state/lib/state-dashboard-forms.ts');
 
   it('adds tenant-scoped staff invites with dry-run provisioning and no secret persistence', () => {
     expect(schema).toContain('model StaffInvite');
@@ -32,7 +34,9 @@ describe('Master Sprint 6.12 — Phase 6 P5 identity, library, integrations, and
     expect(tenantService).toContain('provisioningMode');
     expect(tenantService).toContain('dry_run');
     expect(tenantService).toContain('staff_invite.create');
-    expect(tenantOperations).toContain('Guided staff invite / provisioning');
+    expect(tenantOperations).toContain('Staff & roles');
+    expect(tenantOperations).toContain('staff-invites');
+    expect(tenantOperations).toContain('provisioning_mode');
   });
 
   it('adds global library curation without destructive tenant override mutation', () => {
@@ -43,7 +47,7 @@ describe('Master Sprint 6.12 — Phase 6 P5 identity, library, integrations, and
     expect(stateService).toContain('Publishing does not mutate tenant overrides automatically');
     expect(stateService).toContain('global_library.publish');
     expect(stateService).not.toContain('tenantService.updateMany');
-    expect(stateClient).toContain('Global service library curator');
+    expect(stateConfigSections).toContain('Service library curator');
   });
 
   it('keeps integration cockpit metadata-only and rejects secret-like values', () => {
@@ -54,7 +58,8 @@ describe('Master Sprint 6.12 — Phase 6 P5 identity, library, integrations, and
     expect(stateService).toContain('rejectSecretLikeValues');
     expect(stateService).toContain('integration cockpit accepts metadata only');
     expect(stateService).toContain('checked_without_secrets');
-    expect(stateClient).toContain('Secret-like values are rejected');
+    expect(stateDashboardForms).toContain('Secrets remain outside eNagar');
+    expect(stateConfigSections).toContain('Integration cockpit');
   });
 
   it('documents and exposes audit coverage for new admin mutations', () => {
@@ -62,13 +67,13 @@ describe('Master Sprint 6.12 — Phase 6 P5 identity, library, integrations, and
     expect(stateService).toContain('requiredAuditActions');
     expect(stateService).toContain('staff_invite.disable');
     expect(stateService).toContain('integration_cockpit.check');
-    expect(stateClient).toContain('Sprint 6.12 audit coverage');
+    expect(stateClient).toContain('Audit coverage gap');
   });
 
   it('enforces wizard-only tenant onboarding guardrails for active tenants', () => {
     expect(stateService).toContain('assertWizardOnboarding');
     expect(stateService).toContain('config.onboarding_source=state_wizard');
     expect(stateService).toContain('config.wizard_completed=true');
-    expect(stateClient).toContain("onboarding_source: 'state_wizard'");
+    expect(stateDashboardForms).toContain("onboarding_source: 'state_wizard'");
   });
 });

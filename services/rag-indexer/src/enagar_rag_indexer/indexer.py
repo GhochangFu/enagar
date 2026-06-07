@@ -278,7 +278,7 @@ def process_index_jobs(settings: Settings, batch_limit: int | None = None) -> Jo
             with connect(settings.database_url) as conn:
                 complete_kb_index_job(conn, job.id)
             completed += 1
-        except Exception as exc:  # noqa: BLE001 — job failure must not abort batch
+        except Exception as exc:  # job failure must not abort batch
             message = f"{job.id}: {exc}"
             errors.append(message)
             with connect(settings.database_url) as conn:

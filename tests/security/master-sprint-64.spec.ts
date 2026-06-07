@@ -85,7 +85,7 @@ describe('Master Sprint 6.4 — tenant operations contract', () => {
 
   it('adds tenant admin UI for operations and keeps external integrations deferred', () => {
     const src = readFileSync(operationsClientPath, 'utf8');
-    expect(src).toContain('Sprint 6.4 · Tenant operations');
+    expect(src).toContain('title="Operations"');
     expect(src).toContain('notification-templates');
     expect(src).toContain('kb-articles');
     expect(src).toContain('feature_flags');

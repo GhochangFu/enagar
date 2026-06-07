@@ -29,7 +29,7 @@ describe('Master Sprint 7.1 — RAG indexer, Qdrant & embeddings', () => {
     expect(indexerPy).toContain('index_kb_article');
     expect(indexerPy).toContain('index_service_snapshots');
     expect(indexerPy).toContain('process_index_jobs');
-    expect(qdrantPy).toContain('collection_name_for_tenant');
+    expect(configPy).toContain('def collection_name_for_tenant');
     expect(configPy).toContain('kb_');
   });
 

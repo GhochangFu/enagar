@@ -16,6 +16,8 @@ import { DocumentsModule } from '../documents/documents.module';
 import { createMockApplicationDocumentPrisma } from '../documents/testing/mock-application-document-prisma';
 import { createMockDocumentScanQueue } from '../documents/testing/mock-document-scan-queue';
 import { HoldingsModule } from '../holdings/holdings.module';
+import { PaymentsModule } from '../payments/payments.module';
+import { StubPaymentGateway } from '../payments/stub-payment.gateway';
 import { ServicesModule } from '../services/services.module';
 import { ServicesService } from '../services/services.service';
 
@@ -58,6 +60,8 @@ describe('Phase 2 API integration contract', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    delete process.env.PAYMENT_STORE_PROVIDER;
+    delete process.env.APPLICATION_STORE_PROVIDER;
     process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -66,6 +70,7 @@ describe('Phase 2 API integration contract', () => {
         DocumentsModule,
         HoldingsModule,
         ServicesModule,
+        PaymentsModule,
       ],
       providers: [
         {
@@ -174,6 +179,28 @@ describe('Phase 2 API integration contract', () => {
       .post(`/api/documents/${intent.id}/scan-result`)
       .set('authorization', 'Bearer citizen-a')
       .send({ scan_status: 'clean', scan_provider: 'integration-test' })
+      .expect(201);
+
+    const applicationFee = (
+      await request(app.getHttpServer())
+        .post('/api/payments/initiate')
+        .set('authorization', 'Bearer citizen-a')
+        .set('Idempotency-Key', `phase2-app-fee-${draft.id}`)
+        .send({
+          application_id: draft.id,
+          amount_paise: 5000,
+          method: 'upi',
+        })
+        .expect(201)
+    ).body as { id: string };
+
+    await request(app.getHttpServer())
+      .post('/api/payments/stub/complete')
+      .set('authorization', 'Bearer citizen-a')
+      .send({
+        payment_id: applicationFee.id,
+        gateway_order_id: StubPaymentGateway.expectedOrderIdForPayment(applicationFee.id),
+      })
       .expect(201);
 
     const submitted = (

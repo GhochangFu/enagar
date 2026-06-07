@@ -21,6 +21,7 @@ import { createMockApplicationDocumentPrisma } from '../documents/testing/mock-a
 import { createMockDocumentScanQueue } from '../documents/testing/mock-document-scan-queue';
 import { HoldingsModule } from '../holdings/holdings.module';
 import { ServicesModule } from '../services/services.module';
+import { ServicesService } from '../services/services.service';
 import { CITIZEN_PORTAL_TENANT_CODE, CITIZEN_PORTAL_TENANT_ID } from '../tenants/tenant.seed';
 
 import { APPLICATION_STORE } from './application-store';
@@ -140,6 +141,8 @@ describe('Hub scope HTTP smoke (Sprint 2.1)', () => {
       .useValue(createMockApplicationDocumentPrisma())
       .overrideProvider(DocumentScanQueueService)
       .useValue(createMockDocumentScanQueue())
+      .overrideProvider(ServicesService)
+      .useValue(new ServicesService())
       .compile();
 
     app = moduleRef.createNestApplication();

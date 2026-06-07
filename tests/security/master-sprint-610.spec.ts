@@ -28,7 +28,7 @@ describe('Master Sprint 6.10 — Phase 6 P3 governance and transparency', () => 
     expect(mastersClient).toContain('Sprint 6.10 · Guided masters');
     expect(mastersClient).toContain('saveGuidedRevenue');
     expect(mastersClient).toContain('saveGuidedTariff');
-    expect(mastersClient).toContain('MasterEditor');
+    expect(mastersClient).toContain('GuidedMasterCard');
     expect(tenantController).toContain("@Patch('revenue-heads')");
     expect(tenantController).toContain("@Patch('tariffs')");
   });
@@ -56,7 +56,7 @@ describe('Master Sprint 6.10 — Phase 6 P3 governance and transparency', () => 
     expect(stateController).toContain("@Get('analytics/v2')");
     expect(stateService).toContain('analytics v2 range cannot exceed 180 days');
     expect(stateService).toContain('anomaly_hints');
-    expect(stateClient).toContain('Sprint 6.10 · Analytics v2');
+    expect(stateClient).toContain('StateAnalyticsPanel');
   });
 
   it('adds public transparency aggregates without PII-bearing fields', () => {

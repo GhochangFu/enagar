@@ -51,5 +51,21 @@ export function createMockApplicationDocumentPrisma(): PrismaService {
           }).length,
       ),
     },
+    payment: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    bookingReservation: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    bookableAsset: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    application: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    glPosting: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   } as unknown as PrismaService;
 }

@@ -49,7 +49,7 @@ describe('Master Sprint 6.8 — Phase 6 P1 operator polish contract', () => {
 
   it('moves service config into guided fee and document editors over existing contracts', () => {
     expect(serviceDesigner).toContain('ServiceConfigPanel');
-    expect(serviceConfigPanel).toContain('Fee rule guided editor');
+    expect(serviceConfigPanel).toContain('FeeRuleFields');
     expect(serviceConfigPanel).toContain('Document checklist');
     expect(serviceConfigPanel).toContain('JSON fallback');
     expect(serviceConfigPanel).toContain('value="slab"');

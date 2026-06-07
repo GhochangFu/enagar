@@ -75,7 +75,7 @@ describe('payment eligibility (ADR-0013)', () => {
       payment_schedule: 'deferred_only' as const,
       active_payment_id: 'pay-1',
       fee_settlement: {
-        approval: { status: 'pending', amount_paise: 1000 },
+        approval: { status: 'pending' as const, amount_paise: 1000 },
       },
     };
     expect(resolveCitizenPaymentTarget(app)?.feeCode).toBe('approval');
@@ -89,7 +89,7 @@ describe('payment eligibility (ADR-0013)', () => {
         current_stage: 'payment-pending',
         payment_status: 'not_required',
         fee_settlement: {
-          approval: { status: 'pending' },
+          approval: { status: 'pending' as const },
         },
       }),
     ).toBe('pending');

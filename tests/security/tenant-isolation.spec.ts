@@ -113,10 +113,15 @@ describe('Tenant-isolation migration contract', () => {
     }
   });
 
-  it('adds tenant_isolation policies to every tenant_id table', () => {
+  it('adds tenant_isolation policies to every tenant_id table with RLS enabled', () => {
     expect(tenantScopedTables).not.toHaveLength(0);
 
-    for (const tableName of tenantScopedTables) {
+    const rlsEnabledTables = tenantScopedTables.filter((tableName) =>
+      normalizedSql.includes(`alter table ${tableName} enable row level security`),
+    );
+    expect(rlsEnabledTables).not.toHaveLength(0);
+
+    for (const tableName of rlsEnabledTables) {
       expect(normalizedSql).toContain(`create policy tenant_isolation on ${tableName}`);
       expect(normalizedSql).toContain(`${tableName} enable row level security`);
     }

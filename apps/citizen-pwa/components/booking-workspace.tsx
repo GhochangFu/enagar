@@ -64,7 +64,7 @@ type BookingWorkspaceProps = {
     renderPlan: FormRenderPlan;
     values: FormSubmission;
     onChange: (fieldId: string, value: FormSubmissionValue | undefined) => void;
-    onFileBlob: (fieldId: string, file: File | undefined) => void;
+    onFileBlob: (fieldId: string, file: File | null) => void;
   };
   onStatus: (message: string) => void;
   onBack: () => void;
@@ -340,7 +340,7 @@ export function BookingWorkspace({
 
       onStatus('Confirming booking…');
       const reservation = await confirmBookingHold(apiBaseUrl, token, tenantCode, holdId, {
-        depositId: activeDepositId,
+        depositId: activeDepositId ?? undefined,
       });
       setConfirmed(reservation);
       setStep('done');

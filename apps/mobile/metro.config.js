@@ -16,6 +16,14 @@ config.resolver.nodeModulesPaths = [
 /** Workspace TS packages use NodeNext `.js` import specifiers; Metro resolves them to `.ts`. */
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@enagar/forms/upload') {
+    return context.resolveRequest(
+      context,
+      path.resolve(workspaceRoot, 'packages/forms/src/application-document-upload.ts'),
+      platform,
+    );
+  }
+
   if (
     moduleName.startsWith('.') &&
     moduleName.endsWith('.js') &&

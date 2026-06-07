@@ -43,7 +43,7 @@ describe('Sprint 1.3 citizen onboarding contract', () => {
 
   it('declares the citizen native-stack contract (Splash → tenants → OTP → hub + grievances)', () => {
     expect(mobileFlowTypes).toContain('CitizenShellFlowContract');
-    for (const step of ["'splash'", "'tenant'", "'login'", "'main'"]) {
+    for (const step of ["'splash'", "'login'", "'pins'", "'hub'", "'workspace'"]) {
       expect(mobileFlowTypes).toContain(step);
     }
     expect(mobileShell).toContain('SessionProvider');

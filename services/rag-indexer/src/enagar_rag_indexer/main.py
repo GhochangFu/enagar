@@ -15,12 +15,15 @@ from .indexer import (
     index_tenant,
     process_index_jobs,
 )
-from .qdrant_store import create_client, ping as qdrant_ping, search
+from .qdrant_store import create_client, search
+from .qdrant_store import ping as qdrant_ping
 
 app = FastAPI(
     title="eNagarSeba RAG Indexer",
     version="7.1.0",
-    description="Chunk, embed, and upsert KB + service catalogue into per-tenant Qdrant collections.",
+    description=(
+        "Chunk, embed, and upsert KB + service catalogue into per-tenant Qdrant collections."
+    ),
 )
 
 

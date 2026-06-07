@@ -68,7 +68,6 @@ export function BookingHourGrid({
               }`}
               key={slot.starts_at}
               onClick={() => onSelectSlot(slot)}
-              role="listitem"
               type="button"
             >
               <span className="font-medium">{label}</span>

@@ -53,8 +53,8 @@ describe('Master Sprint 6.2 — form-schema builder + workflow designer contract
 
   it('renders preview through the shared web form runtime', () => {
     const src = readFileSync(serviceDesignerPath, 'utf8');
-    expect(src).toContain("from '@enagar/forms/web'");
-    expect(src).toContain('DynamicFormFields');
+    expect(src).toContain("from '@enagar/forms'");
+    expect(src).toContain('FormCitizenPreview');
     expect(src).toContain('validateWorkflowDefinition');
   });
 });

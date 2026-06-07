@@ -54,7 +54,7 @@ describe('Master Sprint 6.13 — Operator Desk in Tenant Admin', () => {
 
   it('adds the Tenant Admin Desk UI and clerk redirect from the dashboard', () => {
     expect(deskPage).toContain('DeskClient');
-    expect(deskClient).toContain('Sprint 6.13 · Operator Desk');
+    expect(deskClient).toContain('eyebrow="Operator Desk"');
     expect(deskClient).toContain('/admin/tenant/desk/inbox/applications');
     expect(deskClient).toContain('/admin/tenant/desk/inbox/grievances');
     expect(deskClient).toContain('transitionApplication');

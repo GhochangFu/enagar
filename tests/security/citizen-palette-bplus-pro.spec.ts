@@ -15,7 +15,7 @@ describe('Citizen PWA — Warm Coral B+ Pro palette', () => {
   const manifest = readRepo('apps/citizen-pwa/app/manifest.ts');
 
   it('locks warm white canvas and forest tokens in platform CSS', () => {
-    expect(tricolorCss).toContain('250 247 244');
+    expect(tricolorCss).toContain('248 246 243');
     expect(tricolorCss).toContain('--forest-rgb: 74 107 71');
     expect(tricolorCss).toContain('--platform-accent-rgb: 191 74 10');
     expect(tricolorCss).not.toContain('linear-gradient');

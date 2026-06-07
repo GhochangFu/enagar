@@ -48,7 +48,7 @@ async function processScan(documentId: string): Promise<void> {
           : 'scan-failed';
 
     await applyScanVerdict(pool, documentId, verdict, provider, signature);
-    console.log(`[document-scan] ${documentId} → ${verdict}`);
+    console.info(`[document-scan] ${documentId} → ${verdict}`);
   } finally {
     await pool.end();
   }
@@ -75,7 +75,7 @@ function main(): void {
     console.error(`[document-scan] job ${job?.id} failed`, error);
   });
 
-  console.log('[document-scan] worker listening on queue', DOCUMENT_SCAN_QUEUE_NAME);
+  console.info('[document-scan] worker listening on queue', DOCUMENT_SCAN_QUEUE_NAME);
 }
 
 main();

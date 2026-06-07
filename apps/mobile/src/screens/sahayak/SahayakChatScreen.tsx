@@ -19,7 +19,7 @@ import type { CitizenRootStackParamList } from '../../navigation/types';
 import {
   MOBILE_INK_PRIMARY,
   MOBILE_INK_SECONDARY,
-  MOBILE_RADIUS_CARD,
+  MOBILE_RADIUS_MD,
   MOBILE_WARM_BORDER,
   mobileTypography,
   platformBrandHex,
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   subtitle: { ...mobileTypography.caption, color: MOBILE_INK_SECONDARY, marginBottom: 12 },
   chatPanel: { minHeight: 280, marginBottom: 12 },
   bubble: {
-    borderRadius: MOBILE_RADIUS_CARD,
+    borderRadius: MOBILE_RADIUS_MD,
     padding: 12,
     marginBottom: 8,
     maxWidth: '92%',

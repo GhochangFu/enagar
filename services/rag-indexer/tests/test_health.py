@@ -20,7 +20,7 @@ def test_health_shape() -> None:
 
 def test_benchmark_route(monkeypatch) -> None:
     class _FakeModel:
-        def encode(self, texts, normalize_embeddings=True):  # noqa: ANN001, ARG002
+        def encode(self, texts, normalize_embeddings=True):
             return [[0.1] * 384 for _ in texts]
 
     monkeypatch.setattr(

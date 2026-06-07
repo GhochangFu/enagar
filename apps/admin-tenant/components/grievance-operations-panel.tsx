@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@enagar/ui';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useTenantAdminSession } from './tenant-admin-session';
 
@@ -58,10 +58,13 @@ export function GrievanceOperationsPanel(): JSX.Element {
   const [slaRows, setSlaRows] = useState<SlaRow[]>([]);
   const [routingRows, setRoutingRows] = useState<RoutingRow[]>([]);
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'content-type': 'application/json',
-  };
+  const headers = useMemo(
+    () => ({
+      Authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    }),
+    [token],
+  );
 
   const load = useCallback(async () => {
     const [catRes, slaRes, routeRes] = await Promise.all([
@@ -117,7 +120,7 @@ export function GrievanceOperationsPanel(): JSX.Element {
       })),
     );
     setStatus(null);
-  }, [apiBase, token]);
+  }, [apiBase, headers]);
 
   useEffect(() => {
     void load().catch((err: unknown) => {

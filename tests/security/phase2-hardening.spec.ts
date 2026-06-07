@@ -53,7 +53,7 @@ describe('Sprint 2.6 Phase 2 hardening contract', () => {
   });
 
   it('removes stale Sprint 2.3 wording from Phase 2 isolation tests', () => {
-    expect(tenantIsolation).toContain('Phase 1 and Phase 2');
+    expect(tenantIsolation).toContain('Phase 1–3');
     expect(tenantIsolation).not.toContain('through Sprint 2.3');
   });
 

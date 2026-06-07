@@ -7,7 +7,10 @@ export function ymdTodayIst(): string {
 }
 
 export function addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split('-').map((part) => Number(part));
+  const [yStr, mStr, dStr] = ymd.split('-') as [string, string, string];
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const d = Number(dStr);
   const cursor = new Date(Date.UTC(y, m - 1, d));
   cursor.setUTCDate(cursor.getUTCDate() + days);
   return `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}-${String(cursor.getUTCDate()).padStart(2, '0')}`;

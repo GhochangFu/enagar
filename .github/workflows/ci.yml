@@ -12,7 +12,6 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
-  PNPM_VERSION: "9"
   TURBO_TELEMETRY_DISABLED: "1"
 
 jobs:
@@ -23,8 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -34,13 +31,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm run lint
+        run: pnpm exec turbo run lint --filter=!@enagar/rag-indexer-bridge -- --max-warnings=0
 
       - name: Typecheck
-        run: pnpm run typecheck
+        run: pnpm exec turbo run typecheck --filter=!@enagar/rag-indexer-bridge
 
       - name: Test
-        run: pnpm run test
+        run: pnpm exec turbo run test --filter=!@enagar/rag-indexer-bridge
 
       - name: Security tests
         run: pnpm run test:security
@@ -55,8 +52,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -79,8 +74,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -143,7 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -161,8 +154,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}

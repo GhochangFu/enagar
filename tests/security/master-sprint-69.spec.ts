@@ -51,8 +51,8 @@ describe('Master Sprint 6.9 — Phase 6 P2 reporting, bulk ops, and state visibi
     expect(stateService).toContain('auditWhere');
     expect(stateService).toContain('exportAuditLogsCsv');
     expect(stateService).toContain('getTenantDetail');
-    expect(stateDashboard).toContain('Audit log search');
-    expect(stateDashboard).toContain('Tenant drill-down');
+    expect(stateDashboard).toContain('Audit log');
+    expect(stateDashboard).toContain('StateTenantDetailDrawer');
     expect(stateDashboard).not.toContain('dangerouslySetInnerHTML');
   });
 });

@@ -30,7 +30,7 @@ describe('Master Sprint 6.18 — Tenant Admin Masters, Operations & designer (Ph
     expect(sprintExit).toContain('master-sprint-618-plan.md');
     expect(sprintExit).toContain('Exit criteria checklist');
     expect(phasePlan).toContain('Sprint 6.18');
-    expect(phasePlan).toContain('master-sprint-618-exit.md');
+    expect(phasePlan).toContain('Sprint 6.18 — Tenant Admin');
   });
 
   it('preserves configure API surface (no API drift in this sprint)', () => {

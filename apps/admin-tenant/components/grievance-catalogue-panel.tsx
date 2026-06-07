@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@enagar/ui';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import { subtypesVisibleForCategory } from '../lib/grievance-catalogue-helpers';
 
@@ -103,10 +103,13 @@ export function GrievanceCataloguePanel(): JSX.Element {
   const [editingSubtypeCode, setEditingSubtypeCode] = useState<string | null>(null);
   const [savingCategory, setSavingCategory] = useState(false);
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'content-type': 'application/json',
-  };
+  const headers = useMemo(
+    () => ({
+      Authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    }),
+    [token],
+  );
 
   const refreshCategories = useCallback(async () => {
     const res = await fetch(`${apiBase}/admin/tenant/grievance-catalogue/governance`, { headers });
@@ -114,7 +117,7 @@ export function GrievanceCataloguePanel(): JSX.Element {
       throw new Error(`Catalogue failed (${res.status})`);
     }
     setCategories((await res.json()) as CategoryRow[]);
-  }, [apiBase, token]);
+  }, [apiBase, headers]);
 
   useEffect(() => {
     void refreshCategories().catch((err: unknown) => {
@@ -175,7 +178,7 @@ export function GrievanceCataloguePanel(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [apiBase, token, selectedCode, categories]);
+  }, [apiBase, headers, selectedCode, categories]);
 
   const visibleSubtypes = subtypesVisibleForCategory(selectedCode, subtypesLoadedForCode, subtypes);
 

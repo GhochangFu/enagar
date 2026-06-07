@@ -159,11 +159,6 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
       .send({ scan_status: 'clean', scan_provider: 'portal-smoke' })
       .expect(201);
 
-    await request(app.getHttpServer())
-      .post(`/api/applications/${draft.id}/submit`)
-      .set(auth())
-      .expect(201);
-
     const idemKey = `smoke-idem-${Date.now()}`;
     const payBody = {
       application_id: draft.id,
@@ -204,6 +199,11 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
         })
         .expect(201)
     ).body;
+
+    await request(app.getHttpServer())
+      .post(`/api/applications/${draft.id}/submit`)
+      .set(auth())
+      .expect(201);
 
     expect(String(ledger.receipt.receipt_number).toUpperCase()).toContain('KMC');
 

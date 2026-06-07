@@ -30,7 +30,7 @@ describe('Master Sprint 6.14 — UX foundation & design system v2', () => {
 
   it('exposes Warm Coral B+ Pro platform tokens in config and Tailwind preset', () => {
     expect(tricolorCss).toContain('--canvas-rgb');
-    expect(tricolorCss).toContain('250 247 244');
+    expect(tricolorCss).toContain('248 246 243');
     expect(tricolorCss).toContain('--forest-rgb');
     expect(tricolorCss).toContain('--mint-band-rgb');
     expect(tailwindBase).toContain('canvas:');

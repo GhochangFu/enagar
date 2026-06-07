@@ -80,7 +80,7 @@ describe('Master Sprint 6.5 — state super-admin contract', () => {
     expect(pkg.scripts?.dev).toContain('-p 3003');
     expect(pkg.dependencies?.next).toBeDefined();
     expect(postcss).toContain('tailwindcss');
-    expect(client).toContain('Sprint 6.5 · State Super-Admin');
+    expect(client).toContain('State Super-Admin Portal');
     expect(client).toContain('/admin/state/analytics');
     expect(client).toContain('/admin/state/impersonation');
     expect(apiMain).toContain('http://localhost:3003');

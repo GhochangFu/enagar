@@ -88,7 +88,9 @@ describe('Master Sprint 6.3 — tenant admin configuration contract', () => {
 
     expect(serviceDesigner).toContain('Fee, documents, and revenue mapping');
     expect(serviceDesigner).toContain('/config');
-    expect(mastersClient).toContain('Revenue, address, and tariff masters');
+    expect(mastersClient).toContain(
+      'Revenue heads, tariffs, address master, and catalogue governance',
+    );
     expect(mastersClient).toContain('address-master');
     expect(mastersClient).toContain('tariffs');
   });
