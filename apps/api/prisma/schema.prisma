@@ -928,11 +928,15 @@ model ApplicationDocument {
   scanCompletedAt DateTime?   @map("scan_completed_at") @db.Timestamptz(6)
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workflowStageCode String?   @map("workflow_stage_code") @db.VarChar(80)
+  uploadedByRole    String?   @map("uploaded_by_role") @db.VarChar(60)
+  note              String?   @db.VarChar(500)
   application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, applicationId, documentCode])
   @@index([tenantId, scanStatus])
+  @@index([applicationId, workflowStageCode])
   @@map("application_documents")
 }
 

@@ -28,6 +28,9 @@ export function mapApplicationDocumentRow(
     upload_status: row.uploadStatus as DocumentUploadStatus,
     scan_status: row.scanStatus as DocumentScanStatus,
     created_at: row.createdAt.toISOString(),
+    workflow_stage_code: row.workflowStageCode ?? undefined,
+    uploaded_by_role: row.uploadedByRole ?? undefined,
+    note: row.note ?? undefined,
   };
 }
 
@@ -43,6 +46,9 @@ export function toDocumentResponse(document: StoredApplicationDocument): Documen
     upload_status: document.upload_status,
     scan_status: document.scan_status,
     created_at: document.created_at,
+    workflow_stage_code: document.workflow_stage_code,
+    uploaded_by_role: document.uploaded_by_role,
+    note: document.note,
   };
 }
 

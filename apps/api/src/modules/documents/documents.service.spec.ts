@@ -245,4 +245,99 @@ describe('DocumentsService', () => {
       NotFoundException,
     );
   });
+
+  describe('EN-16 staff context-action attachments', () => {
+    // The clerk is the workflow-assigned actor for the application; the in-memory
+    // store keys access by `citizen_subject`, so we model the staff principal as
+    // a non-citizen-portal user that shares the application's tenant. This is the
+    // minimal shape the existing canAccess check accepts.
+    const tenantClerk: AuthenticatedPrincipal = {
+      subject: 'clerk-1',
+      tenantId: '11111111-1111-4111-8111-111111111111',
+      tenantCode: 'KMC',
+      roles: ['tenant_clerk'],
+      expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+    };
+
+    const citizenPortalPrincipal: AuthenticatedPrincipal = {
+      subject: 'citizen-a',
+      tenantId: '00000000-0000-0000-0000-000000000000',
+      tenantCode: 'WBPORTAL',
+      roles: ['citizen'],
+      expiresAt: new Date('2026-05-08T00:00:00.000Z'),
+    };
+
+    it("stamps staff uploads with the uploader's current stage and role", async () => {
+      const application = await applications.createDraft(principal, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      });
+      await applications.updateFeeLineSettlement(principal, application.id, 'application', {
+        status: 'paid',
+        payment_id: randomUUID(),
+        amount_paise: 5000,
+      });
+      await applications.submitDraft(principal, application.id, {
+        enforceCleanDocuments: false,
+      });
+
+      const intent = await documents.createUploadIntent(tenantClerk, {
+        application_id: application.id,
+        document_code: 'site_inspection',
+        original_name: 'inspection.pdf',
+        mime_type: 'application/pdf',
+        size_mb: 0.5,
+        workflow_stage_code: application.current_stage,
+        note: 'Site visit report',
+      });
+
+      expect(intent.workflow_stage_code).toBe(application.current_stage);
+      expect(intent.uploaded_by_role).toBe('tenant_clerk');
+      expect(intent.note).toBe('Site visit report');
+    });
+
+    it("pins 'submission' for citizen-portal uploads and ignores workflow_stage_code", async () => {
+      const application = await applications.createDraft(principal, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      });
+
+      const intent = await documents.createUploadIntent(citizenPortalPrincipal, {
+        application_id: application.id,
+        document_code: 'hospital_discharge',
+        original_name: 'proof.pdf',
+        mime_type: 'application/pdf',
+        size_mb: 1,
+        workflow_stage_code: 'should_be_ignored',
+      });
+
+      expect(intent.workflow_stage_code).toBe('submission');
+      expect(intent.uploaded_by_role).toBe('citizen');
+    });
+
+    it('falls back to the application current_stage when staff omits it', async () => {
+      const application = await applications.createDraft(principal, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      });
+      await applications.updateFeeLineSettlement(principal, application.id, 'application', {
+        status: 'paid',
+        payment_id: randomUUID(),
+        amount_paise: 5000,
+      });
+      const submitted = await applications.submitDraft(principal, application.id, {
+        enforceCleanDocuments: false,
+      });
+
+      const intent = await documents.createUploadIntent(tenantClerk, {
+        application_id: application.id,
+        document_code: 'site_inspection',
+        original_name: 'inspection.pdf',
+        mime_type: 'application/pdf',
+        size_mb: 0.5,
+      });
+
+      expect(intent.workflow_stage_code).toBe(submitted.current_stage);
+    });
+  });
 });

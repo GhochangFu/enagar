@@ -403,11 +403,30 @@ export class ApplicationsService {
     readScope?: ApplicationReadScope,
   ): Promise<void> {
     const application = await this.getOwnedApplication(principal, applicationId, readScope);
+    await this.mergeDocument(application, document);
+  }
+
+  /**
+   * EN-16: tenant-scoped attach for non-citizen principals. Same effect as
+   * {@link attachDocument} but uses the staff read path.
+   */
+  async attachDocumentForStaff(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+    document: StoredApplication['documents'][number],
+  ): Promise<void> {
+    const application = await this.getApplicationForStaff(principal, applicationId);
+    await this.mergeDocument(application, document);
+  }
+
+  private async mergeDocument(
+    application: StoredApplication,
+    document: StoredApplication['documents'][number],
+  ): Promise<void> {
     const updated: ApplicationResponse = {
       ...application,
       documents: [...application.documents.filter((item) => item.id !== document.id), document],
     };
-
     await this.store.save(updated);
   }
 
@@ -480,6 +499,32 @@ export class ApplicationsService {
   ): Promise<StoredApplication> {
     const application = await this.store.findById(applicationId);
     if (!application || !this.canAccess(principal, application, readScope)) {
+      throw new NotFoundException('Application not found');
+    }
+    const hydrated = await this.hydratePaymentSnapshot(
+      await this.withPersistedDocuments(application),
+    );
+    const withBooking = await this.attachBookingCharges(hydrated);
+    return this.attachRelatedPayments(withBooking);
+  }
+
+  /**
+   * EN-16: staff context-action read.
+   *
+   * Tenant-scoped read for non-citizen principals (workflow-assigned staff).
+   * Bypasses the citizen-subject ownership check that {@link getOwnedApplication}
+   * enforces for self-service uploads, so clerks/admins/heads can attach a
+   * document to a stage on an application they don't own personally.
+   */
+  async getApplicationForStaff(
+    principal: AuthenticatedPrincipal,
+    applicationId: string,
+  ): Promise<StoredApplication> {
+    if (principalIsCitizenPortal(principal)) {
+      throw new NotFoundException('Application not found');
+    }
+    const application = await this.store.findById(applicationId);
+    if (!application || application.tenant_id !== principal.tenantId) {
       throw new NotFoundException('Application not found');
     }
     const hydrated = await this.hydratePaymentSnapshot(

@@ -78,6 +78,9 @@ type ApplicationDocumentRow = {
   upload_status: string;
   scan_status: string;
   created_at: string;
+  workflow_stage_code?: string;
+  uploaded_by_role?: string;
+  note?: string;
 };
 
 type ApplicationDetail = {
@@ -710,7 +713,11 @@ export default function DeskClient(): JSX.Element {
                     apiBase={apiBase}
                     token={token}
                     applicationId={applicationDetail.application.id}
+                    currentStage={applicationDetail.application.current_stage}
                     documents={applicationDetail.application.documents}
+                    onUploaded={() => {
+                      void openApplication(applicationDetail.application.docket_no);
+                    }}
                   />
                 ) : null}
                 {appDetailTab === 'timeline' ? (

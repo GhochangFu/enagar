@@ -37,6 +37,23 @@ export class CreateUploadIntentDto {
   @Min(0.01)
   @Max(10)
   size_mb!: number;
+
+  @ApiPropertyOptional({
+    example: 'approver',
+    description:
+      "Workflow stage the uploader is currently sitting on. Staff context-action; ignored for citizens (defaults to 'submission').",
+  })
+  @IsString()
+  @IsOptional()
+  workflow_stage_code?: string;
+
+  @ApiPropertyOptional({
+    example: 'Site inspection report attached for verification.',
+    maxLength: 500,
+  })
+  @IsString()
+  @IsOptional()
+  note?: string;
 }
 
 export class UpdateScanResultDto {
@@ -67,6 +84,9 @@ export interface UploadIntentResponse {
   upload_expires_at: string;
   upload_status: DocumentUploadStatus;
   scan_status: DocumentScanStatus;
+  workflow_stage_code?: string;
+  uploaded_by_role?: string;
+  note?: string;
 }
 
 export interface DocumentResponse {
@@ -80,6 +100,9 @@ export interface DocumentResponse {
   upload_status: DocumentUploadStatus;
   scan_status: DocumentScanStatus;
   created_at: string;
+  workflow_stage_code?: string;
+  uploaded_by_role?: string;
+  note?: string;
 }
 
 export interface DocumentDownloadResponse {

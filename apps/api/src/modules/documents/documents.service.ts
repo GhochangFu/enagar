@@ -49,6 +49,10 @@ export class DocumentsService {
     private readonly documentScanQueue: DocumentScanQueueService,
   ) {}
 
+  private isCitizenPrincipal(principal: AuthenticatedPrincipal): boolean {
+    return principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal);
+  }
+
   async createUploadIntent(
     principal: AuthenticatedPrincipal,
     dto: CreateUploadIntentDto,
@@ -58,11 +62,10 @@ export class DocumentsService {
       throw new BadRequestException('File size exceeds 10 MB');
     }
 
-    const application = await this.applications.getOwnedApplication(
-      principal,
-      dto.application_id,
-      readScope,
-    );
+    const isCitizen = this.isCitizenPrincipal(principal);
+    const application = isCitizen
+      ? await this.applications.getOwnedApplication(principal, dto.application_id, readScope)
+      : await this.applications.getApplicationForStaff(principal, dto.application_id);
 
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentIntentCount = await this.prisma.applicationDocument.count({
@@ -78,6 +81,14 @@ export class DocumentsService {
       );
     }
 
+    // EN-16: staff attach is a context action, not a transition.
+    // Citizens can only attach at submission (existing behaviour); staff can attach
+    // at any stage. We record the stage and actor role for the audit list.
+    const workflowStageCode = isCitizen
+      ? 'submission'
+      : (dto.workflow_stage_code ?? application.current_stage ?? 'unknown');
+    const uploadedByRole = principal.roles[0] ?? (isCitizen ? 'citizen' : 'tenant_staff');
+
     const municipalTenantCode =
       application.tenant_code?.trim() || principal.tenantCode || principal.tenantId;
     const id = randomUUID();
@@ -88,6 +99,9 @@ export class DocumentsService {
       id,
       dto.original_name,
     );
+
+    const trimmedNote = dto.note?.trim();
+    const note = trimmedNote && trimmedNote.length > 0 ? trimmedNote.slice(0, 500) : null;
 
     const row = await this.prisma.applicationDocument.create({
       data: {
@@ -101,11 +115,14 @@ export class DocumentsService {
         objectKey,
         uploadStatus: 'intent_created',
         scanStatus: 'pending',
+        workflowStageCode,
+        uploadedByRole,
+        note,
       },
     });
 
     const document = mapApplicationDocumentRow(row, principal.subject);
-    await this.syncApplicationDocument(principal, document, readScope);
+    await this.syncApplicationDocument(principal, document, readScope, isCitizen);
 
     const upload = await this.objectStorage.presignUpload(
       objectKey,
@@ -146,7 +163,12 @@ export class DocumentsService {
       data: { uploadStatus: 'uploaded' },
     });
     const updated = mapApplicationDocumentRow(row, principal.subject);
-    await this.syncApplicationDocument(principal, updated, readScope);
+    await this.syncApplicationDocument(
+      principal,
+      updated,
+      readScope,
+      this.isCitizenPrincipal(principal),
+    );
     await this.documentScanQueue.enqueueScan(documentId);
     return toDocumentResponse(updated);
   }
@@ -183,7 +205,12 @@ export class DocumentsService {
       },
     });
     const updated = mapApplicationDocumentRow(row, document.citizen_subject);
-    await this.syncApplicationDocument(principal, updated, readScope);
+    await this.syncApplicationDocument(
+      principal,
+      updated,
+      readScope,
+      this.isCitizenPrincipal(principal),
+    );
     return toDocumentResponse(updated);
   }
 
@@ -267,14 +294,20 @@ export class DocumentsService {
   private async syncApplicationDocument(
     principal: AuthenticatedPrincipal,
     document: StoredApplicationDocument,
-    readScope?: ApplicationReadScope,
+    readScope: ApplicationReadScope | undefined,
+    isCitizen: boolean,
   ): Promise<void> {
-    await this.applications.attachDocument(
-      principal,
-      document.application_id,
-      toApplicationDocumentResponse(document),
-      readScope,
-    );
+    const response = toApplicationDocumentResponse(document);
+    if (isCitizen) {
+      await this.applications.attachDocument(
+        principal,
+        document.application_id,
+        response,
+        readScope,
+      );
+      return;
+    }
+    await this.applications.attachDocumentForStaff(principal, document.application_id, response);
   }
 
   private createObjectKey(
