@@ -9,11 +9,13 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
   app.useLogger(app.get(Logger));
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: process.env.CORS_ORIGIN?.split(',') ?? [
       'http://localhost:3000',
