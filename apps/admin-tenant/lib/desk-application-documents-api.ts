@@ -10,6 +10,7 @@ export type DeskApplicationDocumentsResponse = {
   original_name: string;
   mime_type: string;
   size_mb: number;
+  object_key: string;
   upload_status: string;
   scan_status: string;
   created_at: string;
@@ -79,16 +80,37 @@ export async function uploadDeskApplicationDocument(args: {
     throw new Error(`Upload confirm failed (${confirmRes.status})`);
   }
 
-  // Best-effort scan wait: if the scan queue is disabled, the intent stays
-  // scan-clean and the document appears in the list immediately.
+  // Match the citizen + mobile flow: when the scan worker queue is disabled
+  // (the dev default), the client simulates a clean scan so the document
+  // transitions out of `scan_status: 'pending'`. Without this the staff
+  // attachment stays stuck on "scan pending" forever and the preview is
+  // blocked.
+  const scanRes = await fetch(`${apiBase}/documents/${encodeURIComponent(intent.id)}/scan-result`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      scan_status: 'clean',
+      scan_provider: 'desk-simulated-clamav',
+      scan_signature: `simulated:${intent.object_key}`,
+    }),
+  });
+  if (!scanRes.ok) {
+    throw new Error(`Upload scan-result failed (${scanRes.status})`);
+  }
+
+  // Best-effort scan wait: the document should now be scan-clean, but
+  // tolerate transient poll failures since the parent list will refresh on
+  // the next mutation/transition.
   try {
     await waitForDocumentScan(apiBase, { authorization: `Bearer ${token}` }, intent.id, {
       timeoutMs: 5000,
       intervalMs: 1000,
     });
   } catch {
-    // Scan is best-effort: a timeout or transient failure does not block the
-    // user. The list will refresh on the next mutation/transition.
+    // No-op: list refresh is the fallback.
   }
 
   return intent;

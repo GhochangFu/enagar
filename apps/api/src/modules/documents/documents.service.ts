@@ -272,20 +272,18 @@ export class DocumentsService {
       throw new NotFoundException('Document not found');
     }
 
-    const application = await this.applications.getOwnedApplication(
-      principal,
-      row.applicationId,
-      readScope,
-    );
+    const isCitizen =
+      principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal);
+    const application = isCitizen
+      ? await this.applications.getOwnedApplication(principal, row.applicationId, readScope)
+      : await this.applications.getApplicationForStaff(principal, row.applicationId);
 
-    if (application.citizen_subject !== principal.subject) {
+    if (isCitizen && application.citizen_subject !== principal.subject) {
       throw new NotFoundException('Document not found');
     }
 
-    if (!principalIsCitizenPortal(principal) || !isCitizenSelfServicePrincipal(principal)) {
-      if (row.tenantId !== principal.tenantId) {
-        throw new NotFoundException('Document not found');
-      }
+    if (!isCitizen && row.tenantId !== principal.tenantId) {
+      throw new NotFoundException('Document not found');
     }
 
     return mapApplicationDocumentRow(row, application.citizen_subject);

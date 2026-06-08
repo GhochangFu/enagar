@@ -339,5 +339,38 @@ describe('DocumentsService', () => {
 
       expect(intent.workflow_stage_code).toBe(submitted.current_stage);
     });
+
+    it('allows the staff uploader to confirm-upload and re-read the document', async () => {
+      const application = await applications.createDraft(principal, {
+        service_code: 'birth-cert',
+        form_data: birthCertificateForm,
+      });
+      await applications.updateFeeLineSettlement(principal, application.id, 'application', {
+        status: 'paid',
+        payment_id: randomUUID(),
+        amount_paise: 5000,
+      });
+      await applications.submitDraft(principal, application.id, {
+        enforceCleanDocuments: false,
+      });
+
+      const intent = await documents.createUploadIntent(tenantClerk, {
+        application_id: application.id,
+        document_code: 'site_inspection',
+        original_name: 'inspection.pdf',
+        mime_type: 'application/pdf',
+        size_mb: 0.5,
+        workflow_stage_code: application.current_stage,
+      });
+
+      const confirmed = await documents.confirmUpload(tenantClerk, intent.id);
+      expect(confirmed.id).toBe(intent.id);
+      expect(confirmed.upload_status).toBe('uploaded');
+
+      const fetched = await documents.getDocument(tenantClerk, intent.id);
+      expect(fetched.id).toBe(intent.id);
+      expect(fetched.workflow_stage_code).toBe(application.current_stage);
+      expect(fetched.uploaded_by_role).toBe('tenant_clerk');
+    });
   });
 });
