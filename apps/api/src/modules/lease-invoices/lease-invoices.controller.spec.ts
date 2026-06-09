@@ -34,6 +34,7 @@ describe('LeaseInvoicesController', () => {
   it('delegates list to the service for a municipality_admin principal', async () => {
     const principal: AuthenticatedPrincipal = {
       subject: 'staff-1',
+      tenantId: 'tenant-1',
       tenantCode: 'kmc',
       roles: ['municipality_admin'],
       expiresAt: new Date(),
@@ -47,6 +48,7 @@ describe('LeaseInvoicesController', () => {
   it('delegates get to the service for a tenant_admin principal', async () => {
     const principal: AuthenticatedPrincipal = {
       subject: 'staff-2',
+      tenantId: 'tenant-1',
       tenantCode: 'kmc',
       roles: ['tenant_admin'],
       expiresAt: new Date(),
@@ -60,6 +62,7 @@ describe('LeaseInvoicesController', () => {
   it('delegates pay to the service for a tenant_clerk principal', async () => {
     const principal: AuthenticatedPrincipal = {
       subject: 'staff-3',
+      tenantId: 'tenant-1',
       tenantCode: 'kmc',
       roles: ['tenant_clerk'],
       expiresAt: new Date(),
@@ -81,6 +84,7 @@ describe('LeaseInvoicesController', () => {
   it('delegates pay-as-citizen without a staff role check', async () => {
     const principal: AuthenticatedPrincipal = {
       subject: 'dev-citizen-9836177767',
+      tenantId: 'tenant-citizen-portal',
       roles: ['citizen'],
       expiresAt: new Date(),
     };
@@ -103,6 +107,7 @@ describe('LeaseInvoicesController', () => {
   it('rejects a citizen principal with ForbiddenException', () => {
     const principal: AuthenticatedPrincipal = {
       subject: 'dev-citizen-1',
+      tenantId: 'tenant-citizen-portal',
       tenantCode: 'kmc',
       roles: ['citizen'],
       expiresAt: new Date(),
@@ -130,6 +135,7 @@ describe('hasLeaseInvoiceStaffAccess', () => {
   ])('roles=%p -> %p', (roles, expected) => {
     const principal: AuthenticatedPrincipal = {
       subject: 'staff-x',
+      tenantId: 'tenant-1',
       roles,
       expiresAt: new Date(),
     };

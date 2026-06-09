@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/database/prisma.service';
 
@@ -8,6 +7,8 @@ import {
   CreateRentalAssetDto,
   QueryRentalAssetsDto,
 } from './dto/rental-assets.dto';
+
+import type { Prisma } from '../../generated/prisma';
 
 @Injectable()
 export class RentalAssetsService {
