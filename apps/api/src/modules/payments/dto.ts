@@ -37,6 +37,12 @@ export interface PaymentResponse {
   citizen_subject: string;
   application_id: string | null;
   booking_reservation_id: string | null;
+  /**
+   * Set when the Payment was created to settle a `LeaseInvoice` (rent).
+   * Mirrors `Payment.leaseInvoiceId` on the schema. The PWA reads this to
+   * show a "Rent" badge in the citizen Service-payments list.
+   */
+  lease_invoice_id?: string | null;
   fee_code: PaymentFeeCode | string;
   amount_paise: number;
   currency: 'INR';

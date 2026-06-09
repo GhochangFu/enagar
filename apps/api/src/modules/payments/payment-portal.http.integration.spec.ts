@@ -64,7 +64,10 @@ describe('Payment portal HTTP smoke (Sprint 3.2)', () => {
 
   beforeAll(async () => {
     delete process.env.PAYMENT_STORE_PROVIDER;
-    delete process.env.APPLICATION_STORE_PROVIDER;
+    // Force the in-memory application store for this spec — the default is
+    // now Postgres when `DATABASE_URL` is set, but this test relies on a
+    // pre-seeded in-memory state.
+    process.env.APPLICATION_STORE_PROVIDER = 'in-memory';
     process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
 
     const moduleRef = await Test.createTestingModule({

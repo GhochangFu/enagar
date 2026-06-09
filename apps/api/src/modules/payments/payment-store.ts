@@ -11,6 +11,7 @@ export interface CreatePendingPaymentInput {
   citizenSubject: string;
   applicationId?: string;
   bookingReservationId?: string;
+  leaseInvoiceId?: string;
   feeCode: FeeLineCode | string;
   amountPaise: number;
   method: PaymentMethod;

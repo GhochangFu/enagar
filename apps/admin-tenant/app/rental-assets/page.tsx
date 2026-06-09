@@ -19,9 +19,19 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { RecordRentPaymentModal } from '../../components/record-rent-payment-modal';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
 
 type RentalAssetStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'RESERVED';
+
+type LeaseInvoice = {
+  id: string;
+  invoiceNo: string;
+  amountPaise: number;
+  lateFeePaise: number;
+  status: 'PENDING' | 'OVERDUE' | 'PAID' | 'WAIVED';
+  dueDate: string;
+};
 
 type LeaseAgreement = {
   id: string;
@@ -31,6 +41,7 @@ type LeaseAgreement = {
   endDate: string;
   securityDepositPaise: number;
   status: string;
+  invoices?: LeaseInvoice[];
 };
 
 type RentalAsset = {
@@ -65,6 +76,41 @@ const STATUS_LABELS: Record<RentalAssetStatus, string> = {
   RENTED: 'Rented',
   MAINTENANCE: 'Maintenance',
   RESERVED: 'Reserved',
+};
+
+type PaymentHealth = 'PAID' | 'DUE' | 'UPCOMING' | 'OVERDUE' | 'NO_INVOICE';
+
+function derivePaymentHealth(asset: RentalAsset): PaymentHealth {
+  if (asset.status !== 'RENTED') return 'NO_INVOICE';
+  const lease = asset.agreements?.[0];
+  const inv = lease?.invoices?.[0];
+  if (!inv) return 'NO_INVOICE';
+  if (inv.status === 'PAID') return 'PAID';
+  if (inv.status === 'OVERDUE') return 'OVERDUE';
+  // PENDING
+  const due = new Date(inv.dueDate);
+  const sevenDaysFromNow = new Date();
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  return due <= sevenDaysFromNow ? 'DUE' : 'UPCOMING';
+}
+
+const PAYMENT_HEALTH_LABEL: Record<PaymentHealth, string> = {
+  PAID: 'Paid',
+  DUE: 'Due',
+  UPCOMING: 'Upcoming',
+  OVERDUE: 'Overdue',
+  NO_INVOICE: '—',
+};
+
+const PAYMENT_HEALTH_TONE: Record<
+  PaymentHealth,
+  'success' | 'warning' | 'info' | 'danger' | 'neutral'
+> = {
+  PAID: 'success',
+  DUE: 'warning',
+  UPCOMING: 'info',
+  OVERDUE: 'danger',
+  NO_INVOICE: 'neutral',
 };
 
 function formatRate(paise: number, period: string): string {
@@ -197,9 +243,11 @@ function AssetDetailModal({
 function LeaseDetailModal({
   lease,
   onClose,
+  onRecordPayment,
 }: {
   lease: LeaseAgreement | null;
   onClose: () => void;
+  onRecordPayment: (inv: LeaseInvoice) => void;
 }): JSX.Element | null {
   if (!lease) return null;
   return (
@@ -269,6 +317,46 @@ function LeaseDetailModal({
             <dd className="mt-1 font-mono text-xs text-ink-muted">{lease.id}</dd>
           </div>
         </dl>
+        <div className="mt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+            Invoices
+          </p>
+          {lease.invoices && lease.invoices.length > 0 ? (
+            <ul className="mt-2 divide-y divide-warm-border rounded-xl border border-warm-border">
+              {lease.invoices.map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 p-3 text-sm">
+                  <div>
+                    <p className="font-mono text-xs text-ink-primary">{inv.invoiceNo}</p>
+                    <p className="text-xs text-ink-muted">
+                      Due {formatDate(inv.dueDate)} · ₹
+                      {((inv.amountPaise + inv.lateFeePaise) / 100).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      tone={
+                        inv.status === 'PAID'
+                          ? 'success'
+                          : inv.status === 'OVERDUE'
+                            ? 'danger'
+                            : 'warning'
+                      }
+                    >
+                      {inv.status}
+                    </Badge>
+                    {inv.status === 'PENDING' || inv.status === 'OVERDUE' ? (
+                      <Button size="sm" onClick={() => onRecordPayment(inv)}>
+                        Record Payment
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-ink-muted">No invoices yet.</p>
+          )}
+        </div>
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
             Close
@@ -289,6 +377,8 @@ function RentalAssetsContent() {
   const [search, setSearch] = useState('');
   const [detailAsset, setDetailAsset] = useState<RentalAsset | null>(null);
   const [detailLease, setDetailLease] = useState<LeaseAgreement | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<LeaseInvoice | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -322,7 +412,7 @@ function RentalAssetsContent() {
     return () => {
       cancelled = true;
     };
-  }, [apiBase, authHeaders, toast]);
+  }, [apiBase, authHeaders, refreshKey, toast]);
 
   const counts = useMemo(() => {
     const c: Record<RentalAssetStatus | 'TOTAL', number> = {
@@ -344,9 +434,7 @@ function RentalAssetsContent() {
         const q = search.toLowerCase();
         const name = a.name?.en?.toLowerCase() ?? '';
         const loc =
-          typeof a.location?.description === 'string'
-            ? a.location.description.toLowerCase()
-            : '';
+          typeof a.location?.description === 'string' ? a.location.description.toLowerCase() : '';
         const lessor = a.agreements?.[0]?.lessorName?.toLowerCase() ?? '';
         if (!name.includes(q) && !loc.includes(q) && !lessor.includes(q)) {
           return false;
@@ -487,9 +575,20 @@ function RentalAssetsContent() {
                       )}
                     </DataTableCell>
                     <DataTableCell>
-                      <Badge tone={STATUS_TONE[asset.status]}>
-                        {STATUS_LABELS[asset.status]}
-                      </Badge>
+                      {asset.status === 'RENTED' ? (
+                        (() => {
+                          const health = derivePaymentHealth(asset);
+                          return (
+                            <Badge tone={PAYMENT_HEALTH_TONE[health]}>
+                              {PAYMENT_HEALTH_LABEL[health]}
+                            </Badge>
+                          );
+                        })()
+                      ) : (
+                        <Badge tone={STATUS_TONE[asset.status]}>
+                          {STATUS_LABELS[asset.status]}
+                        </Badge>
+                      )}
                     </DataTableCell>
                     <DataTableCell className="text-right">
                       <div className="inline-flex gap-2">
@@ -541,7 +640,21 @@ function RentalAssetsContent() {
           setDetailLease(lease);
         }}
       />
-      <LeaseDetailModal lease={detailLease} onClose={() => setDetailLease(null)} />
+      <LeaseDetailModal
+        lease={detailLease}
+        onClose={() => setDetailLease(null)}
+        onRecordPayment={(inv) => {
+          setDetailLease(null);
+          setPayingInvoice(inv);
+        }}
+      />
+      <RecordRentPaymentModal
+        invoice={payingInvoice}
+        onClose={() => setPayingInvoice(null)}
+        onRecorded={() => {
+          setRefreshKey((k) => k + 1);
+        }}
+      />
     </div>
   );
 }

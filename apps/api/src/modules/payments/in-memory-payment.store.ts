@@ -111,6 +111,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       citizen_subject: input.citizenSubject,
       application_id: input.applicationId ?? null,
       booking_reservation_id: input.bookingReservationId ?? null,
+      lease_invoice_id: input.leaseInvoiceId ?? null,
       fee_code: input.feeCode,
       amount_paise: input.amountPaise,
       currency: 'INR',

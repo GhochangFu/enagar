@@ -61,7 +61,10 @@ describe('Phase 2 API integration contract', () => {
 
   beforeAll(async () => {
     delete process.env.PAYMENT_STORE_PROVIDER;
-    delete process.env.APPLICATION_STORE_PROVIDER;
+    // Force the in-memory store for this spec — the default is now Postgres
+    // when `DATABASE_URL` is set, but these tests pre-seed their own state
+    // and assert against an empty warehouse.
+    process.env.APPLICATION_STORE_PROVIDER = 'in-memory';
     process.env.ALLOW_CLIENT_SCAN_SIMULATION = 'true';
     const moduleRef = await Test.createTestingModule({
       imports: [

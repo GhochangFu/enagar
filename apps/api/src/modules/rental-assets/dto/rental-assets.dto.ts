@@ -6,6 +6,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -87,6 +88,11 @@ export class CreateLeaseAgreementDto {
   @IsOptional()
   @IsString()
   agreementDocumentKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  lessorPhone?: string;
 }
 
 export class UpdateLeaseStatusDto {

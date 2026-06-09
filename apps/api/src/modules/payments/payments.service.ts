@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -59,7 +60,11 @@ export class PaymentsService {
     @Inject(PAYMENT_STORE)
     private readonly store: PaymentStore,
     private readonly prisma: PrismaService,
-  ) {}
+  ) {
+    this.logger = new Logger(PaymentsService.name);
+  }
+
+  private readonly logger: Logger;
 
   async initiate(
     principal: AuthenticatedPrincipal,
@@ -186,6 +191,9 @@ export class PaymentsService {
     if (payment.booking_reservation_id) {
       return this.completeBookingStubPayment(principal, payment, dto);
     }
+    if (payment.lease_invoice_id) {
+      return this.completeLeaseStubPayment(principal, payment, dto);
+    }
     if (!payment.application_id) {
       throw new BadRequestException('Payment is not linked to an application or booking hold');
     }
@@ -307,6 +315,77 @@ export class PaymentsService {
     };
 
     return this.store.settleStubLedger(principal, dto.payment_id, normalizedOrder, ctx);
+  }
+
+  /**
+   * Sprint EN-18 — stub capture for a rent (lease-invoice) payment made from
+   * the citizen portal. Mirrors `completeBookingStubPayment` but flips the
+   * `LeaseInvoice` row to PAID and writes a RENT_LEASE receipt instead of a
+   * booking hold receipt.
+   */
+  private async completeLeaseStubPayment(
+    principal: AuthenticatedPrincipal,
+    payment: PaymentResponse,
+    dto: StubCompletePaymentDto,
+  ): Promise<LedgerSettlementDto> {
+    if (this.gateway.id !== 'stub') {
+      throw new BadRequestException('Only the stub gateway supports synchronous completion');
+    }
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_STUB_PAYMENT_SETTLEMENT !== 'true'
+    ) {
+      throw new ForbiddenException('Stub payment settlement is disabled in production');
+    }
+
+    const expectedStubOrder = StubPaymentGateway.expectedOrderIdForPayment(dto.payment_id).trim();
+    const normalizedOrder = dto.gateway_order_id.trim();
+    if (
+      normalizedOrder !== expectedStubOrder ||
+      normalizedOrder !== payment.gateway_order_id.trim()
+    ) {
+      throw new BadRequestException('gateway_order_id does not match the stub redirect contract');
+    }
+    if (payment.status !== 'requires_action') {
+      throw new ConflictException('Payment is not awaiting deterministic completion');
+    }
+
+    const leaseInvoice = await this.prisma.leaseInvoice.findFirst({
+      where: { id: payment.lease_invoice_id ?? '' },
+    });
+    if (!leaseInvoice) {
+      throw new NotFoundException('Lease invoice not found for this payment');
+    }
+    if (leaseInvoice.status === 'PAID' || leaseInvoice.status === 'WAIVED') {
+      throw new ConflictException(`Invoice is already ${leaseInvoice.status}`);
+    }
+
+    const ctx: SettlementLedgerContext = {
+      serviceCode: 'lease-rent',
+      revenueHeadCode: 'RENT_LEASE',
+      accountingCode: 'RENT_LEASE_INCOME',
+    };
+    // `settleStubLedger` writes the Receipt row inside its own transaction
+    // (so a failure rolls the GL postings and the payment status flip
+    // back together) — it now also carries `leaseInvoiceId` from the
+    // Payment to the new Receipt, so the receipts_target_check passes
+    // for the lease-invoice-only path.
+    const ledger = await this.store.settleStubLedger(
+      principal,
+      dto.payment_id,
+      normalizedOrder,
+      ctx,
+    );
+
+    await this.prisma.leaseInvoice.update({
+      where: { id: leaseInvoice.id },
+      data: { status: 'PAID' },
+    });
+
+    this.logger.log(
+      `[LEASE PAYMENT] Invoice ${leaseInvoice.invoiceNo} settled online via stub (payment=${payment.id})`,
+    );
+    return ledger;
   }
 
   /**

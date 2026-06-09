@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/database/prisma.service';
+
 import {
   CreateLeaseAgreementDto,
   CreateRentalAssetDto,
@@ -24,20 +26,17 @@ export class RentalAssetsService {
       data: {
         tenantId: tenant.id,
         assetType: dto.assetType,
-        name: dto.name as any,
-        location: dto.location as any,
+        name: dto.name as Prisma.InputJsonValue,
+        location: dto.location as Prisma.InputJsonValue,
         baseLeaseRatePaise: dto.baseLeaseRatePaise,
         ratePeriod: dto.ratePeriod,
-        metadata: (dto.metadata || {}) as any,
+        metadata: (dto.metadata || {}) as Prisma.InputJsonValue,
         status: 'AVAILABLE',
       },
     });
   }
 
-  async getAssets(
-    tenantCode: string,
-    query: QueryRentalAssetsDto,
-  ) {
+  async getAssets(tenantCode: string, query: QueryRentalAssetsDto) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { code: tenantCode },
     });
@@ -57,15 +56,18 @@ export class RentalAssetsService {
           where: { status: 'ACTIVE' },
           orderBy: { createdAt: 'desc' },
           take: 1,
+          include: {
+            invoices: {
+              orderBy: { periodStart: 'desc' },
+              take: 1,
+            },
+          },
         },
       },
     });
   }
 
-  async createAgreement(
-    tenantCode: string,
-    dto: CreateLeaseAgreementDto,
-  ) {
+  async createAgreement(tenantCode: string, dto: CreateLeaseAgreementDto) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { code: tenantCode },
     });
@@ -104,6 +106,7 @@ export class RentalAssetsService {
             securityDepositPaise: dto.securityDepositPaise ?? 0,
             status: 'ACTIVE',
             agreementDocumentKey: dto.agreementDocumentKey,
+            lessorPhone: dto.lessorPhone,
           },
         });
 
@@ -112,7 +115,7 @@ export class RentalAssetsService {
           data: { status: 'RENTED' },
         });
 
-        // TODO: Generate the first invoice here or rely on the cron job. 
+        // TODO: Generate the first invoice here or rely on the cron job.
         // Per plan, cron job handles dynamic invoice creation.
 
         return agreement;
