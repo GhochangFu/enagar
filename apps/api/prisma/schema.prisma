@@ -7,6 +7,41 @@ datasource db {
   provider = "postgresql"
 }
 
+enum RentalAssetType {
+  HOARDING
+  MARKET_STALL
+  LAND
+  COMMUNITY_HALL_LONG_TERM
+  OTHER
+}
+
+enum RentalAssetStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  RESERVED
+}
+
+enum LeaseAgreementStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum LeaseInvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum RatePeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
 model Tenant {
   id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code                     String                   @unique @db.VarChar(20)
@@ -77,6 +112,9 @@ model Tenant {
   workflows                Workflow[]
   tenantVendors            TenantVendor[]
   workOrders               WorkOrder[]
+  rentalAssets             RentalAsset[]
+  leaseAgreements          LeaseAgreement[]
+  leaseInvoices            LeaseInvoice[]
 
   @@map("tenants")
 }
@@ -1463,4 +1501,68 @@ model HoldingLookupAudit {
   @@index([tenantId, holdingNumber, createdAt])
   @@index([tenantId, outcome])
   @@map("holding_lookup_audit")
+}
+
+model RentalAsset {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String            @map("tenant_id") @db.Uuid
+  assetType          RentalAssetType   @map("asset_type")
+  name               Json
+  location           Json              @default(dbgenerated("'{}'::jsonb"))
+  status             RentalAssetStatus @default(AVAILABLE)
+  baseLeaseRatePaise Int               @default(0) @map("base_lease_rate_paise")
+  ratePeriod         RatePeriod        @map("rate_period")
+  metadata           Json              @default(dbgenerated("'{}'::jsonb"))
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  agreements         LeaseAgreement[]
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("rental_assets")
+}
+
+model LeaseAgreement {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  assetId              String                @map("asset_id") @db.Uuid
+  tradeLicenseNo       String                @map("trade_license_no") @db.VarChar(100)
+  lessorName           String                @map("lessor_name") @db.VarChar(255)
+  startDate            DateTime              @map("start_date") @db.Timestamptz(6)
+  endDate              DateTime              @map("end_date") @db.Timestamptz(6)
+  securityDepositPaise Int                   @default(0) @map("security_deposit_paise")
+  status               LeaseAgreementStatus  @default(DRAFT)
+  agreementDocumentKey String?               @map("agreement_document_key") @db.Text
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  asset                RentalAsset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  invoices             LeaseInvoice[]
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, tradeLicenseNo])
+  @@map("lease_agreements")
+}
+
+model LeaseInvoice {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  agreementId   String              @map("agreement_id") @db.Uuid
+  invoiceNo     String              @map("invoice_no") @db.VarChar(100)
+  periodStart   DateTime            @map("period_start") @db.Timestamptz(6)
+  periodEnd     DateTime            @map("period_end") @db.Timestamptz(6)
+  dueDate       DateTime            @map("due_date") @db.Timestamptz(6)
+  amountPaise   Int                 @map("amount_paise")
+  status        LeaseInvoiceStatus  @default(PENDING)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  agreement     LeaseAgreement      @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, invoiceNo])
+  @@index([tenantId, status, dueDate])
+  @@map("lease_invoices")
 }

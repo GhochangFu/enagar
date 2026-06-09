@@ -42,6 +42,14 @@ export const TENANT_ADMIN_NAV: TenantAdminNavItem[] = [
     adminOnly: true,
     match: (pathname) => pathname.startsWith('/dashboard/operations'),
   },
+  {
+    id: 'rental-assets',
+    label: 'Rental Assets',
+    href: '/rental-assets',
+    icon: 'building',
+    adminOnly: true,
+    match: (pathname) => pathname.startsWith('/rental-assets'),
+  },
 ];
 
 export function isAdminPortalUser(isAdmin: boolean): boolean {
