@@ -130,6 +130,14 @@ export interface PaymentApiResponse {
   tenant_id: string;
   application_id: string | null;
   booking_reservation_id?: string | null;
+  /**
+   * Set when this Payment was created to settle a `LeaseInvoice` (rent payment
+   * from the citizen portal). The PWA renders a small "Rent" badge in the
+   * Service-payments list when this is non-null so settled rent payments are
+   * visually distinguishable from application / approval / booking payments.
+   * Mirrors `Payment.leaseInvoiceId` on the backend.
+   */
+  lease_invoice_id?: string | null;
   fee_code?: 'application' | 'approval' | 'booking_deposit' | string;
   amount_paise: number;
   currency: 'INR';

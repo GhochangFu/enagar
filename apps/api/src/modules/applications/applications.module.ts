@@ -17,11 +17,24 @@ import { PostgresApplicationStore } from './postgres-application.store';
     InMemoryApplicationStore,
     PostgresApplicationStore,
     {
+      // Default to the Postgres store whenever a `DATABASE_URL` is available so
+      // dev/demo processes see existing filings, payment schedules, and
+      // generated dockets. The in-memory store is opt-in for tests / offline
+      // runs that need to avoid the database.
       provide: APPLICATION_STORE,
       useFactory: (
         inMemoryStore: InMemoryApplicationStore,
         postgresStore: PostgresApplicationStore,
-      ) => (process.env.APPLICATION_STORE_PROVIDER === 'postgres' ? postgresStore : inMemoryStore),
+      ) => {
+        const explicit = process.env.APPLICATION_STORE_PROVIDER?.trim().toLowerCase();
+        if (explicit === 'in-memory' || explicit === 'memory' || explicit === 'in_memory') {
+          return inMemoryStore;
+        }
+        if (explicit === 'postgres') {
+          return postgresStore;
+        }
+        return process.env.DATABASE_URL ? postgresStore : inMemoryStore;
+      },
       inject: [InMemoryApplicationStore, PostgresApplicationStore],
     },
     ApplicationsService,

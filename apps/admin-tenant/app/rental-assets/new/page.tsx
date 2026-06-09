@@ -1,6 +1,15 @@
 'use client';
 
-import { Button, Card, FieldLabel, PageHeader, SelectField, TextField, ToastProvider, useToast } from '@enagar/ui';
+import {
+  Button,
+  Card,
+  FieldLabel,
+  PageHeader,
+  SelectField,
+  TextField,
+  ToastProvider,
+  useToast,
+} from '@enagar/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 
@@ -36,6 +45,7 @@ function NewLeaseAgreementForm() {
     assetId: presetAssetId,
     tradeLicenseNo: '',
     lessorName: '',
+    lessorPhone: '',
     startDate: '',
     endDate: '',
     securityDepositPaise: 0,
@@ -67,7 +77,7 @@ function NewLeaseAgreementForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.tradeLicenseNo.trim()) {
       toast('Trade License Number is mandatory.', 'danger');
       return;
@@ -82,6 +92,7 @@ function NewLeaseAgreementForm() {
           ...formData,
           startDate: formData.startDate,
           endDate: formData.endDate,
+          lessorPhone: formData.lessorPhone.trim() || undefined,
         }),
       });
 
@@ -170,6 +181,20 @@ function NewLeaseAgreementForm() {
                 placeholder="0.00"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <FieldLabel htmlFor="lessorPhone">Lessor Phone (for portal access)</FieldLabel>
+            <TextField
+              id="lessorPhone"
+              type="tel"
+              value={formData.lessorPhone}
+              onChange={(e) => setFormData({ ...formData, lessorPhone: e.target.value })}
+              placeholder="e.g., 9876543210"
+            />
+            <p className="text-sm text-muted-foreground">
+              Optional. Enter phone to let the lessor view &amp; pay rent online.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

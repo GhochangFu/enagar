@@ -17,7 +17,7 @@ import {
 import { DynamicFormFields } from '@enagar/forms/web';
 import { t } from '@enagar/i18n';
 import { applyPlatformTheme, applyTenantTheme } from '@enagar/tenant-theme';
-import { Button, Icon } from '@enagar/ui';
+import { Badge, Button, Icon, SegmentedControl } from '@enagar/ui';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -52,6 +52,7 @@ import {
   type WorkspaceNavItem,
 } from '../components/citizen-workspace-components';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
+import { InvoicesPanel } from '../components/invoices-panel';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { TenantBanners } from '../components/tenant-banners';
@@ -216,12 +217,26 @@ async function storeEncryptedToken(token: TokenResponse): Promise<void> {
       ciphertext: Array.from(new Uint8Array(encrypted)),
     }),
   );
+  // Also write a plain dev copy so the best-effort session reader used by
+  // sibling surfaces (e.g. the InvoicesPanel, which calls the lookup
+  // endpoint with the citizen's phone) can pick up the active token without
+  // re-encrypting. The encrypted blob remains the source of truth.
+  sessionStorage.setItem('enagar.auth.dev', payload);
 }
 
 export default function HomePage(): JSX.Element {
   const [step, setStep] = useState<Step>('splash');
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('home');
   const [hubTab, setHubTab] = useState<HubTab>('home');
+  /**
+   * Sub-tab inside the HUB and Workspace "My Payments" surfaces. The HUB and
+   * workspace sub-tabs are independent so the citizen can keep "Invoices"
+   * selected on the workspace while having "Service payments" open on the
+   * HUB.
+   */
+  type PaymentsSubTab = 'service' | 'invoices';
+  const [hubPaymentsSubTab, setHubPaymentsSubTab] = useState<PaymentsSubTab>('service');
+  const [workspacePaymentsSubTab, setWorkspacePaymentsSubTab] = useState<PaymentsSubTab>('service');
   const [language, setLanguage] = useState<LanguageCode>('en');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -635,6 +650,16 @@ export default function HomePage(): JSX.Element {
     const nextToken = (await response.json()) as TokenResponse;
     setToken(nextToken);
     await storeEncryptedToken(nextToken);
+    // Persist the citizen's phone in plain localStorage so the InvoicesPanel
+    // can call `GET /lease-invoices/lookup?phone=…` after a fresh sign-in
+    // without re-decrypting the encrypted session blob.
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('enagar.citizen.phone', mobile);
+      } catch {
+        /* localStorage may be unavailable in private mode — non-fatal */
+      }
+    }
     try {
       await fetch(`${apiBaseUrl}/citizen/language`, {
         method: 'PATCH',
@@ -1022,6 +1047,16 @@ export default function HomePage(): JSX.Element {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load payments');
     }
+  }
+
+  /**
+   * Refresh hook used by the Invoices panel after a Pay Now captures the
+   * stub settlement. Re-reads the workspace's `/payments` list so the new
+   * settled payment (with `lease_invoice_id` set) appears immediately in the
+   * Service-payments sub-tab.
+   */
+  async function reloadPayments(): Promise<void> {
+    await loadPayments();
   }
 
   async function loadApplications(): Promise<void> {
@@ -2340,64 +2375,90 @@ export default function HomePage(): JSX.Element {
           )}
 
           {hubTab === 'payments' && (
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-bold">My Payments</h3>
-              <p className="mt-1 text-xs text-slate-500">
-                Hub read — all attempts across ULBs ({hubPayments.length} rows).
-              </p>
-              <div className="mt-6 space-y-4">
-                {hubPayments.map((payment) => {
-                  const payerScope =
-                    tenantsById.get(payment.tenant_id)?.code ?? dossierMunicipalityScope();
-                  return (
-                    <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            {payment.status.replace('_', ' ')}
-                          </p>
-                          <p className="font-mono text-xs text-slate-600">{payment.id}</p>
-                          {Boolean(tenantsById.get(payment.tenant_id)) && (
-                            <p className="mt-2 text-[11px] font-semibold text-slate-700">
-                              {tenantsById.get(payment.tenant_id)?.code} ·{' '}
-                              <span
-                                style={{ color: tenantsById.get(payment.tenant_id)?.theme_color }}
-                              >
-                                ●
-                              </span>
-                            </p>
-                          )}
-                        </div>
-                        <strong className="text-lg">
-                          {formatInrFromPaise(payment.amount_paise)}
-                        </strong>
-                      </div>
-                      {payment.status === 'requires_action' && token ? (
-                        <button
-                          className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
-                          onClick={() => void simulateStubSettlement(payment)}
-                          type="button"
-                        >
-                          Simulate PSP capture (stub complete)
-                        </button>
-                      ) : null}
-                      {payment.status === 'settled' && payerScope && token ? (
-                        <ReceiptPreviewPlaceholder
-                          apiBaseUrl={apiBaseUrl}
-                          payment={payment}
-                          tenantScopeCode={payerScope}
-                          token={token}
-                        />
-                      ) : null}
-                    </article>
-                  );
-                })}
-                {hubPayments.length === 0 && (
-                  <p className="text-sm text-slate-600">
-                    No payment attempts logged for this citizen yet.
+            <section className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold">My Payments</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Hub read — all attempts across ULBs ({hubPayments.length} rows).
                   </p>
-                )}
+                </div>
+                <SegmentedControl<PaymentsSubTab>
+                  aria-label="Payments sub-tab"
+                  onChange={setHubPaymentsSubTab}
+                  options={[
+                    { value: 'service', label: 'Service payments' },
+                    { value: 'invoices', label: 'Invoices' },
+                  ]}
+                  value={hubPaymentsSubTab}
+                />
               </div>
+              {hubPaymentsSubTab === 'service' ? (
+                <div className="space-y-4">
+                  {hubPayments.map((payment) => {
+                    const payerScope =
+                      tenantsById.get(payment.tenant_id)?.code ?? dossierMunicipalityScope();
+                    return (
+                      <article className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs font-semibold uppercase text-slate-500">
+                                {payment.status.replace('_', ' ')}
+                              </p>
+                              {payment.lease_invoice_id ? <Badge tone="info">Rent</Badge> : null}
+                            </div>
+                            <p className="font-mono text-xs text-slate-600">{payment.id}</p>
+                            {Boolean(tenantsById.get(payment.tenant_id)) && (
+                              <p className="mt-2 text-[11px] font-semibold text-slate-700">
+                                {tenantsById.get(payment.tenant_id)?.code} ·{' '}
+                                <span
+                                  style={{ color: tenantsById.get(payment.tenant_id)?.theme_color }}
+                                >
+                                  ●
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                          <strong className="text-lg">
+                            {formatInrFromPaise(payment.amount_paise)}
+                          </strong>
+                        </div>
+                        {payment.status === 'requires_action' && token ? (
+                          <button
+                            className="mt-4 w-full rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                            onClick={() => void simulateStubSettlement(payment)}
+                            type="button"
+                          >
+                            Simulate PSP capture (stub complete)
+                          </button>
+                        ) : null}
+                        {payment.status === 'settled' && payerScope && token ? (
+                          <ReceiptPreviewPlaceholder
+                            apiBaseUrl={apiBaseUrl}
+                            payment={payment}
+                            tenantScopeCode={payerScope}
+                            token={token}
+                          />
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                  {hubPayments.length === 0 && (
+                    <p className="text-sm text-slate-600">
+                      No payment attempts logged for this citizen yet.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <InvoicesPanel
+                  apiBaseUrl={apiBaseUrl}
+                  mode="hub"
+                  onPaymentRecorded={() => void reloadHubPortfolioLists('payments')}
+                  phone={mobile}
+                  token={token}
+                />
+              )}
             </section>
           )}
 
@@ -2869,47 +2930,74 @@ export default function HomePage(): JSX.Element {
 
           {activeTab === 'payments' && (
             <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <h3 className="text-xl font-bold">My Payments</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Listed in API order. Stub gateway: use <strong>Simulate PSP capture</strong> after
-                  initiation. Production APIs block this unless operators enable{' '}
-                  <code className="rounded bg-slate-100 px-1">ALLOW_STUB_PAYMENT_SETTLEMENT</code>.
-                </p>
-                <div className="mt-4 space-y-4">
-                  {payments.map((payment) => {
-                    const payerScope =
-                      tenantsById.get(payment.tenant_id)?.code ?? selectedTenant.code;
-
-                    return (
-                      <PaymentAttemptCard
-                        amount={formatInrFromPaise(payment.amount_paise)}
-                        key={payment.id}
-                        onStubComplete={
-                          payment.status === 'requires_action' && token
-                            ? (row) => void simulateStubSettlement(row)
-                            : undefined
-                        }
-                        payment={payment}
-                        scopeCode={payerScope}
-                      >
-                        {payment.status === 'settled' && token ? (
-                          <ReceiptPreviewPlaceholder
-                            apiBaseUrl={apiBaseUrl}
-                            payment={payment}
-                            tenantScopeCode={payerScope}
-                            token={token}
-                          />
-                        ) : null}
-                      </PaymentAttemptCard>
-                    );
-                  })}
-                  {payments.length === 0 && (
-                    <WorkspaceEmptyState title="No payment attempts yet">
-                      Payment attempts will appear here after a service with fees reaches payment.
-                    </WorkspaceEmptyState>
-                  )}
+              <div className="space-y-4 rounded-3xl bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold">My Payments</h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {workspacePaymentsSubTab === 'service'
+                        ? 'Listed in API order. Stub gateway: use Simulate PSP capture after initiation. Production APIs block this unless operators enable ALLOW_STUB_PAYMENT_SETTLEMENT.'
+                        : 'Lease invoices linked to your phone number, filtered to this municipality.'}
+                    </p>
+                  </div>
+                  <SegmentedControl<PaymentsSubTab>
+                    aria-label="Payments sub-tab"
+                    onChange={setWorkspacePaymentsSubTab}
+                    options={[
+                      { value: 'service', label: 'Service payments' },
+                      { value: 'invoices', label: 'Invoices' },
+                    ]}
+                    value={workspacePaymentsSubTab}
+                  />
                 </div>
+                {workspacePaymentsSubTab === 'service' ? (
+                  <div className="space-y-4">
+                    {payments.map((payment) => {
+                      const payerScope =
+                        tenantsById.get(payment.tenant_id)?.code ?? selectedTenant.code;
+
+                      return (
+                        <PaymentAttemptCard
+                          amount={formatInrFromPaise(payment.amount_paise)}
+                          key={payment.id}
+                          onStubComplete={
+                            payment.status === 'requires_action' && token
+                              ? (row) => void simulateStubSettlement(row)
+                              : undefined
+                          }
+                          payment={payment}
+                          scopeCode={payerScope}
+                        >
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {payment.lease_invoice_id ? <Badge tone="info">Rent</Badge> : null}
+                            {payment.status === 'settled' && token ? (
+                              <ReceiptPreviewPlaceholder
+                                apiBaseUrl={apiBaseUrl}
+                                payment={payment}
+                                tenantScopeCode={payerScope}
+                                token={token}
+                              />
+                            ) : null}
+                          </div>
+                        </PaymentAttemptCard>
+                      );
+                    })}
+                    {payments.length === 0 && (
+                      <WorkspaceEmptyState title="No payment attempts yet">
+                        Payment attempts will appear here after a service with fees reaches payment.
+                      </WorkspaceEmptyState>
+                    )}
+                  </div>
+                ) : (
+                  <InvoicesPanel
+                    apiBaseUrl={apiBaseUrl}
+                    mode="tenant"
+                    onPaymentRecorded={() => void reloadPayments()}
+                    phone={mobile}
+                    tenantCode={selectedTenant.code}
+                    token={token}
+                  />
+                )}
               </div>
 
               <div className="space-y-3 rounded-3xl bg-brand/10 p-5">

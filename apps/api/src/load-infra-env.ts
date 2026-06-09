@@ -32,18 +32,24 @@ function mergeEnvFile(path: string): void {
 
 /**
  * When `pnpm --filter @enagar/api dev` runs from the monorepo, `cwd` is `apps/api`.
- * Merge `infrastructure/.env` into `process.env` for keys **not already set** (shell /
- * IDE launch config wins).
+ * When the compiled bundle is started directly from the repo root (e.g.
+ * `node apps/api/dist/main`), `cwd` is the repo root. Search both locations so
+ * the env file is picked up regardless of where the process was launched from.
  */
 function loadInfrastructureEnvOptional(): void {
   if (process.env.NODE_ENV === 'production') {
     return;
   }
-  const infraPath = resolve(process.cwd(), '..', '..', 'infrastructure', '.env');
-  if (!existsSync(infraPath)) {
-    return;
+  const candidates = [
+    resolve(process.cwd(), '..', '..', 'infrastructure', '.env'),
+    resolve(process.cwd(), 'infrastructure', '.env'),
+  ];
+  for (const infraPath of candidates) {
+    if (existsSync(infraPath)) {
+      mergeEnvFile(infraPath);
+      return;
+    }
   }
-  mergeEnvFile(infraPath);
 }
 
 /** Logs DB host + database name in non-production (password never printed). */

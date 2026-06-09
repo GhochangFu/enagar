@@ -12,7 +12,22 @@ export class LeaseSchedulerService {
 
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async handleLeaseScheduler() {
-    this.logger.log('Running daily lease scheduler...');
+    this.logger.log('Running daily lease scheduler (cron)…');
+    await this.runOnce('cron');
+  }
+
+  /**
+   * One-shot run of the lease scheduler pipeline. Exposed both for the cron
+   * trigger and for the manual "Run lease scheduler now" button in the
+   * tenant admin portal. Returns a summary so the UI can show the operator
+   * what changed.
+   */
+  async runOnce(trigger: 'cron' | 'manual' = 'manual'): Promise<{
+    trigger: 'cron' | 'manual';
+    invoicesCreated: number;
+    flippedToOverdue: number;
+    expiringAgreements: number;
+  }> {
     const now = new Date();
 
     // 1. Expiry Alerts (Agreements expiring within the next 30 days)
@@ -46,6 +61,9 @@ export class LeaseSchedulerService {
         status: 'ACTIVE',
       },
       include: {
+        // Rate (`baseLeaseRatePaise`, `ratePeriod`) lives on the asset, not on
+        // the agreement, so the invoice generator needs it joined here.
+        asset: true,
         invoices: {
           orderBy: { periodStart: 'desc' },
           take: 1,
@@ -68,10 +86,10 @@ export class LeaseSchedulerService {
         nextPeriodStart.setDate(nextPeriodStart.getDate() + 1); // Next day
       }
 
-      // Calculate next period end based on ratePeriod
+      // Calculate next period end based on the linked asset's ratePeriod.
+      // The agreement itself does not carry the rate — it lives on the asset.
       const nextPeriodEnd = new Date(nextPeriodStart);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ratePeriod = (agreement as any).ratePeriod;
+      const ratePeriod = agreement.asset.ratePeriod;
       if (ratePeriod === 'MONTHLY') {
         nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + 1);
       } else if (ratePeriod === 'QUARTERLY') {
@@ -93,8 +111,7 @@ export class LeaseSchedulerService {
         });
 
         if (!existingInvoice) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const baseLeaseRatePaise = (agreement as any).baseLeaseRatePaise;
+          const baseLeaseRatePaise = agreement.asset.baseLeaseRatePaise;
           await this.prisma.leaseInvoice.create({
             data: {
               tenantId: agreement.tenantId,
@@ -103,7 +120,7 @@ export class LeaseSchedulerService {
               periodStart: nextPeriodStart,
               periodEnd: nextPeriodEnd,
               dueDate: nextPeriodStart,
-              amountPaise: baseLeaseRatePaise ?? 0,
+              amountPaise: baseLeaseRatePaise,
               status: 'PENDING',
             },
           });
@@ -115,6 +132,37 @@ export class LeaseSchedulerService {
       }
     }
 
-    this.logger.log(`Lease scheduler completed. Created ${invoicesCreated} new invoice(s).`);
+    // 3. Auto-flip PENDING → OVERDUE
+    const overdueCandidates = await this.prisma.leaseInvoice.findMany({
+      where: { status: 'PENDING', dueDate: { lt: now } },
+    });
+    for (const inv of overdueCandidates) {
+      await this.prisma.leaseInvoice.update({
+        where: { id: inv.id },
+        data: { status: 'OVERDUE' },
+      });
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: inv.tenantId } });
+      const config = (tenant?.config ?? {}) as {
+        rentalLateFee?: { enabled?: boolean; flatAmountPaise?: number };
+      };
+      const lateFee = config.rentalLateFee;
+      if (lateFee?.enabled && lateFee.flatAmountPaise) {
+        await this.prisma.leaseInvoice.update({
+          where: { id: inv.id },
+          data: { lateFeePaise: lateFee.flatAmountPaise },
+        });
+      }
+      this.logger.warn(`[LEASE INVOICE] ${inv.invoiceNo} is now OVERDUE`);
+    }
+
+    this.logger.log(
+      `Lease scheduler (${trigger}) completed. Created ${invoicesCreated} new invoice(s); flipped ${overdueCandidates.length} to OVERDUE.`,
+    );
+    return {
+      trigger,
+      invoicesCreated,
+      flippedToOverdue: overdueCandidates.length,
+      expiringAgreements: expiringAgreements.length,
+    };
   }
 }

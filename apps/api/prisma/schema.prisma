@@ -183,6 +183,7 @@ model Citizen {
   bookingReservations BookingReservation[]
   challans           Challan[]
   grievances         Grievance[]
+  leaseAgreements    LeaseAgreement[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -999,6 +1000,8 @@ model Payment {
   settledAt          DateTime?               @map("settled_at") @db.Timestamptz(6)
   application          Application?          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   bookingReservation   BookingReservation?   @relation(fields: [bookingReservationId], references: [id], onDelete: Cascade)
+  leaseInvoiceId       String?               @map("lease_invoice_id") @db.Uuid
+  leaseInvoice         LeaseInvoice?         @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
   idempotencyRecords   PaymentIdempotencyKey[]
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   receipt              Receipt?
@@ -1010,6 +1013,7 @@ model Payment {
   @@index([tenantId, citizenSubject, createdAt])
   @@index([tenantId, applicationId, status])
   @@index([tenantId, bookingReservationId])
+  @@index([tenantId, leaseInvoiceId, status])
   @@map("payments")
 }
 
@@ -1040,6 +1044,7 @@ model Receipt {
   accountingCode       String               @map("accounting_code") @db.VarChar(50)
   applicationId        String?              @map("application_id") @db.Uuid
   bookingReservationId String?              @map("booking_reservation_id") @db.Uuid
+  leaseInvoiceId       String?              @map("lease_invoice_id") @db.Uuid
   serviceCode          String               @map("service_code") @db.VarChar(80)
   amountPaise       Int         @map("amount_paise")
   currency          String      @default("INR") @db.Char(3)
@@ -1050,6 +1055,7 @@ model Receipt {
   issuedAt          DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
   application          Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)
+  leaseInvoice         LeaseInvoice?        @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
   payment              Payment             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   glPosting            GlPosting?
@@ -1058,6 +1064,7 @@ model Receipt {
   @@index([tenantId, issuedAt])
   @@index([tenantId, applicationId])
   @@index([tenantId, bookingReservationId])
+  @@index([tenantId, leaseInvoiceId])
   @@map("receipts")
 }
 
@@ -1529,6 +1536,8 @@ model LeaseAgreement {
   assetId              String                @map("asset_id") @db.Uuid
   tradeLicenseNo       String                @map("trade_license_no") @db.VarChar(100)
   lessorName           String                @map("lessor_name") @db.VarChar(255)
+  lessorPhone          String?               @map("lessor_phone") @db.VarChar(20)
+  lessorCitizenId      String?               @map("lessor_citizen_id") @db.Uuid
   startDate            DateTime              @map("start_date") @db.Timestamptz(6)
   endDate              DateTime              @map("end_date") @db.Timestamptz(6)
   securityDepositPaise Int                   @default(0) @map("security_deposit_paise")
@@ -1538,6 +1547,7 @@ model LeaseAgreement {
   updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
   
   asset                RentalAsset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  lessorCitizen        Citizen?              @relation(fields: [lessorCitizenId], references: [id], onDelete: SetNull)
   invoices             LeaseInvoice[]
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1555,11 +1565,14 @@ model LeaseInvoice {
   periodEnd     DateTime            @map("period_end") @db.Timestamptz(6)
   dueDate       DateTime            @map("due_date") @db.Timestamptz(6)
   amountPaise   Int                 @map("amount_paise")
+  lateFeePaise  Int                 @default(0) @map("late_fee_paise")
   status        LeaseInvoiceStatus  @default(PENDING)
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   
   agreement     LeaseAgreement      @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+  receipts      Receipt[]
   tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, invoiceNo])
