@@ -29,6 +29,18 @@ enum LeaseAgreementStatus {
   TERMINATED
 }
 
+enum LeaseAgreementDocumentStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum LeaseAgreementDocumentEventType {
+  UPLOADED
+  APPROVED
+  REJECTED
+}
+
 enum LeaseInvoiceStatus {
   PENDING
   PAID
@@ -48,6 +60,7 @@ model Tenant {
   name                     String                   @db.VarChar(255)
   district                 String?                  @db.VarChar(100)
   wardCount                Int?                     @map("ward_count")
+  lateFeePaise              Int?                     @map("late_fee_paise")
   themeColor               String?                  @map("theme_color") @db.VarChar(7)
   logoUrl                  String?                  @map("logo_url")
   languagesEnabled         String[]                 @default(["en", "bn", "hi"]) @map("languages_enabled")
@@ -115,6 +128,8 @@ model Tenant {
   rentalAssets             RentalAsset[]
   leaseAgreements          LeaseAgreement[]
   leaseInvoices            LeaseInvoice[]
+  leaseAgreementDocuments LeaseAgreementDocument[]
+  leaseAgreementDocumentEvents LeaseAgreementDocumentEvent[]
 
   @@map("tenants")
 }
@@ -1052,6 +1067,10 @@ model Receipt {
   gatewayOrderId    String      @map("gateway_order_id") @db.VarChar(160)
   gatewayPaymentRef String?     @map("gateway_payment_ref") @db.VarChar(160)
   qrPayloadVersion  Int         @default(1) @map("qr_payload_version")
+  storageKey                String?                  @map("storage_key") @db.Text
+  sha256                    String?                  @map("sha256") @db.Char(64)
+  sizeBytes                 Int?                     @map("size_bytes")
+  generatedAt               DateTime?                @map("generated_at") @db.Timestamptz(6)
   issuedAt          DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
   application          Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)
@@ -1549,6 +1568,7 @@ model LeaseAgreement {
   asset                RentalAsset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
   lessorCitizen        Citizen?              @relation(fields: [lessorCitizenId], references: [id], onDelete: SetNull)
   invoices             LeaseInvoice[]
+  documents LeaseAgreementDocument[]
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
@@ -1578,4 +1598,42 @@ model LeaseInvoice {
   @@unique([tenantId, invoiceNo])
   @@index([tenantId, status, dueDate])
   @@map("lease_invoices")
+}
+
+model LeaseAgreementDocument {
+  id            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                       @map("tenant_id") @db.Uuid
+  agreementId   String                       @map("agreement_id") @db.Uuid
+  fileName      String                       @map("file_name") @db.VarChar(255)
+  mimeType      String                       @map("mime_type") @db.VarChar(120)
+  sizeBytes     Int                          @map("size_bytes")
+  sha256        String                       @db.Char(64)
+  storageKey    String                       @map("storage_key") @db.Text
+  status        LeaseAgreementDocumentStatus @default(PENDING_REVIEW)
+  uploadedBy    String                       @map("uploaded_by") @db.Uuid
+  uploadedAt    DateTime                     @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  reviewedBy    String?                      @map("reviewed_by") @db.Uuid
+  reviewedAt    DateTime?                    @map("reviewed_at") @db.Timestamptz(6)
+  reviewerNote  String?                      @map("reviewer_note") @db.Text
+  events        LeaseAgreementDocumentEvent[]
+  agreement     LeaseAgreement               @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, uploadedAt])
+  @@map("lease_agreement_documents")
+}
+
+model LeaseAgreementDocumentEvent {
+  id          String                                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                                   @map("tenant_id") @db.Uuid
+  documentId  String                                   @map("document_id") @db.Uuid
+  eventType   LeaseAgreementDocumentEventType
+  actorUserId String                                   @map("actor_user_id") @db.Uuid
+  payload     Json                                     @default(dbgenerated("'{}'::jsonb"))
+  createdAt   DateTime                                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  document    LeaseAgreementDocument                   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tenant      Tenant                                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentId, createdAt])
+  @@map("lease_agreement_document_events")
 }
