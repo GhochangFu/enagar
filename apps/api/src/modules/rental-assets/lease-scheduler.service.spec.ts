@@ -43,7 +43,10 @@ describe('LeaseSchedulerService', () => {
     await service.runOnce('cron');
 
     expect(prisma.leaseInvoice.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'inv-1' }, data: { status: 'OVERDUE' } }),
+      expect.objectContaining({
+        where: { id: 'inv-1' },
+        data: expect.objectContaining({ status: 'OVERDUE' }),
+      }),
     );
   });
 
@@ -60,10 +63,58 @@ describe('LeaseSchedulerService', () => {
     await service.runOnce('cron');
 
     expect(prisma.leaseInvoice.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'inv-2' }, data: { status: 'OVERDUE' } }),
+      expect.objectContaining({
+        where: { id: 'inv-2' },
+        data: expect.objectContaining({ status: 'OVERDUE' }),
+      }),
     );
     expect(prisma.leaseInvoice.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'inv-2' }, data: { lateFeePaise: 50000 } }),
+      expect.objectContaining({
+        where: { id: 'inv-2' },
+        data: expect.objectContaining({ lateFeePaise: 50000 }),
+      }),
+    );
+  });
+
+  it('uses Tenant.lateFeePaise when set, ignoring the legacy JSON config', async () => {
+    prisma.leaseInvoice.findMany.mockResolvedValue([
+      { id: 'inv-3', invoiceNo: 'INV-3', tenantId: 't1' },
+    ]);
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 't1',
+      lateFeePaise: 7500, // ₹75
+      config: { rentalLateFee: { enabled: true, flatAmountPaise: 9999 } },
+    });
+    prisma.leaseInvoice.update.mockResolvedValue({});
+
+    await service.runOnce('manual');
+
+    expect(prisma.leaseInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-3' },
+        data: expect.objectContaining({ status: 'OVERDUE', lateFeePaise: 7500 }),
+      }),
+    );
+  });
+
+  it('falls back to config.rentalLateFee.flatAmountPaise when lateFeePaise is null', async () => {
+    prisma.leaseInvoice.findMany.mockResolvedValue([
+      { id: 'inv-4', invoiceNo: 'INV-4', tenantId: 't1' },
+    ]);
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 't1',
+      lateFeePaise: null,
+      config: { rentalLateFee: { enabled: true, flatAmountPaise: 2500 } },
+    });
+    prisma.leaseInvoice.update.mockResolvedValue({});
+
+    await service.runOnce('manual');
+
+    expect(prisma.leaseInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-4' },
+        data: expect.objectContaining({ status: 'OVERDUE', lateFeePaise: 2500 }),
+      }),
     );
   });
 

@@ -137,22 +137,25 @@ export class LeaseSchedulerService {
       where: { status: 'PENDING', dueDate: { lt: now } },
     });
     for (const inv of overdueCandidates) {
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: inv.tenantId } });
+      // Prefer the new dedicated column; fall back to the legacy JSON config
+      // for tenants that have not been backfilled yet.
+      let lateFeePaise = tenant?.lateFeePaise ?? 0;
+      if (lateFeePaise === 0) {
+        const legacy = (tenant?.config ?? {}) as {
+          rentalLateFee?: { enabled?: boolean; flatAmountPaise?: number };
+        };
+        if (legacy.rentalLateFee?.enabled && legacy.rentalLateFee.flatAmountPaise) {
+          lateFeePaise = legacy.rentalLateFee.flatAmountPaise;
+        }
+      }
       await this.prisma.leaseInvoice.update({
         where: { id: inv.id },
-        data: { status: 'OVERDUE' },
+        data: { status: 'OVERDUE', lateFeePaise },
       });
-      const tenant = await this.prisma.tenant.findUnique({ where: { id: inv.tenantId } });
-      const config = (tenant?.config ?? {}) as {
-        rentalLateFee?: { enabled?: boolean; flatAmountPaise?: number };
-      };
-      const lateFee = config.rentalLateFee;
-      if (lateFee?.enabled && lateFee.flatAmountPaise) {
-        await this.prisma.leaseInvoice.update({
-          where: { id: inv.id },
-          data: { lateFeePaise: lateFee.flatAmountPaise },
-        });
-      }
-      this.logger.warn(`[LEASE INVOICE] ${inv.invoiceNo} is now OVERDUE`);
+      this.logger.warn(
+        `[LEASE INVOICE] ${inv.invoiceNo} is now OVERDUE (lateFeePaise=${lateFeePaise})`,
+      );
     }
 
     this.logger.log(
