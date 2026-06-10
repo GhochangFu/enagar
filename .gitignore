@@ -76,3 +76,7 @@ ollama-models/
 *.seed
 *.pid.lock
 prototype.zip
+
+# ---- Worktrees ----
+.worktrees/
+worktrees/
