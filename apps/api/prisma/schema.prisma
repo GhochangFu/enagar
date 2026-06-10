@@ -60,7 +60,7 @@ model Tenant {
   name                     String                   @db.VarChar(255)
   district                 String?                  @db.VarChar(100)
   wardCount                Int?                     @map("ward_count")
-  lateFeePaise              Int?                     @map("late_fee_paise")
+  lateFeePaise             Int?                     @map("late_fee_paise")
   themeColor               String?                  @map("theme_color") @db.VarChar(7)
   logoUrl                  String?                  @map("logo_url")
   languagesEnabled         String[]                 @default(["en", "bn", "hi"]) @map("languages_enabled")
@@ -1067,10 +1067,10 @@ model Receipt {
   gatewayOrderId    String      @map("gateway_order_id") @db.VarChar(160)
   gatewayPaymentRef String?     @map("gateway_payment_ref") @db.VarChar(160)
   qrPayloadVersion  Int         @default(1) @map("qr_payload_version")
-  storageKey                String?                  @map("storage_key") @db.Text
-  sha256                    String?                  @map("sha256") @db.Char(64)
-  sizeBytes                 Int?                     @map("size_bytes")
-  generatedAt               DateTime?                @map("generated_at") @db.Timestamptz(6)
+  storageKey        String?     @map("storage_key") @db.Text
+  sha256            String?     @map("sha256") @db.Char(64)
+  sizeBytes         Int?        @map("size_bytes")
+  generatedAt       DateTime?   @map("generated_at") @db.Timestamptz(6)
   issuedAt          DateTime    @default(now()) @map("issued_at") @db.Timestamptz(6)
   application          Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)

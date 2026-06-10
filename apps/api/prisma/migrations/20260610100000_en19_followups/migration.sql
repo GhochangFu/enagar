@@ -1,3 +1,4 @@
+-- EN-19 / 2026-06-10: Applied manually because the shadow DB cannot replay the EN-18 history (the `lease_invoices` table was created out-of-band; the EN-18 migration references it but does not create it). To re-enable the normal `prisma migrate dev` flow, fix the EN-18 migration so it creates `lease_invoices` itself.
 -- CreateEnum
 CREATE TYPE "LeaseAgreementDocumentStatus" AS ENUM ('PENDING_REVIEW', 'APPROVED', 'REJECTED');
 
