@@ -44,7 +44,7 @@ CREATE TABLE "lease_agreement_document_events" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "document_id" UUID NOT NULL,
-    "eventType" "LeaseAgreementDocumentEventType" NOT NULL,
+    "event_type" "LeaseAgreementDocumentEventType" NOT NULL,
     "actor_user_id" UUID NOT NULL,
     "payload" JSONB NOT NULL DEFAULT '{}'::jsonb,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -1627,7 +1627,7 @@ model LeaseAgreementDocumentEvent {
   id          String                                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String                                   @map("tenant_id") @db.Uuid
   documentId  String                                   @map("document_id") @db.Uuid
-  eventType   LeaseAgreementDocumentEventType
+  eventType   LeaseAgreementDocumentEventType  @map("event_type")
   actorUserId String                                   @map("actor_user_id") @db.Uuid
   payload     Json                                     @default(dbgenerated("'{}'::jsonb"))
   createdAt   DateTime                                 @default(now()) @map("created_at") @db.Timestamptz(6)
