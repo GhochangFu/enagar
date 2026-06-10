@@ -23,7 +23,7 @@
     "@enagar/ui": "workspace:^",
     "leaflet": "^1.9.4",
     "next": "14.2.35",
-    "react": "18.3.1",
+    "react": "19.2.7",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
@@ -31,7 +31,7 @@
     "@types/jest": "^29.5.13",
     "@types/leaflet": "^1.9.12",
     "@types/node": "^20.16.10",
-    "@types/react": "^18.3.11",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
     "chrome-launcher": "^1.1.2",
