@@ -3,8 +3,9 @@
 import { cn } from '../cn';
 
 import { Icon, type IconName } from './Icon';
+import { Slot } from './Slot';
 
-import type { ButtonHTMLAttributes, JSX } from 'react';
+import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react';
 
 const variantClass = {
   primary: 'bg-brand text-brand-fg shadow-sm hover:opacity-95',
@@ -35,6 +36,14 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
   icon?: IconName;
   iconPosition?: 'start' | 'end';
+  /**
+   * When true, render the single React child element instead of the
+   * Button's own `<button>`. The child receives the Button's className,
+   * icon glyph, and event handlers merged onto it via `Slot`. Use this
+   * to render a `next/link` Link styled as a Button (e.g. a "New Asset"
+   * CTA that navigates to a route instead of triggering an action).
+   */
+  asChild?: boolean;
 };
 
 export function Button({
@@ -47,25 +56,26 @@ export function Button({
   disabled,
   children,
   type = 'button',
+  asChild = false,
   ...rest
 }: ButtonProps): JSX.Element {
   const iconSize = iconSizeByButtonSize[size];
   const glyph = icon && !loading ? <Icon className="shrink-0" name={icon} size={iconSize} /> : null;
 
-  return (
-    <button
-      type={type}
-      disabled={disabled || loading}
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        variantClass[variant],
-        sizeClass[size],
-        className,
-      )}
-      {...rest}
-    >
+  const baseClass = cn(
+    'inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30',
+    'disabled:cursor-not-allowed disabled:opacity-50',
+    variantClass[variant],
+    sizeClass[size],
+    className,
+  );
+
+  // Compose the body once. For `asChild` we render the child (a Link,
+  // usually) via Slot and the body becomes its inner content; otherwise
+  // we wrap the body in a real `<button>`.
+  const body: ReactNode = (
+    <>
       {loading ? (
         <span
           aria-hidden
@@ -75,6 +85,20 @@ export function Button({
       {!loading && iconPosition === 'start' ? glyph : null}
       {children}
       {!loading && iconPosition === 'end' ? glyph : null}
+    </>
+  );
+
+  if (asChild) {
+    return (
+      <Slot className={baseClass} {...rest}>
+        {children}
+      </Slot>
+    );
+  }
+
+  return (
+    <button type={type} disabled={disabled || loading} className={baseClass} {...rest}>
+      {body}
     </button>
   );
 }

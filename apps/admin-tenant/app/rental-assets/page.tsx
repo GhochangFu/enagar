@@ -10,6 +10,7 @@ import {
   DataTableHead,
   DataTableHeaderCell,
   DataTableRow,
+  Icon,
   KpiCard,
   PageHeader,
   SegmentedControl,
@@ -20,63 +21,21 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { RecordRentPaymentModal } from '../../components/record-rent-payment-modal';
+import { AssetDetailModal } from '../../components/rental-assets/asset-detail-modal';
+import { EditLessorPhoneModal } from '../../components/rental-assets/edit-lessor-phone-modal';
+import { LeaseDetailModal } from '../../components/rental-assets/lease-detail-modal';
+import {
+  ASSET_TYPE_LABELS,
+  formatINR,
+  formatRate,
+  STATUS_LABELS,
+  STATUS_TONE,
+  type LeaseAgreement,
+  type LeaseInvoice,
+  type RentalAsset,
+  type RentalAssetStatus,
+} from '../../components/rental-assets/types';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
-
-type RentalAssetStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'RESERVED';
-
-type LeaseInvoice = {
-  id: string;
-  invoiceNo: string;
-  amountPaise: number;
-  lateFeePaise: number;
-  status: 'PENDING' | 'OVERDUE' | 'PAID' | 'WAIVED';
-  dueDate: string;
-};
-
-type LeaseAgreement = {
-  id: string;
-  lessorName: string;
-  tradeLicenseNo: string;
-  startDate: string;
-  endDate: string;
-  securityDepositPaise: number;
-  status: string;
-  invoices?: LeaseInvoice[];
-};
-
-type RentalAsset = {
-  id: string;
-  assetType: string;
-  name: Record<string, string>;
-  location: Record<string, unknown>;
-  status: RentalAssetStatus;
-  baseLeaseRatePaise: number;
-  ratePeriod: string;
-  createdAt?: string;
-  agreements?: LeaseAgreement[];
-};
-
-const ASSET_TYPE_LABELS: Record<string, string> = {
-  HOARDING: 'Hoarding',
-  MARKET_STALL: 'Market Stall',
-  LAND: 'Land',
-  COMMUNITY_HALL_LONG_TERM: 'Community Hall',
-  OTHER: 'Other',
-};
-
-const STATUS_TONE: Record<RentalAssetStatus, 'success' | 'neutral' | 'warning' | 'info'> = {
-  AVAILABLE: 'success',
-  RENTED: 'neutral',
-  MAINTENANCE: 'warning',
-  RESERVED: 'info',
-};
-
-const STATUS_LABELS: Record<RentalAssetStatus, string> = {
-  AVAILABLE: 'Available',
-  RENTED: 'Rented',
-  MAINTENANCE: 'Maintenance',
-  RESERVED: 'Reserved',
-};
 
 type PaymentHealth = 'PAID' | 'DUE' | 'UPCOMING' | 'OVERDUE' | 'NO_INVOICE';
 
@@ -113,260 +72,6 @@ const PAYMENT_HEALTH_TONE: Record<
   NO_INVOICE: 'neutral',
 };
 
-function formatRate(paise: number, period: string): string {
-  const inr = new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(paise / 100);
-  return `${inr} / ${period.toLowerCase()}`;
-}
-
-function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function AssetDetailModal({
-  asset,
-  onClose,
-  onViewLease,
-}: {
-  asset: RentalAsset | null;
-  onClose: () => void;
-  onViewLease: (lease: LeaseAgreement) => void;
-}): JSX.Element | null {
-  if (!asset) return null;
-  const typeLabel = ASSET_TYPE_LABELS[asset.assetType] ?? asset.assetType;
-  const nameEn = asset.name?.en ?? 'Unnamed asset';
-  const locDesc =
-    typeof asset.location?.description === 'string' ? asset.location.description : null;
-  const activeLease = asset.agreements?.[0] ?? null;
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="asset-detail-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-lg rounded-2xl border border-warm-border bg-surface p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1 text-ink-muted hover:bg-canvas"
-        >
-          ✕
-        </button>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              {typeLabel}
-            </p>
-            <h2 id="asset-detail-title" className="mt-1 text-xl font-bold text-ink-primary">
-              {nameEn}
-            </h2>
-          </div>
-          <Badge tone={STATUS_TONE[asset.status]}>{STATUS_LABELS[asset.status]}</Badge>
-        </div>
-        <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Rate
-            </dt>
-            <dd className="mt-1 font-semibold text-ink-primary">
-              {formatRate(asset.baseLeaseRatePaise, asset.ratePeriod)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Created
-            </dt>
-            <dd className="mt-1 text-ink-primary">{formatDate(asset.createdAt)}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Location
-            </dt>
-            <dd className="mt-1 text-ink-primary">
-              {locDesc ?? <span className="text-ink-muted">No location specified</span>}
-            </dd>
-          </div>
-        </dl>
-        {activeLease ? (
-          <div className="mt-5 rounded-xl border border-warm-border bg-canvas/40 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Current Lessor
-            </p>
-            <p className="mt-1 font-semibold text-ink-primary">{activeLease.lessorName}</p>
-            <p className="text-xs text-ink-muted">
-              Lease {formatDate(activeLease.startDate)} → {formatDate(activeLease.endDate)}
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3"
-              icon="file-text"
-              onClick={() => onViewLease(activeLease)}
-            >
-              View Lease Agreement
-            </Button>
-          </div>
-        ) : null}
-        <div className="mt-6 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
-          {asset.status === 'AVAILABLE' ? (
-            <Button asChild>
-              <Link href={`/rental-assets/new?assetId=${asset.id}`}>Create Lease</Link>
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LeaseDetailModal({
-  lease,
-  onClose,
-  onRecordPayment,
-}: {
-  lease: LeaseAgreement | null;
-  onClose: () => void;
-  onRecordPayment: (inv: LeaseInvoice) => void;
-}): JSX.Element | null {
-  if (!lease) return null;
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="lease-detail-title"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-lg rounded-2xl border border-warm-border bg-surface p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1 text-ink-muted hover:bg-canvas"
-        >
-          ✕
-        </button>
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-          Lease Agreement
-        </p>
-        <h2 id="lease-detail-title" className="mt-1 text-xl font-bold text-ink-primary">
-          {lease.lessorName}
-        </h2>
-        <Badge tone="brand" className="mt-2">
-          {lease.status}
-        </Badge>
-        <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
-          <div className="col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Trade License No.
-            </dt>
-            <dd className="mt-1 font-mono text-sm text-ink-primary">{lease.tradeLicenseNo}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Start Date
-            </dt>
-            <dd className="mt-1 text-ink-primary">{formatDate(lease.startDate)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              End Date
-            </dt>
-            <dd className="mt-1 text-ink-primary">{formatDate(lease.endDate)}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Security Deposit
-            </dt>
-            <dd className="mt-1 font-semibold text-ink-primary">
-              {new Intl.NumberFormat('en-IN', {
-                style: 'currency',
-                currency: 'INR',
-                maximumFractionDigits: 0,
-              }).format(lease.securityDepositPaise / 100)}
-            </dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Agreement ID
-            </dt>
-            <dd className="mt-1 font-mono text-xs text-ink-muted">{lease.id}</dd>
-          </div>
-        </dl>
-        <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-            Invoices
-          </p>
-          {lease.invoices && lease.invoices.length > 0 ? (
-            <ul className="mt-2 divide-y divide-warm-border rounded-xl border border-warm-border">
-              {lease.invoices.map((inv) => (
-                <li key={inv.id} className="flex items-center justify-between gap-2 p-3 text-sm">
-                  <div>
-                    <p className="font-mono text-xs text-ink-primary">{inv.invoiceNo}</p>
-                    <p className="text-xs text-ink-muted">
-                      Due {formatDate(inv.dueDate)} · ₹
-                      {((inv.amountPaise + inv.lateFeePaise) / 100).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      tone={
-                        inv.status === 'PAID'
-                          ? 'success'
-                          : inv.status === 'OVERDUE'
-                            ? 'danger'
-                            : 'warning'
-                      }
-                    >
-                      {inv.status}
-                    </Badge>
-                    {inv.status === 'PENDING' || inv.status === 'OVERDUE' ? (
-                      <Button size="sm" onClick={() => onRecordPayment(inv)}>
-                        Record Payment
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-sm text-ink-muted">No invoices yet.</p>
-          )}
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function RentalAssetsContent() {
   const { token, apiBase } = useTenantAdminSession();
   const { toast } = useToast();
@@ -378,6 +83,7 @@ function RentalAssetsContent() {
   const [detailAsset, setDetailAsset] = useState<RentalAsset | null>(null);
   const [detailLease, setDetailLease] = useState<LeaseAgreement | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<LeaseInvoice | null>(null);
+  const [editingPhoneFor, setEditingPhoneFor] = useState<LeaseAgreement | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const authHeaders = useCallback(
@@ -426,6 +132,22 @@ function RentalAssetsContent() {
     return c;
   }, [assets]);
 
+  /**
+   * Total monthly-equivalent rental income (currently active leases only).
+   * Used in the hero band so an operator gets a one-glance read on the
+   * revenue side without doing the math from the rate column.
+   */
+  const monthlyRevenuePaise = useMemo(() => {
+    let total = 0;
+    for (const a of assets) {
+      if (a.status !== 'RENTED') continue;
+      if (a.ratePeriod === 'MONTHLY') total += a.baseLeaseRatePaise;
+      else if (a.ratePeriod === 'QUARTERLY') total += a.baseLeaseRatePaise / 3;
+      else if (a.ratePeriod === 'YEARLY') total += a.baseLeaseRatePaise / 12;
+    }
+    return Math.round(total);
+  }, [assets]);
+
   const filtered = useMemo(() => {
     return assets.filter((a) => {
       if (statusFilter !== 'ALL' && a.status !== statusFilter) return false;
@@ -436,7 +158,8 @@ function RentalAssetsContent() {
         const loc =
           typeof a.location?.description === 'string' ? a.location.description.toLowerCase() : '';
         const lessor = a.agreements?.[0]?.lessorName?.toLowerCase() ?? '';
-        if (!name.includes(q) && !loc.includes(q) && !lessor.includes(q)) {
+        const phone = a.agreements?.[0]?.lessorPhone?.toLowerCase() ?? '';
+        if (!name.includes(q) && !loc.includes(q) && !lessor.includes(q) && !phone.includes(q)) {
           return false;
         }
       }
@@ -450,13 +173,13 @@ function RentalAssetsContent() {
   }, [assets]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <PageHeader
         title="Rental Assets"
         description="Market stalls, hoardings, land, and other long-term rental assets owned by the ULB."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="secondary" icon="file-text">
+            <Button asChild variant="secondary" icon="file-plus">
               <Link href="/rental-assets/new-asset">New Asset</Link>
             </Button>
             <Button asChild icon="file-plus">
@@ -473,7 +196,34 @@ function RentalAssetsContent() {
         <KpiCard label="Maintenance" value={counts.MAINTENANCE} accent="warning" />
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      {/* Revenue band: surfaces the monthly-equivalent rental income for the
+          current rented portfolio. Operators asked for a quick read on
+          revenue next to the asset counts. */}
+      <Card className="flex flex-col gap-1 p-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
+            <Icon name="trending-up" size={20} />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-secondary">
+              Monthly rental income (Rented assets)
+            </p>
+            <p className="mt-0.5 text-2xl font-bold text-ink-primary">
+              {formatINR(monthlyRevenuePaise)}
+              <span className="ml-1 text-sm font-medium text-ink-muted">/ month</span>
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/rental-assets/invoices"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline"
+        >
+          View rental invoices
+          <Icon name="arrow-right" size={14} />
+        </Link>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
         <div className="flex flex-col gap-4 border-b border-warm-border p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <SegmentedControl
@@ -489,32 +239,37 @@ function RentalAssetsContent() {
               ]}
             />
             {typeOptions.length > 1 ? (
-              <select
-                aria-label="Filter by asset type"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="rounded-lg border border-warm-border bg-surface px-3 py-2 text-sm font-medium text-ink-primary focus:border-brand focus:outline-none"
-              >
-                <option value="ALL">All types</option>
-                {typeOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {ASSET_TYPE_LABELS[t] ?? t}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">
+                  <Icon name="filter" size={14} />
+                </span>
+                <select
+                  aria-label="Filter by asset type"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="rounded-lg border border-warm-border bg-surface py-2 pl-8 pr-3 text-sm font-medium text-ink-primary focus:border-brand focus:outline-none"
+                >
+                  <option value="ALL">All types</option>
+                  {typeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {ASSET_TYPE_LABELS[t] ?? t}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ) : null}
           </div>
-          <div className="relative md:w-72">
+          <div className="relative md:w-80">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">
+              <Icon name="search" size={14} />
+            </span>
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, location, or lessor…"
-              className="w-full rounded-lg border border-warm-border bg-canvas px-3 py-2 pl-9 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand focus:outline-none"
+              placeholder="Search by name, location, lessor, phone…"
+              className="w-full rounded-lg border border-warm-border bg-canvas py-2 pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand focus:outline-none"
             />
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">
-              ⌕
-            </span>
           </div>
         </div>
 
@@ -533,16 +288,24 @@ function RentalAssetsContent() {
             {isLoading ? (
               <DataTableRow>
                 <DataTableCell colSpan={6} className="py-10 text-center text-ink-muted">
-                  Loading assets…
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="refresh" size={14} className="animate-spin" />
+                    Loading assets…
+                  </div>
                 </DataTableCell>
               </DataTableRow>
             ) : filtered.length === 0 ? (
               <DataTableRow>
                 <DataTableCell colSpan={6} className="py-10 text-center">
-                  <p className="text-sm font-medium text-ink-primary">No assets found</p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Try adjusting your filters, or click “New Asset” to register one.
-                  </p>
+                  <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-ink-muted">
+                      <Icon name="inbox" size={20} />
+                    </div>
+                    <p className="text-sm font-medium text-ink-primary">No assets found</p>
+                    <p className="text-xs text-ink-muted">
+                      Try adjusting your filters, or click “New Asset” to register one.
+                    </p>
+                  </div>
                 </DataTableCell>
               </DataTableRow>
             ) : (
@@ -551,12 +314,24 @@ function RentalAssetsContent() {
                 return (
                   <DataTableRow key={asset.id} className="hover:bg-canvas/60">
                     <DataTableCell>
-                      <span className="font-semibold text-ink-primary">
-                        {asset.name?.en ?? 'Unnamed'}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-canvas text-ink-secondary">
+                          <Icon name="building" size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-ink-primary">
+                            {asset.name?.en ?? 'Unnamed'}
+                          </p>
+                          {typeof asset.location?.description === 'string' ? (
+                            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-ink-muted">
+                              <Icon name="map-pin" size={11} /> {asset.location.description}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
                     </DataTableCell>
                     <DataTableCell>
-                      <span className="text-ink-secondary">
+                      <span className="inline-flex items-center gap-1.5 text-ink-secondary">
                         {ASSET_TYPE_LABELS[asset.assetType] ?? asset.assetType}
                       </span>
                     </DataTableCell>
@@ -567,9 +342,26 @@ function RentalAssetsContent() {
                     </DataTableCell>
                     <DataTableCell>
                       {activeLease ? (
-                        <span className="font-medium text-ink-primary">
-                          {activeLease.lessorName}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="flex items-center gap-1.5 font-medium text-ink-primary">
+                            <Icon name="user" size={12} className="text-ink-muted" />
+                            {activeLease.lessorName}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+                            <span className="flex items-center gap-1 font-mono">
+                              <Icon name="phone" size={10} />
+                              {activeLease.lessorPhone ?? '— no phone —'}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`Edit phone for ${activeLease.lessorName}`}
+                              onClick={() => setEditingPhoneFor(activeLease)}
+                              className="ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10 focus:outline-none focus:ring-2 focus:ring-brand/40"
+                            >
+                              <Icon name="edit" size={10} /> Edit
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-ink-muted">—</span>
                       )}
@@ -591,7 +383,7 @@ function RentalAssetsContent() {
                       )}
                     </DataTableCell>
                     <DataTableCell className="text-right">
-                      <div className="inline-flex gap-2">
+                      <div className="inline-flex items-center gap-1">
                         {activeLease ? (
                           <Button
                             variant="ghost"
@@ -599,19 +391,19 @@ function RentalAssetsContent() {
                             onClick={() => setDetailLease(activeLease)}
                             icon="file-text"
                           >
-                            View Lease
+                            Lease
                           </Button>
                         ) : null}
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => setDetailAsset(asset)}
-                          icon="file-text"
+                          icon="eye"
                         >
                           View
                         </Button>
                         {asset.status === 'AVAILABLE' ? (
-                          <Button asChild size="sm" icon="file-plus">
+                          <Button asChild size="sm" icon="plus">
                             <Link href={`/rental-assets/new?assetId=${asset.id}`}>Lease</Link>
                           </Button>
                         ) : null}
@@ -625,9 +417,14 @@ function RentalAssetsContent() {
         </DataTable>
 
         {!isLoading && filtered.length > 0 ? (
-          <div className="border-t border-warm-border bg-canvas/50 px-4 py-2 text-xs text-ink-muted">
-            Showing {filtered.length} of {assets.length} asset
-            {assets.length === 1 ? '' : 's'}
+          <div className="flex items-center justify-between border-t border-warm-border bg-canvas/40 px-4 py-2 text-xs text-ink-muted">
+            <span>
+              Showing {filtered.length} of {assets.length} asset{assets.length === 1 ? '' : 's'}
+            </span>
+            <span className="flex items-center gap-1">
+              <Icon name="filter" size={11} />
+              {statusFilter !== 'ALL' || typeFilter !== 'ALL' || search ? 'Filtered' : 'No filters'}
+            </span>
           </div>
         ) : null}
       </Card>
@@ -652,6 +449,29 @@ function RentalAssetsContent() {
         invoice={payingInvoice}
         onClose={() => setPayingInvoice(null)}
         onRecorded={() => {
+          setRefreshKey((k) => k + 1);
+        }}
+      />
+      <EditLessorPhoneModal
+        lease={editingPhoneFor}
+        apiBase={apiBase}
+        token={token}
+        onClose={() => setEditingPhoneFor(null)}
+        onSaved={({ id, lessorPhone }) => {
+          setAssets((prev) =>
+            prev.map((a) => {
+              if (!a.agreements) return a;
+              return {
+                ...a,
+                agreements: a.agreements.map((ag) =>
+                  ag.id === id ? { ...ag, lessorPhone: lessorPhone ?? null } : ag,
+                ),
+              };
+            }),
+          );
+          setDetailLease((prev) =>
+            prev && prev.id === id ? { ...prev, lessorPhone: lessorPhone ?? null } : prev,
+          );
           setRefreshKey((k) => k + 1);
         }}
       />

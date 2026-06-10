@@ -95,6 +95,18 @@ export class CreateLeaseAgreementDto {
   lessorPhone?: string;
 }
 
+export class UpdateLeaseAgreementDto {
+  /**
+   * Optional patch payload for a lease agreement. Only `lessorPhone` is exposed
+   * today — name/license/rate changes should go through a deliberate
+   * amendment flow with audit, not a silent overwrite from the grid.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  lessorPhone?: string;
+}
+
 export class UpdateLeaseStatusDto {
   @IsEnum(LeaseAgreementStatus)
   status!: LeaseAgreementStatus;

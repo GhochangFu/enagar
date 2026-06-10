@@ -1,4 +1,13 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
@@ -8,6 +17,7 @@ import {
   CreateLeaseAgreementDto,
   CreateRentalAssetDto,
   QueryRentalAssetsDto,
+  UpdateLeaseAgreementDto,
 } from './dto/rental-assets.dto';
 import { LeaseSchedulerService } from './lease-scheduler.service';
 import { RentalAssetsService } from './rental-assets.service';
@@ -54,6 +64,27 @@ export class RentalAssetsController {
       throw new BadRequestException('Tenant code is required');
     }
     return this.rentalAssetsService.createAgreement(principal.tenantCode, dto);
+  }
+
+  /**
+   * Patch mutable fields on a lease agreement. Exposed from the rental-assets
+   * grid's inline "edit lessor phone" affordance so an operator can attach a
+   * phone to a lease that was created before the `lessorPhone` field existed
+   * (or fix a typo) without opening the full amendment flow. Only
+   * `lessorPhone` is writable through this endpoint by design.
+   */
+  @Patch('agreements/:id')
+  @ApiOperation({ summary: 'Patch lease agreement fields (lessorPhone only)' })
+  updateAgreement(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('id') id: string,
+    @Body() dto: UpdateLeaseAgreementDto,
+  ) {
+    assertTenantPortalStaff(principal);
+    if (!principal.tenantCode) {
+      throw new BadRequestException('Tenant code is required');
+    }
+    return this.rentalAssetsService.updateAgreement(principal.tenantCode, id, dto);
   }
 
   /**

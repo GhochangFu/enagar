@@ -187,6 +187,109 @@ describe('LeaseInvoicesService.recordPayment', () => {
   });
 });
 
+describe('LeaseInvoicesService.listInvoices', () => {
+  let service: LeaseInvoicesService;
+  let prisma: {
+    tenant: { findUnique: jest.Mock };
+    leaseInvoice: { findMany: jest.Mock };
+  };
+
+  const TENANT_ID = 'tenant-1';
+
+  beforeEach(() => {
+    prisma = {
+      tenant: { findUnique: jest.fn() },
+      leaseInvoice: { findMany: jest.fn() },
+    } as unknown as typeof prisma;
+    service = new LeaseInvoicesService(prisma as unknown as PrismaService);
+  });
+
+  it('throws NotFoundException when tenant does not exist', async () => {
+    prisma.tenant.findUnique.mockResolvedValue(null);
+
+    await expect(service.listInvoices('bad-tenant', {})).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.leaseInvoice.findMany).not.toHaveBeenCalled();
+  });
+
+  it('threads assetId filter through to a nested agreement.assetId clause', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: TENANT_ID, code: 'kmc' });
+    prisma.leaseInvoice.findMany.mockResolvedValue([]);
+
+    await service.listInvoices('kmc', { assetId: 'asset-1' });
+
+    expect(prisma.leaseInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: TENANT_ID,
+          agreement: { assetId: 'asset-1' },
+        }),
+      }),
+    );
+  });
+
+  it('threads lessorName filter as a case-insensitive substring match', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: TENANT_ID, code: 'kmc' });
+    prisma.leaseInvoice.findMany.mockResolvedValue([]);
+
+    await service.listInvoices('kmc', { lessorName: ' EIIL ' });
+
+    expect(prisma.leaseInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: TENANT_ID,
+          agreement: { lessorName: { contains: 'EIIL', mode: 'insensitive' } },
+        }),
+      }),
+    );
+  });
+
+  it('combines assetId + lessorName into a single nested agreement clause', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: TENANT_ID, code: 'kmc' });
+    prisma.leaseInvoice.findMany.mockResolvedValue([]);
+
+    await service.listInvoices('kmc', { assetId: 'asset-1', lessorName: 'EIIL' });
+
+    expect(prisma.leaseInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: TENANT_ID,
+          agreement: { assetId: 'asset-1', lessorName: { contains: 'EIIL', mode: 'insensitive' } },
+        }),
+      }),
+    );
+  });
+
+  it('omits the agreement clause when no asset/lessor filter is provided', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: TENANT_ID, code: 'kmc' });
+    prisma.leaseInvoice.findMany.mockResolvedValue([]);
+
+    await service.listInvoices('kmc', { status: 'PENDING' });
+
+    const callArg = prisma.leaseInvoice.findMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(callArg.where).not.toHaveProperty('agreement');
+    expect(callArg.where).toMatchObject({ tenantId: TENANT_ID, status: 'PENDING' });
+  });
+
+  it('includes the full payment history and receipts on each row, ordered by settledAt desc', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: TENANT_ID, code: 'kmc' });
+    prisma.leaseInvoice.findMany.mockResolvedValue([]);
+
+    await service.listInvoices('kmc', {});
+
+    expect(prisma.leaseInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          agreement: expect.objectContaining({ include: { asset: true } }),
+          payments: { orderBy: { settledAt: 'desc' } },
+          receipts: { orderBy: { issuedAt: 'desc' } },
+        }),
+      }),
+    );
+  });
+});
+
 describe('LeaseInvoicesService.lookupLeasesByPhone', () => {
   let service: LeaseInvoicesService;
   let prisma: {

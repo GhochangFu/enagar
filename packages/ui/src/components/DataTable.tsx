@@ -2,7 +2,7 @@
 
 import { cn } from '../cn';
 
-import type { HTMLAttributes, JSX, ReactNode, ThHTMLAttributes } from 'react';
+import type { HTMLAttributes, JSX, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
 
 export type DataTableProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
@@ -75,6 +75,6 @@ export function DataTableRow({
 export function DataTableCell({
   className,
   ...rest
-}: HTMLAttributes<HTMLTableCellElement>): JSX.Element {
+}: TdHTMLAttributes<HTMLTableCellElement>): JSX.Element {
   return <td className={cn('px-4 py-3 text-ink-primary', className)} {...rest} />;
 }

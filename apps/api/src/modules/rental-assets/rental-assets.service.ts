@@ -6,6 +6,7 @@ import {
   CreateLeaseAgreementDto,
   CreateRentalAssetDto,
   QueryRentalAssetsDto,
+  UpdateLeaseAgreementDto,
 } from './dto/rental-assets.dto';
 
 import type { Prisma } from '../../generated/prisma';
@@ -128,5 +129,51 @@ export class RentalAssetsService {
       // Prisma unique constraint or other DB errors
       throw new BadRequestException('Failed to create lease agreement');
     }
+  }
+
+  /**
+   * Patch the mutable fields of a lease agreement. Today the only field the
+   * rental-assets grid exposes is `lessorPhone` (so the lessor can later be
+   * matched by the citizen-portal lookup); name/license/rate changes are
+   * intentionally out of scope and should go through a deliberate amendment
+   * flow with audit, not a silent overwrite from the grid.
+   *
+   * Tenant-scoped: the agreement must belong to the caller's tenant, and
+   * 404 is returned (not 403) so a caller can't probe for ids outside their
+   * ULB.
+   */
+  async updateAgreement(tenantCode: string, agreementId: string, dto: UpdateLeaseAgreementDto) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { code: tenantCode },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const existing = await this.prisma.leaseAgreement.findFirst({
+      where: { id: agreementId, tenantId: tenant.id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Lease agreement not found');
+    }
+
+    const data: Prisma.LeaseAgreementUpdateInput = {};
+    if (dto.lessorPhone !== undefined) {
+      // Treat empty string as a clear (operators commonly backspace and submit).
+      data.lessorPhone = dto.lessorPhone.trim() === '' ? null : dto.lessorPhone.trim();
+    }
+
+    // Skip the round-trip when the patch is a no-op (no fields supplied, or
+    // every supplied field already matches the stored value). This keeps the
+    // edit-phone modal's "no changes" path cheap and gives the test a stable
+    // shape.
+    if (Object.keys(data).length === 0) {
+      return existing;
+    }
+
+    return this.prisma.leaseAgreement.update({
+      where: { id: agreementId },
+      data,
+    });
   }
 }

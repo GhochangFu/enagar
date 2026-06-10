@@ -1,7 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { PrismaService } from '../../common/database/prisma.service';
+
 import {
   CreateLeaseAgreementDto,
   CreateRentalAssetDto,
@@ -32,6 +33,8 @@ describe('RentalAssetsService', () => {
             },
             leaseAgreement: {
               create: jest.fn(),
+              findFirst: jest.fn(),
+              update: jest.fn(),
             },
             $transaction: jest.fn(),
           },
@@ -73,8 +76,77 @@ describe('RentalAssetsService', () => {
     });
   });
 
+  describe('updateAgreement', () => {
+    it('should throw NotFoundException when tenant does not exist', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.updateAgreement('KMC', 'agreement-1', { lessorPhone: '9876543210' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException when agreement is not in this tenant', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
+      (prisma.leaseAgreement.findFirst as jest.Mock) = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.updateAgreement('KMC', 'agreement-1', { lessorPhone: '9876543210' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should trim and store lessorPhone when provided', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
+      (prisma.leaseAgreement.findFirst as jest.Mock) = jest.fn().mockResolvedValue({
+        id: 'agreement-1',
+        tenantId: 'tenant-1',
+      });
+      (prisma.leaseAgreement.update as jest.Mock) = jest
+        .fn()
+        .mockResolvedValue({ id: 'agreement-1', lessorPhone: '9876543210' });
+
+      await service.updateAgreement('KMC', 'agreement-1', { lessorPhone: '  9876543210  ' });
+
+      expect(prisma.leaseAgreement.update).toHaveBeenCalledWith({
+        where: { id: 'agreement-1' },
+        data: { lessorPhone: '9876543210' },
+      });
+    });
+
+    it('should treat empty string as a clear (set to null)', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
+      (prisma.leaseAgreement.findFirst as jest.Mock) = jest.fn().mockResolvedValue({
+        id: 'agreement-1',
+        tenantId: 'tenant-1',
+      });
+      (prisma.leaseAgreement.update as jest.Mock) = jest
+        .fn()
+        .mockResolvedValue({ id: 'agreement-1', lessorPhone: null });
+
+      await service.updateAgreement('KMC', 'agreement-1', { lessorPhone: '   ' });
+
+      expect(prisma.leaseAgreement.update).toHaveBeenCalledWith({
+        where: { id: 'agreement-1' },
+        data: { lessorPhone: null },
+      });
+    });
+
+    it('should not call update when dto is empty (no-op)', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
+      (prisma.leaseAgreement.findFirst as jest.Mock) = jest.fn().mockResolvedValue({
+        id: 'agreement-1',
+        tenantId: 'tenant-1',
+      });
+      (prisma.leaseAgreement.update as jest.Mock) = jest.fn();
+
+      await service.updateAgreement('KMC', 'agreement-1', {});
+
+      expect(prisma.leaseAgreement.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('createAgreement', () => {
     it('should throw BadRequestException if tradeLicenseNo is empty or missing', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
       const dto = {
         assetId: 'asset-1',
         tradeLicenseNo: '', // Simulating missing/empty validation failure catch
@@ -83,9 +155,7 @@ describe('RentalAssetsService', () => {
         endDate: new Date(Date.now() + 86400000),
       } as CreateLeaseAgreementDto;
 
-      await expect(service.createAgreement('KMC', dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.createAgreement('KMC', dto)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if asset is not AVAILABLE', async () => {
@@ -98,7 +168,7 @@ describe('RentalAssetsService', () => {
       };
 
       (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', code: 'KMC' });
-      
+
       // Mock transaction
       prisma.$transaction.mockImplementation(async (fn) => {
         const mockTx = {
@@ -109,9 +179,7 @@ describe('RentalAssetsService', () => {
         return fn(mockTx as unknown as typeof prisma);
       });
 
-      await expect(service.createAgreement('KMC', dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.createAgreement('KMC', dto)).rejects.toThrow(BadRequestException);
     });
 
     it('should successfully create agreement and update asset status to RENTED', async () => {

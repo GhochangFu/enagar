@@ -49,16 +49,43 @@ export class LeaseInvoicesService {
 
   async listInvoices(
     tenantCode: string,
-    filters: { agreementId?: string; status?: string; fromDate?: string; toDate?: string },
+    filters: {
+      agreementId?: string;
+      assetId?: string;
+      lessorName?: string;
+      status?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { code: tenantCode } });
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
+
+    // Asset-id and lessor-name both filter through the parent agreement, so
+    // collapse them into a single nested `agreement` predicate. `lessorName`
+    // uses case-insensitive `contains` so a substring the operator types
+    // (or an exact match from the dropdown) both work.
+    const agreementWhere: {
+      assetId?: string;
+      lessorName?: { contains: string; mode: 'insensitive' };
+    } = {};
+    if (filters.assetId) {
+      agreementWhere.assetId = filters.assetId;
+    }
+    if (filters.lessorName && filters.lessorName.trim() !== '') {
+      agreementWhere.lessorName = {
+        contains: filters.lessorName.trim(),
+        mode: 'insensitive',
+      };
+    }
+
     return this.prisma.leaseInvoice.findMany({
       where: {
         tenantId: tenant.id,
         ...(filters.agreementId ? { agreementId: filters.agreementId } : {}),
+        ...(Object.keys(agreementWhere).length > 0 ? { agreement: agreementWhere } : {}),
         ...(filters.status
           ? { status: filters.status as 'PENDING' | 'PAID' | 'OVERDUE' | 'WAIVED' }
           : {}),
@@ -76,7 +103,15 @@ export class LeaseInvoicesService {
         agreement: {
           include: { asset: true },
         },
-        payments: { orderBy: { createdAt: 'desc' }, take: 1 },
+        // Return the full payment history for the invoice (ordered most-recent
+        // first) so the ledger can show Paid / Paid date / Method / Receipt
+        // # without a second roundtrip. The `take: 1` projection was correct
+        // for the smart payment pill on the rental-assets grid, but the
+        // invoices ledger needs every settled payment (an invoice can be
+        // settled by multiple partial payments, plus the original failed
+        // attempt is still useful audit context).
+        payments: { orderBy: { settledAt: 'desc' } },
+        receipts: { orderBy: { issuedAt: 'desc' } },
       },
     });
   }
