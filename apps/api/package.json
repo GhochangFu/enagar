@@ -44,7 +44,7 @@
     "jose": "^6.2.3",
     "nestjs-pino": "^4.1.0",
     "pg": "^8.20.0",
-    "pino": "^9.4.0",
+    "pino": "^10.3.1",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.2",
     "reflect-metadata": "^0.2.2",
