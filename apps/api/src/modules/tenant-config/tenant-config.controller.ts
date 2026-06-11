@@ -42,6 +42,12 @@ export class TenantConfigController {
     }
     if (!principal.tenantId || !principal.subject)
       throw new BadRequestException('Principal incomplete');
-    return this.service.updateLateFee(principal.tenantId, principal.subject, dto.lateFeePaise);
+    return this.service.updateLateFee(
+      principal.tenantId,
+      principal.subject,
+      principal.roles?.[0] ?? 'tenant_staff',
+      tenantCode,
+      dto.lateFeePaise,
+    );
   }
 }

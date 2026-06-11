@@ -22,7 +22,13 @@ export class TenantConfigService {
     return { tenantId: t.id, lateFeePaise: t.lateFeePaise ?? 0 };
   }
 
-  async updateLateFee(tenantId: string, actorSubject: string, lateFeePaise: number) {
+  async updateLateFee(
+    tenantId: string,
+    actorSubject: string,
+    actorRole: string,
+    targetCode: string,
+    lateFeePaise: number,
+  ) {
     if (!Number.isInteger(lateFeePaise) || lateFeePaise < 0) {
       throw new BadRequestException('lateFeePaise must be a non-negative integer');
     }
@@ -31,25 +37,31 @@ export class TenantConfigService {
       select: { id: true, lateFeePaise: true },
     });
     if (!before) throw new BadRequestException('Tenant not found');
-    const after = await this.prisma.tenant.update({
-      where: { id: tenantId },
-      data: { lateFeePaise },
-      select: { id: true, lateFeePaise: true },
-    });
-    await this.prisma.stateAuditLog.create({
-      data: {
-        actorSubject,
-        actorRole: 'tenant_admin',
-        action: 'TENANT_LATE_FEE_UPDATED',
-        targetTenantId: tenantId,
-        metadata: {
-          entityType: 'Tenant',
-          entityId: tenantId,
-          oldValue: before.lateFeePaise ?? 0,
-          newValue: lateFeePaise,
-        } as Prisma.InputJsonValue,
-      },
-    });
+    // The update and the audit row must commit atomically: if the audit insert
+    // fails after the update succeeds, the late-fee would be mutated with no
+    // trail. Matches the auditTenantMutation pattern in admin-tenant.service.ts.
+    const [after] = await this.prisma.$transaction([
+      this.prisma.tenant.update({
+        where: { id: tenantId },
+        data: { lateFeePaise },
+        select: { id: true, lateFeePaise: true },
+      }),
+      this.prisma.stateAuditLog.create({
+        data: {
+          actorSubject,
+          actorRole,
+          action: 'TENANT_LATE_FEE_UPDATED',
+          targetTenantId: tenantId,
+          targetCode,
+          metadata: {
+            entityType: 'Tenant',
+            entityId: tenantId,
+            oldValue: before.lateFeePaise ?? 0,
+            newValue: lateFeePaise,
+          } as Prisma.InputJsonValue,
+        },
+      }),
+    ]);
     return { tenantId: after.id, lateFeePaise: after.lateFeePaise ?? 0 };
   }
 }
