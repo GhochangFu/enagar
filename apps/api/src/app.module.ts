@@ -26,6 +26,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { RentalAssetsModule } from './modules/rental-assets/rental-assets.module';
 import { RentalDocumentsModule } from './modules/rental-documents/rental-documents.module';
 import { ServicesModule } from './modules/services/services.module';
+import { TenantConfigModule } from './modules/tenant-config/tenant-config.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { TransparencyModule } from './modules/transparency/transparency.module';
 
@@ -80,6 +81,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     RentalAssetsModule,
     RentalDocumentsModule,
     ServicesModule,
+    TenantConfigModule,
     TenantsModule,
     TransparencyModule,
   ],
