@@ -8,11 +8,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { tryAdvancePostApprovalOnPaymentPaid } from '../admin-tenant/post-approval-workflow.util';
 import { ApplicationsService } from '../applications/applications.service';
+import { LeaseReceiptsService } from '../lease-receipts/lease-receipts.service';
 import { ServicesService } from '../services/services.service';
 import { PostApprovalExecutionService } from '../work-orders/post-approval-execution.service';
 
@@ -49,6 +51,10 @@ function csvEscape(value: string | number): string {
   return asString;
 }
 
+const RECEIPT_VERIFY_PUBLIC_BASE =
+  process.env.RECEIPT_VERIFY_PUBLIC_BASE?.trim().replace(/\/+$/, '') ||
+  'https://enagar.example.gov';
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -60,6 +66,7 @@ export class PaymentsService {
     @Inject(PAYMENT_STORE)
     private readonly store: PaymentStore,
     private readonly prisma: PrismaService,
+    @Optional() private readonly leaseReceipts?: LeaseReceiptsService,
   ) {
     this.logger = new Logger(PaymentsService.name);
   }
@@ -377,6 +384,12 @@ export class PaymentsService {
       ctx,
     );
 
+    // EN-19/EN-22: kick off the lease-receipt PDF generation in the
+    // same transaction-flow as the Receipt row creation. Awaits here
+    // because the stub settlement is synchronous; a failure rolls back
+    // the lease-invoice flip below.
+    await this.tryGenerateLeaseReceipt(leaseInvoice.tenantId, ledger.receipt.id);
+
     await this.prisma.leaseInvoice.update({
       where: { id: leaseInvoice.id },
       data: { status: 'PAID' },
@@ -642,5 +655,23 @@ export class PaymentsService {
 
   private nextDay(): Date {
     return new Date(Date.now() + 24 * 60 * 60 * 1000);
+  }
+
+  /**
+   * EN-19/EN-22 — generate the lease-receipt PDF for a freshly-minted
+   * Receipt row. No-op when the LeaseReceiptsModule is not in the DI
+   * graph (unit tests that don't wire it). Failures are logged, not
+   * thrown: the invoice flip below must still happen so the tenant
+   * sees a settled invoice even if PDF generation is misconfigured.
+   */
+  private async tryGenerateLeaseReceipt(tenantId: string, receiptId: string): Promise<void> {
+    if (!this.leaseReceipts) return;
+    try {
+      await this.leaseReceipts.generateForReceipt(tenantId, receiptId, RECEIPT_VERIFY_PUBLIC_BASE);
+    } catch (err) {
+      this.logger.error(
+        `[LEASE RECEIPT] Failed to generate PDF for receipt=${receiptId} tenant=${tenantId}: ${(err as Error).message}`,
+      );
+    }
   }
 }

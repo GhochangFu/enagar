@@ -175,6 +175,24 @@ export class ObjectStorageService implements OnModuleInit {
     }
   }
 
+  async putObject(objectKey: string, body: Buffer, contentType: string): Promise<void> {
+    this.assertSafeObjectKey(objectKey);
+    if (!this.isEnabled() || !this.client) {
+      this.logger.log(
+        `[stub] putObject key=${objectKey} bytes=${body.byteLength} type=${contentType}`,
+      );
+      return;
+    }
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: objectKey,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
   async getObjectBuffer(objectKey: string): Promise<Buffer | null> {
     this.assertSafeObjectKey(objectKey);
     if (!this.isEnabled() || !this.client) {

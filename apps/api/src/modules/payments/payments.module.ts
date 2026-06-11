@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../../common/database/database.module';
 import { ApplicationsModule } from '../applications/applications.module';
+import { LeaseReceiptsModule } from '../lease-receipts/lease-receipts.module';
 import { ServicesModule } from '../services/services.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { WorkOrdersModule } from '../work-orders/work-orders.module';
@@ -16,7 +17,14 @@ import { ReceiptVerificationService } from './receipt-verification.service';
 import { StubPaymentGateway } from './stub-payment.gateway';
 
 @Module({
-  imports: [ApplicationsModule, DatabaseModule, ServicesModule, TenantsModule, WorkOrdersModule],
+  imports: [
+    ApplicationsModule,
+    DatabaseModule,
+    LeaseReceiptsModule,
+    ServicesModule,
+    TenantsModule,
+    WorkOrdersModule,
+  ],
   controllers: [PaymentsController, PublicReceiptsController],
   providers: [
     InMemoryPaymentStore,

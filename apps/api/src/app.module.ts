@@ -22,6 +22,7 @@ import { GrievancesModule } from './modules/grievances/grievances.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { LeaseInvoicesModule } from './modules/lease-invoices/lease-invoices.module';
+import { LeaseReceiptsModule } from './modules/lease-receipts/lease-receipts.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RentalAssetsModule } from './modules/rental-assets/rental-assets.module';
 import { RentalDocumentsModule } from './modules/rental-documents/rental-documents.module';
@@ -77,6 +78,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     HealthModule,
     HoldingsModule,
     LeaseInvoicesModule,
+    LeaseReceiptsModule,
     PaymentsModule,
     RentalAssetsModule,
     RentalDocumentsModule,
