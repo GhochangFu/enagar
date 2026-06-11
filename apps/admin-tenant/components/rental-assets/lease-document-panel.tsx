@@ -23,11 +23,17 @@ interface Props {
   onChanged: () => void;
 }
 
+// Roles that may approve / reject documents. Mirrors the API-side
+// assertTenantPortalStaff gate; UI-side check is defense-in-depth.
+const REVIEWER_ROLES = new Set(['tenant_admin', 'municipality_admin', 'state_admin']);
+
 export function LeaseDocumentPanel({ agreementId, documents, onChanged }: Props): JSX.Element {
-  const { token, apiBase } = useTenantAdminSession();
+  const { token, apiBase, me } = useTenantAdminSession();
   const { toast } = useToast();
   const [note, setNote] = useState('');
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
+
+  const canReview = !!me && me.normalized_roles.some((r) => REVIEWER_ROLES.has(r));
 
   async function handleReview(docId: string, decision: 'APPROVE' | 'REJECT') {
     if (decision === 'REJECT' && !note.trim()) {
@@ -89,7 +95,7 @@ export function LeaseDocumentPanel({ agreementId, documents, onChanged }: Props)
                   </p>
                 ) : null}
               </div>
-              {d.status === 'PENDING_REVIEW' ? (
+              {d.status === 'PENDING_REVIEW' && canReview ? (
                 <div className="flex shrink-0 gap-2">
                   <Button
                     size="sm"
@@ -114,7 +120,7 @@ export function LeaseDocumentPanel({ agreementId, documents, onChanged }: Props)
         </ul>
       )}
 
-      {documents.some((d) => d.status === 'PENDING_REVIEW') ? (
+      {canReview && documents.some((d) => d.status === 'PENDING_REVIEW') ? (
         <div className="mt-3">
           <label className="block text-xs font-medium text-ink-secondary">
             Reviewer note (required for reject)

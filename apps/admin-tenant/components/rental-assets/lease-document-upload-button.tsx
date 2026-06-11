@@ -64,11 +64,14 @@ export function LeaseDocumentUploadButton({ agreementId, onUploaded }: Props): J
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      await fetch(url, {
+      const putRes = await fetch(url, {
         method: 'PUT',
         body: buf,
         headers: { 'Content-Type': file.type },
       });
+      if (!putRes.ok) {
+        throw new Error(`Upload to object storage failed (HTTP ${putRes.status})`);
+      }
 
       // 3. record the upload
       const recordRes = await fetch(
