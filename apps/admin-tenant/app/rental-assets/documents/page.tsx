@@ -49,6 +49,20 @@ const STATUS_TONE: Record<DocStatus, 'warning' | 'success' | 'danger' | 'neutral
   REJECTED: 'danger',
 };
 
+// RentalAsset.name is a Json column in the schema; it can be a plain string
+// (when authored via older seeds) or a localized { en, ... } object. Pick
+// whichever shape arrives rather than assuming `.en`.
+function pickAssetName(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    const o = raw as { en?: unknown; en_IN?: unknown; default?: unknown };
+    if (typeof o.en === 'string') return o.en;
+    if (typeof o.en_IN === 'string') return o.en_IN;
+    if (typeof o.default === 'string') return o.default;
+  }
+  return '—';
+}
+
 function DocumentsReviewContent() {
   const { token, apiBase, me } = useTenantAdminSession();
   const { toast } = useToast();
@@ -60,6 +74,15 @@ function DocumentsReviewContent() {
   const [rejectionNote, setRejectionNote] = useState('');
 
   const canReview = !!me && me.normalized_roles.some((r) => REVIEWER_ROLES.has(r));
+
+  // Defense-in-depth: the API 403s for non-reviewers, but a staff member
+  // with a weaker role could still read the queue (file names, lessor
+  // names, reviewer notes) by visiting this URL directly. Redirect them.
+  useEffect(() => {
+    if (me && !canReview) {
+      router.replace('/rental-assets');
+    }
+  }, [me, canReview, router]);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -83,7 +106,7 @@ function DocumentsReviewContent() {
         uploadedAt: string;
         agreementId: string;
         reviewerNote?: string | null;
-        agreement?: { lessorName?: string; asset?: { name?: { en?: string } } };
+        agreement?: { lessorName?: string; asset?: { name?: unknown } };
       }>;
       setRows(
         data.map((d) => ({
@@ -93,7 +116,7 @@ function DocumentsReviewContent() {
           uploadedAt: d.uploadedAt,
           agreementId: d.agreementId,
           lessorName: d.agreement?.lessorName ?? '—',
-          assetName: d.agreement?.asset?.name?.en ?? '—',
+          assetName: pickAssetName(d.agreement?.asset?.name),
           reviewerNote: d.reviewerNote ?? null,
         })),
       );
