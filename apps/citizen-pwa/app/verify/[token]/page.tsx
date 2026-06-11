@@ -10,7 +10,7 @@ interface PublicReceiptView {
 }
 
 async function fetchReceipt(token: string): Promise<PublicReceiptView | null> {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
   const res = await fetch(`${base}/verify/${encodeURIComponent(token)}`, { cache: 'no-store' });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Verify API returned ${res.status}`);
