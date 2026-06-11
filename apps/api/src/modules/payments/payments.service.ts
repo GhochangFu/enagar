@@ -385,9 +385,10 @@ export class PaymentsService {
     );
 
     // EN-19/EN-22: kick off the lease-receipt PDF generation in the
-    // same transaction-flow as the Receipt row creation. Awaits here
-    // because the stub settlement is synchronous; a failure rolls back
-    // the lease-invoice flip below.
+    // same transaction-flow as the Receipt row creation. Awaited because
+    // the stub settlement is synchronous. The helper catches and logs
+    // PDF-generation failures so a transient rendering error does not
+    // roll back the lease-invoice flip below.
     await this.tryGenerateLeaseReceipt(leaseInvoice.tenantId, ledger.receipt.id);
 
     await this.prisma.leaseInvoice.update({

@@ -54,9 +54,7 @@ export class LeaseReceiptsService {
     const sha256 = crypto.createHash('sha256').update(pdf).digest('hex');
     const storageKey = `tenants/${tenant.code}/lease-receipts/${receipt.receiptNumber}.pdf`;
 
-    await (
-      this.storage as unknown as { putObject: (k: string, b: Buffer, t: string) => Promise<void> }
-    ).putObject(storageKey, pdf, 'application/pdf');
+    await this.storage.putObject(storageKey, pdf, 'application/pdf');
 
     return this.prisma.receipt.update({
       where: { id: receipt.id },
