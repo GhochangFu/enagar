@@ -37,6 +37,8 @@ import {
 } from '../../components/rental-assets/types';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
 
+import type { DocRow } from '../../components/rental-assets/lease-document-panel';
+
 type PaymentHealth = 'PAID' | 'DUE' | 'UPCOMING' | 'OVERDUE' | 'NO_INVOICE';
 
 function derivePaymentHealth(asset: RentalAsset): PaymentHealth {
@@ -84,6 +86,7 @@ function RentalAssetsContent() {
   const [detailLease, setDetailLease] = useState<LeaseAgreement | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<LeaseInvoice | null>(null);
   const [editingPhoneFor, setEditingPhoneFor] = useState<LeaseAgreement | null>(null);
+  const [documentsByAgreement, setDocumentsByAgreement] = useState<Record<string, DocRow[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
 
   const authHeaders = useCallback(
@@ -119,6 +122,36 @@ function RentalAssetsContent() {
       cancelled = true;
     };
   }, [apiBase, authHeaders, refreshKey, toast]);
+
+  // Lease documents are fetched per-tenant (the API list endpoint has no
+  // agreementId filter), so we cache the full list and let the panel slice
+  // out its agreement. Cache invalidates on refreshKey or when a panel
+  // mutates (upload / review) and calls onDocumentsChanged.
+  const loadDocuments = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/rental-assets/documents`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Array<DocRow & { agreementId: string }>;
+      const grouped: Record<string, DocRow[]> = {};
+      for (const doc of data) {
+        const key = doc.agreementId;
+        (grouped[key] ??= []).push({
+          id: doc.id,
+          status: doc.status,
+          fileName: doc.fileName,
+          uploadedAt: doc.uploadedAt,
+          reviewerNote: doc.reviewerNote ?? null,
+        });
+      }
+      setDocumentsByAgreement(grouped);
+    } catch (error) {
+      console.error('Failed to fetch lease documents', error);
+    }
+  }, [apiBase, authHeaders]);
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [loadDocuments, refreshKey]);
 
   const counts = useMemo(() => {
     const c: Record<RentalAssetStatus | 'TOTAL', number> = {
@@ -439,6 +472,8 @@ function RentalAssetsContent() {
       />
       <LeaseDetailModal
         lease={detailLease}
+        documents={detailLease ? (documentsByAgreement[detailLease.id] ?? []) : []}
+        onDocumentsChanged={() => setRefreshKey((k) => k + 1)}
         onClose={() => setDetailLease(null)}
         onRecordPayment={(inv) => {
           setDetailLease(null);

@@ -2,6 +2,7 @@ import { Badge, Button, Icon } from '@enagar/ui';
 
 import { DataRow } from './data-row';
 import { IconHeader } from './icon-header';
+import { LeaseDocumentPanel, type DocRow } from './lease-document-panel';
 import { ModalShell } from './modal-shell';
 import {
   formatDate,
@@ -13,10 +14,14 @@ import {
 
 export function LeaseDetailModal({
   lease,
+  documents,
+  onDocumentsChanged,
   onClose,
   onRecordPayment,
 }: {
   lease: LeaseAgreement | null;
+  documents?: DocRow[];
+  onDocumentsChanged: () => void;
   onClose: () => void;
   onRecordPayment: (inv: LeaseInvoice) => void;
 }): JSX.Element | null {
@@ -92,6 +97,12 @@ export function LeaseDetailModal({
           </div>
         )}
       </div>
+
+      <LeaseDocumentPanel
+        agreementId={lease.id}
+        documents={documents ?? []}
+        onChanged={onDocumentsChanged}
+      />
 
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>
