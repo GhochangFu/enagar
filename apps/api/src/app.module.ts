@@ -24,6 +24,7 @@ import { HoldingsModule } from './modules/holdings/holdings.module';
 import { LeaseInvoicesModule } from './modules/lease-invoices/lease-invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RentalAssetsModule } from './modules/rental-assets/rental-assets.module';
+import { RentalDocumentsModule } from './modules/rental-documents/rental-documents.module';
 import { ServicesModule } from './modules/services/services.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { TransparencyModule } from './modules/transparency/transparency.module';
@@ -77,6 +78,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     LeaseInvoicesModule,
     PaymentsModule,
     RentalAssetsModule,
+    RentalDocumentsModule,
     ServicesModule,
     TenantsModule,
     TransparencyModule,
