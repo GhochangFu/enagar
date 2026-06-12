@@ -10,8 +10,6 @@ import { RecordListItem, RecordListPanel } from '../../../components/record-list
 import { SectionNav } from '../../../components/section-nav';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
-import { LateFeeSection } from './_components/late-fee-section';
-
 import type { ReactNode } from 'react';
 
 type MastersSection =
@@ -599,10 +597,6 @@ export default function MastersClient(): JSX.Element {
       />
 
       {status ? <AlertBanner tone="warning">{status}</AlertBanner> : null}
-
-      {me?.tenant_code ? (
-        <LateFeeSection tenantCode={me.tenant_code} apiBase={apiBase} token={token} />
-      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
         <SectionNav

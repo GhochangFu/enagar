@@ -4,7 +4,9 @@ import 'reflect-metadata';
 
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { raw, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
@@ -12,10 +14,24 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
 
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AllExceptionsFilter());
+  // The in-memory stub upload sink (`PUT /rental-assets/.../_stub-upload`)
+  // accepts the file bytes raw. The browser sends the file's actual
+  // content-type (e.g. application/pdf), so a typed body parser won't
+  // match. Apply Express's `raw()` parser conditionally on this path only,
+  // so JSON request bodies everywhere else are unaffected.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === 'PUT' && req.path.endsWith('/_stub-upload')) {
+      raw({ limit: '25mb' })(req, res, next);
+      return;
+    }
+    next();
+  });
   app.enableCors({
     origin: process.env.CORS_ORIGIN?.split(',') ?? [
       'http://localhost:3000',

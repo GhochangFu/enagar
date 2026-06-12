@@ -56,4 +56,22 @@ describe('ObjectStorageService', () => {
       'http://cdn.example/enagar-local/KMC/branding/kmc-logo/logo.png',
     );
   });
+
+  it('stores and retrieves bytes via the in-memory stub when storage is disabled', async () => {
+    process.env = { ...originalEnv, OBJECT_STORAGE_DISABLED: 'true' };
+    const service = new ObjectStorageService();
+    await service.onModuleInit();
+
+    const key = 'tenants/kmc/lease-agreements/a/file.pdf';
+    const body = Buffer.from('%PDF-1.4 stub bytes');
+
+    expect(await service.headObject(key)).toBeNull();
+    expect(await service.getObjectBuffer(key)).toBeNull();
+
+    await service.putObject(key, body, 'application/pdf');
+
+    const head = await service.headObject(key);
+    expect(head).toEqual({ content_length: body.byteLength, content_type: 'application/pdf' });
+    expect((await service.getObjectBuffer(key))?.equals(body)).toBe(true);
+  });
 });

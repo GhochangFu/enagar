@@ -18,11 +18,13 @@ import {
   useToast,
 } from '@enagar/ui';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { RecordRentPaymentModal } from '../../components/record-rent-payment-modal';
 import { AssetDetailModal } from '../../components/rental-assets/asset-detail-modal';
 import { EditLessorPhoneModal } from '../../components/rental-assets/edit-lessor-phone-modal';
+import { LateFeeConfigModal } from '../../components/rental-assets/late-fee-config-modal';
 import { LeaseDetailModal } from '../../components/rental-assets/lease-detail-modal';
 import {
   ASSET_TYPE_LABELS,
@@ -75,8 +77,9 @@ const PAYMENT_HEALTH_TONE: Record<
 };
 
 function RentalAssetsContent() {
-  const { token, apiBase } = useTenantAdminSession();
+  const { token, apiBase, me } = useTenantAdminSession();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [assets, setAssets] = useState<RentalAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'ALL' | RentalAssetStatus>('ALL');
@@ -88,6 +91,7 @@ function RentalAssetsContent() {
   const [editingPhoneFor, setEditingPhoneFor] = useState<LeaseAgreement | null>(null);
   const [documentsByAgreement, setDocumentsByAgreement] = useState<Record<string, DocRow[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const [lateFeeOpen, setLateFeeOpen] = useState(false);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -122,6 +126,19 @@ function RentalAssetsContent() {
       cancelled = true;
     };
   }, [apiBase, authHeaders, refreshKey, toast]);
+
+  // Deep-link from the documents review queue: ?lease=<agreementId> should
+  // open the lease detail modal for that agreement. Only fires once the asset
+  // list has loaded; if the agreement can't be located we leave the modal
+  // closed (the user can still reach it via the Lease button per row).
+  useEffect(() => {
+    const targetLeaseId = searchParams?.get('lease');
+    if (!targetLeaseId || isLoading || assets.length === 0) return;
+    const found = assets.find((a) => a.agreements?.some((lease) => lease.id === targetLeaseId));
+    if (!found) return;
+    const lease = found.agreements.find((l) => l.id === targetLeaseId);
+    if (lease) setDetailLease(lease);
+  }, [searchParams, isLoading, assets]);
 
   // Lease documents are fetched per-tenant (the API list endpoint has no
   // agreementId filter), so we cache the full list and let the panel slice
@@ -212,6 +229,14 @@ function RentalAssetsContent() {
         description="Market stalls, hoardings, land, and other long-term rental assets owned by the ULB."
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="receipt"
+              onClick={() => setLateFeeOpen(true)}
+            >
+              Late fee configuration
+            </Button>
             <Button asChild variant="secondary" icon="file-plus">
               <Link href="/rental-assets/new-asset">New Asset</Link>
             </Button>
@@ -510,6 +535,14 @@ function RentalAssetsContent() {
           setRefreshKey((k) => k + 1);
         }}
       />
+      {lateFeeOpen && me?.tenant_code ? (
+        <LateFeeConfigModal
+          tenantCode={me.tenant_code}
+          apiBase={apiBase}
+          token={token}
+          onClose={() => setLateFeeOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -517,7 +550,10 @@ function RentalAssetsContent() {
 export default function RentalAssetsPage() {
   return (
     <ToastProvider>
-      <RentalAssetsContent />
+      {/* useSearchParams forces a Suspense boundary in App Router */}
+      <Suspense fallback={null}>
+        <RentalAssetsContent />
+      </Suspense>
     </ToastProvider>
   );
 }

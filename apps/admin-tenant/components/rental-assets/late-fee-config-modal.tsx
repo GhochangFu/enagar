@@ -1,18 +1,25 @@
-'use client';
-
-import { Button, useToast } from '@enagar/ui';
+import { Button, FieldLabel, TextField, useToast } from '@enagar/ui';
 import { useEffect, useState } from 'react';
+
+import { IconHeader } from './icon-header';
+import { ModalShell } from './modal-shell';
+
+import type { JSX } from 'react';
 
 const SOFT_CAP_RUPEES = 5_000;
 const MAX_FEE_RUPEES = 100_000; // mirrors the DTO cap (₹100,000 / 10,000,000 paise).
 
-interface LateFeeSectionProps {
+export function LateFeeConfigModal({
+  tenantCode,
+  apiBase,
+  token,
+  onClose,
+}: {
   tenantCode: string;
   apiBase: string;
   token: string;
-}
-
-export function LateFeeSection({ tenantCode, apiBase, token }: LateFeeSectionProps): JSX.Element {
+  onClose: () => void;
+}): JSX.Element {
   const [rupees, setRupees] = useState(0);
   const [original, setOriginal] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -66,6 +73,7 @@ export function LateFeeSection({ tenantCode, apiBase, token }: LateFeeSectionPro
         toast('Late fee updated', 'success');
       }
       setOriginal(rupees);
+      onClose();
     } catch (err) {
       toast((err as Error).message, 'danger');
     } finally {
@@ -74,32 +82,48 @@ export function LateFeeSection({ tenantCode, apiBase, token }: LateFeeSectionPro
   }
 
   return (
-    <section className="rounded border p-4 space-y-2 max-w-md" data-testid="late-fee-section">
-      <h3 className="text-sm font-semibold">Late fee configuration</h3>
-      <p className="text-xs text-gray-600">
-        Flat late fee applied when the daily scheduler flips an invoice to <code>OVERDUE</code>.
-      </p>
-      <label className="block text-sm">
-        Late fee (₹)
-        <input
-          type="number"
-          min={0}
-          max={MAX_FEE_RUPEES}
-          step="0.01"
-          value={rupees}
-          onChange={(e) => setRupees(parseFloat(e.target.value) || 0)}
-          className="border rounded px-2 py-1 w-32 ml-2"
-          data-testid="late-fee-input"
-        />
-      </label>
-      <Button
-        type="button"
-        disabled={busy || rupees === original}
-        onClick={save}
-        data-testid="late-fee-save"
-      >
-        {busy ? 'Saving…' : 'Save'}
-      </Button>
-    </section>
+    <ModalShell onClose={onClose} labelledBy="late-fee-title" size="sm" z="z-[70]">
+      <div data-testid="late-fee-section">
+        <IconHeader icon="receipt" eyebrow="Configuration" title="Late fee" />
+        <p className="mt-2 text-xs text-ink-muted">
+          Flat late fee applied when the daily scheduler flips an invoice to{' '}
+          <code className="rounded bg-canvas px-1 py-0.5 font-mono text-[11px]">OVERDUE</code>.
+        </p>
+        <form
+          className="mt-5 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <div className="space-y-2">
+            <FieldLabel htmlFor="late-fee-input">Late fee (₹)</FieldLabel>
+            <TextField
+              id="late-fee-input"
+              type="number"
+              min={0}
+              max={MAX_FEE_RUPEES}
+              step="0.01"
+              value={String(rupees)}
+              onChange={(e) => setRupees(parseFloat(e.target.value) || 0)}
+              data-testid="late-fee-input"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              icon="check"
+              disabled={busy || rupees === original}
+              data-testid="late-fee-save"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </ModalShell>
   );
 }

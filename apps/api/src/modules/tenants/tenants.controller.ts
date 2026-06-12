@@ -5,7 +5,7 @@ import { Public } from '../../common/auth/public.decorator';
 
 import { TenantsService } from './tenants.service';
 
-import type { TenantConfigResponse, TenantSummary } from './tenant.seed';
+import type { TenantSummary } from './tenant.seed';
 import type { TenantPublicBanner } from './tenants.service';
 
 @ApiTags('tenants')
@@ -17,11 +17,6 @@ export class TenantsController {
   @Get()
   list(): Promise<TenantSummary[]> {
     return this.tenants.list();
-  }
-
-  @Get(':id/config')
-  getConfig(@Param('id') id: string): Promise<TenantConfigResponse> {
-    return this.tenants.getConfig(id);
   }
 
   @Get(':id/banners')

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, useToast } from '@enagar/ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useTenantAdminSession } from '../tenant-admin-session';
 
@@ -21,6 +21,12 @@ export function LeaseDocumentUploadButton({ agreementId, onUploaded }: Props): J
   const { token, apiBase } = useTenantAdminSession();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
+  // A `<label>` wrapping a hidden `<input type="file">` is the typical
+  // "button that opens a file picker" pattern, but it stops working as
+  // soon as the visible UI inside the label is a real `<button>` — the
+  // button captures the click and the label's "trigger input" behaviour
+  // is suppressed. Drive the input from a ref instead.
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,8 +111,9 @@ export function LeaseDocumentUploadButton({ agreementId, onUploaded }: Props): J
   }
 
   return (
-    <label className="inline-block">
+    <>
       <input
+        ref={inputRef}
         type="file"
         accept={ALLOWED.join(',')}
         onChange={onPick}
@@ -114,11 +121,15 @@ export function LeaseDocumentUploadButton({ agreementId, onUploaded }: Props): J
         className="hidden"
         data-testid="lease-doc-upload"
       />
-      <span className="cursor-pointer">
-        <Button type="button" size="sm" variant="secondary" disabled={busy}>
-          {busy ? 'Uploading…' : 'Upload signed lease'}
-        </Button>
-      </span>
-    </label>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+      >
+        {busy ? 'Uploading…' : 'Upload signed lease'}
+      </Button>
+    </>
   );
 }

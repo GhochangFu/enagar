@@ -67,7 +67,7 @@ function DocumentsReviewContent() {
   const { token, apiBase, me } = useTenantAdminSession();
   const { toast } = useToast();
   const router = useRouter();
-  const [rows, setRows] = useState<ReviewQueueRow[]>([]);
+  const [allRows, setAllRows] = useState<ReviewQueueRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<DocStatus>('PENDING_REVIEW');
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
@@ -95,7 +95,7 @@ function DocumentsReviewContent() {
   const loadDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${apiBase}/rental-assets/documents?status=${statusFilter}`, {
+      const res = await fetch(`${apiBase}/rental-assets/documents`, {
         headers: authHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -108,7 +108,7 @@ function DocumentsReviewContent() {
         reviewerNote?: string | null;
         agreement?: { lessorName?: string; asset?: { name?: unknown } };
       }>;
-      setRows(
+      setAllRows(
         data.map((d) => ({
           id: d.id,
           status: d.status,
@@ -126,7 +126,7 @@ function DocumentsReviewContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiBase, authHeaders, statusFilter, toast]);
+  }, [apiBase, authHeaders, toast]);
 
   useEffect(() => {
     void loadDocuments();
@@ -138,9 +138,14 @@ function DocumentsReviewContent() {
       APPROVED: 0,
       REJECTED: 0,
     };
-    for (const r of rows) c[r.status] += 1;
+    for (const r of allRows) c[r.status] += 1;
     return c;
-  }, [rows]);
+  }, [allRows]);
+
+  const rows = useMemo(
+    () => allRows.filter((r) => r.status === statusFilter),
+    [allRows, statusFilter],
+  );
 
   async function reviewDocument(
     docId: string,

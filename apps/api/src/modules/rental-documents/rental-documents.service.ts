@@ -45,6 +45,23 @@ export class RentalDocumentsService {
       select: { id: true },
     });
     if (!agreement) throw new NotFoundException('Lease agreement not found');
+    // Verify the bytes actually landed in object storage at the claimed key.
+    // In S3 mode the PUT happens against a presigned URL keyed on
+    // `storageKey`, so `headObject` will find them. In stub mode the
+    // `_stub-upload` PUT populates the in-memory store. Without this
+    // check a client could `recordUpload` a fake key and we'd record a
+    // document the reviewer can never view.
+    const head = await this.storage.headObject(input.file.storageKey);
+    if (!head) {
+      throw new BadRequestException(
+        `No object found at storage key ${input.file.storageKey} — upload PUT must succeed first`,
+      );
+    }
+    if (head.content_length !== input.file.sizeBytes) {
+      throw new BadRequestException(
+        `Uploaded size (${head.content_length}) does not match declared sizeBytes (${input.file.sizeBytes})`,
+      );
+    }
     return this.prisma.$transaction(async (tx) => {
       const doc = await tx.leaseAgreementDocument.create({
         data: {

@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import { RentalDocumentsService } from './rental-documents.service';
 
 import type { PrismaService } from '../../common/database/prisma.service';
@@ -22,6 +24,9 @@ describe('RentalDocumentsService', () => {
   };
   const storage = {
     assertTenantObjectKey: jest.fn(),
+    headObject: jest
+      .fn()
+      .mockResolvedValue({ content_length: 1234, content_type: 'application/pdf' }),
   } as unknown as ObjectStorageService;
 
   beforeEach(() => {
@@ -106,5 +111,44 @@ describe('RentalDocumentsService', () => {
         decision: 'REJECT',
       }),
     ).rejects.toThrow(/note is required/i);
+  });
+
+  it('rejects recordUpload when storage has no object at the claimed key', async () => {
+    (storage.headObject as jest.Mock).mockResolvedValue(null);
+    await expect(
+      service.recordUpload({
+        tenantId: 't1',
+        agreementId: 'a1',
+        uploadedBy: 'u1',
+        file: {
+          fileName: 'lease.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1234,
+          sha256: 'a'.repeat(64),
+          storageKey: 'tenants/t1/lease-agreements/a1/missing.pdf',
+        },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects recordUpload when the stored size does not match the declared size', async () => {
+    (storage.headObject as jest.Mock).mockResolvedValue({
+      content_length: 1,
+      content_type: 'application/pdf',
+    });
+    await expect(
+      service.recordUpload({
+        tenantId: 't1',
+        agreementId: 'a1',
+        uploadedBy: 'u1',
+        file: {
+          fileName: 'lease.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1234,
+          sha256: 'a'.repeat(64),
+          storageKey: 'tenants/t1/lease-agreements/a1/lease.pdf',
+        },
+      }),
+    ).rejects.toThrow(/size/i);
   });
 });

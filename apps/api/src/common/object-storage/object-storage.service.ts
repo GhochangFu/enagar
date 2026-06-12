@@ -29,12 +29,25 @@ const DEFAULT_UPLOAD_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_DOWNLOAD_TTL_MS = 5 * 60 * 1000;
 const STUB_BUCKET = 'enagar-local';
 
+interface StubObject {
+  body: Buffer;
+  contentType: string;
+  uploadedAt: Date;
+}
+
 @Injectable()
 export class ObjectStorageService implements OnModuleInit {
   private readonly logger = new Logger(ObjectStorageService.name);
   private readonly config: ObjectStorageConfig;
   private client: S3Client | null = null;
   private bucketReady = false;
+  /**
+   * In-memory object store used when the runtime is configured as disabled
+   * (`OBJECT_STORAGE_DISABLED=1` or no endpoint creds). Bytes are held in
+   * process memory; they are lost on API restart. This is intended for
+   * local dev / smoke testing only.
+   */
+  private readonly stubStore = new Map<string, StubObject>();
 
   constructor() {
     this.config = loadObjectStorageConfig();
@@ -61,7 +74,7 @@ export class ObjectStorageService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (!this.isEnabled()) {
-      this.logger.log('Object storage disabled — using minio:// stub URLs for upload/download');
+      this.logger.log('Object storage disabled — using in-memory stub store for upload/download');
       return;
     }
 
@@ -151,7 +164,12 @@ export class ObjectStorageService implements OnModuleInit {
   async headObject(objectKey: string): Promise<ObjectStorageHeadResult | null> {
     this.assertSafeObjectKey(objectKey);
     if (!this.isEnabled() || !this.client) {
-      return null;
+      const stub = this.stubStore.get(objectKey);
+      if (!stub) return null;
+      return {
+        content_length: stub.body.byteLength,
+        content_type: stub.contentType,
+      };
     }
 
     try {
@@ -178,6 +196,7 @@ export class ObjectStorageService implements OnModuleInit {
   async putObject(objectKey: string, body: Buffer, contentType: string): Promise<void> {
     this.assertSafeObjectKey(objectKey);
     if (!this.isEnabled() || !this.client) {
+      this.stubStore.set(objectKey, { body, contentType, uploadedAt: new Date() });
       this.logger.log(
         `[stub] putObject key=${objectKey} bytes=${body.byteLength} type=${contentType}`,
       );
@@ -196,7 +215,7 @@ export class ObjectStorageService implements OnModuleInit {
   async getObjectBuffer(objectKey: string): Promise<Buffer | null> {
     this.assertSafeObjectKey(objectKey);
     if (!this.isEnabled() || !this.client) {
-      return null;
+      return this.stubStore.get(objectKey)?.body ?? null;
     }
 
     const response = await this.client.send(

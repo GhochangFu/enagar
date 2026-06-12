@@ -1610,9 +1610,12 @@ model LeaseAgreementDocument {
   sha256        String                       @db.Char(64)
   storageKey    String                       @map("storage_key") @db.Text
   status        LeaseAgreementDocumentStatus @default(PENDING_REVIEW)
-  uploadedBy    String                       @map("uploaded_by") @db.Uuid
+  // JWT `sub` for tenant-staff users is the Keycloak username (per the
+  // `sub-username` mapper), not a UUID. Store the principal subject as text
+  // for human-readable audit trails; the agreement/tenant FKs are still UUIDs.
+  uploadedBy    String                       @map("uploaded_by") @db.VarChar(255)
   uploadedAt    DateTime                     @default(now()) @map("uploaded_at") @db.Timestamptz(6)
-  reviewedBy    String?                      @map("reviewed_by") @db.Uuid
+  reviewedBy    String?                      @map("reviewed_by") @db.VarChar(255)
   reviewedAt    DateTime?                    @map("reviewed_at") @db.Timestamptz(6)
   reviewerNote  String?                      @map("reviewer_note") @db.Text
   events        LeaseAgreementDocumentEvent[]
@@ -1628,7 +1631,9 @@ model LeaseAgreementDocumentEvent {
   tenantId    String                                   @map("tenant_id") @db.Uuid
   documentId  String                                   @map("document_id") @db.Uuid
   eventType   LeaseAgreementDocumentEventType  @map("event_type")
-  actorUserId String                                   @map("actor_user_id") @db.Uuid
+  // Same as LeaseAgreementDocument.uploadedBy: tenant-staff principals are
+  // identified by username in this codebase, not by user UUID.
+  actorUserId String                                   @map("actor_user_id") @db.VarChar(255)
   payload     Json                                     @default(dbgenerated("'{}'::jsonb"))
   createdAt   DateTime                                 @default(now()) @map("created_at") @db.Timestamptz(6)
   document    LeaseAgreementDocument                   @relation(fields: [documentId], references: [id], onDelete: Cascade)
