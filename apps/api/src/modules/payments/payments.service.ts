@@ -303,7 +303,7 @@ export class PaymentsService {
 
     const reservation = await this.prisma.bookingReservation.findFirst({
       where: { id: payment.booking_reservation_id ?? '', tenantId: payment.tenant_id },
-      select: { id: true, depositId: true },
+      select: { id: true, depositId: true, note: true },
     });
     if (!reservation) {
       throw new NotFoundException('Booking hold not found for this payment');
@@ -313,7 +313,8 @@ export class PaymentsService {
       where: { id: payment.tenant_id },
       select: { code: true },
     });
-    const service = await this.services.getTenantService(tenant.code, 'community-hall');
+    const serviceCode = this.resolveBookingServiceCodeFromNote(reservation.note);
+    const service = await this.services.getTenantService(tenant.code, serviceCode);
     const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
     const ctx: SettlementLedgerContext = {
       serviceCode: service.code,
@@ -322,6 +323,24 @@ export class PaymentsService {
     };
 
     return this.store.settleStubLedger(principal, dto.payment_id, normalizedOrder, ctx);
+  }
+
+  private resolveBookingServiceCodeFromNote(note: string | null): string {
+    if (!note) {
+      return 'community-hall';
+    }
+    try {
+      const parsed = JSON.parse(note) as { service_code?: string; source?: string };
+      if (parsed.source === 'smart_parking') {
+        return 'smart-parking';
+      }
+      if (parsed.service_code?.trim()) {
+        return parsed.service_code.trim();
+      }
+    } catch {
+      return 'community-hall';
+    }
+    return 'community-hall';
   }
 
   /**

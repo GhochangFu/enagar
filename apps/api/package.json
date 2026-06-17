@@ -24,6 +24,7 @@
     "@aws-sdk/client-s3": "^3.1051.0",
     "@aws-sdk/s3-request-presigner": "^3.1051.0",
     "@enagar/forms": "workspace:^",
+    "@enagar/smart-city-adapters": "workspace:*",
     "@enagar/types": "workspace:*",
     "@enagar/workflow": "workspace:^",
     "@nestjs/common": "^10.4.4",

@@ -10,6 +10,7 @@ import { GrievanceOperationsPanel } from '../../../components/grievance-operatio
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
 import { SectionNav } from '../../../components/section-nav';
+import { SmartParkingOpsPanel } from '../../../components/smart-parking-ops-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 import { clearStoredAuth } from '../../../lib/admin-auth';
 import { addDaysYmd, istWindowToIso, ymdTodayIst } from '../../../lib/bookings-calendar.util';
@@ -23,6 +24,7 @@ type OperationsSection =
   | 'kb'
   | 'branding'
   | 'bookings'
+  | 'smart-parking'
   | 'staff'
   | 'grievances';
 
@@ -33,6 +35,7 @@ const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'kb', label: 'Knowledge base' },
   { id: 'branding', label: 'Branding assets' },
   { id: 'bookings', label: 'Bookings' },
+  { id: 'smart-parking', label: 'Smart Parking' },
   { id: 'staff', label: 'Staff & roles' },
   { id: 'grievances', label: 'Grievance SLA & routing' },
 ];
@@ -2408,6 +2411,8 @@ export default function OperationsClient(): JSX.Element {
           ) : null}
 
           {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
+
+          {opsSection === 'smart-parking' ? <SmartParkingOpsPanel /> : null}
         </div>
       </div>
     </div>

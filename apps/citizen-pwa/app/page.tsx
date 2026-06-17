@@ -55,6 +55,7 @@ import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { InvoicesPanel } from '../components/invoices-panel';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
+import { SmartParkingWorkspace } from '../components/smart-parking-workspace';
 import { TenantBanners } from '../components/tenant-banners';
 import { applyFieldExamplesToRenderPlan, fieldExamplesForSchema } from '../lib/form-field-examples';
 import { applicationFeePaid } from '../lib/payment-eligibility';
@@ -290,6 +291,7 @@ export default function HomePage(): JSX.Element {
   const [applyPendingPayment, setApplyPendingPayment] = useState<PaymentApiResponse | null>(null);
   const [applyPaymentMethod, setApplyPaymentMethod] = useState<PaymentGatewayMethod>('upi');
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
+  const [smartParkingFlowActive, setSmartParkingFlowActive] = useState(false);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -1085,6 +1087,10 @@ export default function HomePage(): JSX.Element {
     );
   }
 
+  function isSmartParkingService(service: ServiceSummary): boolean {
+    return service.code === 'smart-parking';
+  }
+
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues({});
@@ -1096,12 +1102,20 @@ export default function HomePage(): JSX.Element {
     setApplyDraftDocsReady(false);
     setApplyPendingPayment(null);
     setActiveTab('apply');
+    if (isSmartParkingService(service)) {
+      setSmartParkingFlowActive(true);
+      setBookingFlowActive(false);
+      setStatus(`Reserve a bay — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
     if (isBookingService(service)) {
       setBookingFlowActive(true);
+      setSmartParkingFlowActive(false);
       setStatus(`Book a slot — ${service.name[language] ?? service.name.en}`);
       return;
     }
     setBookingFlowActive(false);
+    setSmartParkingFlowActive(false);
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
 
@@ -2688,7 +2702,19 @@ export default function HomePage(): JSX.Element {
 
           {activeTab === 'apply' && (
             <section className="rounded-3xl bg-white p-6 shadow-sm">
-              {bookingFlowActive && token && selectedTenant ? (
+              {smartParkingFlowActive && token && selectedTenant ? (
+                <SmartParkingWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  onBack={() => {
+                    setSmartParkingFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('Smart parking flow cancelled.');
+                  }}
+                  onStatus={setStatus}
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                />
+              ) : bookingFlowActive && token && selectedTenant ? (
                 <BookingWorkspace
                   apiBaseUrl={apiBaseUrl}
                   applicationForm={
@@ -2716,6 +2742,7 @@ export default function HomePage(): JSX.Element {
                   linkedService={selectedService}
                   onBack={() => {
                     setBookingFlowActive(false);
+                    setSmartParkingFlowActive(false);
                     setActiveTab('services');
                     setStatus('Booking cancelled.');
                   }}

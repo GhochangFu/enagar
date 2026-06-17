@@ -191,6 +191,19 @@ const priorityServiceFormSchemas = [
   },
   {
     schema_version: 1,
+    service_code: 'smart-parking',
+    version: 1,
+    title: label('Smart Parking', 'স্মার্ট পার্কিং', 'स्मार्ट पार्किंग'),
+    fields: [
+      text('vehicle_number', 'Vehicle registration', 'যানবাহন নম্বর', 'वाहन पंजीकरण', {
+        required: true,
+        min_length: 4,
+        max_length: 20,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
     service_code: 'rti',
     version: 1,
     title: label('RTI Application', 'আরটিআই আবেদন', 'आरटीआई आवेदन'),
@@ -1070,6 +1083,9 @@ async function main(): Promise<void> {
     const { seedBookableAssetsForKmc } = await import('./seed/bookable-assets');
     await seedBookableAssetsForKmc(prisma);
     console.info('Seeded Sprint 8.1A KMC bookable hall asset and availability');
+    const { seedSmartParkingForKmc } = await import('./seed/smart-parking');
+    await seedSmartParkingForKmc(prisma);
+    console.info('Seeded Sprint 8.2A KMC smart parking ZONE-A with 20 bays');
     const kbCount = await seedSahayakServiceHelpArticles(prisma);
     console.info(`Seeded ${kbCount} Sahayak service-help KB articles (all ULBs)`);
     await seedChatbotTenantConfig(prisma);
