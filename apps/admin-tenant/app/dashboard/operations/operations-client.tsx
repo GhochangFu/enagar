@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BookingsCalendarPanel } from '../../../components/bookings-calendar-panel';
+import { EvChargingOpsPanel } from '../../../components/ev-charging-ops-panel';
 import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
 import { JsonFallbackPanel } from '../../../components/json-fallback-panel';
 import { RecordListItem, RecordListPanel } from '../../../components/record-list-panel';
@@ -25,6 +26,7 @@ type OperationsSection =
   | 'branding'
   | 'bookings'
   | 'smart-parking'
+  | 'ev-charging'
   | 'staff'
   | 'grievances';
 
@@ -36,6 +38,7 @@ const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'branding', label: 'Branding assets' },
   { id: 'bookings', label: 'Bookings' },
   { id: 'smart-parking', label: 'Smart Parking' },
+  { id: 'ev-charging', label: 'EV Charging' },
   { id: 'staff', label: 'Staff & roles' },
   { id: 'grievances', label: 'Grievance SLA & routing' },
 ];
@@ -2413,6 +2416,8 @@ export default function OperationsClient(): JSX.Element {
           {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
 
           {opsSection === 'smart-parking' ? <SmartParkingOpsPanel /> : null}
+
+          {opsSection === 'ev-charging' ? <EvChargingOpsPanel /> : null}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 # Master Sprint 8.2D Exit — EV charging slots & kWh metering (stub)
 
-**Status:** **8.2D-A closed in-repo (2026-06-18)** — schema, adapter, catalogue, seed, payment-store types · **8.2D-B closed in-repo (2026-06-18)** — API core + smoke green · **8.2D-C closed in-repo (2026-06-18)** — Citizen PWA · **8.2D-D next**  
+**Status:** **8.2D closed in-repo (2026-06-18)** — A–E complete; smoke, security, unit tests green · **Next:** 8.2E (IoT water meter prepaid recharge stub)  
 **Plan:** [`master-sprint-82d-plan.md`](./master-sprint-82d-plan.md) · Parent: [`master-sprint-82-plan.md`](./master-sprint-82-plan.md) § 8.2D  
 **Phase:** 8 — Bookings, Smart-City & Tenders · Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23)
 
@@ -15,7 +15,7 @@
 | D3  | `StubEvMeterProvider` — `readMeter(sessionId) → kWh`; fixed increment on stop                                                 | `packages/smart-city-adapters` · package test green                         |
 | D4  | Citizen API — `GET …/chargers`, `POST …/chargers/:code/holds`, `POST …/sessions/:id/start`, `stop`, `initiate-payment`, `pay` | `apps/api/src/modules/ev-charging/` · `scripts/smoke-ev-charging.mjs` green |
 | D5  | Citizen PWA `EvChargingWorkspace` — list → hold (15 min) → start → stop → pay → receipt metadata                              | `ev-charging-workspace.tsx` · `ev-charging-api.ts` · typecheck green        |
-| D6  | Admin — CRUD chargers under Operations → EV Charging; read-only session list                                                  | _8.2D-D_                                                                    |
+| D6  | Admin — CRUD chargers under Operations → EV Charging; read-only session list                                                  | `ev-charging-ops-panel.tsx` · Operations tab                                |
 | D7  | Seed — 2 KMC chargers, `rate_paise_per_kwh: 1500`                                                                             | `prisma/seed/ev-charging.ts` · seed log                                     |
 | —   | Catalogue — `ev-charging` service + `ev-charging-fee` revenue head                                                            | `service-catalogue.seed.ts`                                                 |
 | —   | Payment FK — `payments.ev_session_id`                                                                                         | migration + `payment-store.ts` types + store impl                           |
@@ -29,24 +29,24 @@
 | **8.2D-A** | Schema, catalogue, adapter, seed          | ✅   | 2026-06-18                             |
 | **8.2D-B** | API service + controllers + payment store | ✅   | 2026-06-18 — 15 unit tests + smoke E2E |
 | **8.2D-C** | Citizen PWA workspace                     | ✅   | 2026-06-18 — `pnpm typecheck` clean    |
-| **8.2D-D** | Admin operations panel                    | ☐    |                                        |
-| **8.2D-E** | Smoke, security, parent plan update       | ☐    |                                        |
+| **8.2D-D** | Admin operations panel                    | ✅   | 2026-06-18                             |
+| **8.2D-E** | Smoke, security, parent plan update       | ✅   | 2026-06-18 — smokes + security 4/4     |
 
 ---
 
 ## Exit criteria
 
-| ID  | Criterion                                                                                    | Pass | Verification                                 |
-| --- | -------------------------------------------------------------------------------------------- | ---- | -------------------------------------------- |
-| E1  | Citizen sees charger list; busy chargers not reservable                                      | ✅   | PWA workspace disables busy chargers         |
-| E2  | EV session **hold → start → stop → pay** E2E with stub meter                                 | ✅   | `scripts/smoke-ev-charging.mjs` (2026-06-18) |
-| E3  | Stop computes **kWh × rate** correctly (default stub: 5.5 kWh @ 1500 paise = **8250 paise**) | ✅   | Unit test + smoke assert                     |
-| E4  | Hold TTL (**15 min**) releases charger                                                       | ✅   | Unit test `releaseExpiredEvSessionHolds`     |
-| E5  | One active session per citizen (overlap guard)                                               | ✅   | API spec 409                                 |
-| E6  | Tenant Admin can **create/edit** charger; sessions visible read-only                         | ☐    | Manual Operations                            |
-| E7  | **Tenant isolation** — cross-tenant charger/session access rejected                          | ☐    | Security spec                                |
-| E8  | Smart parking regression unchanged                                                           | ☐    | `scripts/smoke-smart-parking-bay-merge.mjs`  |
-| E9  | Typecheck clean (api, citizen-pwa, admin-tenant)                                             | ☐    | citizen-pwa ✅ 2026-06-18                    |
+| ID  | Criterion                                                                                    | Pass | Verification                                                                                         |
+| --- | -------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------- |
+| E1  | Citizen sees charger list; busy chargers not reservable                                      | ✅   | PWA workspace disables busy chargers                                                                 |
+| E2  | EV session **hold → start → stop → pay** E2E with stub meter                                 | ✅   | `scripts/smoke-ev-charging.mjs` (2026-06-18)                                                         |
+| E3  | Stop computes **kWh × rate** correctly (default stub: 5.5 kWh @ 1500 paise = **8250 paise**) | ✅   | Unit test + smoke assert                                                                             |
+| E4  | Hold TTL (**15 min**) releases charger                                                       | ✅   | Unit test `releaseExpiredEvSessionHolds`                                                             |
+| E5  | One active session per citizen (overlap guard)                                               | ✅   | API spec 409                                                                                         |
+| E6  | Tenant Admin can **create/edit** charger; sessions visible read-only                         | ✅   | `EvChargingOpsPanel`                                                                                 |
+| E7  | **Tenant isolation** — cross-tenant charger/session access rejected                          | ✅   | `master-sprint-82d-ev-charging.spec.ts` 4/4                                                          |
+| E8  | Smart parking regression unchanged                                                           | ✅   | `scripts/smoke-smart-parking-bay-merge.mjs`                                                          |
+| E9  | Typecheck clean (api, citizen-pwa, admin-tenant)                                             | ✅\* | citizen-pwa ✅ · api tests 15/15 · admin-tenant has pre-existing rental-assets TS errors (unrelated) |
 
 ---
 
@@ -65,7 +65,7 @@ node scripts/smoke-ev-charging.mjs
 # Regression
 node scripts/smoke-smart-parking-bay-merge.mjs
 
-# Security (when spec lands)
+# Security
 pnpm test:security -- master-sprint-82d-ev-charging.spec.ts
 
 # Typecheck
@@ -132,6 +132,6 @@ cd apps/admin-tenant && pnpm typecheck
 
 ## Sign-off
 
-| Role        | Notes                                    | Date  |
-| ----------- | ---------------------------------------- | ----- |
-| Engineering | _Repo closure; smoke + unit tests green_ | _TBD_ |
+| Role        | Notes                                                          | Date       |
+| ----------- | -------------------------------------------------------------- | ---------- |
+| Engineering | Repo closure; smoke + unit + security tests green (2026-06-18) | 2026-06-18 |

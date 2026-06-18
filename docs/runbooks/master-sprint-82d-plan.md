@@ -8,7 +8,7 @@
 
 **Builds on:** 8.2A–8.2C (smart parking module, `@enagar/smart-city-adapters`, stub payments, Operations shell).
 
-**Status:** **8.2D-A closed in-repo (2026-06-18)** · **8.2D-B closed in-repo (2026-06-18)** · **8.2D-C closed in-repo (2026-06-18)** · **8.2D-D next**
+**Status:** **8.2D closed in-repo (2026-06-18)** — sub-sprints A–E complete · **Next:** 8.2E (IoT water meter prepaid recharge stub)
 
 ---
 
@@ -302,7 +302,7 @@ cd apps/citizen-pwa && pnpm typecheck
 
 ---
 
-## Sub-sprint 8.2D-D — Tenant Admin operations
+## Sub-sprint 8.2D-D — Tenant Admin operations ✅ closed 2026-06-18
 
 **Objective:** Operators can manage chargers and audit sessions.
 
@@ -333,7 +333,7 @@ cd apps/admin-tenant && pnpm typecheck
 
 ---
 
-## Sub-sprint 8.2D-E — Verification & closure
+## Sub-sprint 8.2D-E — Verification & closure ✅ closed 2026-06-18
 
 **Objective:** Automated smoke, security, docs, exit runbook evidence.
 
