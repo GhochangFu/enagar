@@ -32,6 +32,7 @@
             <li><a href="#masters">Master data</a></li>
             <li><a href="#operations">Operations settings</a></li>
             <li><a href="#bookings-ops">Bookable facilities</a></li>
+            <li><a href="#smart-city-ops">Smart city services</a></li>
             <li><a href="#service-setup">Setting up a service</a></li>
             <li><a href="#forms">Building the application form</a></li>
             <li><a href="#workflows">Setting up approval steps</a></li>
@@ -353,7 +354,7 @@
         <section
           id="operations"
           class="help-section"
-          data-search="operations banner branding SMS template staff booking knowledge base Sahayak"
+          data-search="operations banner branding SMS template staff booking knowledge base Sahayak smart parking EV charging IoT water"
         >
           <h2>Operations settings</h2>
           <table class="help-table">
@@ -395,6 +396,18 @@
               <tr>
                 <td>Grievance SLA &amp; routing</td>
                 <td>How many hours before a complaint is “late”</td>
+              </tr>
+              <tr>
+                <td>Smart Parking</td>
+                <td>Parking zones, bays, and live occupancy grid (stub sensor)</td>
+              </tr>
+              <tr>
+                <td>EV Charging</td>
+                <td>Charger list, per-kWh tariff, and session ledger</td>
+              </tr>
+              <tr>
+                <td>IoT Water</td>
+                <td>Prepaid meter accounts, CSV import, recharge ledger</td>
               </tr>
             </tbody>
           </table>
@@ -450,6 +463,63 @@
             <strong>Two services, two asset lists:</strong> Community Hall may map only hall assets;
             Other Facility Booking may map sports grounds or courts. Do not map the same asset to
             two services unless your policy allows it.
+          </div>
+
+          <h3 id="smart-city-ops">Smart city services (parking, EV, water)</h3>
+          <p>
+            <strong>Who can use this:</strong> ULB administrators. Citizens use the
+            <strong>Smart City</strong> category in the citizen app for reserve-and-pay flows.
+          </p>
+          <h4>Smart Parking zones</h4>
+          <ol class="help-steps">
+            <li>
+              Open <strong>Operations</strong> → <strong>Smart Parking</strong>. Create a zone code
+              (e.g. <em>ZONE-A</em>) with capacity and optional ward.
+            </li>
+            <li>
+              Add bays with codes (e.g. <em>B01</em>…<em>B20</em>) or use bulk import. Occupancy
+              comes from the stub sensor plus confirmed reservations.
+            </li>
+            <li>
+              Set zone <strong>pricing matrix</strong> (time bands) in zone metadata or use the flat
+              fallback rate. Citizens see free/taken bays before paying.
+            </li>
+            <li>
+              Hold TTL is <strong>10 minutes</strong>. Expired holds release the bay automatically.
+            </li>
+          </ol>
+          <h4>EV charging tariffs</h4>
+          <ol class="help-steps">
+            <li>
+              Open <strong>Operations</strong> → <strong>EV Charging</strong>. Add a charger code,
+              location, connector type, and <strong>rate per kWh</strong> (paise, e.g. 1500 = ₹15).
+            </li>
+            <li>
+              Session hold TTL is <strong>15 minutes</strong>. Stub metering bills a fixed kWh on
+              stop until live OCPP is integrated.
+            </li>
+            <li>Sessions list is read-only — citizens start/stop from the citizen app.</li>
+          </ol>
+          <h4>IoT water meter seeding</h4>
+          <ol class="help-steps">
+            <li>
+              Open <strong>Operations</strong> → <strong>IoT Water</strong>. Upsert a meter with
+              <strong>meter ID</strong>, consumer name, phone (must match citizen OTP mobile), and
+              opening balance.
+            </li>
+            <li>
+              CSV import columns: <code>meter_id</code>, <code>consumer_name</code>,
+              <code>consumer_phone</code>, <code>balance_paise</code> (optional opening balance).
+            </li>
+            <li>
+              Recharge ledger shows credited top-ups after citizens pay in the app. Live HMC/SAP
+              meter adapters are deferred.
+            </li>
+          </ol>
+          <div class="help-card tip">
+            <strong>Pilot seed (KMC):</strong> ZONE-A (20 bays), 2 EV chargers, 3 water meters
+            (<em>WM-001</em>…<em>WM-003</em>) linked to test citizen phones — use for training
+            before go-live.
           </div>
         </section>
 

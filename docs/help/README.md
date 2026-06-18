@@ -19,6 +19,8 @@ Link from **`OperatorAppFooter` → Operator help** in Tenant Admin and State Ad
 
 Shared assets: [assets/operator-help.css](./assets/operator-help.css), [assets/operator-help.js](./assets/operator-help.js).
 
+**Smart city (Sprint 8.2):** Tenant Admin operator help includes **Smart city services** — parking zones, EV tariffs, and water meter seeding under Operations.
+
 ## Wiring into apps (done)
 
 | App            | Public path                                   | Footer prop                                                |

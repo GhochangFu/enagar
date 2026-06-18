@@ -1,6 +1,6 @@
 # Master Sprint 8.2 Plan — Smart parking, EV charging & IoT water meter (stub adapters)
 
-**Status:** **in progress** — **8.2A closed in-repo (2026-06-17)** · **8.2B closed in-repo (2026-06-17)** · Exit record: _TBD_ [`master-sprint-82-exit.md`](./master-sprint-82-exit.md) · Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23) **To Do**  
+**Status:** **closed in-repo (2026-06-18)** — exit evidence [`master-sprint-82-exit.md`](./master-sprint-82-exit.md) · Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23)  
 **Phase:** 8 — Bookings, Smart-City & Tenders · Jira [**EN-10**](https://ghochangfu.atlassian.net/browse/EN-10)  
 **ROADMAP:** [§ Phase 8](../../ROADMAP.md#phase-8--bookings-smart-city--tender-modules) · Slice **8.2**  
 **Builds on:** Sprint **8.1** ([`master-sprint-81-exit.md`](./master-sprint-81-exit.md)) — hourly booking calendar, deposit linkage, confirmation PDF  
@@ -192,6 +192,8 @@ Extend — do not replace — Sprint **8.1** bookings (`bookings` module, `booka
 ---
 
 ### 8.2F — Docs, tests, verification
+
+**Status:** **closed in-repo (2026-06-18)** — [`master-sprint-82-exit.md`](./master-sprint-82-exit.md).
 
 **Deliverables:**
 
