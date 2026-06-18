@@ -51,6 +51,7 @@ import {
   WorkspaceServiceCard,
   type WorkspaceNavItem,
 } from '../components/citizen-workspace-components';
+import { EvChargingWorkspace } from '../components/ev-charging-workspace';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
 import { InvoicesPanel } from '../components/invoices-panel';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
@@ -292,6 +293,7 @@ export default function HomePage(): JSX.Element {
   const [applyPaymentMethod, setApplyPaymentMethod] = useState<PaymentGatewayMethod>('upi');
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
   const [smartParkingFlowActive, setSmartParkingFlowActive] = useState(false);
+  const [evChargingFlowActive, setEvChargingFlowActive] = useState(false);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -1091,6 +1093,10 @@ export default function HomePage(): JSX.Element {
     return service.code === 'smart-parking';
   }
 
+  function isEvChargingService(service: ServiceSummary): boolean {
+    return service.code === 'ev-charging';
+  }
+
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues({});
@@ -1102,8 +1108,16 @@ export default function HomePage(): JSX.Element {
     setApplyDraftDocsReady(false);
     setApplyPendingPayment(null);
     setActiveTab('apply');
+    if (isEvChargingService(service)) {
+      setEvChargingFlowActive(true);
+      setSmartParkingFlowActive(false);
+      setBookingFlowActive(false);
+      setStatus(`EV charging — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
     if (isSmartParkingService(service)) {
       setSmartParkingFlowActive(true);
+      setEvChargingFlowActive(false);
       setBookingFlowActive(false);
       setStatus(`Reserve a bay — ${service.name[language] ?? service.name.en}`);
       return;
@@ -1111,11 +1125,13 @@ export default function HomePage(): JSX.Element {
     if (isBookingService(service)) {
       setBookingFlowActive(true);
       setSmartParkingFlowActive(false);
+      setEvChargingFlowActive(false);
       setStatus(`Book a slot — ${service.name[language] ?? service.name.en}`);
       return;
     }
     setBookingFlowActive(false);
     setSmartParkingFlowActive(false);
+    setEvChargingFlowActive(false);
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
 
@@ -2702,7 +2718,19 @@ export default function HomePage(): JSX.Element {
 
           {activeTab === 'apply' && (
             <section className="rounded-3xl bg-white p-6 shadow-sm">
-              {smartParkingFlowActive && token && selectedTenant ? (
+              {evChargingFlowActive && token && selectedTenant ? (
+                <EvChargingWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  onBack={() => {
+                    setEvChargingFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('EV charging flow cancelled.');
+                  }}
+                  onStatus={setStatus}
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                />
+              ) : smartParkingFlowActive && token && selectedTenant ? (
                 <SmartParkingWorkspace
                   apiBaseUrl={apiBaseUrl}
                   onBack={() => {
@@ -2743,6 +2771,7 @@ export default function HomePage(): JSX.Element {
                   onBack={() => {
                     setBookingFlowActive(false);
                     setSmartParkingFlowActive(false);
+                    setEvChargingFlowActive(false);
                     setActiveTab('services');
                     setStatus('Booking cancelled.');
                   }}

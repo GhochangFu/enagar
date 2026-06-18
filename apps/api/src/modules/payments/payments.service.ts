@@ -201,6 +201,9 @@ export class PaymentsService {
     if (payment.lease_invoice_id) {
       return this.completeLeaseStubPayment(principal, payment, dto);
     }
+    if (payment.ev_session_id) {
+      return this.completeEvChargingStubPayment(principal, payment, dto);
+    }
     if (!payment.application_id) {
       throw new BadRequestException('Payment is not linked to an application or booking hold');
     }
@@ -315,6 +318,57 @@ export class PaymentsService {
     });
     const serviceCode = this.resolveBookingServiceCodeFromNote(reservation.note);
     const service = await this.services.getTenantService(tenant.code, serviceCode);
+    const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
+    const ctx: SettlementLedgerContext = {
+      serviceCode: service.code,
+      revenueHeadCode: ledgerAllocation.revenue_head_code,
+      accountingCode: ledgerAllocation.accounting_code,
+    };
+
+    return this.store.settleStubLedger(principal, dto.payment_id, normalizedOrder, ctx);
+  }
+
+  /** Sprint 8.2D — stub capture for EV charging session settlement. */
+  private async completeEvChargingStubPayment(
+    principal: AuthenticatedPrincipal,
+    payment: PaymentResponse,
+    dto: StubCompletePaymentDto,
+  ): Promise<LedgerSettlementDto> {
+    if (this.gateway.id !== 'stub') {
+      throw new BadRequestException('Only the stub gateway supports synchronous completion');
+    }
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_STUB_PAYMENT_SETTLEMENT !== 'true'
+    ) {
+      throw new ForbiddenException('Stub payment settlement is disabled in production');
+    }
+
+    const expectedStubOrder = StubPaymentGateway.expectedOrderIdForPayment(dto.payment_id).trim();
+    const normalizedOrder = dto.gateway_order_id.trim();
+    if (
+      normalizedOrder !== expectedStubOrder ||
+      normalizedOrder !== payment.gateway_order_id.trim()
+    ) {
+      throw new BadRequestException('gateway_order_id does not match the stub redirect contract');
+    }
+    if (payment.status !== 'requires_action') {
+      throw new ConflictException('Payment is not awaiting deterministic completion');
+    }
+
+    const session = await this.prisma.evSession.findFirst({
+      where: { id: payment.ev_session_id ?? '', tenantId: payment.tenant_id },
+      select: { id: true, status: true },
+    });
+    if (!session) {
+      throw new NotFoundException('EV session not found for this payment');
+    }
+
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: payment.tenant_id },
+      select: { code: true },
+    });
+    const service = await this.services.getTenantService(tenant.code, 'ev-charging');
     const ledgerAllocation = this.services.resolveLedgerCodesForService(service);
     const ctx: SettlementLedgerContext = {
       serviceCode: service.code,

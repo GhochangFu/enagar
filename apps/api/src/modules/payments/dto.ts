@@ -43,6 +43,8 @@ export interface PaymentResponse {
    * show a "Rent" badge in the citizen Service-payments list.
    */
   lease_invoice_id?: string | null;
+  /** Set when payment was created for an EV charging session settlement. */
+  ev_session_id?: string | null;
   fee_code: PaymentFeeCode | string;
   amount_paise: number;
   currency: 'INR';

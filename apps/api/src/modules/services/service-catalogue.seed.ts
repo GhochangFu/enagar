@@ -156,6 +156,13 @@ export const revenueHeads: RevenueHeadSeed[] = [
     'स्मार्ट पार्किंग शुल्क',
     'NTAX_SMART_PARKING',
   ),
+  revenueHead(
+    'ev-charging-fee',
+    'EV Charging Fees',
+    'ইভি চার্জিং ফি',
+    'ईवी चार्जिंग शुल्क',
+    'RH-EV',
+  ),
   revenueHead('fine-penalty', 'Fines & Penalties', 'জরিমানা', 'जुर्माना', 'RH-FINE'),
   revenueHead('rti-fee', 'RTI Fees', 'আরটিআই ফি', 'आरटीआई शुल्क', 'RH-RTI'),
 ];
@@ -263,6 +270,28 @@ export const globalServices: GlobalServiceSeed[] = [
     payment_schedule: 'upfront_only',
     fee_lines: {
       application: feeLine('Parking fee', 'পার্কিং ফি', 'पार्किंग शुल्क', 3000),
+    },
+    required_documents: [],
+    pushes_to_digilocker: false,
+    popular: true,
+  },
+  {
+    code: 'ev-charging',
+    category_code: 'parking-transport',
+    revenue_head_code: 'ev-charging-fee',
+    name: label('EV Charging', 'ইভি চার্জিং', 'ईवी चार्जिंग'),
+    description: label(
+      'Reserve a charger slot and pay by kWh consumed.',
+      'চার্জার স্লট রিজার্ভ করে ব্যবহৃত kWh অনুযায়ী পরিশোধ করুন।',
+      'चार्जर स्लॉट आरक्षित करें और खपत kWh के आधार पर भुगतान करें।',
+    ),
+    workflow_pattern: 'tax-payment',
+    default_sla_days: null,
+    fee_type: 'computed',
+    fee_config: { currency: 'INR', unit: 'kwh' },
+    payment_schedule: 'upfront_and_deferred',
+    fee_lines: {
+      application: feeLine('EV charging fee', 'ইভি চার্জিং ফি', 'ईवी चार्जिंग शुल्क', 1500),
     },
     required_documents: [],
     pushes_to_digilocker: false,

@@ -139,6 +139,8 @@ model Tenant {
   leaseAgreementDocumentEvents LeaseAgreementDocumentEvent[]
   smartZones               SmartZone[]
   parkingBays              ParkingBay[]
+  evChargers               EvCharger[]
+  evSessions               EvSession[]
 
   @@map("tenants")
 }
@@ -208,6 +210,7 @@ model Citizen {
   challans           Challan[]
   grievances         Grievance[]
   leaseAgreements    LeaseAgreement[]
+  evSessions         EvSession[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -1027,6 +1030,8 @@ model Payment {
   bookingReservation   BookingReservation?   @relation(fields: [bookingReservationId], references: [id], onDelete: Cascade)
   leaseInvoiceId       String?               @map("lease_invoice_id") @db.Uuid
   leaseInvoice         LeaseInvoice?         @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
+  evSessionId          String?               @map("ev_session_id") @db.Uuid
+  evSession            EvSession?            @relation(fields: [evSessionId], references: [id], onDelete: SetNull)
   idempotencyRecords   PaymentIdempotencyKey[]
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   receipt              Receipt?
@@ -1039,6 +1044,7 @@ model Payment {
   @@index([tenantId, applicationId, status])
   @@index([tenantId, bookingReservationId])
   @@index([tenantId, leaseInvoiceId, status])
+  @@index([tenantId, evSessionId])
   @@map("payments")
 }
 
@@ -1070,6 +1076,7 @@ model Receipt {
   applicationId        String?              @map("application_id") @db.Uuid
   bookingReservationId String?              @map("booking_reservation_id") @db.Uuid
   leaseInvoiceId       String?              @map("lease_invoice_id") @db.Uuid
+  evSessionId          String?              @map("ev_session_id") @db.Uuid
   serviceCode          String               @map("service_code") @db.VarChar(80)
   amountPaise       Int         @map("amount_paise")
   currency          String      @default("INR") @db.Char(3)
@@ -1085,6 +1092,7 @@ model Receipt {
   application          Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)
   leaseInvoice         LeaseInvoice?        @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
+  evSession            EvSession?           @relation(fields: [evSessionId], references: [id], onDelete: SetNull)
   payment              Payment             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   glPosting            GlPosting?
@@ -1094,6 +1102,7 @@ model Receipt {
   @@index([tenantId, applicationId])
   @@index([tenantId, bookingReservationId])
   @@index([tenantId, leaseInvoiceId])
+  @@index([tenantId, evSessionId])
   @@map("receipts")
 }
 
@@ -1689,4 +1698,58 @@ model ParkingBay {
   @@unique([tenantId, zoneId, bayCode])
   @@index([tenantId, zoneId, status])
   @@map("parking_bays")
+}
+
+enum EvSessionStatus {
+  HELD
+  CHARGING
+  COMPLETED
+  CANCELLED
+}
+
+model EvCharger {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String      @map("tenant_id") @db.Uuid
+  code             String      @db.VarChar(80)
+  name             Json
+  location         Json        @default(dbgenerated("'{}'::jsonb"))
+  connectorType    String      @map("connector_type") @db.VarChar(20)
+  maxKw            Decimal     @map("max_kw") @db.Decimal(6, 2)
+  ratePaisePerKwh  Int         @map("rate_paise_per_kwh")
+  isActive         Boolean     @default(true) @map("is_active")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant           Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions         EvSession[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("ev_chargers")
+}
+
+model EvSession {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  chargerId      String          @map("charger_id") @db.Uuid
+  citizenId      String          @map("citizen_id") @db.Uuid
+  vehicleNumber  String?         @map("vehicle_number") @db.VarChar(20)
+  status         EvSessionStatus @default(HELD)
+  holdExpiresAt  DateTime?       @map("hold_expires_at") @db.Timestamptz(6)
+  startedAt      DateTime?       @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime?       @map("ended_at") @db.Timestamptz(6)
+  kwhConsumed    Decimal?        @map("kwh_consumed") @db.Decimal(10, 3)
+  amountPaise    Int?            @map("amount_paise")
+  paymentId      String?         @map("payment_id") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  charger        EvCharger       @relation(fields: [chargerId], references: [id], onDelete: Cascade)
+  citizen        Citizen         @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  payments       Payment[]
+  receipts       Receipt[]
+
+  @@index([tenantId, chargerId, status])
+  @@index([tenantId, citizenId, status])
+  @@index([tenantId, status, holdExpiresAt])
+  @@map("ev_sessions")
 }

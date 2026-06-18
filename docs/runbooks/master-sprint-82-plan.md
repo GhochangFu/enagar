@@ -147,6 +147,8 @@ Extend — do not replace — Sprint **8.1** bookings (`bookings` module, `booka
 
 ### 8.2D — EV charging slots & kWh metering (stub)
 
+**Status:** **8.2D-A/B/C closed in-repo (2026-06-18)** — implementation plan [`master-sprint-82d-plan.md`](./master-sprint-82d-plan.md) · exit evidence [`master-sprint-82d-exit.md`](./master-sprint-82d-exit.md). **Next:** 8.2D-D (Admin ops).
+
 **Deliverables:**
 
 | ID  | Deliverable                        | Detail                                                                                                                                                                                       |

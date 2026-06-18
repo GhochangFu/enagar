@@ -12,6 +12,7 @@ export interface CreatePendingPaymentInput {
   applicationId?: string;
   bookingReservationId?: string;
   leaseInvoiceId?: string;
+  evSessionId?: string;
   feeCode: FeeLineCode | string;
   amountPaise: number;
   method: PaymentMethod;
@@ -53,6 +54,7 @@ export interface PaymentStore {
   findActivePaymentByBookingReservation(
     bookingReservationId: string,
   ): Promise<PaymentResponse | null>;
+  findActivePaymentByEvSession(evSessionId: string): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;
   listByPrincipal(
     principal: AuthenticatedPrincipal,

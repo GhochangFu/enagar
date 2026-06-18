@@ -82,6 +82,15 @@ export class InMemoryPaymentStore implements PaymentStore {
     return null;
   }
 
+  async findActivePaymentByEvSession(evSessionId: string): Promise<PaymentResponse | null> {
+    for (const payment of this.payments.values()) {
+      if (payment.ev_session_id === evSessionId && payment.status === 'requires_action') {
+        return clonePayment(payment);
+      }
+    }
+    return null;
+  }
+
   async findActivePaymentByApplication(
     applicationId: string,
     feeCode?: FeeLineCode,
@@ -112,6 +121,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       application_id: input.applicationId ?? null,
       booking_reservation_id: input.bookingReservationId ?? null,
       lease_invoice_id: input.leaseInvoiceId ?? null,
+      ev_session_id: input.evSessionId ?? null,
       fee_code: input.feeCode,
       amount_paise: input.amountPaise,
       currency: 'INR',

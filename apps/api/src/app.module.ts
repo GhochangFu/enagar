@@ -17,6 +17,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { CitizenModule } from './modules/citizen/citizen.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { EvChargingModule } from './modules/ev-charging/ev-charging.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { GrievancesModule } from './modules/grievances/grievances.module';
 import { HealthModule } from './modules/health/health.module';
@@ -84,6 +85,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     RentalAssetsModule,
     RentalDocumentsModule,
     SmartParkingModule,
+    EvChargingModule,
     ServicesModule,
     TenantConfigModule,
     TenantsModule,

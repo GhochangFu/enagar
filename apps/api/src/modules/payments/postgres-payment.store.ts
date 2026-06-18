@@ -122,10 +122,24 @@ export class PostgresPaymentStore implements PaymentStore {
     return payment ? this.toPaymentResponse(payment) : null;
   }
 
+  async findActivePaymentByEvSession(evSessionId: string): Promise<PaymentResponse | null> {
+    const payment = await this.db.payment.findFirst({
+      where: {
+        evSessionId,
+        status: 'requires_action',
+      },
+    });
+    return payment ? this.toPaymentResponse(payment) : null;
+  }
+
   async createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse> {
     const payment = await this.db.$transaction(async (tx) => {
       if (!input.applicationId && !input.bookingReservationId) {
-        throw new BadRequestException('Payment must target an application or booking hold');
+        if (!input.leaseInvoiceId && !input.evSessionId) {
+          throw new BadRequestException(
+            'Payment must target an application, booking hold, lease invoice, or EV session',
+          );
+        }
       }
       const created = await tx.payment.create({
         data: {
@@ -134,6 +148,8 @@ export class PostgresPaymentStore implements PaymentStore {
           citizenSubject: input.citizenSubject,
           applicationId: input.applicationId ?? null,
           bookingReservationId: input.bookingReservationId ?? null,
+          leaseInvoiceId: input.leaseInvoiceId ?? null,
+          evSessionId: input.evSessionId ?? null,
           feeCode: input.feeCode,
           amountPaise: input.amountPaise,
           currency: 'INR',
@@ -277,6 +293,7 @@ export class PostgresPaymentStore implements PaymentStore {
           applicationId: paymentOwned.applicationId,
           bookingReservationId: paymentOwned.bookingReservationId,
           leaseInvoiceId: paymentOwned.leaseInvoiceId,
+          evSessionId: paymentOwned.evSessionId,
           serviceCode: ctx.serviceCode,
           amountPaise: paymentOwned.amountPaise,
           gateway: paymentOwned.gateway,
@@ -365,6 +382,7 @@ export class PostgresPaymentStore implements PaymentStore {
       application_id: row.applicationId,
       booking_reservation_id: row.bookingReservationId,
       lease_invoice_id: row.leaseInvoiceId,
+      ev_session_id: row.evSessionId,
       fee_code: row.feeCode as PaymentResponse['fee_code'],
       amount_paise: row.amountPaise,
       currency: 'INR',

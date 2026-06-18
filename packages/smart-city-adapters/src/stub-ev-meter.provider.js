@@ -1,0 +1,41 @@
+function parseIncrement(raw) {
+  if (!raw) {
+    return 5.5;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 5.5;
+  }
+  return parsed;
+}
+
+/**
+ * Sprint 8.2D deterministic EV meter stub.
+ * Each session starts at 0.000 kWh and increments by a fixed amount on stop.
+ */
+export class StubEvMeterProvider {
+  sessions = new Map();
+  increment;
+
+  constructor(incrementKwh) {
+    this.increment =
+      typeof incrementKwh === 'number' && Number.isFinite(incrementKwh) && incrementKwh > 0
+        ? incrementKwh
+        : parseIncrement(process.env.STUB_EV_KWH_INCREMENT);
+  }
+
+  async startMeter(sessionId) {
+    this.sessions.set(sessionId, 0);
+  }
+
+  async readMeter(sessionId) {
+    return this.sessions.get(sessionId) ?? 0;
+  }
+
+  async stopMeter(sessionId) {
+    const next = (this.sessions.get(sessionId) ?? 0) + this.increment;
+    const rounded = Number(next.toFixed(3));
+    this.sessions.set(sessionId, rounded);
+    return rounded;
+  }
+}
