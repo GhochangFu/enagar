@@ -32,6 +32,7 @@ import { SmartParkingModule } from './modules/smart-parking/smart-parking.module
 import { TenantConfigModule } from './modules/tenant-config/tenant-config.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { TransparencyModule } from './modules/transparency/transparency.module';
+import { WaterMeterModule } from './modules/water-meter/water-meter.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { TransparencyModule } from './modules/transparency/transparency.module';
     RentalDocumentsModule,
     SmartParkingModule,
     EvChargingModule,
+    WaterMeterModule,
     ServicesModule,
     TenantConfigModule,
     TenantsModule,

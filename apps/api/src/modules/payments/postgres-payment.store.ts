@@ -48,6 +48,7 @@ function mapPersistedReceipt(receiptRow: PrismaReceipt): ReceiptCitizenDto {
     payment_id: receiptRow.paymentId,
     application_id: receiptRow.applicationId,
     booking_reservation_id: receiptRow.bookingReservationId,
+    water_meter_recharge_id: receiptRow.waterMeterRechargeId,
     service_code: receiptRow.serviceCode,
     revenue_head_code: receiptRow.revenueHeadCode,
     amount_paise: receiptRow.amountPaise,
@@ -132,12 +133,24 @@ export class PostgresPaymentStore implements PaymentStore {
     return payment ? this.toPaymentResponse(payment) : null;
   }
 
+  async findActivePaymentByWaterMeterRecharge(
+    waterMeterRechargeId: string,
+  ): Promise<PaymentResponse | null> {
+    const payment = await this.db.payment.findFirst({
+      where: {
+        waterMeterRechargeId,
+        status: 'requires_action',
+      },
+    });
+    return payment ? this.toPaymentResponse(payment) : null;
+  }
+
   async createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse> {
     const payment = await this.db.$transaction(async (tx) => {
       if (!input.applicationId && !input.bookingReservationId) {
-        if (!input.leaseInvoiceId && !input.evSessionId) {
+        if (!input.leaseInvoiceId && !input.evSessionId && !input.waterMeterRechargeId) {
           throw new BadRequestException(
-            'Payment must target an application, booking hold, lease invoice, or EV session',
+            'Payment must target an application, booking hold, lease invoice, EV session, or water recharge',
           );
         }
       }
@@ -150,6 +163,7 @@ export class PostgresPaymentStore implements PaymentStore {
           bookingReservationId: input.bookingReservationId ?? null,
           leaseInvoiceId: input.leaseInvoiceId ?? null,
           evSessionId: input.evSessionId ?? null,
+          waterMeterRechargeId: input.waterMeterRechargeId ?? null,
           feeCode: input.feeCode,
           amountPaise: input.amountPaise,
           currency: 'INR',
@@ -294,6 +308,7 @@ export class PostgresPaymentStore implements PaymentStore {
           bookingReservationId: paymentOwned.bookingReservationId,
           leaseInvoiceId: paymentOwned.leaseInvoiceId,
           evSessionId: paymentOwned.evSessionId,
+          waterMeterRechargeId: paymentOwned.waterMeterRechargeId,
           serviceCode: ctx.serviceCode,
           amountPaise: paymentOwned.amountPaise,
           gateway: paymentOwned.gateway,
@@ -334,6 +349,33 @@ export class PostgresPaymentStore implements PaymentStore {
           await tx.deposit.update({
             where: { id: reservation.depositId },
             data: { capturePaymentId: paymentOwned.id },
+          });
+        }
+      }
+
+      if (paymentOwned.waterMeterRechargeId) {
+        const recharge = await tx.waterMeterRecharge.findFirst({
+          where: {
+            id: paymentOwned.waterMeterRechargeId,
+            tenantId: paymentOwned.tenantId,
+            status: 'PENDING',
+          },
+          select: { id: true, accountId: true, amountPaise: true },
+        });
+        if (recharge) {
+          const account = await tx.waterMeterAccount.update({
+            where: { id: recharge.accountId },
+            data: { balancePaise: { increment: recharge.amountPaise } },
+            select: { balancePaise: true },
+          });
+          await tx.waterMeterRecharge.update({
+            where: { id: recharge.id },
+            data: {
+              status: 'CREDITED',
+              paymentId: paymentOwned.id,
+              balanceAfterPaise: account.balancePaise,
+              creditedAt: new Date(),
+            },
           });
         }
       }
@@ -383,6 +425,7 @@ export class PostgresPaymentStore implements PaymentStore {
       booking_reservation_id: row.bookingReservationId,
       lease_invoice_id: row.leaseInvoiceId,
       ev_session_id: row.evSessionId,
+      water_meter_recharge_id: row.waterMeterRechargeId,
       fee_code: row.feeCode as PaymentResponse['fee_code'],
       amount_paise: row.amountPaise,
       currency: 'INR',

@@ -91,6 +91,20 @@ export class InMemoryPaymentStore implements PaymentStore {
     return null;
   }
 
+  async findActivePaymentByWaterMeterRecharge(
+    waterMeterRechargeId: string,
+  ): Promise<PaymentResponse | null> {
+    for (const payment of this.payments.values()) {
+      if (
+        payment.water_meter_recharge_id === waterMeterRechargeId &&
+        payment.status === 'requires_action'
+      ) {
+        return clonePayment(payment);
+      }
+    }
+    return null;
+  }
+
   async findActivePaymentByApplication(
     applicationId: string,
     feeCode?: FeeLineCode,
@@ -122,6 +136,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       booking_reservation_id: input.bookingReservationId ?? null,
       lease_invoice_id: input.leaseInvoiceId ?? null,
       ev_session_id: input.evSessionId ?? null,
+      water_meter_recharge_id: input.waterMeterRechargeId ?? null,
       fee_code: input.feeCode,
       amount_paise: input.amountPaise,
       currency: 'INR',
@@ -225,6 +240,7 @@ export class InMemoryPaymentStore implements PaymentStore {
       payment_id: paymentId,
       application_id: paymentRow.application_id,
       booking_reservation_id: paymentRow.booking_reservation_id,
+      water_meter_recharge_id: paymentRow.water_meter_recharge_id,
       service_code: ctx.serviceCode,
       revenue_head_code: ctx.revenueHeadCode,
       amount_paise: paymentRow.amount_paise,

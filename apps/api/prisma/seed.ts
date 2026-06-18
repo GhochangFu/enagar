@@ -217,6 +217,19 @@ const priorityServiceFormSchemas = [
   },
   {
     schema_version: 1,
+    service_code: 'iot-water',
+    version: 1,
+    title: label('IoT Water Recharge', 'আইওটি জল রিচার্জ', 'आईओटी जल रिचार्ज'),
+    fields: [
+      text('meter_id', 'Meter ID', 'মিটার আইডি', 'मीटर आईडी', {
+        required: true,
+        min_length: 3,
+        max_length: 80,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
     service_code: 'rti',
     version: 1,
     title: label('RTI Application', 'আরটিআই আবেদন', 'आरटीआई आवेदन'),
@@ -1102,6 +1115,9 @@ async function main(): Promise<void> {
     const { seedEvChargingForKmc } = await import('./seed/ev-charging');
     await seedEvChargingForKmc(prisma);
     console.info('Seeded Sprint 8.2D KMC EV charging pilot chargers');
+    const { seedWaterMetersForKmc } = await import('./seed/water-meters');
+    await seedWaterMetersForKmc(prisma);
+    console.info('Seeded Sprint 8.2E KMC IoT water meter pilot accounts');
     const kbCount = await seedSahayakServiceHelpArticles(prisma);
     console.info(`Seeded ${kbCount} Sahayak service-help KB articles (all ULBs)`);
     await seedChatbotTenantConfig(prisma);

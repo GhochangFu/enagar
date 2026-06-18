@@ -170,6 +170,8 @@ Extend — do not replace — Sprint **8.1** bookings (`bookings` module, `booka
 
 ### 8.2E — IoT water meter prepaid recharge (stub)
 
+**Status:** **implemented in-repo (2026-06-18)** — exit evidence [`master-sprint-82e-exit.md`](./master-sprint-82e-exit.md); local smokes green.
+
 **Deliverables:**
 
 | ID  | Deliverable                       | Detail                                                                                                                                                     |

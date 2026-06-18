@@ -298,6 +298,28 @@ export const globalServices: GlobalServiceSeed[] = [
     popular: true,
   },
   {
+    code: 'iot-water',
+    category_code: 'water-sanitation',
+    revenue_head_code: 'water-charges',
+    name: label('IoT Water Recharge', 'আইওটি জল রিচার্জ', 'आईओटी जल रिचार्ज'),
+    description: label(
+      'Check meter balance and recharge prepaid water credit.',
+      'মিটারের ব্যালেন্স দেখুন এবং প্রিপেইড জল ক্রেডিট রিচার্জ করুন।',
+      'मीटर बैलेंस देखें और प्रीपेड जल क्रेडिट रिचार्ज करें।',
+    ),
+    workflow_pattern: 'tax-payment',
+    default_sla_days: null,
+    fee_type: 'computed',
+    fee_config: { currency: 'INR', unit: 'prepaid_credit' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Water recharge', 'জল রিচার্জ', 'जल रिचार्ज', 50000),
+    },
+    required_documents: [],
+    pushes_to_digilocker: false,
+    popular: true,
+  },
+  {
     code: 'other-facility-booking',
     category_code: 'bookings',
     revenue_head_code: 'booking-fee',

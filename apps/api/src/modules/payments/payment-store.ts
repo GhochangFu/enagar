@@ -13,6 +13,7 @@ export interface CreatePendingPaymentInput {
   bookingReservationId?: string;
   leaseInvoiceId?: string;
   evSessionId?: string;
+  waterMeterRechargeId?: string;
   feeCode: FeeLineCode | string;
   amountPaise: number;
   method: PaymentMethod;
@@ -55,6 +56,9 @@ export interface PaymentStore {
     bookingReservationId: string,
   ): Promise<PaymentResponse | null>;
   findActivePaymentByEvSession(evSessionId: string): Promise<PaymentResponse | null>;
+  findActivePaymentByWaterMeterRecharge(
+    waterMeterRechargeId: string,
+  ): Promise<PaymentResponse | null>;
   createPendingPayment(input: CreatePendingPaymentInput): Promise<PaymentResponse>;
   listByPrincipal(
     principal: AuthenticatedPrincipal,

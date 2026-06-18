@@ -141,6 +141,8 @@ model Tenant {
   parkingBays              ParkingBay[]
   evChargers               EvCharger[]
   evSessions               EvSession[]
+  waterMeterAccounts       WaterMeterAccount[]
+  waterMeterRecharges      WaterMeterRecharge[]
 
   @@map("tenants")
 }
@@ -211,6 +213,7 @@ model Citizen {
   grievances         Grievance[]
   leaseAgreements    LeaseAgreement[]
   evSessions         EvSession[]
+  waterMeterAccounts WaterMeterAccount[]
 
   @@unique([tenantId, mobile])
   @@unique([tenantId, keycloakSubject])
@@ -1032,6 +1035,9 @@ model Payment {
   leaseInvoice         LeaseInvoice?         @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
   evSessionId          String?               @map("ev_session_id") @db.Uuid
   evSession            EvSession?            @relation(fields: [evSessionId], references: [id], onDelete: SetNull)
+  waterMeterRechargeId String?               @map("water_meter_recharge_id") @db.Uuid
+  waterMeterRecharge   WaterMeterRecharge?   @relation("WaterMeterRechargePaymentTarget", fields: [waterMeterRechargeId], references: [id], onDelete: SetNull)
+  waterMeterRechargeSettled WaterMeterRecharge? @relation("WaterMeterRechargeSettledPayment")
   idempotencyRecords   PaymentIdempotencyKey[]
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   receipt              Receipt?
@@ -1045,6 +1051,7 @@ model Payment {
   @@index([tenantId, bookingReservationId])
   @@index([tenantId, leaseInvoiceId, status])
   @@index([tenantId, evSessionId])
+  @@index([tenantId, waterMeterRechargeId])
   @@map("payments")
 }
 
@@ -1077,6 +1084,7 @@ model Receipt {
   bookingReservationId String?              @map("booking_reservation_id") @db.Uuid
   leaseInvoiceId       String?              @map("lease_invoice_id") @db.Uuid
   evSessionId          String?              @map("ev_session_id") @db.Uuid
+  waterMeterRechargeId String?              @map("water_meter_recharge_id") @db.Uuid
   serviceCode          String               @map("service_code") @db.VarChar(80)
   amountPaise       Int         @map("amount_paise")
   currency          String      @default("INR") @db.Char(3)
@@ -1093,6 +1101,7 @@ model Receipt {
   bookingReservation   BookingReservation? @relation(fields: [bookingReservationId], references: [id], onDelete: SetNull)
   leaseInvoice         LeaseInvoice?        @relation(fields: [leaseInvoiceId], references: [id], onDelete: SetNull)
   evSession            EvSession?           @relation(fields: [evSessionId], references: [id], onDelete: SetNull)
+  waterMeterRecharge   WaterMeterRecharge?  @relation(fields: [waterMeterRechargeId], references: [id], onDelete: SetNull)
   payment              Payment             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   glPosting            GlPosting?
@@ -1103,6 +1112,7 @@ model Receipt {
   @@index([tenantId, bookingReservationId])
   @@index([tenantId, leaseInvoiceId])
   @@index([tenantId, evSessionId])
+  @@index([tenantId, waterMeterRechargeId])
   @@map("receipts")
 }
 
@@ -1707,6 +1717,12 @@ enum EvSessionStatus {
   CANCELLED
 }
 
+enum WaterMeterRechargeStatus {
+  PENDING
+  CREDITED
+  CANCELLED
+}
+
 model EvCharger {
   id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String      @map("tenant_id") @db.Uuid
@@ -1752,4 +1768,49 @@ model EvSession {
   @@index([tenantId, citizenId, status])
   @@index([tenantId, status, holdExpiresAt])
   @@map("ev_sessions")
+}
+
+model WaterMeterAccount {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  citizenId         String?                @map("citizen_id") @db.Uuid
+  meterId           String                 @map("meter_id") @db.VarChar(80)
+  consumerName      String                 @map("consumer_name") @db.VarChar(160)
+  consumerPhone     String?                @map("consumer_phone") @db.VarChar(15)
+  balancePaise      Int                    @default(0) @map("balance_paise")
+  lastReadingLitres Int?                   @map("last_reading_litres")
+  lastReadingAt     DateTime?              @map("last_reading_at") @db.Timestamptz(6)
+  isActive          Boolean                @default(true) @map("is_active")
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  citizen           Citizen?               @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  recharges         WaterMeterRecharge[]
+
+  @@unique([tenantId, meterId])
+  @@index([tenantId, consumerPhone])
+  @@index([tenantId, isActive])
+  @@map("water_meter_accounts")
+}
+
+model WaterMeterRecharge {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  accountId         String                   @map("account_id") @db.Uuid
+  citizenSubject    String                   @map("citizen_subject") @db.VarChar(255)
+  amountPaise       Int                      @map("amount_paise")
+  status            WaterMeterRechargeStatus @default(PENDING)
+  paymentId         String?                  @unique @map("payment_id") @db.Uuid
+  balanceAfterPaise Int?                     @map("balance_after_paise")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  creditedAt        DateTime?                @map("credited_at") @db.Timestamptz(6)
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account           WaterMeterAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  payment           Payment?                 @relation("WaterMeterRechargeSettledPayment", fields: [paymentId], references: [id], onDelete: SetNull)
+  targetPayments    Payment[]                @relation("WaterMeterRechargePaymentTarget")
+  receipts          Receipt[]
+
+  @@index([tenantId, accountId, createdAt(sort: Desc)])
+  @@index([tenantId, status, createdAt])
+  @@map("water_meter_recharges")
 }

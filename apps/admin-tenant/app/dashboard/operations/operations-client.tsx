@@ -13,6 +13,7 @@ import { RecordListItem, RecordListPanel } from '../../../components/record-list
 import { SectionNav } from '../../../components/section-nav';
 import { SmartParkingOpsPanel } from '../../../components/smart-parking-ops-panel';
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
+import { WaterMeterOpsPanel } from '../../../components/water-meter-ops-panel';
 import { clearStoredAuth } from '../../../lib/admin-auth';
 import { addDaysYmd, istWindowToIso, ymdTodayIst } from '../../../lib/bookings-calendar.util';
 
@@ -27,6 +28,7 @@ type OperationsSection =
   | 'bookings'
   | 'smart-parking'
   | 'ev-charging'
+  | 'iot-water'
   | 'staff'
   | 'grievances';
 
@@ -39,6 +41,7 @@ const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'bookings', label: 'Bookings' },
   { id: 'smart-parking', label: 'Smart Parking' },
   { id: 'ev-charging', label: 'EV Charging' },
+  { id: 'iot-water', label: 'IoT Water' },
   { id: 'staff', label: 'Staff & roles' },
   { id: 'grievances', label: 'Grievance SLA & routing' },
 ];
@@ -2418,6 +2421,8 @@ export default function OperationsClient(): JSX.Element {
           {opsSection === 'smart-parking' ? <SmartParkingOpsPanel /> : null}
 
           {opsSection === 'ev-charging' ? <EvChargingOpsPanel /> : null}
+
+          {opsSection === 'iot-water' ? <WaterMeterOpsPanel /> : null}
         </div>
       </div>
     </div>

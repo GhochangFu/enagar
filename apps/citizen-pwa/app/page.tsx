@@ -58,6 +58,7 @@ import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { SmartParkingWorkspace } from '../components/smart-parking-workspace';
 import { TenantBanners } from '../components/tenant-banners';
+import { WaterMeterRechargeWorkspace } from '../components/water-meter-recharge-workspace';
 import { applyFieldExamplesToRenderPlan, fieldExamplesForSchema } from '../lib/form-field-examples';
 import { applicationFeePaid } from '../lib/payment-eligibility';
 import {
@@ -294,6 +295,7 @@ export default function HomePage(): JSX.Element {
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
   const [smartParkingFlowActive, setSmartParkingFlowActive] = useState(false);
   const [evChargingFlowActive, setEvChargingFlowActive] = useState(false);
+  const [waterMeterFlowActive, setWaterMeterFlowActive] = useState(false);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -1097,6 +1099,10 @@ export default function HomePage(): JSX.Element {
     return service.code === 'ev-charging';
   }
 
+  function isWaterMeterService(service: ServiceSummary): boolean {
+    return service.code === 'iot-water';
+  }
+
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues({});
@@ -1112,13 +1118,23 @@ export default function HomePage(): JSX.Element {
       setEvChargingFlowActive(true);
       setSmartParkingFlowActive(false);
       setBookingFlowActive(false);
+      setWaterMeterFlowActive(false);
       setStatus(`EV charging — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
+    if (isWaterMeterService(service)) {
+      setWaterMeterFlowActive(true);
+      setEvChargingFlowActive(false);
+      setSmartParkingFlowActive(false);
+      setBookingFlowActive(false);
+      setStatus(`Water recharge — ${service.name[language] ?? service.name.en}`);
       return;
     }
     if (isSmartParkingService(service)) {
       setSmartParkingFlowActive(true);
       setEvChargingFlowActive(false);
       setBookingFlowActive(false);
+      setWaterMeterFlowActive(false);
       setStatus(`Reserve a bay — ${service.name[language] ?? service.name.en}`);
       return;
     }
@@ -1126,12 +1142,14 @@ export default function HomePage(): JSX.Element {
       setBookingFlowActive(true);
       setSmartParkingFlowActive(false);
       setEvChargingFlowActive(false);
+      setWaterMeterFlowActive(false);
       setStatus(`Book a slot — ${service.name[language] ?? service.name.en}`);
       return;
     }
     setBookingFlowActive(false);
     setSmartParkingFlowActive(false);
     setEvChargingFlowActive(false);
+    setWaterMeterFlowActive(false);
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
   }
 
@@ -2730,6 +2748,18 @@ export default function HomePage(): JSX.Element {
                   tenantCode={selectedTenant.code}
                   token={token}
                 />
+              ) : waterMeterFlowActive && token && selectedTenant ? (
+                <WaterMeterRechargeWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  onBack={() => {
+                    setWaterMeterFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('Water recharge flow cancelled.');
+                  }}
+                  onStatus={setStatus}
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                />
               ) : smartParkingFlowActive && token && selectedTenant ? (
                 <SmartParkingWorkspace
                   apiBaseUrl={apiBaseUrl}
@@ -2772,6 +2802,7 @@ export default function HomePage(): JSX.Element {
                     setBookingFlowActive(false);
                     setSmartParkingFlowActive(false);
                     setEvChargingFlowActive(false);
+                    setWaterMeterFlowActive(false);
                     setActiveTab('services');
                     setStatus('Booking cancelled.');
                   }}

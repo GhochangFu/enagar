@@ -45,6 +45,8 @@ export interface PaymentResponse {
   lease_invoice_id?: string | null;
   /** Set when payment was created for an EV charging session settlement. */
   ev_session_id?: string | null;
+  /** Set when payment was created for an IoT water meter prepaid recharge. */
+  water_meter_recharge_id?: string | null;
   fee_code: PaymentFeeCode | string;
   amount_paise: number;
   currency: 'INR';
@@ -78,6 +80,7 @@ export interface ReceiptCitizenDto {
   payment_id: string;
   application_id: string | null;
   booking_reservation_id?: string | null;
+  water_meter_recharge_id?: string | null;
   service_code: string;
   revenue_head_code: string;
   amount_paise: number;

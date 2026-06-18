@@ -24,6 +24,7 @@ export function receiptToCitizenDto(input: {
   payment_id: string;
   application_id: string | null;
   booking_reservation_id?: string | null;
+  water_meter_recharge_id?: string | null;
   service_code: string;
   revenue_head_code: string;
   amount_paise: number;
@@ -38,6 +39,7 @@ export function receiptToCitizenDto(input: {
     payment_id: input.payment_id,
     application_id: input.application_id,
     booking_reservation_id: input.booking_reservation_id ?? null,
+    water_meter_recharge_id: input.water_meter_recharge_id ?? null,
     service_code: input.service_code,
     revenue_head_code: input.revenue_head_code,
     amount_paise: input.amount_paise,
