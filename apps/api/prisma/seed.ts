@@ -288,6 +288,75 @@ const priorityServiceFormSchemas = [
         accept: ['application/pdf', 'image/jpeg', 'image/png'],
         max_size_mb: 10,
       }),
+      textarea(
+        'hoarding_calculator_snapshot',
+        'Calculator quote snapshot (system)',
+        'ক্যালকুলেটর কোট স্ন্যাপশট',
+        'कैलकुलेटर कोट स्नैपशॉट',
+        {
+          required: false,
+          min_length: 0,
+          max_length: 4000,
+        },
+      ),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'ad-led',
+    version: 1,
+    title: label('LED Board Booking', 'এলইডি বোর্ড বুকিং', 'LED बोर्ड बुकिंग'),
+    fields: [
+      text('applicant_name', 'Applicant name', 'আবেদনকারীর নাম', 'आवेदक का नाम', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      text('mobile', 'Mobile number', 'মোবাইল নম্বর', 'मोबाइल नंबर', {
+        required: true,
+        pattern: '^[6-9][0-9]{9}$',
+      }),
+      text('contact_email', 'Contact email', 'যোগাযোগের ইমেইল', 'संपर्क ईमेल', {
+        required: false,
+        min_length: 0,
+        max_length: 120,
+      }),
+      text('organization_name', 'Organization / advertiser', 'প্রতিষ্ঠান / বিজ্ঞাপনদাতা', 'संगठन / विज्ञापनदाता', {
+        required: true,
+        min_length: 2,
+        max_length: 160,
+      }),
+      textarea('contact_address', 'Contact address', 'যোগাযোগের ঠিকানা', 'संपर्क पता', {
+        required: true,
+        min_length: 10,
+        max_length: 300,
+      }),
+      text('campaign_title', 'Campaign title', 'ক্যাম্পেইন শিরোনাম', 'अभियान शीर्षक', {
+        required: true,
+        min_length: 2,
+        max_length: 120,
+      }),
+      textarea('campaign_description', 'Campaign content summary', 'ক্যাম্পেইন বিষয়বস্তু', 'अभियान विवरण', {
+        required: true,
+        min_length: 10,
+        max_length: 1000,
+      }),
+      fileField('creative_mock', 'Creative mock-up', 'ক্রিয়েটিভ মক-আপ', 'क्रिएटिव मॉक-अप', {
+        required: true,
+        accept: ['application/pdf', 'image/jpeg', 'image/png'],
+        max_size_mb: 10,
+      }),
+      textarea(
+        'led_booking_snapshot',
+        'LED slot quote snapshot (system)',
+        'এলইডি স্লট কোট স্ন্যাপশট',
+        'LED स्लॉट कोट स्नैपशॉट',
+        {
+          required: false,
+          min_length: 0,
+          max_length: 4000,
+        },
+      ),
     ],
   },
   {
@@ -346,6 +415,42 @@ const priorityServiceFormSchemas = [
         required: true,
         min_length: 10,
         max_length: 2000,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'ambulance',
+    version: 1,
+    title: label('Municipal Ambulance Booking', 'পৌর অ্যাম্বুলেন্স বুকিং', 'नगरपालिका एम्बुलेंस बुकिंग'),
+    fields: [
+      text('pickup_address', 'Pickup address', 'পিকআপ ঠিকানা', 'पिकअप पता', {
+        required: true,
+        min_length: 5,
+        max_length: 300,
+      }),
+      text('contact_mobile', 'Contact mobile', 'যোগাযোগ মোবাইল', 'संपर्क मोबाइल', {
+        required: true,
+        min_length: 10,
+        max_length: 15,
+      }),
+    ],
+  },
+  {
+    schema_version: 1,
+    service_code: 'hearse',
+    version: 1,
+    title: label('Hearse Van Booking', 'শবযান ভ্যান বুকিং', 'शववाहन वैन बुकिंग'),
+    fields: [
+      text('contact_mobile', 'Contact mobile', 'যোগাযোগ মোবাইল', 'संपर्क मोबाइल', {
+        required: true,
+        min_length: 10,
+        max_length: 15,
+      }),
+      fileField('bpl_card', 'BPL card (optional)', 'বিপিএল কার্ড (ঐচ্ছিক)', 'बीपीएल कार्ड (वैकल्पिक)', {
+        required: false,
+        accept: ['image/jpeg', 'image/png', 'application/pdf'],
+        max_size_mb: 5,
       }),
     ],
   },
@@ -1108,6 +1213,12 @@ async function main(): Promise<void> {
     console.info('Seeded service catalogue for operational tenants');
     const { seedBookableAssetsForKmc } = await import('./seed/bookable-assets');
     await seedBookableAssetsForKmc(prisma);
+    const { seedLedBookableAssetsForKmc } = await import('./seed/led-bookable-assets');
+    await seedLedBookableAssetsForKmc(prisma);
+    const { seedHealthBookableAssetsForKmc } = await import('./seed/health-bookable-assets');
+    await seedHealthBookableAssetsForKmc(prisma);
+    console.info('Seeded Sprint 8.5E KMC health fleet and ambulance/hearse service links');
+    console.info('Seeded Sprint 8.5C KMC LED boards and ad-led service link');
     console.info('Seeded Sprint 8.1A KMC bookable hall asset and availability');
     const { seedSmartParkingForKmc } = await import('./seed/smart-parking');
     await seedSmartParkingForKmc(prisma);

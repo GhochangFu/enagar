@@ -35,6 +35,27 @@ export type BookingHold = {
   rent_paise: number;
   deposit_paise: number;
   hold_expires_at: string;
+  assigned_asset_code?: string;
+  emergency?: boolean;
+};
+
+export type FleetPoolSlot = {
+  starts_at: string;
+  ends_at: string;
+  status: 'free' | 'taken';
+  available_units: number;
+};
+
+export type FleetBookingQuote = {
+  service_code: string;
+  starts_at: string;
+  ends_at: string;
+  rate_unit: string;
+  rent_paise: number;
+  deposit_paise: number;
+  total_paise: number;
+  revenue_head_code: string | null;
+  assigned_asset_code?: string;
 };
 
 export type BookingReservation = {
@@ -45,6 +66,24 @@ export type BookingReservation = {
   starts_at: string;
   ends_at: string;
   deposit_id: string | null;
+};
+
+export type CitizenBookingListItem = {
+  id: string;
+  booking_no: string | null;
+  tenant_code: string;
+  service_code: string | null;
+  service_label: string;
+  asset_type: string;
+  status: string;
+  starts_at: string;
+  ends_at: string;
+  holder_name: string;
+  rent_paise: number;
+  deposit_paise: number;
+  emergency: boolean;
+  pickup_address: string | null;
+  can_download_receipt: boolean;
 };
 
 export type BookingHoldPayment = {
@@ -71,6 +110,80 @@ export function bookingNoToPdfPathRef(bookingNo: string): string {
 
 export function bookingConfirmationPdfPath(apiBaseUrl: string, ref: string): string {
   return `${apiBase(apiBaseUrl)}/citizen/bookings/${encodeURIComponent(ref)}/confirmation.pdf`;
+}
+
+export function isHealthFleetServiceCode(serviceCode: string | null | undefined): boolean {
+  const code = serviceCode?.trim().toLowerCase();
+  return code === 'ambulance' || code === 'hearse';
+}
+
+export async function fetchFleetAvailability(
+  apiBaseUrl: string,
+  tenantCode: string,
+  serviceCode: string,
+  from: string,
+  to: string,
+): Promise<FleetPoolSlot[]> {
+  const url = new URL(`${apiBase(apiBaseUrl)}/public/bookings/fleet-availability`);
+  url.searchParams.set('tenant_code', tenantCode);
+  url.searchParams.set('service_code', serviceCode.trim());
+  url.searchParams.set('from', from);
+  url.searchParams.set('to', to);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  const body = (await response.json()) as { slots: FleetPoolSlot[] };
+  return body.slots;
+}
+
+export async function quoteFleetBooking(
+  apiBaseUrl: string,
+  token: TokenResponse,
+  tenantScopeCode: string,
+  payload: {
+    tenant_code: string;
+    service_code: string;
+    starts_at: string;
+    ends_at: string;
+  },
+): Promise<FleetBookingQuote> {
+  const response = await fetch(`${apiBase(apiBaseUrl)}/citizen/bookings/fleet/quote`, {
+    method: 'POST',
+    headers: authHeaders(token, true, tenantScopeCode),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  return (await response.json()) as FleetBookingQuote;
+}
+
+export async function createFleetBookingHold(
+  apiBaseUrl: string,
+  token: TokenResponse,
+  tenantScopeCode: string,
+  payload: {
+    tenant_code: string;
+    service_code: string;
+    starts_at: string;
+    ends_at: string;
+    holder_name?: string;
+    holder_mobile?: string;
+    pickup_address?: Record<string, string>;
+    emergency?: boolean;
+    bpl_declared?: boolean;
+  },
+): Promise<BookingHold> {
+  const response = await fetch(`${apiBase(apiBaseUrl)}/citizen/bookings/holds`, {
+    method: 'POST',
+    headers: authHeaders(token, true, tenantScopeCode),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  return (await response.json()) as BookingHold;
 }
 
 export async function fetchPublicBookableAssets(
@@ -316,6 +429,28 @@ export async function confirmBookingHold(
     throw new Error(await readApiError(response));
   }
   return (await response.json()) as BookingReservation;
+}
+
+export async function fetchCitizenBookings(
+  apiBaseUrl: string,
+  token: TokenResponse,
+  tenantScopeCode?: string,
+  options?: { status?: 'confirmed' | 'hold' | 'cancelled'; limit?: number },
+): Promise<CitizenBookingListItem[]> {
+  const url = new URL(`${apiBase(apiBaseUrl)}/citizen/bookings`);
+  if (options?.status) {
+    url.searchParams.set('status', options.status);
+  }
+  if (options?.limit) {
+    url.searchParams.set('limit', String(options.limit));
+  }
+  const response = await fetch(url.toString(), {
+    headers: authHeaders(token, false, tenantScopeCode),
+  });
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  return (await response.json()) as CitizenBookingListItem[];
 }
 
 export async function downloadBookingConfirmationPdf(

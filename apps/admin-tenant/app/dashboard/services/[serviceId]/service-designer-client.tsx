@@ -54,7 +54,7 @@ import {
 
 import {
   BookableAssetsMappingPanel,
-  workflowDefinitionIsBooking,
+  serviceShowsBookableAssetMapping,
 } from './bookable-assets-mapping-panel';
 import { ServiceConfigPanel, coerceDocuments, type FeeLinesDraft } from './service-config-panel';
 
@@ -114,6 +114,7 @@ type ServiceConfigResponse = {
 type BookableAssetRow = {
   code: string;
   name: unknown;
+  asset_type?: string;
   is_active: boolean;
 };
 
@@ -875,7 +876,11 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     await loadDesigner();
   }
 
-  const showBookableAssetsPanel = workflowDefinitionIsBooking(parsedWorkflow.workflow);
+  const showBookableAssetsPanel = serviceShowsBookableAssetMapping(
+    designer?.workflow_pattern,
+    parsedWorkflow.workflow,
+    designer?.service.code,
+  );
 
   if (!token || !designer || !serviceConfig) {
     return (

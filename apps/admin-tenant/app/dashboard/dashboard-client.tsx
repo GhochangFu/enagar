@@ -21,6 +21,10 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import { DashboardTrendsChart } from '../../components/dashboard-trends-chart';
+import {
+  BookingSummaryPanel,
+  type BookingSummaryResponse,
+} from '../../components/booking-summary-panel';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
 
 import type { Route } from 'next';
@@ -102,6 +106,7 @@ export default function DashboardClient(): JSX.Element {
   const { token, apiBase } = useTenantAdminSession();
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [dashboardDeep, setDashboardDeep] = useState<DashboardDeep | null>(null);
+  const [bookingSummary, setBookingSummary] = useState<BookingSummaryResponse | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [slaDrafts, setSlaDrafts] = useState<Record<string, string>>({});
   const [tableQuery, setTableQuery] = useState('');
@@ -119,13 +124,19 @@ export default function DashboardClient(): JSX.Element {
       return;
     }
     try {
-      const [dashRes, deepRes, svcRes] = await Promise.all([
+      const [dashRes, deepRes, bookingSummaryRes, svcRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/dashboard`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/dashboard/deep`, { headers: authHeaders() }),
+        fetch(`${apiBase}/admin/tenant/dashboard/booking-summary`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/services`, { headers: authHeaders() }),
       ]);
-      if (!dashRes.ok || !deepRes.ok || !svcRes.ok) {
-        if (dashRes.status === 403 || deepRes.status === 403 || svcRes.status === 403) {
+      if (!dashRes.ok || !deepRes.ok || !bookingSummaryRes.ok || !svcRes.ok) {
+        if (
+          dashRes.status === 403 ||
+          deepRes.status === 403 ||
+          bookingSummaryRes.status === 403 ||
+          svcRes.status === 403
+        ) {
           const deskRes = await fetch(`${apiBase}/admin/tenant/desk/me`, {
             headers: authHeaders(),
           });
@@ -140,9 +151,11 @@ export default function DashboardClient(): JSX.Element {
       }
       const dashJson = (await dashRes.json()) as DashboardSnapshot;
       const deepJson = (await deepRes.json()) as DashboardDeep;
+      const bookingSummaryJson = (await bookingSummaryRes.json()) as BookingSummaryResponse;
       const svcJson = (await svcRes.json()) as ServiceRow[];
       setDashboard(dashJson);
       setDashboardDeep(deepJson);
+      setBookingSummary(bookingSummaryJson);
       setServices(svcJson);
       const drafts: Record<string, string> = {};
       for (const row of svcJson) {
@@ -265,6 +278,8 @@ export default function DashboardClient(): JSX.Element {
       ) : (
         <p className="text-ink-secondary">Loading KPIs…</p>
       )}
+
+      <BookingSummaryPanel summary={bookingSummary} />
 
       {dashboardDeep ? (
         <section className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">

@@ -96,6 +96,12 @@ export class AdminTenantController {
     return this.adminTenant.getDashboardDeep(principal);
   }
 
+  @Get('dashboard/booking-summary')
+  @ApiOperation({ summary: 'Tenant booking summary for dashboard (Sprint 8.5F2)' })
+  getBookingSummary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getBookingSummary(principal);
+  }
+
   @Get('desk/me')
   @ApiOperation({ summary: 'Current Tenant Desk operator profile and role scope' })
   getDeskMe(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

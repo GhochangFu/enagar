@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -19,12 +20,20 @@ import {
   BookingCancelDto,
   BookingConfirmHoldDto,
   BookingCreateHoldDto,
+  BookingFleetQuoteDto,
   BookingLinkApplicationDto,
+  BookingListQueryDto,
   BookingQuoteDto,
   InitiateBookingHoldPaymentDto,
 } from './dto/bookings.dto';
 
+import type { ApplicationReadScope } from '../applications/dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
+
+function readScopeFromHeader(value?: string): ApplicationReadScope | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? { municipalityTenantCode: trimmed } : undefined;
+}
 
 @ApiTags('bookings')
 @ApiBearerAuth()
@@ -44,6 +53,12 @@ export class CitizenBookingsController {
   @ApiOperation({ summary: 'Quote rent and deposit for a slot range (Sprint 8.1B)' })
   quote(@Body() dto: BookingQuoteDto) {
     return this.bookings.quote(dto);
+  }
+
+  @Post('fleet/quote')
+  @ApiOperation({ summary: 'Quote health fleet slot without selecting a vehicle (Sprint 8.5E)' })
+  fleetQuote(@Body() dto: BookingFleetQuoteDto) {
+    return this.bookings.fleetQuote(dto);
   }
 
   @Post('holds')
@@ -106,6 +121,19 @@ export class CitizenBookingsController {
     @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
   ) {
     return this.bookings.confirmHold(principal, holdId, dto, municipalityTenantCode);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List citizen bookings (Sprint 8.5F2)' })
+  list(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query() query: BookingListQueryDto,
+    @Headers(CITIZEN_MUNICIPALITY_SCOPE_HEADER) municipalityTenantCode?: string,
+  ) {
+    return this.bookings.listReservationsForCitizen(principal, readScopeFromHeader(municipalityTenantCode), {
+      status: query.status,
+      limit: query.limit,
+    });
   }
 
   @Get(':ref/confirmation.pdf')

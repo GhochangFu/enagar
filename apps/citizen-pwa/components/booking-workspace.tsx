@@ -51,7 +51,7 @@ import { BookingHourGrid } from './booking-hour-grid';
 import type { PwaLocaleCode, ServiceSummary, TokenResponse } from '../lib/workspace-types';
 import type { JSX } from 'react';
 
-type BookingStep = 'asset' | 'calendar' | 'details' | 'checkout' | 'pending' | 'done';
+type BookingStep = 'asset' | 'calendar' | 'details' | 'quote' | 'checkout' | 'pending' | 'done';
 
 type BookingWorkspaceProps = {
   apiBaseUrl: string;
@@ -68,6 +68,10 @@ type BookingWorkspaceProps = {
   };
   onStatus: (message: string) => void;
   onBack: () => void;
+  variant?: 'default' | 'led';
+  prepareDraftDocuments?: (
+    draftId: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 export function BookingWorkspace({
@@ -79,8 +83,15 @@ export function BookingWorkspace({
   applicationForm,
   onStatus,
   onBack,
+  variant = 'default',
+  prepareDraftDocuments,
 }: BookingWorkspaceProps): JSX.Element {
   const linkedServiceCode = linkedService?.code;
+  const isLedBooking = variant === 'led' || linkedServiceCode === 'ad-led';
+  const hasApplicationFlow = Boolean(linkedServiceCode && (applicationForm || isLedBooking));
+  const defersSlotPayment =
+    isLedBooking || linkedService?.payment_schedule === 'deferred_only';
+  const needsClerkApproval = Boolean(applicationForm && linkedServiceCode) && !defersSlotPayment;
   const [step, setStep] = useState<BookingStep>('asset');
   const [assets, setAssets] = useState<PublicBookableAsset[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<PublicBookableAsset | null>(null);
@@ -95,7 +106,6 @@ export function BookingWorkspace({
   const [confirmed, setConfirmed] = useState<BookingReservation | null>(null);
   const [applicationDocket, setApplicationDocket] = useState<string | null>(null);
   const [pendingApplicationId, setPendingApplicationId] = useState<string | null>(null);
-  const needsClerkApproval = Boolean(applicationForm && linkedServiceCode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
@@ -109,6 +119,10 @@ export function BookingWorkspace({
     () => resolveServiceProcessingFeePaise(linkedService),
     [linkedService],
   );
+  const requiresApplicationFeeNow =
+    processingFeePaise > 0 &&
+    (linkedService?.payment_schedule === 'upfront_only' ||
+      linkedService?.payment_schedule === 'upfront_and_deferred');
   const rentDuePaise = quote?.rent_paise ?? 0;
   const depositDuePaise = quote?.deposit_paise ?? selectedAsset?.security_deposit_paise ?? 0;
   const totalDueNowPaise = processingFeePaise + rentDuePaise + depositDuePaise;
@@ -120,9 +134,11 @@ export function BookingWorkspace({
       setAssets(rows);
       if (rows.length === 0) {
         setError(
-          linkedServiceCode
-            ? 'No community halls are linked to this service for your municipality. Ask the ULB to configure halls under Operations → Bookings.'
-            : 'No bookable assets are available for your municipality.',
+          isLedBooking
+            ? 'No LED boards are linked to this service for your municipality. Ask the ULB to configure boards under Operations → Advertising.'
+            : linkedServiceCode
+              ? 'No community halls are linked to this service for your municipality. Ask the ULB to configure halls under Operations → Bookings.'
+              : 'No bookable assets are available for your municipality.',
         );
         return;
       }
@@ -133,7 +149,7 @@ export function BookingWorkspace({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load bookable assets');
     }
-  }, [apiBaseUrl, tenantCode, linkedServiceCode]);
+  }, [apiBaseUrl, tenantCode, linkedServiceCode, isLedBooking]);
 
   const loadSlots = useCallback(async () => {
     if (!selectedAsset) {
@@ -183,6 +199,39 @@ export function BookingWorkspace({
     return weekdays;
   }, []);
 
+  async function proceedToQuoteReview(): Promise<void> {
+    if (!selectedAsset || !slotSelection) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const q = await quoteBooking(apiBaseUrl, token, tenantCode, {
+        tenant_code: tenantCode,
+        service_code: linkedServiceCode,
+        asset_code: selectedAsset.code,
+        starts_at: slotSelection.startsAt,
+        ends_at: slotSelection.endsAt,
+      });
+      setQuote(q);
+      const hold = await createBookingHold(apiBaseUrl, token, tenantCode, {
+        tenant_code: tenantCode,
+        service_code: linkedServiceCode,
+        asset_code: selectedAsset.code,
+        starts_at: slotSelection.startsAt,
+        ends_at: slotSelection.endsAt,
+      });
+      setHoldId(hold.id);
+      setDepositId(null);
+      setStep('quote');
+      onStatus('Slot quoted — review and submit your application.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not prepare quotation');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function proceedToCheckout(): Promise<void> {
     if (!selectedAsset || !slotSelection) {
       return;
@@ -217,7 +266,13 @@ export function BookingWorkspace({
   }
 
   function continueFromCalendar(): void {
-    if (applicationForm && linkedServiceCode) {
+    if (isLedBooking && !applicationForm) {
+      setError(
+        'The LED booking application form is not available. Ask your municipality to publish the ad-led service form, then refresh.',
+      );
+      return;
+    }
+    if (hasApplicationFlow) {
       setStep('details');
       return;
     }
@@ -234,7 +289,103 @@ export function BookingWorkspace({
       return;
     }
     setError(null);
+    if (defersSlotPayment) {
+      void proceedToQuoteReview();
+      return;
+    }
     void proceedToCheckout();
+  }
+
+  function buildLedBookingSnapshotJson(): string | undefined {
+    if (!selectedAsset || !slotSelection || !quote) {
+      return undefined;
+    }
+    return JSON.stringify({
+      asset_code: selectedAsset.code,
+      starts_at: slotSelection.startsAt,
+      ends_at: slotSelection.endsAt,
+      rent_paise: quote.rent_paise,
+      deposit_paise: depositDuePaise,
+      total_paise: quote.rent_paise + depositDuePaise,
+      quoted_at: new Date().toISOString(),
+    });
+  }
+
+  async function submitDeferredApplication(): Promise<void> {
+    if (!holdId || !quote || !slotSelection || !selectedAsset || !applicationForm) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      onStatus('Saving application draft…');
+      const snapshotJson = buildLedBookingSnapshotJson();
+      const draft = await createApplicationDraft(apiBaseUrl, token, tenantCode, {
+        service_code: linkedServiceCode!,
+        form_data: {
+          ...applicationForm.values,
+          bookable_asset_code: selectedAsset.code,
+          booking_starts_at: slotSelection.startsAt,
+          booking_ends_at: slotSelection.endsAt,
+          booking_rent_paise: quote.rent_paise,
+          booking_deposit_paise: depositDuePaise,
+          booking_application_fee_paise: processingFeePaise,
+          ...(snapshotJson ? { led_booking_snapshot: snapshotJson } : {}),
+        },
+      });
+      const applicationId = draft.id;
+      const docketNo = draft.docket_no;
+      setApplicationDocket(draft.docket_no);
+
+      if (prepareDraftDocuments) {
+        onStatus('Uploading application documents…');
+        const documentsReady = await prepareDraftDocuments(applicationId);
+        if (!documentsReady.ok) {
+          setError(documentsReady.error);
+          return;
+        }
+      }
+
+      if (requiresApplicationFeeNow) {
+        onStatus('Paying application fee (stub)…');
+        const appPay = await initiateApplicationPayment(
+          apiBaseUrl,
+          token,
+          tenantCode,
+          applicationId,
+          processingFeePaise,
+          `ad-led-app-${applicationId}`,
+        );
+        await completeBookingStubPayment(
+          apiBaseUrl,
+          token,
+          tenantCode,
+          appPay.id,
+          appPay.gateway_order_id,
+        );
+      }
+
+      onStatus('Linking slot to your application…');
+      await linkBookingHoldApplication(apiBaseUrl, token, tenantCode, holdId, applicationId);
+      onStatus('Submitting application for ULB review…');
+      const submitted = await submitApplicationDraft(
+        apiBaseUrl,
+        token,
+        tenantCode,
+        applicationId,
+      );
+      setPendingApplicationId(applicationId);
+      setApplicationDocket(submitted.docket_no ?? docketNo ?? null);
+      setStep('pending');
+      onStatus(
+        `Quotation submitted · Application ${submitted.docket_no ?? docketNo ?? ''} is pending verification. You will receive a payment link after approval.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Application submission failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function payAndConfirm(): Promise<void> {
@@ -275,6 +426,15 @@ export function BookingWorkspace({
         applicationId = draft.id;
         docketNo = draft.docket_no;
         setApplicationDocket(draft.docket_no);
+
+        if (prepareDraftDocuments) {
+          onStatus('Uploading application documents…');
+          const documentsReady = await prepareDraftDocuments(applicationId);
+          if (!documentsReady.ok) {
+            setError(documentsReady.error);
+            return;
+          }
+        }
 
         if (processingFeePaise > 0) {
           onStatus('Paying application fee (stub)…');
@@ -356,15 +516,44 @@ export function BookingWorkspace({
     }
   }
 
+  const slotSummaryLine =
+    slotSelection && selectedAsset
+      ? `${assetDisplayName(selectedAsset.name, language)} · ${formatIstDate(slotSelection.startsAt, localeTag)} · ${formatIstTimeRange(slotSelection.startsAt, slotSelection.endsAt, localeTag)}`
+      : null;
+
+  if (isLedBooking && !applicationForm) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+          <p className="font-semibold">LED application form not loaded</p>
+          <p className="mt-2">
+            Applicant and campaign details are required before booking. The municipality must publish
+            the <strong>ad-led</strong> service form (run database seed or publish in Service
+            designer), then reload this page.
+          </p>
+        </div>
+        <button
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800"
+          onClick={onBack}
+          type="button"
+        >
+          Back to services
+        </button>
+      </div>
+    );
+  }
+
   if (step === 'pending') {
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-          <h4 className="text-lg font-bold text-amber-950">Slot held — pending ULB approval</h4>
+          <h4 className="text-lg font-bold text-amber-950">
+            {defersSlotPayment ? 'Quotation submitted — pending verification' : 'Slot held — pending ULB approval'}
+          </h4>
           <p className="mt-2 text-sm text-amber-900">
-            Your fees are recorded and the hall slot is reserved on hold. A municipality officer
-            will review your application and confirm or reject the booking. You will receive a
-            booking number and confirmation PDF only after approval.
+            {defersSlotPayment
+              ? 'Your LED slot is held while the municipality reviews your application. No payment is due now. After approval, you will receive a payment link for the quoted rent and security deposit. Your booking number and confirmation PDF are issued after payment.'
+              : 'Your fees are recorded and the hall slot is reserved on hold. A municipality officer will review your application and confirm or reject the booking. You will receive a booking number and confirmation PDF only after approval.'}
           </p>
           {applicationDocket ? (
             <p className="mt-3 text-sm text-amber-900">
@@ -427,11 +616,15 @@ export function BookingWorkspace({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase text-brand">Bookings</p>
+          <p className="text-sm font-semibold uppercase text-brand">
+            {isLedBooking ? 'Advertising' : 'Bookings'}
+          </p>
           <h3 className="text-2xl font-bold text-slate-900">
-            {linkedServiceCode === 'community-hall'
-              ? 'Community hall — hourly booking'
-              : 'Reserve a municipal facility'}
+            {isLedBooking
+              ? 'LED board — hourly slot booking'
+              : linkedServiceCode === 'community-hall'
+                ? 'Community hall — hourly booking'
+                : 'Reserve a municipal facility'}
           </h3>
         </div>
         <button
@@ -455,9 +648,11 @@ export function BookingWorkspace({
       {step === 'asset' ? (
         <section className="space-y-3">
           <p className="text-sm text-slate-600">
-            {linkedServiceCode === 'community-hall'
-              ? `Choose a community hall for ${tenantCode}. Only halls linked to this service are shown.`
-              : `Choose a bookable asset for ${tenantCode}.`}
+            {isLedBooking
+              ? `Choose an LED display board for ${tenantCode}. Only boards linked to this service are shown.`
+              : linkedServiceCode === 'community-hall'
+                ? `Choose a community hall for ${tenantCode}. Only halls linked to this service are shown.`
+                : `Choose a bookable asset for ${tenantCode}.`}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             {assets.map((asset) => (
@@ -550,18 +745,30 @@ export function BookingWorkspace({
             onClick={continueFromCalendar}
             type="button"
           >
-            {applicationForm ? 'Continue to event details' : 'Continue to quote'}
+            {hasApplicationFlow
+              ? isLedBooking
+                ? 'Continue to applicant details'
+                : 'Continue to event details'
+              : 'Continue to quote'}
           </button>
         </section>
       ) : null}
 
       {step === 'details' && applicationForm ? (
         <section className="space-y-4">
+          {slotSummaryLine ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">Selected slot</p>
+              <p className="mt-1">{slotSummaryLine}</p>
+            </div>
+          ) : null}
           <div>
-            <h4 className="text-lg font-bold text-slate-900">Event & applicant details</h4>
+            <h4 className="text-lg font-bold text-slate-900">
+              {isLedBooking ? 'Campaign & applicant details' : 'Event & applicant details'}
+            </h4>
             <p className="mt-1 text-sm text-slate-600">
-              Required for your {linkedService?.name[language] ?? 'community hall'} application.
-              Your selected slot is saved with this draft.
+              Required for your {linkedService?.name[language] ?? (isLedBooking ? 'LED board' : 'community hall')}{' '}
+              application. Your selected slot is saved with this draft.
             </p>
           </div>
           <DynamicFormFields
@@ -576,7 +783,49 @@ export function BookingWorkspace({
             onClick={continueFromDetails}
             type="button"
           >
-            Continue to payment
+            {defersSlotPayment ? 'Continue to quotation' : 'Continue to payment'}
+          </button>
+        </section>
+      ) : null}
+
+      {step === 'quote' && quote && slotSelection ? (
+        <section className="space-y-4 rounded-2xl border border-slate-200 p-4">
+          <h4 className="font-bold text-slate-900">Review quotation</h4>
+          {slotSummaryLine ? (
+            <p className="text-sm text-slate-700">{slotSummaryLine}</p>
+          ) : null}
+          <ul className="space-y-1 text-sm text-slate-700">
+            <li>
+              Slot: {formatIstDate(slotSelection.startsAt, localeTag)} ·{' '}
+              {formatIstTimeRange(slotSelection.startsAt, slotSelection.endsAt, localeTag)}
+            </li>
+            <li>LED rent (hourly): {formatInrFromPaise(quote.rent_paise)}</li>
+            <li>Security deposit (refundable): {formatInrFromPaise(depositDuePaise)}</li>
+            {requiresApplicationFeeNow ? (
+              <li>Application fee (pay now): {formatInrFromPaise(processingFeePaise)}</li>
+            ) : null}
+            <li className="font-semibold text-slate-900">
+              {requiresApplicationFeeNow
+                ? `Pay now: ${formatInrFromPaise(processingFeePaise)} · After approval: ${formatInrFromPaise(quote.rent_paise + depositDuePaise)}`
+                : `Total after approval: ${formatInrFromPaise(quote.rent_paise + depositDuePaise)}`}
+            </li>
+          </ul>
+          <p className="text-xs text-slate-500">
+            {requiresApplicationFeeNow
+              ? 'The application fee is due when you submit. Rent and security deposit are collected only after municipality verification, via a desk payment link.'
+              : 'No payment is required now. Submit your application for municipality verification. After approval, you will receive a payment link from the desk for the quoted amount.'}
+          </p>
+          <button
+            className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void submitDeferredApplication()}
+            type="button"
+          >
+            {busy
+              ? 'Submitting…'
+              : requiresApplicationFeeNow
+                ? 'Pay application fee (stub) & submit'
+                : 'Submit application for verification'}
           </button>
         </section>
       ) : null}

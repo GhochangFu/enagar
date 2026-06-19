@@ -56,6 +56,16 @@ type ApplicationRow = {
     security_deposit_status: 'not_required' | 'pending' | 'paid' | 'failed';
     slot_summary: string | null;
   };
+  hoarding_approval_fee?: {
+    base_permission_fee_paise: number;
+    hoarding_tax_paise: number;
+    total_approval_paise: number;
+  };
+  led_approval_fee?: {
+    rent_paise: number;
+    deposit_paise: number;
+    total_approval_paise: number;
+  };
   submitted_at: string;
 };
 
@@ -173,6 +183,206 @@ function formatInrFromPaise(paise: number | null | undefined): string {
     return '—';
   }
   return `₹${(paise / 100).toFixed(2)}`;
+}
+
+type HoardingCalculatorSnapshot = {
+  ward_code: string;
+  sqft: number;
+  duration_months: number;
+  tax_paise: number;
+  rate_paise_per_sqft_per_month: number;
+  ward_matched: boolean;
+  revenue_head_code: string;
+  quoted_at: string;
+};
+
+function parseHoardingCalculatorSnapshot(formData: unknown): HoardingCalculatorSnapshot | null {
+  if (!formData || typeof formData !== 'object' || Array.isArray(formData)) {
+    return null;
+  }
+  const raw = (formData as Record<string, unknown>).hoarding_calculator_snapshot;
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<HoardingCalculatorSnapshot>;
+    if (
+      typeof parsed.ward_code !== 'string' ||
+      typeof parsed.sqft !== 'number' ||
+      typeof parsed.duration_months !== 'number' ||
+      typeof parsed.tax_paise !== 'number'
+    ) {
+      return null;
+    }
+    return parsed as HoardingCalculatorSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function DeskLedBookingQuotePanel({
+  formData,
+  approvalFee,
+}: {
+  formData: unknown;
+  approvalFee?: ApplicationRow['led_approval_fee'];
+}): JSX.Element | null {
+  const snapshot = parseLedBookingSnapshot(formData);
+  if (!snapshot) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-warm-border bg-surface px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+        LED slot quotation
+      </p>
+      <dl className="mt-2 grid gap-2 text-sm text-ink-primary md:grid-cols-2">
+        <div>
+          <dt className="text-ink-secondary">Board</dt>
+          <dd className="font-medium">{snapshot.asset_code}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Slot start</dt>
+          <dd className="font-medium">{new Date(snapshot.starts_at).toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Slot end</dt>
+          <dd className="font-medium">{new Date(snapshot.ends_at).toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Rent (quoted)</dt>
+          <dd className="font-medium">{formatInrFromPaise(snapshot.rent_paise)}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Security deposit (quoted)</dt>
+          <dd className="font-medium">{formatInrFromPaise(snapshot.deposit_paise)}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Quoted at</dt>
+          <dd className="font-medium">{new Date(snapshot.quoted_at).toLocaleString()}</dd>
+        </div>
+      </dl>
+      {approvalFee ? (
+        <p className="mt-3 text-sm font-semibold text-ink-primary">
+          Approval payment due: {formatInrFromPaise(approvalFee.rent_paise)} rent +{' '}
+          {formatInrFromPaise(approvalFee.deposit_paise)} deposit ={' '}
+          {formatInrFromPaise(approvalFee.total_approval_paise)} total
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-ink-secondary">
+          Rent and security deposit are collected on the approval payment line after officer
+          verification.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function parseLedBookingSnapshot(formData: unknown): {
+  asset_code: string;
+  starts_at: string;
+  ends_at: string;
+  rent_paise: number;
+  deposit_paise: number;
+  total_paise: number;
+  quoted_at: string;
+} | null {
+  if (!formData || typeof formData !== 'object') {
+    return null;
+  }
+  const raw = (formData as Record<string, unknown>).led_booking_snapshot;
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      typeof parsed.asset_code !== 'string' ||
+      typeof parsed.starts_at !== 'string' ||
+      typeof parsed.ends_at !== 'string' ||
+      typeof parsed.rent_paise !== 'number' ||
+      typeof parsed.deposit_paise !== 'number' ||
+      typeof parsed.quoted_at !== 'string'
+    ) {
+      return null;
+    }
+    return parsed as {
+      asset_code: string;
+      starts_at: string;
+      ends_at: string;
+      rent_paise: number;
+      deposit_paise: number;
+      total_paise: number;
+      quoted_at: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function DeskHoardingQuotePanel({
+  formData,
+  approvalFee,
+}: {
+  formData: unknown;
+  approvalFee?: ApplicationRow['hoarding_approval_fee'];
+}): JSX.Element | null {
+  const snapshot = parseHoardingCalculatorSnapshot(formData);
+  if (!snapshot) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-warm-border bg-surface px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+        Hoarding calculator quote
+      </p>
+      <dl className="mt-2 grid gap-2 text-sm text-ink-primary md:grid-cols-2">
+        <div>
+          <dt className="text-ink-secondary">Ward</dt>
+          <dd className="font-medium">
+            {snapshot.ward_code}
+            {snapshot.ward_matched ? '' : ' (flat fallback rate)'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Area</dt>
+          <dd className="font-medium">{snapshot.sqft} sqft</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Duration</dt>
+          <dd className="font-medium">{snapshot.duration_months} months</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Hoarding tax (quoted)</dt>
+          <dd className="font-medium">{formatInrFromPaise(snapshot.tax_paise)}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Rate applied</dt>
+          <dd className="font-medium">
+            {formatInrFromPaise(snapshot.rate_paise_per_sqft_per_month)} / sqft / month
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-secondary">Quoted at</dt>
+          <dd className="font-medium">{new Date(snapshot.quoted_at).toLocaleString()}</dd>
+        </div>
+      </dl>
+      {approvalFee ? (
+        <p className="mt-3 text-sm font-semibold text-ink-primary">
+          Approval payment due: {formatInrFromPaise(approvalFee.base_permission_fee_paise)} permission
+          fee + {formatInrFromPaise(approvalFee.hoarding_tax_paise)} hoarding tax ={' '}
+          {formatInrFromPaise(approvalFee.total_approval_paise)} total
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-ink-secondary">
+          Hoarding tax is added to the permission fee on the approval payment line after officer
+          approval.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function DeskBookingChargesPanel({
@@ -318,7 +528,9 @@ function FormDataSummary({ data }: { data: unknown }): JSX.Element {
     );
   }
 
-  const entries = Object.entries(data as Record<string, unknown>);
+  const entries = Object.entries(data as Record<string, unknown>).filter(
+    ([key]) => key !== 'hoarding_calculator_snapshot',
+  );
   if (!entries.length) {
     return (
       <p className="rounded-2xl border border-warm-border bg-mint-band/30 px-4 py-3 text-sm text-ink-secondary">
@@ -692,6 +904,14 @@ export default function DeskClient(): JSX.Element {
                         charges={applicationDetail.application.booking_charges}
                       />
                     ) : null}
+                    <DeskHoardingQuotePanel
+                      approvalFee={applicationDetail.application.hoarding_approval_fee}
+                      formData={applicationDetail.application.form_data}
+                    />
+                    <DeskLedBookingQuotePanel
+                      approvalFee={applicationDetail.application.led_approval_fee}
+                      formData={applicationDetail.application.form_data}
+                    />
                     <DeskFeeSettlementPanel application={applicationDetail.application} />
                     <DeskWorkOrderPanel
                       applicationDetail={applicationDetail}

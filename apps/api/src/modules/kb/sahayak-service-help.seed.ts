@@ -463,6 +463,20 @@ function buildTenantSpecificNotes(tenantCode: string, service: EffectiveServiceS
       '### केवल कोलकाता\nपालतू पंजीकरण। शुल्क **₹200**; **14 दिन**।',
     );
   }
+  if (tenantCode === 'KMC' && service.code === 'ambulance') {
+    return label(
+      '### Emergency ambulance policy\n- Use **I declare this is a medical emergency** only for genuine emergencies.\n- Emergency bookings are **₹0** but limited to **2 per citizen per day**.\n- A municipal unit is auto-assigned — citizens do not pick a vehicle.\n- For scheduled non-emergency pickup, pay the normal fare and provide pickup address.',
+      '### জরুরি অ্যাম্বুল্যান্স নীতি\n- শুধুমাত্র প্রকৃত জরুরি অবস্থায় **আমি ঘোষণা করছি এটি চিকিৎসা জরুরি** চেক করুন।\n- জরুরি বুকিং **₹০** কিন্তু প্রতি নাগরিক প্রতিদিন **২টি** সীমা।\n- গাড়ি স্বয়ংক্রিয়ভাবে বরাদ্দ হয়।\n- নিয়মিত সময়সূচী বুকিংয়ে সাধারণ ভাড়া প্রযোজ্য।',
+      '### आपातकालीन एम्बुलेंस नीति\n- **मैं घोषणा करता/करती हूँ कि यह चिकित्सा आपातकाल है** केवल वास्तविक आपात में चुनें।\n- आपातकालीन बुकिंग **₹0** लेकिन प्रति नागरिक **2/दिन** सीमा।\n- वाहन स्वतः आवंटित होता है।\n- नियमित बुकिंग पर सामान्य किराया लागू।',
+    );
+  }
+  if (tenantCode === 'KMC' && service.code === 'hearse') {
+    return label(
+      '### Hearse booking notes\n- Book a **scheduled slot**; a municipal hearse is auto-assigned from the fleet pool.\n- **BPL concession** may apply — desk staff verify documents before waiving rent.\n- Crematorium booking is **not** available online in this release.',
+      '### শবযান বুকিং\n- **নির্ধারিত স্লট** বুক করুন; শবযান স্বয়ংক্রিয়ভাবে বরাদ্দ হয়।\n- **BPL ছাড়** — ডেস্ক যাচাই করে।\n- শ্মশান অনলাইন বুকিং এই সংস্করণে নেই।',
+      '### शववाहन बुकिंग\n- **निर्धारित स्लॉट** बुक करें; वाहन स्वतः आवंटित।\n- **BPL छूट** — डेस्क सत्यापन।\n- श्मशान ऑनलाइन बुकिंग इस रिलीज़ में नहीं।',
+    );
+  }
   return label('', '', '');
 }
 

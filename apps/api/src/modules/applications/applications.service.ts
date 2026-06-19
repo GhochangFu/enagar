@@ -48,6 +48,14 @@ import { attachPendingAtLabels } from '../services/pending-at-label.util';
 import { ServicesService } from '../services/services.service';
 import { pendingActorFromWorkflowStage } from '../services/workflow-designation.mapper';
 import { TenantsService } from '../tenants/tenants.service';
+import { applyHoardingTaxToApprovalSettlement } from '../advertising/hoarding-approval-fee.util';
+import {
+  applyLedBookingToApprovalSettlement,
+  resolveLedApprovalFeeBreakdown,
+} from '../advertising/led-approval-fee.util';
+import { AD_LED_SERVICE_CODE } from '../advertising/led-booking-quote.util';
+import { AD_HOARDING_SERVICE_CODE } from '../advertising/hoarding-rate.util';
+import { parseHoardingCalculatorSnapshot } from '../advertising/hoarding-quote.util';
 
 import { APPLICATION_STORE } from './application-store';
 
@@ -134,7 +142,12 @@ export class ApplicationsService {
       (await this.services.getPublishedWorkflowDefinition(tenantCode, dto.service_code)) ??
       workflowForPattern(service.workflow_pattern);
     const paymentConfig = await this.services.resolvePaymentConfig(tenantCode, dto.service_code);
-    const fee_settlement = buildInitialFeeSettlement(paymentConfig);
+    const fee_settlement = this.augmentAdvertisingApprovalSettlement(
+      buildInitialFeeSettlement(paymentConfig),
+      dto.service_code,
+      paymentConfig,
+      dto.form_data as Record<string, unknown>,
+    );
     const payment_status = rollupPaymentStatus(paymentConfig.payment_schedule, fee_settlement);
     const createdAt = new Date();
     const docketNo = await this.store.nextDocketNo(tenantCode, dto.service_code);
@@ -242,9 +255,14 @@ export class ApplicationsService {
     const submittedAt = new Date();
     const dueAt = calculateSlaDueAt(submittedAt, initialStage.sla_hours);
     const pendingActor = pendingActorFromWorkflowStage(initialStage);
-    const fee_settlement = mergeFeeSettlementPreservingStatus(
-      application.fee_settlement,
-      buildInitialFeeSettlement(paymentConfig),
+    const fee_settlement = this.augmentAdvertisingApprovalSettlement(
+      mergeFeeSettlementPreservingStatus(
+        application.fee_settlement,
+        buildInitialFeeSettlement(paymentConfig),
+      ),
+      application.service_code,
+      paymentConfig,
+      application.form_data as Record<string, unknown>,
     );
     const payment_status = rollupPaymentStatus(paymentConfig.payment_schedule, fee_settlement);
     const updated: ApplicationResponse = {
@@ -323,7 +341,9 @@ export class ApplicationsService {
       ),
     );
     const withBooking = await this.attachBookingCharges(enriched);
-    return this.attachRelatedPayments(withBooking);
+    const withHoardingFee = this.attachHoardingApprovalFee(withBooking);
+    const withLedFee = this.attachLedApprovalFee(withHoardingFee);
+    return this.attachRelatedPayments(withLedFee);
   }
 
   async cancel(
@@ -505,7 +525,9 @@ export class ApplicationsService {
       await this.withPersistedDocuments(application),
     );
     const withBooking = await this.attachBookingCharges(hydrated);
-    return this.attachRelatedPayments(withBooking);
+    const withHoardingFee = this.attachHoardingApprovalFee(withBooking);
+    const withLedFee = this.attachLedApprovalFee(withHoardingFee);
+    return this.attachRelatedPayments(withLedFee);
   }
 
   /**
@@ -531,7 +553,69 @@ export class ApplicationsService {
       await this.withPersistedDocuments(application),
     );
     const withBooking = await this.attachBookingCharges(hydrated);
-    return this.attachRelatedPayments(withBooking);
+    const withHoardingFee = this.attachHoardingApprovalFee(withBooking);
+    const withLedFee = this.attachLedApprovalFee(withHoardingFee);
+    return this.attachRelatedPayments(withLedFee);
+  }
+
+  private attachHoardingApprovalFee(application: ApplicationResponse): ApplicationResponse {
+    if (application.service_code !== AD_HOARDING_SERVICE_CODE) {
+      return application;
+    }
+    const formData =
+      typeof application.form_data === 'object' && application.form_data !== null
+        ? (application.form_data as Record<string, unknown>)
+        : {};
+    const snapshot = parseHoardingCalculatorSnapshot(formData);
+    const total = coerceFeeSettlementSnapshot(application.fee_settlement).approval?.amount_paise;
+    if (!snapshot || typeof total !== 'number' || total < snapshot.tax_paise) {
+      return application;
+    }
+    return {
+      ...application,
+      hoarding_approval_fee: {
+        base_permission_fee_paise: total - snapshot.tax_paise,
+        hoarding_tax_paise: snapshot.tax_paise,
+        total_approval_paise: total,
+      },
+    };
+  }
+
+  private augmentAdvertisingApprovalSettlement(
+    settlement: ReturnType<typeof buildInitialFeeSettlement>,
+    serviceCode: string,
+    paymentConfig: Awaited<ReturnType<ServicesService['resolvePaymentConfig']>>,
+    formData: Record<string, unknown>,
+  ) {
+    const hoarding = applyHoardingTaxToApprovalSettlement(
+      settlement,
+      serviceCode,
+      paymentConfig.fee_line_previews.approval ?? null,
+      formData,
+    );
+    return applyLedBookingToApprovalSettlement(hoarding, serviceCode, formData);
+  }
+
+  private attachLedApprovalFee(application: ApplicationResponse): ApplicationResponse {
+    if (application.service_code !== AD_LED_SERVICE_CODE) {
+      return application;
+    }
+    const formData =
+      typeof application.form_data === 'object' && application.form_data !== null
+        ? (application.form_data as Record<string, unknown>)
+        : {};
+    const breakdown = resolveLedApprovalFeeBreakdown(formData);
+    if (!breakdown) {
+      return application;
+    }
+    return {
+      ...application,
+      led_approval_fee: {
+        rent_paise: breakdown.rent_paise,
+        deposit_paise: breakdown.deposit_paise,
+        total_approval_paise: breakdown.total_approval_paise,
+      },
+    };
   }
 
   private async attachBookingCharges(

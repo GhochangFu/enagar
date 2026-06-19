@@ -152,6 +152,18 @@ export interface ApplicationResponse {
     slot_summary: string | null;
     reservation_id: string | null;
   };
+  /** ad-hoarding: permission fee + calculator tax breakdown for desk/citizen display. */
+  hoarding_approval_fee?: {
+    base_permission_fee_paise: number;
+    hoarding_tax_paise: number;
+    total_approval_paise: number;
+  };
+  /** ad-led: slot rent + security deposit due on approval payment. */
+  led_approval_fee?: {
+    rent_paise: number;
+    deposit_paise: number;
+    total_approval_paise: number;
+  };
   /** Application fee + linked hall booking payments (for receipts on detail). */
   related_payments?: PaymentResponse[];
 }

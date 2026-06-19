@@ -7,6 +7,7 @@ import {
   patchFeeLineSettlement,
   rollupPaymentStatus,
   submitRequiresApplicationFee,
+  resolvePayableFeeLineAmountPaise,
 } from './fee-settlement.util';
 
 describe('fee settlement rollup', () => {
@@ -185,5 +186,28 @@ describe('citizen initiate gates (ADR-0013 §13D)', () => {
     expect(
       feeLineAllowsCitizenInitiate('upfront_and_deferred', 'application', applicationLine),
     ).toBe(true);
+  });
+});
+
+describe('resolvePayableFeeLineAmountPaise', () => {
+  const config = {
+    payment_schedule: 'deferred_only' as const,
+    fee_lines: {},
+    fee_line_previews: { approval: 5_000_000 },
+    inferred_schedule: false,
+  };
+
+  it('prefers settlement amount over catalogue preview', () => {
+    const amount = resolvePayableFeeLineAmountPaise(config, 'approval', {
+      approval: { status: 'not_required', payment_id: null, amount_paise: 6_800_000 },
+    });
+    expect(amount).toBe(6_800_000);
+  });
+
+  it('falls back to catalogue preview when settlement amount missing', () => {
+    const amount = resolvePayableFeeLineAmountPaise(config, 'approval', {
+      approval: { status: 'not_required', payment_id: null, amount_paise: null },
+    });
+    expect(amount).toBe(5_000_000);
   });
 });

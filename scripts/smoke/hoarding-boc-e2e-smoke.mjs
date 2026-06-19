@@ -322,10 +322,27 @@ async function main() {
     assertOk('citizen register', regRes.status, regText);
   }
 
+  const { res: quoteRes, json: quote } = await api(
+    'POST',
+    '/citizen/advertising/hoarding/quote',
+    citizenTok,
+    {
+      tenant_code: TENANT,
+      ward_code: '12',
+      width_ft: 10,
+      height_ft: 8,
+      duration_months: 3,
+    },
+    { 'x-enagar-tenant-code': TENANT },
+  );
+  assertOk('hoarding quote', quoteRes.status, JSON.stringify(quote));
+  log('quote', `tax_paise=${quote.tax_paise} ward_matched=${quote.ward_matched}`);
+
   const formData = {
     applicant_name: 'BOC Smoke Applicant',
     site_address: '12 Test Road, Ward 1, Kolkata',
     hoarding_dimensions: '10ft x 8ft',
+    hoarding_calculator_snapshot: JSON.stringify(quote),
     site_photo: { name: 'site.jpg', mime_type: 'image/jpeg', size_mb: 0.01 },
     creative_mock: { name: 'creative.pdf', mime_type: 'application/pdf', size_mb: 0.01 },
   };
@@ -404,7 +421,37 @@ async function main() {
     applicationId = detail.application.id;
   }
 
-  const finalStage = detail.application.current_stage ?? detail.application.status;
+  let finalStage = detail.application.current_stage ?? detail.application.status;
+  if (finalStage === 'payment-pending') {
+    if (!detail.application.active_payment_id) {
+      fail('desk must issue active_payment_id after executive approval');
+    }
+    log('payment', `approval fee payment_id=${detail.application.active_payment_id}`);
+    const paymentId = detail.application.active_payment_id;
+    const { res: payRes, text: payText } = await api(
+      'POST',
+      '/payments/stub/complete',
+      citizenTok,
+      {
+        payment_id: paymentId,
+        gateway_order_id: `stub_order_${paymentId}`,
+      },
+      { 'x-enagar-tenant-code': TENANT },
+    );
+    assertOk('approval payment', payRes.status, payText);
+
+    detail = await api(
+      'GET',
+      `/admin/tenant/desk/applications/${encodeURIComponent(submitted.docket_no)}`,
+      clerkTok,
+    ).then(({ res, json, text }) => {
+      assertOk('desk get after payment', res.status, text);
+      return json;
+    });
+    finalStage = detail.application.current_stage ?? detail.application.status;
+    log('payment', `settled → stage=${finalStage}`);
+  }
+
   if (finalStage !== 'certificate-issued' && detail.application.status !== 'closed') {
     fail(`Expected terminal certificate, got stage=${finalStage} status=${detail.application.status}`);
   }

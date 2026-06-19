@@ -649,6 +649,24 @@ Each gets the full 76-service catalogue with default values, plus a tenant-speci
 
 ---
 
+## 15. Sprint 8.5 — Health fleet booking (implementation spec)
+
+**Source:** [`docs/runbooks/master-sprint-85-plan.md`](runbooks/master-sprint-85-plan.md) · [`master-sprint-85e-plan.md`](runbooks/master-sprint-85e-plan.md) · [`master-sprint-85f-plan.md`](runbooks/master-sprint-85f-plan.md)  
+**Updated:** 2026-06-18
+
+| Service code | Sprint 8.5 status | Citizen UX |
+| ------------ | ----------------- | ---------- |
+| `ambulance`  | **In scope (8.5E/F)** | Fleet **pool** — citizen picks **time slot** only; UI shows **how many units are available**; system **auto-assigns** a free ambulance; PDF has pickup time/address, **not** vehicle name |
+| `hearse`     | **In scope (8.5E/F)** | Same pool model (typically 1 unit); optional BPL declare + desk verify before pay |
+| `crematorium`| **Deferred** | Remains in catalogue table (§9); not seeded or wired in Sprint 8.5 |
+| `ad-billboard` | **Deferred (8.5D)** | Catalogue entry only; no PWA workspace in 8.5 |
+
+**Admin:** Operations → Health Bookings maintains individual ambulance/hearse records; booking calendar shows **which unit** was assigned after citizen books the pooled slot.
+
+**Citizen portfolio (8.5F2 — planned):** Confirmed bookings appear under PWA **Applications / Bookings → My Bookings** (not My Applications). Download formatted confirmation PDF from booking detail. Admin **Dashboard → Booking Summary** aggregates all booking types (hall, LED, health fleet, parking).
+
+---
+
 ## 14. Acceptance criteria for "catalogue audit complete"
 
 Sprint 0.2 closes this deliverable when all of the following hold:
@@ -668,3 +686,5 @@ Sprint 0.2 closes this deliverable when all of the following hold:
 | Date       | Change                                            | Reviewer                             |
 | ---------- | ------------------------------------------------- | ------------------------------------ |
 | 2026-05-06 | v0.1 — initial Phase-0 audit + Phase-2 seed plan. | _pending product + sponsor sign-off_ |
+| 2026-06-18 | §15 — Sprint 8.5 health fleet pool UX; crematorium + `ad-billboard` deferred. | Product refinement |
+| 2026-06-19 | §15 — 8.5F2 My Bookings + Booking Summary + PDFKit receipt (planned before 8.5G). | Product refinement |

@@ -11,6 +11,7 @@ import { ObjectStorageModule } from './common/object-storage/object-storage.modu
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { AdminStateModule } from './modules/admin-state/admin-state.module';
 import { AdminTenantModule } from './modules/admin-tenant/admin-tenant.module';
+import { AdvertisingModule } from './modules/advertising/advertising.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
@@ -73,6 +74,7 @@ import { WaterMeterModule } from './modules/water-meter/water-meter.module';
     ChatbotModule,
     AdminStateModule,
     AdminTenantModule,
+    AdvertisingModule,
     ApplicationsModule,
     CitizenModule,
     DocumentsModule,

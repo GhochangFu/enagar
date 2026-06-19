@@ -2,6 +2,8 @@ export type BookableSlot = {
   starts_at: string;
   ends_at: string;
   status: 'free' | 'taken';
+  /** Pooled health fleet slots — number of free units in the window. */
+  available_units?: number;
 };
 
 export type BookingDurationRules = {

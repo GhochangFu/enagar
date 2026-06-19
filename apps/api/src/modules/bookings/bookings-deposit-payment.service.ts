@@ -15,6 +15,8 @@ import { ServicesService } from '../services/services.service';
 import { tenantSeeds } from '../tenants/tenant.seed';
 
 import { computeBookingAmounts } from './bookings-payment.util';
+import { parseBookingReservationNote } from './booking-reservation-note.util';
+import { readBplSubsidyPaise } from './health-fleet.util';
 import { reservationIdOrBookingNoWhere } from './bookings-reservation.util';
 
 import type { InitiateBookingHoldPaymentDto } from './dto/bookings.dto';
@@ -86,8 +88,27 @@ export class BookingsDepositPaymentService {
     }
 
     const amounts = computeBookingAmounts(row.asset, row.startsAt, row.endsAt);
+    const noteMeta = parseBookingReservationNote(row.note);
+    if (noteMeta.emergency) {
+      throw new BadRequestException('Emergency bookings do not require payment');
+    }
+
+    const rentDue = noteMeta.bpl_declared
+      ? Math.max(0, amounts.rent_paise - readBplSubsidyPaise(row.asset.rules))
+      : amounts.rent_paise;
+
     if (amounts.deposit_paise <= 0) {
-      throw new BadRequestException('This booking does not require a security deposit payment');
+      if (rentDue <= 0) {
+        throw new BadRequestException('This booking does not require payment');
+      }
+      return this.initiateRentOnlyHoldPayment(
+        principal,
+        row,
+        tenantId,
+        dto,
+        normalizedKey,
+        rentDue,
+      );
     }
 
     const includeRent = dto.include_rent === true;
@@ -174,6 +195,115 @@ export class BookingsDepositPaymentService {
     });
 
     return this.toHoldPaymentResponse(row.id, deposit.id, payment, amounts, includeRent);
+  }
+
+  private async initiateRentOnlyHoldPayment(
+    principal: AuthenticatedPrincipal,
+    row: {
+      id: string;
+      citizenId: string | null;
+      depositId: string | null;
+      asset: {
+        rateUnit: string;
+        baseRatePaise: number;
+        securityDepositPaise: number;
+        rules: Prisma.JsonValue;
+      };
+      startsAt: Date;
+      endsAt: Date;
+    },
+    tenantId: string,
+    dto: InitiateBookingHoldPaymentDto,
+    normalizedKey: string,
+    rentDuePaise: number,
+  ): Promise<BookingHoldPaymentResponse> {
+    const amounts = computeBookingAmounts(row.asset, row.startsAt, row.endsAt);
+    const fingerprint = this.fingerprint(row.id, rentDuePaise, dto.method, true);
+
+    const existingIdempotency = await this.store.findIdempotencyRecord(
+      principal,
+      normalizedKey,
+      tenantId,
+    );
+    if (existingIdempotency) {
+      if (existingIdempotency.fingerprint !== fingerprint) {
+        throw new ConflictException('Idempotency-Key was already used for a different payment');
+      }
+      const payment = await this.store.findByIdForPrincipal(
+        principal,
+        existingIdempotency.paymentId,
+      );
+      if (!payment?.booking_reservation_id) {
+        throw new ConflictException('Idempotency payment is not a booking hold payment');
+      }
+      const deposit = row.depositId
+        ? await this.prisma.deposit.findUniqueOrThrow({ where: { id: row.depositId } })
+        : await this.requireDepositForReservation(tenantId, row.id);
+      return this.toHoldPaymentResponse(row.id, deposit.id, payment, amounts, true);
+    }
+
+    const active = await this.store.findActivePaymentByBookingReservation(row.id);
+    if (active) {
+      const deposit = row.depositId
+        ? await this.prisma.deposit.findUniqueOrThrow({ where: { id: row.depositId } })
+        : await this.requireDepositForReservation(tenantId, row.id);
+      return this.toHoldPaymentResponse(row.id, deposit.id, active, amounts, true);
+    }
+
+    const deposit =
+      row.depositId != null
+        ? await this.prisma.deposit.findUniqueOrThrow({ where: { id: row.depositId } })
+        : await this.prisma.deposit.create({
+            data: {
+              tenantId,
+              citizenId: row.citizenId!,
+              depositType: BOOKING_DEPOSIT_TYPE,
+              referenceCode: `HOLD/${row.id}`,
+              amountPaise: rentDuePaise,
+              status: 'held',
+              metadata: {
+                hold_id: row.id,
+                rent_paise: rentDuePaise,
+                include_rent: true,
+                rent_only: true,
+              } as Prisma.InputJsonValue,
+            },
+          });
+
+    if (row.depositId !== deposit.id) {
+      await this.prisma.bookingReservation.update({
+        where: { id: row.id },
+        data: { depositId: deposit.id },
+      });
+    }
+
+    const paymentId = randomUUID();
+    const gatewayResult = await this.gateway.initiate({
+      paymentId,
+      tenantId,
+      applicationId: row.id,
+      amountPaise: rentDuePaise,
+      currency: 'INR',
+      method: dto.method,
+    });
+
+    const payment = await this.store.createPendingPayment({
+      id: paymentId,
+      tenantId,
+      citizenSubject: principal.subject,
+      bookingReservationId: row.id,
+      feeCode: BOOKING_PAYMENT_FEE_CODE,
+      amountPaise: rentDuePaise,
+      method: dto.method,
+      gateway: gatewayResult.gateway,
+      gatewayOrderId: gatewayResult.gatewayOrderId,
+      redirectUrl: gatewayResult.redirectUrl,
+      idempotencyKey: normalizedKey,
+      requestFingerprint: fingerprint,
+      expiresAt: this.nextDay(),
+    });
+
+    return this.toHoldPaymentResponse(row.id, deposit.id, payment, amounts, true);
   }
 
   private async requireDepositForReservation(tenantId: string, reservationId: string) {

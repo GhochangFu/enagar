@@ -226,12 +226,12 @@ Extend — do not replace — Sprint **8.1** bookings (`bookings` module, `booka
 
 ## Out of scope (Sprint 8.2)
 
-Defer to **8.3–8.4** per [`ROADMAP.md`](../../ROADMAP.md):
+Defer per [`ROADMAP.md`](../../ROADMAP.md) — next active slice **[`master-sprint-85-plan.md`](./master-sprint-85-plan.md)** (held **8.3** / **8.4** on disk):
 
-- Tenders / EMD / vendor empanelment
-- Hoarding rate calculator / LED slot calendar
+- Tenders / EMD / vendor empanelment (held **8.3**)
+- Pension / widow / disability / disbursement (held **8.4**)
+- Hoarding rate calculator / LED slot calendar / health bookings → **8.5** (not 8.2)
 - Smart waste bin subscription, GIS licensing, rooftop solar, telecom NOC
-- Welfare / health bookings
 - Real IoT hardware (Modbus/MQTT/OCPP/live meter SOAP)
 - Live payment gateway (**3.1B**)
 - Native mobile smart-city screens (PWA only for v1)

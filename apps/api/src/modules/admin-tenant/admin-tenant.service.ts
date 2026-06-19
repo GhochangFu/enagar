@@ -94,6 +94,10 @@ import {
   assertValidTariffCategory,
   calculateFeePreview,
 } from './admin-tenant-config.contracts';
+import {
+  buildTenantBookingSummary,
+  type TenantAdminBookingSummary,
+} from './admin-tenant-booking-summary.util';
 import { applyBocTransitionPayload, deskSnapshotForAllowedTransition } from './boc-desk.util';
 import { deskApplicationInMyQueue, deskMyQueueWhereClause } from './desk-queue.util';
 import {
@@ -723,6 +727,30 @@ export class AdminTenantService {
       citizens_registered,
       payments_settled_last_30_days,
     };
+  }
+
+  async getBookingSummary(principal: AuthenticatedPrincipal): Promise<TenantAdminBookingSummary> {
+    assertTenantPortalStaff(principal);
+    const periodDays = 30;
+    const periodStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+    const [periodRows, recentRows] = await Promise.all([
+      this.prisma.bookingReservation.findMany({
+        where: {
+          tenantId: principal.tenantId,
+          startsAt: { gte: periodStart },
+        },
+        include: { asset: true },
+      }),
+      this.prisma.bookingReservation.findMany({
+        where: { tenantId: principal.tenantId },
+        include: { asset: true },
+        orderBy: { startsAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    return buildTenantBookingSummary(periodRows, recentRows, periodDays);
   }
 
   async getDashboardDeep(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardDeep> {
@@ -5538,7 +5566,7 @@ function assertBookingStatus(value: unknown): asserts value is string {
 }
 
 function assertBookableAssetType(value: unknown): asserts value is string {
-  if (!['HALL', 'AUDITORIUM', 'GROUND', 'EQUIPMENT'].includes(String(value))) {
+  if (!['HALL', 'AUDITORIUM', 'GROUND', 'EQUIPMENT', 'PARKING_ZONE', 'LED_BOARD', 'AMBULANCE', 'HEARSE'].includes(String(value))) {
     throw new BadRequestException('Unsupported bookable asset_type');
   }
 }

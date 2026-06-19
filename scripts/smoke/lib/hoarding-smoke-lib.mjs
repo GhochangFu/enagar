@@ -106,7 +106,7 @@ export async function api(method, path, token, body, extraHeaders = {}) {
           'content-type': 'application/json',
           ...extraHeaders,
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined || body === null ? undefined : JSON.stringify(body),
       });
       const text = await res.text();
       let json = null;
@@ -288,9 +288,13 @@ export async function assignHoardingDesignations(prefix, adminTok, username) {
 }
 
 export async function publishHoardingPilot(prefix, adminTok, service) {
+  const serviceId = service.id ?? service.service_id;
+  if (!serviceId) {
+    fail(prefix, 'Service record missing id/service_id for designer publish');
+  }
   const { res: designerRes, json: designer } = await api(
     'GET',
-    `/admin/tenant/services/${service.id}/designer`,
+    `/admin/tenant/services/${serviceId}/designer`,
     adminTok,
   );
   assertOk(prefix, 'designer', designerRes.status, JSON.stringify(designer));
@@ -306,7 +310,7 @@ export async function publishHoardingPilot(prefix, adminTok, service) {
 
   const { res: wfRes, text: wfText } = await api(
     'PATCH',
-    `/admin/tenant/services/${service.id}/workflow-draft`,
+    `/admin/tenant/services/${serviceId}/workflow-draft`,
     adminTok,
     { workflow },
   );
@@ -314,14 +318,14 @@ export async function publishHoardingPilot(prefix, adminTok, service) {
 
   const { res: pubRes, text: pubText } = await api(
     'PATCH',
-    `/admin/tenant/services/${service.id}/workflow-draft/publish`,
+    `/admin/tenant/services/${serviceId}/workflow-draft/publish`,
     adminTok,
   );
   assertOk(prefix, 'publish workflow', pubRes.status, pubText);
 
   const { res: cfgRes, text: cfgText } = await api(
     'PATCH',
-    `/admin/tenant/services/${service.id}/config`,
+    `/admin/tenant/services/${serviceId}/config`,
     adminTok,
     { boc_policy: 'officer_may_require', municipal_signoff_policy: 'never' },
   );

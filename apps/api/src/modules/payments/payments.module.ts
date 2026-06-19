@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 import { DatabaseModule } from '../../common/database/database.module';
 import { ApplicationsModule } from '../applications/applications.module';
+import { BookingsModule } from '../bookings/bookings.module';
 import { LeaseReceiptsModule } from '../lease-receipts/lease-receipts.module';
 import { ServicesModule } from '../services/services.module';
 import { TenantsModule } from '../tenants/tenants.module';
@@ -19,6 +20,7 @@ import { StubPaymentGateway } from './stub-payment.gateway';
 @Module({
   imports: [
     ApplicationsModule,
+    forwardRef(() => BookingsModule),
     DatabaseModule,
     LeaseReceiptsModule,
     ServicesModule,

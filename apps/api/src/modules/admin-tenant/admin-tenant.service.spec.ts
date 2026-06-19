@@ -277,6 +277,66 @@ describe('AdminTenantService', () => {
     expect(dash.payments_settled_last_30_days).toBe(5);
   });
 
+  it('getBookingSummary aggregates tenant booking rows', async () => {
+    const periodRow = {
+      id: 'res-1',
+      bookingNo: 'BK/KMC/2026/00001',
+      status: 'confirmed',
+      startsAt: new Date('2026-06-10T04:30:00.000Z'),
+      endsAt: new Date('2026-06-10T05:30:00.000Z'),
+      holderName: 'Citizen A',
+      note: JSON.stringify({ service_code: 'ambulance' }),
+      asset: { code: 'kmc-ambulance-01', assetType: 'AMBULANCE' },
+    };
+    const prisma = {
+      bookingReservation: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([periodRow])
+          .mockResolvedValueOnce([periodRow]),
+      },
+    } as unknown as import('../../common/database/prisma.service').PrismaService;
+
+    const service = new AdminTenantService(
+      prisma,
+      new ObjectStorageService(),
+      stubPaymentsService,
+      stubWorkOrdersService,
+      stubPostApprovalExecution,
+      stubKeycloakProvisioner,
+    );
+
+    const summary = await service.getBookingSummary(staffPrincipal);
+    expect(summary.totals.confirmed).toBe(1);
+    expect(summary.by_asset_type).toEqual(
+      expect.arrayContaining([{ asset_type: 'AMBULANCE', confirmed: 1, holds: 0 }]),
+    );
+    expect(summary.recent[0]?.booking_no).toBe('BK/KMC/2026/00001');
+  });
+
+  it('getBookingSummary scopes all queries to principal tenant', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      bookingReservation: { findMany },
+    } as unknown as import('../../common/database/prisma.service').PrismaService;
+
+    const service = new AdminTenantService(
+      prisma,
+      new ObjectStorageService(),
+      stubPaymentsService,
+      stubWorkOrdersService,
+      stubPostApprovalExecution,
+      stubKeycloakProvisioner,
+    );
+
+    await service.getBookingSummary(staffPrincipal);
+
+    expect(findMany).toHaveBeenCalledTimes(2);
+    for (const call of findMany.mock.calls) {
+      expect(call[0]?.where).toEqual(expect.objectContaining({ tenantId }));
+    }
+  });
+
   it('patchService merges multilingual name shallowly', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'svc-1',

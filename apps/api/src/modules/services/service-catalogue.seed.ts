@@ -163,7 +163,14 @@ export const revenueHeads: RevenueHeadSeed[] = [
     'ईवी चार्जिंग शुल्क',
     'RH-EV',
   ),
-  revenueHead('fine-penalty', 'Fines & Penalties', 'জরিমানা', 'जुर्माना', 'RH-FINE'),
+  revenueHead(
+    'tax-ad-hoarding',
+    'Hoarding Tax',
+    'হোর্ডিং কর',
+    'होर्डिंग कर',
+    'TAX_AD_HOARDING',
+  ),
+  revenueHead('fine-penalty', 'Fines & Penalties', 'জরিমানা', 'জुर्माना', 'RH-FINE'),
   revenueHead('rti-fee', 'RTI Fees', 'আরটিআই ফি', 'आरटीआई शुल्क', 'RH-RTI'),
 ];
 
@@ -382,6 +389,28 @@ export const globalServices: GlobalServiceSeed[] = [
     popular: true,
   },
   {
+    code: 'ad-led',
+    category_code: 'advertising',
+    revenue_head_code: 'booking-fee',
+    name: label('LED Board Booking', 'এলইডি বোর্ড বুকিং', 'LED बोर्ड बुकिंग'),
+    description: label(
+      'Book an hourly slot on a municipal LED display board.',
+      'পৌর এলইডি ডিসপ্লে বোর্ডে ঘণ্টা ভিত্তিক স্লট বুক করুন।',
+      'नगरपालिका LED डिस्प्ले बोर्ड पर प्रति घंटा स्लॉट बुक करें।',
+    ),
+    workflow_pattern: 'cert-issuance',
+    default_sla_days: 15,
+    fee_type: 'computed',
+    fee_config: { currency: 'INR', unit: 'hour' },
+    payment_schedule: 'deferred_only',
+    fee_lines: {
+      approval: feeLine('LED slot fee', 'এলইডি স্লট ফি', 'LED स्लॉट शुल्क', 0),
+    },
+    required_documents: ['creative-mock'],
+    pushes_to_digilocker: false,
+    popular: true,
+  },
+  {
     code: 'ad-billboard',
     category_code: 'advertising',
     revenue_head_code: 'cert-fee',
@@ -447,6 +476,50 @@ export const globalServices: GlobalServiceSeed[] = [
     pushes_to_digilocker: false,
     popular: false,
   },
+  {
+    code: 'ambulance',
+    category_code: 'health',
+    revenue_head_code: 'booking-fee',
+    name: label('Municipal Ambulance Booking', 'পৌর অ্যাম্বুলেন্স বুকিং', 'नगरपालिका एम्बुलेंस बुकिंग'),
+    description: label(
+      'Book a municipal ambulance for a scheduled pickup (fleet auto-assigned).',
+      'নির্ধারিত পিকআপের জন্য পৌর অ্যাম্বুলেন্স বুক করুন (ফ্লিট স্বয়ংক্রিয় বরাদ্দ)।',
+      'निर्धारित पिकअप के लिए नगरपालिका एम्बुलेंस बुक करें (फ्लीट स्वतः आवंटित)।',
+    ),
+    workflow_pattern: 'booking',
+    default_sla_days: null,
+    fee_type: 'computed',
+    fee_config: { currency: 'INR', unit: 'hour' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Ambulance fee', 'অ্যাম্বুলেন্স ফি', 'एम्बुलेंस शुल्क', 50_000),
+    },
+    required_documents: [],
+    pushes_to_digilocker: false,
+    popular: true,
+  },
+  {
+    code: 'hearse',
+    category_code: 'health',
+    revenue_head_code: 'booking-fee',
+    name: label('Hearse Van Booking', 'শবযান ভ্যান বুকিং', 'शववाहन वैन बुकिंग'),
+    description: label(
+      'Book a municipal hearse van for a scheduled slot (fleet auto-assigned).',
+      'নির্ধারিত স্লটের জন্য পৌর শবযান ভ্যান বুক করুন।',
+      'निर्धारित स्लॉट के लिए नगरपालिका शववाहन वैन बुक करें।',
+    ),
+    workflow_pattern: 'booking',
+    default_sla_days: null,
+    fee_type: 'computed',
+    fee_config: { currency: 'INR', unit: 'hour' },
+    payment_schedule: 'upfront_only',
+    fee_lines: {
+      application: feeLine('Hearse fee', 'শবযান ফি', 'शववाहन शुल्क', 80_000),
+    },
+    required_documents: [],
+    pushes_to_digilocker: false,
+    popular: false,
+  },
 ];
 
 export const tenantServiceOverrides: TenantServiceOverrideSeed[] = [
@@ -469,6 +542,40 @@ export const tenantServiceOverrides: TenantServiceOverrideSeed[] = [
     service_code: 'other-facility-booking',
     override_config: {
       bookable_asset_codes: ['kmc-multipurpose-ground', 'kmc-tennis-court-a'],
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'ad-hoarding',
+    override_config: {
+      hoarding_rate_matrix: {
+        flat_rate_paise_per_sqft_per_month: 5000,
+        ward_rates: [
+          { ward_code: '12', rate_paise_per_sqft_per_month: 7500 },
+          { ward_code: '64', rate_paise_per_sqft_per_month: 6000 },
+        ],
+      },
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'ad-led',
+    override_config: {
+      bookable_asset_codes: ['kmc-led-central', 'kmc-led-park-street'],
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'ambulance',
+    override_config: {
+      bookable_asset_codes: ['kmc-ambulance-01', 'kmc-ambulance-02'],
+    },
+  },
+  {
+    tenant_code: 'KMC',
+    service_code: 'hearse',
+    override_config: {
+      bookable_asset_codes: ['kmc-hearse-01'],
     },
   },
   {

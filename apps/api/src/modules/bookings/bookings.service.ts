@@ -1,16 +1,26 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
-import { resolveCitizenMunicipalityForWrite } from '../../common/auth/citizen-scope';
+import {
+  citizenHubRowAccessibleByTenant,
+  isCitizenSelfServicePrincipal,
+  principalIsCitizenPortal,
+  resolveCitizenMunicipalityForWrite,
+  resolveMunicipalityTenantIdFromScopeCode,
+} from '../../common/auth/citizen-scope';
 import { PrismaService } from '../../common/database/prisma.service';
-import { renderSimplePdf } from '../../common/pdf/simple-pdf';
 import { ensureMunicipalCitizenRow } from '../citizen/ensure-municipal-citizen-row';
 import { principalHasGrievanceStaffAccess } from '../grievances/grievance-staff-roles';
 import { CITIZEN_PORTAL_TENANT_CODE, tenantSeeds } from '../tenants/tenant.seed';
+
+import type { ApplicationReadScope } from '../applications/dto';
 
 import {
   bookableAssetCodesFromOverrideConfig,
@@ -18,29 +28,48 @@ import {
 } from './bookable-asset-scope.util';
 import { assertBookableWindow } from './bookable-window';
 import { isBookingWorkflowCode } from './booking-workflow.util';
+import { buildBookingHoldNote, parseBookingReservationNote, serviceCodeFromReservationNote } from './booking-reservation-note.util';
+import { mergeFleetPoolSlots, pickFirstFreeAssetCode } from './bookings-fleet-pool.util';
 import { computeBookingAmounts } from './bookings-payment.util';
 import {
+  buildServiceLabelMap,
+  resolveCitizenBookingRentPaise,
+  toCitizenBookingListItem,
+  type CitizenBookingListItem,
+} from './citizen-booking-list.util';
+import { renderBookingConfirmationPdf } from './bookings-confirmation.pdf';
+import {
   bookingRefFromPathSegment,
-  buildBookingConfirmationPdfLines,
+  buildBookingConfirmationPdfModel,
   formatBookingSlotIst,
   jsonLabel,
+  pickupAddressFromReservationNote,
 } from './bookings-pdf.util';
+import { resolveRevenueHeadCodeForAsset } from './bookings-revenue-scope.util';
 import { reservationIdOrBookingNoWhere } from './bookings-reservation.util';
+import { BOOKING_DEPOSIT_TYPE } from './bookings-deposit-payment.service';
 import { generateBookableSlots } from './bookings-slot.util';
+import {
+  isHealthFleetServiceCode,
+  readBplSubsidyPaise,
+} from './health-fleet.util';
 import { parseBookingWindow, parseSlotRange } from './bookings-time.util';
 
 import type {
   BookingCancelDto,
   BookingConfirmHoldDto,
   BookingCreateHoldDto,
+  BookingFleetQuoteDto,
   BookingQuoteDto,
 } from './dto/bookings.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-import type { Prisma } from '../../generated/prisma';
+import { Prisma } from '../../generated/prisma';
 
 const HOLD_TTL_MS = 15 * 60 * 1000;
 /** Holds tied to a desk application stay blocked until clerk confirm/reject. */
 const CLERK_REVIEW_HOLD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const MAX_EMERGENCY_BOOKINGS_PER_DAY = 2;
 
 export type BookableAssetListItem = {
   code: string;
@@ -68,12 +97,26 @@ export type BookingQuoteResponse = {
 export type BookingHoldResponse = {
   id: string;
   asset_code: string;
+  assigned_asset_code?: string;
   status: string;
   starts_at: string;
   ends_at: string;
   rent_paise: number;
   deposit_paise: number;
   hold_expires_at: string;
+  emergency?: boolean;
+};
+
+export type FleetAvailabilityResponse = {
+  service_code: string;
+  from: string;
+  to: string;
+  slots: Array<{
+    starts_at: string;
+    ends_at: string;
+    available_units: number;
+    status: 'free' | 'taken';
+  }>;
 };
 
 export type BookingReservationResponse = {
@@ -96,6 +139,9 @@ export class BookingsService {
     tenantCode: string,
     serviceCode?: string,
   ): Promise<BookableAssetListItem[]> {
+    if (serviceCode && isHealthFleetServiceCode(serviceCode)) {
+      return [];
+    }
     const tenantId = await this.resolveTenantIdByCode(tenantCode);
     const allowedCodes = serviceCode
       ? await this.resolveBookableAssetCodesForService(tenantId, serviceCode)
@@ -191,6 +237,82 @@ export class BookingsService {
     };
   }
 
+  async listFleetAvailability(
+    tenantCode: string,
+    serviceCode: string,
+    fromRaw: string,
+    toRaw: string,
+  ): Promise<FleetAvailabilityResponse> {
+    if (!isHealthFleetServiceCode(serviceCode)) {
+      throw new BadRequestException('fleet-availability is only supported for ambulance and hearse');
+    }
+    const tenantId = await this.resolveTenantIdByCode(tenantCode);
+    const { from, to } = parseSlotRange(fromRaw, toRaw);
+    const assetCodes = await this.resolveBookableAssetCodesForService(tenantId, serviceCode);
+    const assets = await this.prisma.bookableAsset.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        code: { in: assetCodes },
+      },
+      orderBy: { code: 'asc' },
+    });
+    const assetGrids = await Promise.all(
+      assets.map(async (asset) => {
+        const { slots } = await this.listAssetSlots(
+          tenantCode,
+          asset.code,
+          from.toISOString(),
+          to.toISOString(),
+          serviceCode,
+        );
+        return { asset_code: asset.code, slots };
+      }),
+    );
+    const slots = mergeFleetPoolSlots(assetGrids);
+    return {
+      service_code: serviceCode.trim(),
+      from: from.toISOString(),
+      to: to.toISOString(),
+      slots,
+    };
+  }
+
+  async fleetQuote(dto: BookingFleetQuoteDto): Promise<BookingQuoteResponse> {
+    if (!isHealthFleetServiceCode(dto.service_code)) {
+      throw new BadRequestException('Fleet quote is only supported for ambulance and hearse');
+    }
+    const tenantId = await this.resolveTenantIdByCode(dto.tenant_code);
+    const { startsAt, endsAt } = parseBookingWindow(dto.starts_at, dto.ends_at);
+    const availability = await this.listFleetAvailability(
+      dto.tenant_code,
+      dto.service_code,
+      startsAt.toISOString(),
+      endsAt.toISOString(),
+    );
+    const slot = availability.slots.find(
+      (row) => row.starts_at === startsAt.toISOString() && row.ends_at === endsAt.toISOString(),
+    );
+    if (!slot || slot.available_units < 1) {
+      throw new ConflictException('No fleet units are available for the selected slot');
+    }
+    const assetCodes = await this.resolveBookableAssetCodesForService(tenantId, dto.service_code);
+    const asset = await this.prisma.bookableAsset.findFirstOrThrow({
+      where: { tenantId, code: { in: assetCodes }, isActive: true },
+      orderBy: { code: 'asc' },
+    });
+    const revenueHeadCode = await this.resolveRevenueHeadCode(tenantId, asset.code);
+    const amounts = computeBookingAmounts(asset, startsAt, endsAt);
+    return {
+      asset_code: asset.code,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      rate_unit: asset.rateUnit,
+      revenue_head_code: revenueHeadCode,
+      ...amounts,
+    };
+  }
+
   async quote(dto: BookingQuoteDto): Promise<BookingQuoteResponse> {
     const tenantId = await this.resolveTenantIdByCode(dto.tenant_code);
     if (dto.service_code) {
@@ -215,6 +337,20 @@ export class BookingsService {
     dto: BookingCreateHoldDto,
     municipalityScopeHeader?: string,
   ): Promise<BookingHoldResponse> {
+    if (dto.service_code && isHealthFleetServiceCode(dto.service_code)) {
+      return this.createHealthFleetHold(principal, dto, municipalityScopeHeader);
+    }
+    if (!dto.asset_code?.trim()) {
+      throw new BadRequestException('asset_code is required');
+    }
+    return this.createAssetHold(principal, dto, municipalityScopeHeader);
+  }
+
+  private async createAssetHold(
+    principal: AuthenticatedPrincipal,
+    dto: BookingCreateHoldDto,
+    municipalityScopeHeader?: string,
+  ): Promise<BookingHoldResponse> {
     const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
       principal,
       tenantSeeds,
@@ -226,9 +362,9 @@ export class BookingsService {
 
     const citizenId = await ensureMunicipalCitizenRow(this.prisma, principal.subject, tenantId);
     if (dto.service_code) {
-      await this.assertAssetAllowedForService(tenantId, dto.service_code, dto.asset_code);
+      await this.assertAssetAllowedForService(tenantId, dto.service_code, dto.asset_code!);
     }
-    const asset = await this.getActiveAsset(tenantId, dto.asset_code);
+    const asset = await this.getActiveAsset(tenantId, dto.asset_code!);
     const { startsAt, endsAt } = parseBookingWindow(dto.starts_at, dto.ends_at);
     await this.assertSlotFree(tenantId, asset, startsAt, endsAt);
     await assertBookableWindow(this.prisma, tenantId, asset, startsAt, endsAt);
@@ -250,7 +386,10 @@ export class BookingsService {
         startsAt,
         endsAt,
         status: 'hold',
-        note: JSON.stringify({ hold_expires_at: holdExpiresAt.toISOString() }),
+        note: buildBookingHoldNote({
+          holdExpiresAt,
+          serviceCode: dto.service_code,
+        }),
       },
       include: { asset: true },
     });
@@ -265,6 +404,210 @@ export class BookingsService {
       deposit_paise: amounts.deposit_paise,
       hold_expires_at: holdExpiresAt.toISOString(),
     };
+  }
+
+  private async createHealthFleetHold(
+    principal: AuthenticatedPrincipal,
+    dto: BookingCreateHoldDto,
+    municipalityScopeHeader?: string,
+  ): Promise<BookingHoldResponse> {
+    const serviceCode = dto.service_code?.trim() ?? '';
+    if (!isHealthFleetServiceCode(serviceCode)) {
+      throw new BadRequestException('service_code must be ambulance or hearse');
+    }
+    if (dto.asset_code?.trim()) {
+      throw new BadRequestException(
+        'Do not pass asset_code for health fleet bookings; the system assigns a free unit automatically',
+      );
+    }
+
+    const { tenantId, tenantCode } = resolveCitizenMunicipalityForWrite(
+      principal,
+      tenantSeeds,
+      municipalityScopeHeader ?? dto.tenant_code,
+    );
+    if (tenantCode.toUpperCase() !== dto.tenant_code.trim().toUpperCase()) {
+      throw new BadRequestException('tenant_code must match active municipality scope');
+    }
+
+    const citizenId = await ensureMunicipalCitizenRow(this.prisma, principal.subject, tenantId);
+    const emergency = dto.emergency === true;
+    if (serviceCode === 'ambulance') {
+      this.assertPickupAddressPresent(dto.pickup_address);
+    }
+    if (emergency) {
+      if (serviceCode !== 'ambulance') {
+        throw new BadRequestException('emergency bookings are only supported for ambulance');
+      }
+      await this.assertEmergencyDailyLimit(tenantId, citizenId);
+    }
+
+    const { startsAt, endsAt } = parseBookingWindow(dto.starts_at, dto.ends_at);
+    const assetCodes = await this.resolveBookableAssetCodesForService(tenantId, serviceCode);
+    const assetGrids = await Promise.all(
+      assetCodes.map(async (code) => {
+        const { slots } = await this.listAssetSlots(
+          dto.tenant_code,
+          code,
+          startsAt.toISOString(),
+          endsAt.toISOString(),
+          serviceCode,
+        );
+        return { asset_code: code, slots };
+      }),
+    );
+    const assignedCode = pickFirstFreeAssetCode(
+      assetGrids,
+      startsAt.toISOString(),
+      endsAt.toISOString(),
+    );
+    if (!assignedCode) {
+      throw new ConflictException('No fleet units are available for the selected slot');
+    }
+
+    const asset = await this.getActiveAsset(tenantId, assignedCode);
+    await assertBookableWindow(this.prisma, tenantId, asset, startsAt, endsAt);
+
+    const profile = await this.prisma.citizen.findUniqueOrThrow({
+      where: { id: citizenId },
+      select: { name: true, mobile: true },
+    });
+    const holdExpiresAt = new Date(Date.now() + HOLD_TTL_MS);
+    let row;
+    try {
+      row = await this.prisma.$transaction(
+        async (tx) => {
+          let bookedAsset: Awaited<ReturnType<typeof this.getActiveAsset>> | null = null;
+          for (const code of assetCodes) {
+            const candidate = await this.getActiveAsset(tenantId, code);
+            const overlap = await tx.bookingReservation.count({
+              where: {
+                tenantId,
+                assetId: candidate.id,
+                status: { in: ['hold', 'confirmed'] },
+                startsAt: { lt: endsAt },
+                endsAt: { gt: startsAt },
+              },
+            });
+            if (overlap === 0) {
+              bookedAsset = candidate;
+              break;
+            }
+          }
+          if (!bookedAsset) {
+            throw new Error('FLEET_SLOT_CONFLICT');
+          }
+
+          return tx.bookingReservation.create({
+            data: {
+              tenantId,
+              assetId: bookedAsset.id,
+              citizenId,
+              holderName: dto.holder_name?.trim() || profile.name?.trim() || 'Citizen',
+              holderMobile: dto.holder_mobile?.trim() || profile.mobile,
+              startsAt,
+              endsAt,
+              status: 'hold',
+              note: buildBookingHoldNote({
+                holdExpiresAt,
+                serviceCode,
+                emergency,
+                emergencyDeclarationAt: emergency ? new Date() : undefined,
+                pickupAddress: dto.pickup_address ?? null,
+                bplDeclared: dto.bpl_declared === true,
+              }),
+            },
+            include: { asset: true },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'FLEET_SLOT_CONFLICT') {
+        throw new ConflictException('No fleet units are available for the selected slot');
+      }
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' ||
+          error.message.includes('booking_reservations_no_time_overlap'))
+      ) {
+        throw new ConflictException('No fleet units are available for the selected slot');
+      }
+      if (
+        error instanceof Error &&
+        error.message.includes('booking_reservations_no_time_overlap')
+      ) {
+        throw new ConflictException('No fleet units are available for the selected slot');
+      }
+      throw error;
+    }
+
+    const bookedAmounts = computeBookingAmounts(row.asset, startsAt, endsAt);
+    const finalRentPaise = emergency
+      ? 0
+      : this.resolveHealthFleetRentPaise(
+          row.asset,
+          bookedAmounts.rent_paise,
+          dto.bpl_declared === true,
+        );
+
+    return {
+      id: row.id,
+      asset_code: row.asset.code,
+      assigned_asset_code: row.asset.code,
+      status: row.status,
+      starts_at: row.startsAt.toISOString(),
+      ends_at: row.endsAt.toISOString(),
+      rent_paise: finalRentPaise,
+      deposit_paise: bookedAmounts.deposit_paise,
+      hold_expires_at: holdExpiresAt.toISOString(),
+      emergency,
+    };
+  }
+
+  private resolveHealthFleetRentPaise(
+    asset: { rules: Prisma.JsonValue },
+    baseRentPaise: number,
+    bplDeclared: boolean,
+  ): number {
+    if (!bplDeclared) {
+      return baseRentPaise;
+    }
+    const subsidy = readBplSubsidyPaise(asset.rules);
+    return Math.max(0, baseRentPaise - subsidy);
+  }
+
+  private assertPickupAddressPresent(pickupAddress?: Record<string, string> | null): void {
+    const text =
+      pickupAddress?.en?.trim() ||
+      pickupAddress?.bn?.trim() ||
+      pickupAddress?.hi?.trim() ||
+      '';
+    if (!text) {
+      throw new BadRequestException('pickup_address is required for ambulance booking');
+    }
+  }
+
+  private async assertEmergencyDailyLimit(tenantId: string, citizenId: string): Promise<void> {
+    const { start, end } = istCalendarDayBoundsUtc(new Date());
+    const rows = await this.prisma.bookingReservation.findMany({
+      where: {
+        tenantId,
+        citizenId,
+        createdAt: { gte: start, lt: end },
+        status: { in: ['hold', 'confirmed'] },
+      },
+      select: { note: true },
+    });
+    const emergencyCount = rows.filter(
+      (row) => parseBookingReservationNote(row.note).emergency === true,
+    ).length;
+    if (emergencyCount >= MAX_EMERGENCY_BOOKINGS_PER_DAY) {
+      throw new HttpException(
+        `Emergency ambulance booking limit reached (${MAX_EMERGENCY_BOOKINGS_PER_DAY} per day)`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   async linkApplicationToHold(
@@ -303,9 +646,10 @@ export class BookingsService {
       where: { id: row.id },
       data: {
         applicationId: application.id,
-        note: JSON.stringify({
-          hold_expires_at: holdExpiresAt.toISOString(),
-          clerk_review: true,
+        note: buildBookingHoldNote({
+          holdExpiresAt,
+          clerkReview: true,
+          serviceCode: serviceCodeFromReservationNote(row.note),
         }),
       },
       include: { asset: true },
@@ -336,7 +680,7 @@ export class BookingsService {
       );
     }
 
-    return this.finalizeHoldConfirmation(tenantId, row, dto.deposit_id ?? row.depositId, null);
+    return this.finalizeHoldConfirmation(tenantId, { ...row, note: row.note }, dto.deposit_id ?? row.depositId, null);
   }
 
   /** Desk workflow (booking-v1): confirm slot after clerk approves the linked application. */
@@ -357,6 +701,58 @@ export class BookingsService {
       return null;
     }
     return this.finalizeHoldConfirmation(tenantId, row, row.depositId, applicationId);
+  }
+
+  /** ad-led deferred workflow: confirm held slot after citizen pays approval fee (rent + deposit). */
+  async confirmHoldAfterApprovalPayment(
+    tenantId: string,
+    applicationId: string,
+    paymentId: string,
+  ): Promise<BookingReservationResponse | null> {
+    const row = await this.prisma.bookingReservation.findFirst({
+      where: { tenantId, applicationId, status: 'hold' },
+      include: { asset: true },
+    });
+    if (!row || !row.citizenId) {
+      return null;
+    }
+
+    const amounts = computeBookingAmounts(row.asset, row.startsAt, row.endsAt);
+    let depositId = row.depositId;
+
+    if (amounts.deposit_paise > 0) {
+      if (!depositId) {
+        const deposit = await this.prisma.deposit.create({
+          data: {
+            tenantId,
+            citizenId: row.citizenId,
+            depositType: BOOKING_DEPOSIT_TYPE,
+            referenceCode: `APP/${applicationId}`,
+            amountPaise: amounts.deposit_paise,
+            status: 'held',
+            capturePaymentId: paymentId,
+            metadata: {
+              rent_paise: amounts.rent_paise,
+              include_rent: true,
+              source: 'ad-led-approval',
+              application_id: applicationId,
+            } as Prisma.InputJsonValue,
+          },
+        });
+        depositId = deposit.id;
+        await this.prisma.bookingReservation.update({
+          where: { id: row.id },
+          data: { depositId },
+        });
+      } else {
+        await this.prisma.deposit.update({
+          where: { id: depositId },
+          data: { capturePaymentId: paymentId, status: 'held' },
+        });
+      }
+    }
+
+    return this.finalizeHoldConfirmation(tenantId, row, depositId, applicationId);
   }
 
   /** Desk workflow (booking-v1): release slot when clerk rejects or citizen withdraws. */
@@ -459,6 +855,91 @@ export class BookingsService {
     return toReservationResponse(updated);
   }
 
+  async listReservationsForCitizen(
+    principal: AuthenticatedPrincipal,
+    readScope?: ApplicationReadScope,
+    filters?: { status?: string; limit?: number },
+  ): Promise<CitizenBookingListItem[]> {
+    const citizens = await this.prisma.citizen.findMany({
+      where: { keycloakSubject: principal.subject },
+      select: { id: true, tenantId: true },
+    });
+    if (citizens.length === 0) {
+      return [];
+    }
+
+    let tenantFilter: string | undefined;
+    if (principalIsCitizenPortal(principal) && isCitizenSelfServicePrincipal(principal)) {
+      const scopedCode = readScope?.municipalityTenantCode?.trim();
+      if (scopedCode) {
+        tenantFilter = resolveMunicipalityTenantIdFromScopeCode(scopedCode, tenantSeeds);
+        if (!tenantFilter) {
+          throw new BadRequestException('Invalid tenant scope');
+        }
+      }
+    } else {
+      tenantFilter = principal.tenantId;
+    }
+
+    const citizenIds = tenantFilter
+      ? citizens.filter((row) => row.tenantId === tenantFilter).map((row) => row.id)
+      : citizens.map((row) => row.id);
+    if (citizenIds.length === 0) {
+      return [];
+    }
+
+    const statusFilter = filters?.status ?? 'confirmed';
+    const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 100);
+
+    const rows = await this.prisma.bookingReservation.findMany({
+      where: {
+        citizenId: { in: citizenIds },
+        status: statusFilter,
+        ...(tenantFilter ? { tenantId: tenantFilter } : {}),
+      },
+      include: {
+        asset: true,
+        tenant: { select: { code: true } },
+      },
+      orderBy: { startsAt: 'desc' },
+      take: limit,
+    });
+
+    const serviceCodes = new Set<string>();
+    const tenantIds = new Set<string>();
+    for (const row of rows) {
+      tenantIds.add(row.tenantId);
+      const code = serviceCodeFromReservationNote(row.note);
+      if (code) {
+        serviceCodes.add(code);
+      }
+    }
+
+    const services =
+      serviceCodes.size > 0
+        ? await this.prisma.tenantService.findMany({
+            where: {
+              tenantId: { in: [...tenantIds] },
+              code: { in: [...serviceCodes] },
+              isActive: true,
+            },
+            select: { tenantId: true, code: true, name: true },
+          })
+        : [];
+    const serviceNameByKey = buildServiceLabelMap(services);
+
+    return rows
+      .filter((row) =>
+        citizenHubRowAccessibleByTenant(
+          principal,
+          { tenant_id: row.tenantId, citizen_subject: principal.subject },
+          readScope,
+          tenantSeeds,
+        ),
+      )
+      .map((row) => toCitizenBookingListItem(row, serviceNameByKey));
+  }
+
   async exportConfirmationPdf(
     principal: AuthenticatedPrincipal,
     ref: string,
@@ -485,9 +966,18 @@ export class BookingsService {
     const amounts = computeBookingAmounts(row.asset, row.startsAt, row.endsAt);
     const slot = formatBookingSlotIst(row.startsAt, row.endsAt);
     const generatedAt = new Date();
+    const serviceCode = serviceCodeFromReservationNote(row.note);
+    const noteMeta = parseBookingReservationNote(row.note);
+    const hideAssetLine = isHealthFleetServiceCode(serviceCode);
+    const rentPaise = resolveCitizenBookingRentPaise(
+      row.note,
+      row.asset,
+      row.startsAt,
+      row.endsAt,
+    );
 
-    return renderSimplePdf(
-      buildBookingConfirmationPdfLines({
+    return renderBookingConfirmationPdf(
+      buildBookingConfirmationPdfModel({
         tenantName: tenant.name,
         tenantCode: tenant.code,
         assetName: jsonLabel(row.asset.name),
@@ -496,9 +986,14 @@ export class BookingsService {
         status: row.status,
         slotDate: slot.date,
         slotHours: slot.hours,
-        rentPaise: amounts.rent_paise,
+        rentPaise,
         depositPaise: amounts.deposit_paise,
+        serviceCode,
         generatedAt,
+        hideAssetLine,
+        pickupAddressText: pickupAddressFromReservationNote(row.note),
+        holderMobile: row.holderMobile ?? undefined,
+        emergency: noteMeta.emergency === true,
       }),
     );
   }
@@ -523,6 +1018,7 @@ export class BookingsService {
       applicationId: string | null;
       startsAt: Date;
       endsAt: Date;
+      note: string | null;
       asset: { code: string; securityDepositPaise: number };
     },
     depositIdInput: string | null | undefined,
@@ -546,6 +1042,27 @@ export class BookingsService {
       }
       if (deposit.amountPaise !== asset.securityDepositPaise) {
         throw new BadRequestException('Deposit amount does not match the asset security deposit');
+      }
+    }
+
+    const noteMeta = parseBookingReservationNote(row.note);
+    const amounts = computeBookingAmounts(asset, row.startsAt, row.endsAt);
+    const rentDue = noteMeta.emergency
+      ? 0
+      : this.resolveHealthFleetRentPaise(asset, amounts.rent_paise, noteMeta.bpl_declared === true);
+    if (isHealthFleetServiceCode(noteMeta.service_code) && rentDue > 0) {
+      const payment = await this.prisma.payment.findFirst({
+        where: {
+          tenantId,
+          bookingReservationId: row.id,
+          status: 'settled',
+        },
+        orderBy: { settledAt: 'desc' },
+      });
+      if (!payment || payment.amountPaise < rentDue) {
+        throw new BadRequestException(
+          'Rent payment must be settled before confirming this health fleet booking',
+        );
       }
     }
 
@@ -706,17 +1223,14 @@ export class BookingsService {
       where: { tenantId, isActive: true },
       select: { overrideConfig: true, revenueHead: { select: { code: true } } },
     });
-    for (const service of services) {
-      const config = service.overrideConfig as Record<string, unknown> | null;
-      if (config?.bookable_asset_code === assetCode) {
-        return service.revenueHead?.code ?? null;
-      }
-    }
-    const fallback = await this.prisma.tenantService.findFirst({
-      where: { tenantId, code: 'community-hall', isActive: true },
-      select: { revenueHead: { select: { code: true } } },
-    });
-    return fallback?.revenueHead?.code ?? 'booking-fee';
+    return resolveRevenueHeadCodeForAsset(
+      services.map((service) => ({
+        overrideConfig: service.overrideConfig as Record<string, unknown> | null,
+        revenueHeadCode: service.revenueHead?.code ?? null,
+      })),
+      assetCode,
+      'booking-fee',
+    );
   }
 
   private async nextBookingNo(tenantId: string, tenantCode: string): Promise<string> {
@@ -750,5 +1264,18 @@ function toReservationResponse(row: {
     deposit_id: row.depositId,
     cancelled_at: row.cancelledAt?.toISOString() ?? null,
     cancel_reason: row.cancelReason,
+  };
+}
+
+function istCalendarDayBoundsUtc(now: Date): { start: Date; end: Date } {
+  const istMs = now.getTime() + IST_OFFSET_MS;
+  const istDate = new Date(istMs);
+  const y = istDate.getUTCFullYear();
+  const m = istDate.getUTCMonth();
+  const d = istDate.getUTCDate();
+  const startIstMidnightUtc = Date.UTC(y, m, d) - IST_OFFSET_MS;
+  return {
+    start: new Date(startIstMidnightUtc),
+    end: new Date(startIstMidnightUtc + 24 * 60 * 60 * 1000),
   };
 }

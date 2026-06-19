@@ -18,6 +18,8 @@ type BookingHourGridProps = {
   locale: PwaLocaleCode;
   onSelectSlot: (slot: BookableSlot) => void;
   selectionAnnouncement: string | null;
+  /** When set, show pooled unit count instead of generic "Free". */
+  fleetUnitLabel?: (availableUnits: number) => string;
 };
 
 export function BookingHourGrid({
@@ -27,6 +29,7 @@ export function BookingHourGrid({
   locale,
   onSelectSlot,
   selectionAnnouncement,
+  fleetUnitLabel,
 }: BookingHourGridProps): JSX.Element {
   const localeTag = locale === 'bn' ? 'bn-IN' : locale === 'hi' ? 'hi-IN' : 'en-IN';
 
@@ -41,19 +44,26 @@ export function BookingHourGrid({
         role="list"
       >
         {slots.map((slot) => {
-          const taken = slot.status === 'taken';
+          const noUnits = slot.available_units !== undefined && slot.available_units <= 0;
+          const taken = slot.status === 'taken' || noUnits;
           const active = isSlotInsideSelection(slot, selected);
           const label = formatIstTimeRange(slot.starts_at, slot.ends_at, localeTag);
+          const availabilityLabel =
+            fleetUnitLabel && slot.available_units !== undefined && !taken
+              ? fleetUnitLabel(slot.available_units)
+              : 'Free';
           if (taken) {
             return (
               <div
-                aria-label={`${label}, taken`}
+                aria-label={`${label}, unavailable`}
                 className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-3 text-sm text-slate-500"
                 key={slot.starts_at}
                 role="listitem"
               >
                 <span className="font-medium">{label}</span>
-                <span className="mt-1 block text-xs uppercase tracking-wide">Taken</span>
+                <span className="mt-1 block text-xs uppercase tracking-wide">
+                  {noUnits ? 'No units' : 'Taken'}
+                </span>
               </div>
             );
           }
@@ -72,7 +82,7 @@ export function BookingHourGrid({
             >
               <span className="font-medium">{label}</span>
               <span className="mt-1 block text-xs uppercase tracking-wide text-emerald-800">
-                Free
+                {availabilityLabel}
               </span>
             </button>
           );

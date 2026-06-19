@@ -106,3 +106,5 @@ graphify update .
 | Role        | Notes                                                               | Date       |
 | ----------- | ------------------------------------------------------------------- | ---------- |
 | Engineering | 8.2F docs/tests/verification slice; combined smoke + security green | 2026-06-18 |
+
+**Next active slice:** [`master-sprint-85-plan.md`](./master-sprint-85-plan.md) (8.3/8.4 held).

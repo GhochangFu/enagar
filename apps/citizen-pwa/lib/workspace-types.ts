@@ -78,6 +78,16 @@ export interface ApplicationSummary {
   payment_redirect_url?: string | null;
   active_payment_id?: string | null;
   booking_charges?: BookingChargesSummary;
+  hoarding_approval_fee?: {
+    base_permission_fee_paise: number;
+    hoarding_tax_paise: number;
+    total_approval_paise: number;
+  };
+  led_approval_fee?: {
+    rent_paise: number;
+    deposit_paise: number;
+    total_approval_paise: number;
+  };
   submitted_at: string;
 }
 

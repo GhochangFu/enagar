@@ -2,9 +2,12 @@
 
 import { putFileToUploadUrl } from '@enagar/forms/upload';
 import { AlertBanner, Button, PageHeader } from '@enagar/ui';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AdvertisingOpsPanel } from '../../../components/advertising-ops-panel';
+import { HealthBookingOpsPanel } from '../../../components/health-booking-ops-panel';
+import { LedBookingOpsPanel } from '../../../components/led-booking-ops-panel';
 import { BookingsCalendarPanel } from '../../../components/bookings-calendar-panel';
 import { EvChargingOpsPanel } from '../../../components/ev-charging-ops-panel';
 import { GrievanceOperationsPanel } from '../../../components/grievance-operations-panel';
@@ -27,6 +30,8 @@ type OperationsSection =
   | 'branding'
   | 'bookings'
   | 'smart-parking'
+  | 'advertising'
+  | 'health-bookings'
   | 'ev-charging'
   | 'iot-water'
   | 'staff'
@@ -40,6 +45,8 @@ const OPERATIONS_SECTIONS: Array<{ id: OperationsSection; label: string }> = [
   { id: 'branding', label: 'Branding assets' },
   { id: 'bookings', label: 'Bookings' },
   { id: 'smart-parking', label: 'Smart Parking' },
+  { id: 'advertising', label: 'Advertising' },
+  { id: 'health-bookings', label: 'Health Bookings' },
   { id: 'ev-charging', label: 'EV Charging' },
   { id: 'iot-water', label: 'IoT Water' },
   { id: 'staff', label: 'Staff & roles' },
@@ -248,6 +255,7 @@ function renderTemplatePreview(template: string, samples: Record<string, string>
 
 export default function OperationsClient(): JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { token, apiBase, me } = useTenantAdminSession();
   const [status, setStatus] = useState<string | null>(null);
   const [opsSection, setOpsSection] = useState<OperationsSection>('banners');
@@ -296,6 +304,7 @@ export default function OperationsClient(): JSX.Element {
     max_duration_hours: '8',
   });
   const [bookingCalendarAssetFilter, setBookingCalendarAssetFilter] = useState('');
+  const [bookingCalendarAssetTypeFilter, setBookingCalendarAssetTypeFilter] = useState('');
   const [bookingAvailabilityDraft, setBookingAvailabilityDraft] = useState({
     asset_code: 'community-hall-main',
     kind: 'available',
@@ -652,6 +661,13 @@ export default function OperationsClient(): JSX.Element {
   useEffect(() => {
     void loadOperations();
   }, [loadOperations]);
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (section && OPERATIONS_SECTIONS.some((entry) => entry.id === section)) {
+      setOpsSection(section as OperationsSection);
+    }
+  }, [searchParams]);
 
   async function upsert(path: string, bodyText: string, label: string): Promise<void> {
     if (!token) {
@@ -2149,9 +2165,11 @@ export default function OperationsClient(): JSX.Element {
 
               <BookingsCalendarPanel
                 assetFilter={bookingCalendarAssetFilter}
+                assetTypeFilter={bookingCalendarAssetTypeFilter}
                 assets={bookings.assets}
                 availability={bookings.availability}
                 onAssetFilterChange={setBookingCalendarAssetFilter}
+                onAssetTypeFilterChange={setBookingCalendarAssetTypeFilter}
                 onSelectEvent={(event) => {
                   if (event.kind === 'reservation') {
                     setBookingReservationDraft({
@@ -2419,6 +2437,15 @@ export default function OperationsClient(): JSX.Element {
           {opsSection === 'grievances' ? <GrievanceOperationsPanel /> : null}
 
           {opsSection === 'smart-parking' ? <SmartParkingOpsPanel /> : null}
+
+          {opsSection === 'advertising' ? (
+            <>
+              <AdvertisingOpsPanel />
+              <LedBookingOpsPanel />
+            </>
+          ) : null}
+
+          {opsSection === 'health-bookings' ? <HealthBookingOpsPanel /> : null}
 
           {opsSection === 'ev-charging' ? <EvChargingOpsPanel /> : null}
 

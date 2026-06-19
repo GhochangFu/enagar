@@ -9,11 +9,14 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  forwardRef,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
 import { tryAdvancePostApprovalOnPaymentPaid } from '../admin-tenant/post-approval-workflow.util';
+import { AD_LED_SERVICE_CODE } from '../advertising/led-booking-quote.util';
 import { ApplicationsService } from '../applications/applications.service';
+import { BookingsService } from '../bookings/bookings.service';
 import { LeaseReceiptsService } from '../lease-receipts/lease-receipts.service';
 import { ServicesService } from '../services/services.service';
 import { PostApprovalExecutionService } from '../work-orders/post-approval-execution.service';
@@ -22,8 +25,8 @@ import {
   buildInitialFeeSettlement,
   coerceFeeSettlementSnapshot,
   feeLineAllowsCitizenInitiate,
-  feeLineAmountPaise,
   parseFeeLineCode,
+  resolvePayableFeeLineAmountPaise,
 } from './fee-settlement.util';
 import { indianBusinessDayUtcBounds } from './finance-date';
 import { PAYMENT_STORE } from './payment-store';
@@ -67,6 +70,9 @@ export class PaymentsService {
     private readonly store: PaymentStore,
     private readonly prisma: PrismaService,
     @Optional() private readonly leaseReceipts?: LeaseReceiptsService,
+    @Optional()
+    @Inject(forwardRef(() => BookingsService))
+    private readonly bookings?: BookingsService,
   ) {
     this.logger = new Logger(PaymentsService.name);
   }
@@ -98,9 +104,14 @@ export class PaymentsService {
       application.service_code,
     );
 
+    const settlement =
+      Object.keys(coerceFeeSettlementSnapshot(application.fee_settlement)).length > 0
+        ? coerceFeeSettlementSnapshot(application.fee_settlement)
+        : buildInitialFeeSettlement(paymentConfig);
+
     let expectedAmountPaise: number;
     try {
-      expectedAmountPaise = feeLineAmountPaise(paymentConfig, feeCode);
+      expectedAmountPaise = resolvePayableFeeLineAmountPaise(paymentConfig, feeCode, settlement);
     } catch {
       throw new BadRequestException(
         'Only fixed-fee application payments are enabled in Sprint 3.1A',
@@ -138,10 +149,6 @@ export class PaymentsService {
       );
     }
 
-    const settlement =
-      Object.keys(coerceFeeSettlementSnapshot(application.fee_settlement)).length > 0
-        ? coerceFeeSettlementSnapshot(application.fee_settlement)
-        : buildInitialFeeSettlement(paymentConfig);
     const feeLine = settlement[feeCode];
     if (!feeLineAllowsCitizenInitiate(paymentConfig.payment_schedule, feeCode, feeLine)) {
       throw new BadRequestException(`Payment line "${feeCode}" is not open for citizen initiation`);
@@ -275,6 +282,18 @@ export class PaymentsService {
       application.id,
       this.postApprovalExecution,
     );
+
+    if (
+      feeCode === 'approval' &&
+      application.service_code === AD_LED_SERVICE_CODE &&
+      this.bookings
+    ) {
+      await this.bookings.confirmHoldAfterApprovalPayment(
+        application.tenant_id,
+        application.id,
+        payment.id,
+      );
+    }
 
     return ledger;
   }
@@ -588,7 +607,7 @@ export class PaymentsService {
 
     let amountPaise: number;
     try {
-      amountPaise = feeLineAmountPaise(paymentConfig, feeCode);
+      amountPaise = resolvePayableFeeLineAmountPaise(paymentConfig, feeCode, settlement);
     } catch {
       throw new BadRequestException('Only fixed-fee desk payment links are enabled in Phase 11');
     }

@@ -24,6 +24,15 @@ describe('sahayak-service-help.seed', () => {
     expect(hall?.body.en).toContain('not currently active');
   });
 
+  it('includes KMC ambulance emergency disclaimer in Sahayak help', () => {
+    const ambulance = buildSahayakServiceHelpArticles('KMC').find(
+      (article) => article.slug === 'help-services-ambulance',
+    );
+    expect(ambulance).toBeDefined();
+    expect(ambulance?.body.en).toContain('Emergency ambulance policy');
+    expect(ambulance?.body.en).toContain('2 per citizen per day');
+  });
+
   it('covers all operational municipalities', () => {
     const articles = buildAllSahayakServiceHelpArticles();
     const tenants = new Set(articles.map((article) => article.tenant_code));

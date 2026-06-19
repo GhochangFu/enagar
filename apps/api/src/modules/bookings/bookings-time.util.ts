@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-const MAX_SLOT_RANGE_DAYS = 90;
+export const MAX_SLOT_RANGE_DAYS = 90;
 
 export function parseIsoInstant(value: string, field: string): Date {
   const parsed = new Date(value);

@@ -2,12 +2,20 @@
 
 import Link from 'next/link';
 
-import type { WorkflowDefinition } from '@enagar/workflow';
+import {
+  filterBookableAssetsForService,
+  serviceShowsBookableAssetMapping,
+  workflowDefinitionIsBooking,
+} from '../../../../lib/bookable-assets-mapping.util';
+
 import type { Route } from 'next';
+
+export { serviceShowsBookableAssetMapping, workflowDefinitionIsBooking };
 
 export type BookableAssetRow = {
   code: string;
   name: unknown;
+  asset_type?: string;
   is_active: boolean;
 };
 
@@ -19,26 +27,6 @@ function pickAssetLabel(name: unknown, code: string): string {
     }
   }
   return code;
-}
-
-/** True when the workflow draft uses the hall booking pattern (template or equivalent stages). */
-export function workflowDefinitionIsBooking(
-  workflow: Pick<WorkflowDefinition, 'code' | 'stages' | 'transitions'> | null | undefined,
-): boolean {
-  if (!workflow) {
-    return false;
-  }
-  const code = workflow.code?.trim() ?? '';
-  if (code === 'booking-v1' || code.endsWith('-booking-v1')) {
-    return true;
-  }
-  if (workflow.stages?.some((stage) => stage.code === 'slot-review')) {
-    return true;
-  }
-  if (workflow.transitions?.some((transition) => transition.verb === 'review-slot')) {
-    return true;
-  }
-  return false;
 }
 
 export function BookableAssetsMappingPanel({
@@ -56,32 +44,37 @@ export function BookableAssetsMappingPanel({
   onToggle: (code: string, checked: boolean) => void;
   onSave: () => void;
 }): JSX.Element {
-  const activeAssets = assets.filter((asset) => asset.is_active);
+  const activeAssets = filterBookableAssetsForService(serviceCode, assets);
   const selectedSet = new Set(selectedCodes);
   const staleConfigCodes = configCodesMissingFromDb ?? [];
+  const isLedService = serviceCode === 'ad-led';
+  const operationsPath = isLedService ? 'Operations → Advertising' : 'Operations → Bookings';
+  const assetLabel = isLedService ? 'LED boards' : 'halls or facilities';
 
   return (
     <article className="rounded-xl border border-warm-border bg-white p-5 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
-            Hall &amp; facility booking
+            {isLedService ? 'LED slot booking' : 'Hall & facility booking'}
           </p>
           <h2 className="text-lg font-semibold text-ink-primary">
             Bookable assets for this service
           </h2>
           <p className="mt-1 max-w-2xl text-xs text-ink-secondary">
-            Citizens applying for{' '}
+            Citizens booking{' '}
             <span className="font-medium text-ink-primary">{serviceCode}</span> only see the assets
-            you select here. Create assets and availability under{' '}
+            you select here. Create {isLedService ? 'LED boards' : 'assets and availability'} under{' '}
             <Link
               href={'/dashboard/operations' as Route}
               className="font-medium text-brand hover:underline"
             >
-              Operations → Bookings
+              {operationsPath}
             </Link>
-            , then link them below. Save and publish the workflow after applying the booking
-            template.
+            , then link them below.
+            {isLedService
+              ? ' No workflow publish is required for direct LED slot booking.'
+              : ' Save and publish the workflow after applying the booking template.'}
           </p>
         </div>
         <button
@@ -103,8 +96,9 @@ export function BookableAssetsMappingPanel({
 
       {activeAssets.length === 0 ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          No active bookable assets yet. Add one in Operations → Bookings, generate availability,
-          then return here to link it to this service.
+          No active {assetLabel} yet. Add one in {operationsPath}
+          {isLedService ? '' : ', generate availability'}, then return here to link it to this
+          service.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -139,8 +133,8 @@ export function BookableAssetsMappingPanel({
 
       {selectedCodes.length === 0 && activeAssets.length > 0 ? (
         <p className="mt-3 text-xs text-amber-800">
-          No assets selected — citizens will not see any halls for this service until you save at
-          least one.
+          No assets selected — citizens will not see any {assetLabel} for this service until you save
+          at least one.
         </p>
       ) : null}
 

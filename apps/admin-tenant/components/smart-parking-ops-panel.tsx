@@ -225,6 +225,36 @@ export function SmartParkingOpsPanel(): JSX.Element {
       capacity_bays: String(zone.capacity_bays),
       is_active: zone.is_active,
     });
+    setStatus(`Editing zone ${zone.code}. Change fields and click Save zone.`);
+  }
+
+  function startNewZone(): void {
+    setZoneDraft({
+      code: '',
+      name_en: '',
+      ward_number: '',
+      capacity_bays: '20',
+      is_active: true,
+    });
+    setStatus('New zone — enter code and details, then Save zone.');
+  }
+
+  function loadBayIntoForm(bay: ParkingBayRow): void {
+    setBayDraft({
+      zone_code: bay.zone_code,
+      bay_code: bay.bay_code,
+      status: bay.status,
+    });
+    setStatus(`Editing bay ${bay.zone_code}/${bay.bay_code}. Change status and click Save bay.`);
+  }
+
+  function startNewBay(): void {
+    setBayDraft({
+      zone_code: zones[0]?.code ?? 'ZONE-A',
+      bay_code: '',
+      status: 'FREE',
+    });
+    setStatus('New bay — enter zone, bay code, and status, then Save bay.');
   }
 
   return (
@@ -235,9 +265,14 @@ export function SmartParkingOpsPanel(): JSX.Element {
         <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-ink-primary">Smart zone</h2>
-            <Button type="button" size="sm" onClick={() => void saveZone()}>
-              Save zone
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={startNewZone}>
+                New zone
+              </Button>
+              <Button type="button" size="sm" onClick={() => void saveZone()}>
+                Save zone
+              </Button>
+            </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field
@@ -308,9 +343,14 @@ export function SmartParkingOpsPanel(): JSX.Element {
         <article className="rounded-2xl border border-warm-border bg-surface p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-ink-primary">Parking bay</h2>
-            <Button type="button" size="sm" onClick={() => void saveBay()}>
-              Save bay
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={startNewBay}>
+                New bay
+              </Button>
+              <Button type="button" size="sm" onClick={() => void saveBay()}>
+                Save bay
+              </Button>
+            </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field
@@ -467,7 +507,8 @@ export function SmartParkingOpsPanel(): JSX.Element {
               <tr className="border-b border-warm-border text-xs uppercase tracking-wide text-ink-secondary">
                 <th className="py-2 pr-3">Zone</th>
                 <th className="py-2 pr-3">Bay</th>
-                <th className="py-2">Status</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -475,12 +516,22 @@ export function SmartParkingOpsPanel(): JSX.Element {
                 <tr key={bay.id} className="border-b border-warm-border/60">
                   <td className="py-2 pr-3">{bay.zone_code}</td>
                   <td className="py-2 pr-3">{bay.bay_code}</td>
-                  <td className="py-2">{bay.status}</td>
+                  <td className="py-2 pr-3">{bay.status}</td>
+                  <td className="py-2 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => loadBayIntoForm(bay)}
+                    >
+                      Edit
+                    </Button>
+                  </td>
                 </tr>
               ))}
               {bays.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="py-3 text-ink-secondary">
+                  <td colSpan={4} className="py-3 text-ink-secondary">
                     No bays registered yet.
                   </td>
                 </tr>

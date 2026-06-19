@@ -1,6 +1,20 @@
-import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 
 import { paymentMethods } from '../../payments/dto';
+
+import { isHealthFleetServiceCode } from '../health-fleet.util';
 
 import type { PaymentMethod } from '../../payments/dto';
 
@@ -29,6 +43,31 @@ export class BookingAssetSlotsQueryDto extends BookingTenantQueryDto {
   service_code?: string;
 }
 
+export class BookingFleetAvailabilityQueryDto extends BookingTenantQueryDto {
+  @IsString()
+  service_code!: string;
+
+  @IsString()
+  from!: string;
+
+  @IsString()
+  to!: string;
+}
+
+export class BookingFleetQuoteDto {
+  @IsString()
+  tenant_code!: string;
+
+  @IsString()
+  service_code!: string;
+
+  @IsString()
+  starts_at!: string;
+
+  @IsString()
+  ends_at!: string;
+}
+
 export class BookingQuoteDto {
   @IsString()
   tenant_code!: string;
@@ -55,8 +94,10 @@ export class BookingCreateHoldDto {
   @IsString()
   service_code?: string;
 
+  /** Required for hall/LED; omit for health fleet pool (ambulance/hearse). */
+  @ValidateIf((dto: BookingCreateHoldDto) => !isHealthFleetServiceCode(dto.service_code))
   @IsString()
-  asset_code!: string;
+  asset_code?: string;
 
   @IsString()
   starts_at!: string;
@@ -71,6 +112,18 @@ export class BookingCreateHoldDto {
   @IsOptional()
   @IsString()
   holder_mobile?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  emergency?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  pickup_address?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
+  bpl_declared?: boolean;
 }
 
 export class BookingConfirmHoldDto {
@@ -103,4 +156,17 @@ export class BookingCancelDto {
   @IsOptional()
   @IsString()
   cancel_reason?: string;
+}
+
+export class BookingListQueryDto {
+  @IsOptional()
+  @IsIn(['confirmed', 'hold', 'cancelled'])
+  status?: 'confirmed' | 'hold' | 'cancelled';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

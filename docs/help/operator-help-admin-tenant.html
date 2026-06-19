@@ -465,6 +465,69 @@
             two services unless your policy allows it.
           </div>
 
+          <h3 id="advertising-health-ops">Advertising &amp; health fleet (Sprint 8.5)</h3>
+          <p>
+            <strong>Who can use this:</strong> ULB administrators. Citizens use
+            <strong>Services</strong> or <strong>Applications / Bookings</strong> in the citizen app.
+          </p>
+          <h4>Hoarding rate matrix</h4>
+          <ol class="help-steps">
+            <li>
+              Open <strong>Operations</strong> → <strong>Advertising</strong> (or Service setup for
+              <em>ad-hoarding</em>). Edit the <strong>ward rate matrix</strong>: flat fallback rate
+              plus ward-specific rows (max <strong>200</strong> wards).
+            </li>
+            <li>
+              Citizens use the hoarding <strong>tax calculator</strong> (ward × width × height ×
+              months). Quotes are informational — payment happens at BOC approval, not at quote
+              time.
+            </li>
+            <li>
+              Use <strong>Preview quote</strong> in admin to verify a ward/size before publishing
+              matrix changes.
+            </li>
+          </ol>
+          <h4>LED board slot booking</h4>
+          <ol class="help-steps">
+            <li>
+              Under <strong>Operations → Bookings</strong>, create <strong>LED board</strong> assets
+              (asset type <em>LED_BOARD</em>) with hourly rates and availability windows.
+            </li>
+            <li>
+              In <strong>Service setup</strong> for <em>ad-led</em>: apply the hoarding-style
+              workflow, map allowed LED asset codes, and set payment schedule to
+              <strong>deferred_only</strong>.
+            </li>
+            <li>
+              Citizens pick a board and slot, submit creative for scrutiny, and pay the approval fee
+              when the desk issues the payment link.
+            </li>
+          </ol>
+          <h4>Health fleet (ambulance &amp; hearse)</h4>
+          <ol class="help-steps">
+            <li>
+              Seed or create <strong>AMBULANCE</strong> and <strong>HEARSE</strong> bookable assets
+              under Operations → Bookings. Map them to <em>ambulance</em> / <em>hearse</em> services.
+            </li>
+            <li>
+              Citizens see a <strong>pooled calendar</strong> (unit count, not vehicle names). The
+              system auto-assigns a free unit on hold.
+            </li>
+            <li>
+              <strong>Emergency ambulance:</strong> citizen declares emergency → <strong>₹0</strong>
+              rent, max <strong>2 bookings per citizen per day</strong>; audit metadata stored on the
+              reservation. Ops should review flagged emergency rows.
+            </li>
+            <li>
+              <strong>Hearse BPL:</strong> citizen may declare BPL; desk verifies documents before
+              rent waiver. Crematorium booking is deferred — not in this release.
+            </li>
+            <li>
+              The dashboard <strong>Booking Summary</strong> shows counts and recent rows for hall,
+              LED, ambulance, and hearse together.
+            </li>
+          </ol>
+
           <h3 id="smart-city-ops">Smart city services (parking, EV, water)</h3>
           <p>
             <strong>Who can use this:</strong> ULB administrators. Citizens use the

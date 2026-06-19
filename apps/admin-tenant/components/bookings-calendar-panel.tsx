@@ -15,7 +15,7 @@ import { toCalendarEvents, type BookingsCalendarEvent } from '../lib/bookings-ca
 import type { JSX } from 'react';
 
 type BookingsCalendarPanelProps = {
-  assets: Array<{ code: string; name: unknown }>;
+  assets: Array<{ code: string; name: unknown; asset_type?: string }>;
   availability: Array<{
     id: string;
     asset_code: string;
@@ -33,10 +33,20 @@ type BookingsCalendarPanelProps = {
     status: string;
   }>;
   assetFilter: string;
+  assetTypeFilter: string;
   onAssetFilterChange: (code: string) => void;
+  onAssetTypeFilterChange: (type: string) => void;
   onSelectEvent: (event: BookingsCalendarEvent) => void;
   pickLabel: (json: unknown) => string;
 };
+
+const ASSET_TYPE_CHIPS = [
+  { value: '', label: 'All types' },
+  { value: 'HALL', label: 'Halls' },
+  { value: 'LED_BOARD', label: 'LED' },
+  { value: 'AMBULANCE', label: 'Ambulance' },
+  { value: 'HEARSE', label: 'Hearse' },
+] as const;
 
 type CalendarView = 'agenda' | 'day-hours';
 
@@ -89,12 +99,22 @@ export function BookingsCalendarPanel({
   availability,
   reservations,
   assetFilter,
+  assetTypeFilter,
   onAssetFilterChange,
+  onAssetTypeFilterChange,
   onSelectEvent,
   pickLabel,
 }: BookingsCalendarPanelProps): JSX.Element {
   const [view, setView] = useState<CalendarView>('day-hours');
   const [focusDayYmd, setFocusDayYmd] = useState(ymdTodayIst);
+
+  const filteredAssets = useMemo(() => {
+    const type = assetTypeFilter.trim().toUpperCase();
+    if (!type) {
+      return assets;
+    }
+    return assets.filter((row) => row.asset_type?.trim().toUpperCase() === type);
+  }, [assets, assetTypeFilter]);
 
   const events = useMemo(
     () =>
@@ -102,8 +122,10 @@ export function BookingsCalendarPanel({
         availability,
         reservations,
         assetFilter: assetFilter || null,
+        assetTypeFilter: assetTypeFilter || null,
+        assets,
       }),
-    [availability, reservations, assetFilter],
+    [availability, reservations, assetFilter, assetTypeFilter, assets],
   );
 
   const grouped = useMemo(() => {
@@ -162,7 +184,7 @@ export function BookingsCalendarPanel({
               value={assetFilter}
             >
               <option value="">All assets</option>
-              {assets.map((asset) => (
+              {filteredAssets.map((asset) => (
                 <option key={asset.code} value={asset.code}>
                   {pickLabel(asset.name)} ({asset.code})
                 </option>
@@ -170,6 +192,26 @@ export function BookingsCalendarPanel({
             </select>
           </label>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {ASSET_TYPE_CHIPS.map((chip) => (
+          <button
+            className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+              assetTypeFilter === chip.value
+                ? 'border-ink-primary bg-ink-primary text-white'
+                : 'border-ink-muted/40 text-ink-secondary'
+            }`}
+            data-testid={`booking-calendar-type-${chip.value || 'all'}`}
+            key={chip.value || 'all'}
+            onClick={() => {
+              onAssetTypeFilterChange(chip.value);
+              onAssetFilterChange('');
+            }}
+            type="button"
+          >
+            {chip.label}
+          </button>
+        ))}
       </div>
       <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
         <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-900">

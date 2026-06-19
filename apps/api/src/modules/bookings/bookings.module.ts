@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 import { DatabaseModule } from '../../common/database/database.module';
 import { PaymentsModule } from '../payments/payments.module';
@@ -10,7 +10,7 @@ import { CitizenBookingsController } from './citizen-bookings.controller';
 import { PublicBookingsController } from './public-bookings.controller';
 
 @Module({
-  imports: [DatabaseModule, PaymentsModule, ServicesModule],
+  imports: [DatabaseModule, forwardRef(() => PaymentsModule), ServicesModule],
   controllers: [PublicBookingsController, CitizenBookingsController],
   providers: [BookingsService, BookingsDepositPaymentService],
   exports: [BookingsService, BookingsDepositPaymentService],

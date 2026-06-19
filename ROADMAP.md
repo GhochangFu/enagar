@@ -109,6 +109,9 @@ Use this when prioritising what to pull next across tracks (adjust for staffing 
 | **7.4**  | **Sprint 7.4 — Sahayak UI + consent + feedback**                     | Master · Phase 7 | **Closed 2026-05-26** — [`master-sprint-74-exit.md`](docs/runbooks/master-sprint-74-exit.md) · PWA + mobile Sahayak; consent + KB-only path                                                                                                                                                                                                                  |
 | **8.1**  | **Sprint 8.1 — Bookings calendar + deposit linkage**                 | Master · Phase 8 | **Closed 2026-06-03** — [`master-sprint-81-exit.md`](docs/runbooks/master-sprint-81-exit.md) · hourly slots, PDF, desk sync · Jira [**EN-15**](https://ghochangfu.atlassian.net/browse/EN-15) **Done**                                                                                                                                                       |
 | **8.2**  | **Sprint 8.2 — Smart parking, EV charging & IoT water (stub)**       | Master · Phase 8 | **Closed 2026-06-18** — [`master-sprint-82-exit.md`](docs/runbooks/master-sprint-82-exit.md) · stub adapters, reserve-and-pay flows · Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23)                                                                                                                                                        |
+| **8.3**  | **Sprint 8.3 — Tenders, vendor empanelment & advertisement**         | Master · Phase 8 | **Held 2026-06-18** — [`master-sprint-83-plan.md`](docs/runbooks/master-sprint-83-plan.md) · tender/EMD/vendor deferred; adv portions → **8.5**                                                                                                                                                                                                               |
+| **8.4**  | **Sprint 8.4 — Welfare, health bookings & hardening**                  | Master · Phase 8 | **Held 2026-06-18** — [`master-sprint-84-plan.md`](docs/runbooks/master-sprint-84-plan.md) · pension deferred; health → **8.5**                                                                                                                                                                                                                             |
+| **8.5**  | **Sprint 8.5 — Advertising, health bookings & partial hardening**    | Master · Phase 8 | **Closed 2026-06-19** — [`master-sprint-85-plan.md`](docs/runbooks/master-sprint-85-plan.md) · [`master-sprint-85-exit.md`](docs/runbooks/master-sprint-85-exit.md) · Jira [**EN-24**](https://ghochangfu.atlassian.net/browse/EN-24)                                                                                                                                                                                                 |
 
 **Object storage & upload programme (6.25–6.30):** **Closed engineering 2026-05-21** — MinIO presign platform, Postgres `application_documents`, virus-scan worker, grievance evidence E2E, branding + Desk docs, programme exit spec + smoke ([`object-storage-upload-programme.md`](docs/runbooks/object-storage-upload-programme.md)).
 
@@ -116,7 +119,11 @@ Use this when prioritising what to pull next across tracks (adjust for staffing 
 
 **Master Sprint 8.1 — Bookings calendar — closed engineering 2026-06-03:** [`master-sprint-81-exit.md`](docs/runbooks/master-sprint-81-exit.md) — Jira [**EN-15**](https://ghochangfu.atlassian.net/browse/EN-15) **Done** · hourly slots, deposit linkage, confirmation PDF, citizen `BookingWorkspace`, desk review-slot sync, KMC hall + other-facility services.
 
-**Master Sprint 8.2 — Smart-city stub adapters — closed engineering 2026-06-18:** [`master-sprint-82-exit.md`](docs/runbooks/master-sprint-82-exit.md) — Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23) · smart parking reserve-and-pay, EV kWh stub metering, IoT water prepaid recharge, combined smoke + security contract. **Next:** Sprint **8.3** · [**Phase 8**](#phase-8--bookings-smart-city--tender-modules) · Jira [**EN-10**](https://ghochangfu.atlassian.net/browse/EN-10).
+**Master Sprint 8.2 — Smart-city stub adapters — closed engineering 2026-06-18:** [`master-sprint-82-exit.md`](docs/runbooks/master-sprint-82-exit.md) — Jira [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23) · smart parking reserve-and-pay, EV kWh stub metering, IoT water prepaid recharge, combined smoke + security contract.
+
+**Sprint 8.3 / 8.4 — held 2026-06-18:** Original plans [`master-sprint-83-plan.md`](docs/runbooks/master-sprint-83-plan.md) and [`master-sprint-84-plan.md`](docs/runbooks/master-sprint-84-plan.md) are **not** the active implementation path. Tenders/EMD/vendor empanelment and pension/disbursement scopes are deferred; see **8.5** below.
+
+**Next (held): Sprints 8.3 / 8.4** — tenders/EMD/vendor and pension scopes remain on disk as [`master-sprint-83-plan.md`](docs/runbooks/master-sprint-83-plan.md) and [`master-sprint-84-plan.md`](docs/runbooks/master-sprint-84-plan.md). **Sprint 8.5 closed** ([`master-sprint-85-exit.md`](docs/runbooks/master-sprint-85-exit.md)) · partial Phase 8 exit [`phase-8-partial-exit.md`](docs/runbooks/phase-8-partial-exit.md) · parent [**EN-10**](https://ghochangfu.atlassian.net/browse/EN-10) stays **in progress** until deferred slices ship.
 
 **Master Phase 4 backlog slice (#3) — closed in-repo (engineering, 2026-05-14):** [`phase4-backlog-slice-exit.md`](docs/runbooks/phase4-backlog-slice-exit.md) — **`POST …/staff/sweep-sla`** fans out **`sla_breach` notification** rows (`GET/PATCH …/citizen/notifications`), **`POST …/:id/attachments/register`**, validated **`location` WGS-84** fields on create, **`GET /public/grievances/aggregate-metrics`**, deterministic **200-row** routing permutation test (`grievance-routing-bake-off.spec.ts`). **Still deferred:** sub-minute native breach push (**FCM/APNs**) + production rate limits on **`/public/*`**.
 
@@ -1553,9 +1560,9 @@ Productionise the specialty modules already modelled in `ARCHITECTURE.md` §10: 
   - Tender list + form purchase + EMD payment.
   - Vendor / contractor empanelment.
   - Refund-of-deposit application.
-- **Advertisement & Media**: hoarding tax calculator (ward × size × duration), digital billboard application, LED slot booking calendar.
+- **Advertisement & Media**: hoarding tax calculator (ward × size × duration), LED slot booking calendar. _Digital billboard PWA deferred (8.5D)._
 - **Welfare**: pension applications + monthly disbursement-status view.
-- **Health**: ambulance / hearse / crematorium booking (booking engine reused).
+- **Health**: ambulance + hearse **fleet-pool** booking (booking engine reused; citizen does not pick a vehicle). _Crematorium deferred._
 
 ### Key Deliverables
 
@@ -1587,14 +1594,18 @@ Productionise the specialty modules already modelled in `ARCHITECTURE.md` §10: 
 
 - Citizen can book a community hall on a specific date, pay, get confirmation PDF; admin sees the booking on their calendar; the slot is unbookable for anyone else.
 - Smart parking flow works end-to-end with the stub sensor.
-- A tender list page renders 5 active tenders; user buys form + pays EMD.
+- Hoarding rate calculator returns ward-based quote; `ad-hoarding` BOC workflow still completes (Sprint **8.5**).
+- Health booking (**ambulance** + **hearse**, fleet pool, emergency path) works end-to-end with confirmation PDF (Sprint **8.5**). _Crematorium deferred._
+- _Deferred (held 8.3):_ tender list ≥ 5 active; form purchase + EMD deposit held.
+- _Deferred (held 8.4):_ pension application + disbursement status view.
 
 ### Suggested Sprint Slice
 
 - **Sprint 8.1**: Bookings calendar + booking flow + deposit linkage — **closed engineering 2026-06-03** ([`master-sprint-81-exit.md`](docs/runbooks/master-sprint-81-exit.md) · Jira [**EN-15**](https://ghochangfu.atlassian.net/browse/EN-15)).
-- **Sprint 8.2**: Smart-Parking + EV-Charging + IoT-Water-Meter (stubbed adapters).
-- **Sprint 8.3**: Tenders + Vendor empanelment + Advertisement / Hoarding.
-- **Sprint 8.4**: Welfare + Health bookings + hardening.
+- **Sprint 8.2**: Smart-Parking + EV-Charging + IoT-Water-Meter (stubbed adapters) — **closed 2026-06-18** ([`master-sprint-82-exit.md`](docs/runbooks/master-sprint-82-exit.md)).
+- **Sprint 8.3**: Tenders + Vendor empanelment + Advertisement / Hoarding — **held** ([`master-sprint-83-plan.md`](docs/runbooks/master-sprint-83-plan.md)); tender/EMD/vendor deferred.
+- **Sprint 8.4**: Welfare + Health bookings + hardening — **held** ([`master-sprint-84-plan.md`](docs/runbooks/master-sprint-84-plan.md)); pension deferred.
+- **Sprint 8.5**: Advertising + Health bookings + partial hardening — **closed** ([`master-sprint-85-exit.md`](docs/runbooks/master-sprint-85-exit.md) · [**EN-24**](https://ghochangfu.atlassian.net/browse/EN-24)).
 
 ---
 
@@ -1882,7 +1893,7 @@ Phase 1 exit criteria (per §Phase 1 above):
 - ✅ Admin MFA enforced by realm contract plus API JWT claim checks.
 - 🔴 DigiLocker sandbox credentials / permission from MeitY remain unavailable; real Aadhaar linking is deferred until access is granted.
 
-**Next action:** **Sprint 8.3** (tenders / hoarding / welfare per Phase 8 queue) under [**Phase 8**](#phase-8--bookings-smart-city--tender-modules) · Jira [**EN-10**](https://ghochangfu.atlassian.net/browse/EN-10). **Sprint 8.2** is **closed — engineering** ([`master-sprint-82-exit.md`](docs/runbooks/master-sprint-82-exit.md) · [**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23)). **Sprint 8.1** is **closed — engineering** ([`master-sprint-81-exit.md`](docs/runbooks/master-sprint-81-exit.md) · [**EN-15**](https://ghochangfu.atlassian.net/browse/EN-15) **Done**). **Phase 7 — Sahayak AI** closed ([`phase-7-exit.md`](docs/runbooks/phase-7-exit.md)). Production chatbot still needs sponsor **DPA** (open item #2). **Sprint 3.1B** (payment gateway) stays **deferred** until sponsor unpause.
+**Next action:** **Sprints 8.3 / 8.4 held** (tenders/EMD/vendor/pension deferred). **Sprint 8.5 closed** ([`master-sprint-85-exit.md`](docs/runbooks/master-sprint-85-exit.md) · [**EN-24**](https://ghochangfu.atlassian.net/browse/EN-24)) under [**Phase 8**](#phase-8--bookings-smart-city--tender-modules) · partial exit [`phase-8-partial-exit.md`](docs/runbooks/phase-8-partial-exit.md) · parent [**EN-10**](https://ghochangfu.atlassian.net/browse/EN-10) **in progress**. **Sprint 8.2** closed ([**EN-23**](https://ghochangfu.atlassian.net/browse/EN-23) **Done**). **Phase 7 — Sahayak AI** closed ([`phase-7-exit.md`](docs/runbooks/phase-7-exit.md)). **Sprint 3.1B** (payment gateway) stays **deferred**.
 
 ---
 

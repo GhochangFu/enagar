@@ -28,10 +28,32 @@ export function toCalendarEvents(input: {
     status: string;
   }>;
   assetFilter: string | null;
+  assetTypeFilter?: string | null;
+  assets?: Array<{ code: string; asset_type?: string }>;
 }): BookingsCalendarEvent[] {
   const filter = input.assetFilter?.trim();
+  const typeFilter = input.assetTypeFilter?.trim().toUpperCase();
+  const allowedByType =
+    typeFilter && input.assets
+      ? new Set(
+          input.assets
+            .filter((row) => row.asset_type?.trim().toUpperCase() === typeFilter)
+            .map((row) => row.code),
+        )
+      : null;
+
+  const matchesAsset = (assetCode: string): boolean => {
+    if (filter && assetCode !== filter) {
+      return false;
+    }
+    if (allowedByType && !allowedByType.has(assetCode)) {
+      return false;
+    }
+    return true;
+  };
+
   const availability = input.availability
-    .filter((row) => !filter || row.asset_code === filter)
+    .filter((row) => matchesAsset(row.asset_code))
     .map((row) => ({
       id: row.id,
       kind: row.kind === 'blackout' ? ('blackout' as const) : ('available' as const),
@@ -42,7 +64,7 @@ export function toCalendarEvents(input: {
       status: row.note ?? undefined,
     }));
   const reservations = input.reservations
-    .filter((row) => !filter || row.asset_code === filter)
+    .filter((row) => matchesAsset(row.asset_code))
     .map((row) => ({
       id: row.id,
       kind: 'reservation' as const,

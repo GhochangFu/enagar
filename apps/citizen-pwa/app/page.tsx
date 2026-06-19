@@ -24,7 +24,9 @@ import {
   ApplicationDetailPanel,
   ReceiptPreviewPlaceholder,
 } from '../components/application-detail-panel';
+import { BookingDetailPanel } from '../components/booking-detail-panel';
 import { BookingWorkspace } from '../components/booking-workspace';
+import { HealthBookingsWorkspace } from '../components/health-bookings-workspace';
 import {
   LanguageStep,
   LoginStep,
@@ -53,7 +55,9 @@ import {
 } from '../components/citizen-workspace-components';
 import { EvChargingWorkspace } from '../components/ev-charging-workspace';
 import { GrievancesWorkspace } from '../components/grievances-workspace';
+import { HoardingCalculatorWorkspace } from '../components/hoarding-calculator-workspace';
 import { InvoicesPanel } from '../components/invoices-panel';
+import { MyBookingsPanel } from '../components/my-bookings-panel';
 import { PwaWebPushRegister } from '../components/pwa-web-push';
 import { SahayakFloatingAssistant } from '../components/sahayak-floating-assistant';
 import { SmartParkingWorkspace } from '../components/smart-parking-workspace';
@@ -66,9 +70,11 @@ import {
   approvalFeeLineForService,
   inferPaymentSchedule,
   requiresApplicationFeeBeforeSubmit,
+  resolveFeeLineAmount,
   resolvePaymentLineForApplication,
 } from '../lib/service-payment';
 import { fetchTenantBanners, type TenantBanner } from '../lib/tenant-banners';
+import { fetchCitizenBookings, type CitizenBookingListItem } from '../lib/bookings-api';
 import { resolveTenantFromCatalogue } from '../lib/tenant-catalogue';
 import {
   authHeaders,
@@ -90,6 +96,9 @@ import type {
 } from '../lib/workspace-types';
 
 type LanguageCode = PwaLocaleCode;
+type ApplicationsSubTab = 'applications' | 'bookings';
+
+const APPLICATIONS_BOOKINGS_NAV_LABEL = 'Applications / Bookings';
 type Step = 'splash' | 'language' | 'login' | 'otp' | 'pins' | 'hub' | 'workspace';
 type WorkspaceTab = 'home' | 'services' | 'apply' | 'applications' | 'payments' | 'grievances';
 type HubTab = WorkspaceTab | 'shortcuts';
@@ -240,6 +249,10 @@ export default function HomePage(): JSX.Element {
   type PaymentsSubTab = 'service' | 'invoices';
   const [hubPaymentsSubTab, setHubPaymentsSubTab] = useState<PaymentsSubTab>('service');
   const [workspacePaymentsSubTab, setWorkspacePaymentsSubTab] = useState<PaymentsSubTab>('service');
+  const [hubApplicationsSubTab, setHubApplicationsSubTab] =
+    useState<ApplicationsSubTab>('applications');
+  const [workspaceApplicationsSubTab, setWorkspaceApplicationsSubTab] =
+    useState<ApplicationsSubTab>('applications');
   const [language, setLanguage] = useState<LanguageCode>('en');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -256,10 +269,13 @@ export default function HomePage(): JSX.Element {
   const [applicationFileBlobs, setApplicationFileBlobs] = useState<Record<string, File>>({});
   const [holdingLookup, setHoldingLookup] = useState<HoldingLookupResponse | null>(null);
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
+  const [bookings, setBookings] = useState<CitizenBookingListItem[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<CitizenBookingListItem | null>(null);
   const [payments, setPayments] = useState<PaymentApiResponse[]>([]);
   const [grievanceCount, setGrievanceCount] = useState(0);
   const [tenantBanners, setTenantBanners] = useState<TenantBanner[]>([]);
   const [hubApplications, setHubApplications] = useState<ApplicationSummary[]>([]);
+  const [hubBookings, setHubBookings] = useState<CitizenBookingListItem[]>([]);
   const [hubPayments, setHubPayments] = useState<PaymentApiResponse[]>([]);
   /** Per-tenant active services keyed by pinned + shortcut ULBs only (lazy; Sprint 4.16). */
   const [hubTenantServiceMap, setHubTenantServiceMap] = useState<Record<string, ServiceSummary[]>>(
@@ -293,9 +309,11 @@ export default function HomePage(): JSX.Element {
   const [applyPendingPayment, setApplyPendingPayment] = useState<PaymentApiResponse | null>(null);
   const [applyPaymentMethod, setApplyPaymentMethod] = useState<PaymentGatewayMethod>('upi');
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
+  const [healthBookingFlowActive, setHealthBookingFlowActive] = useState(false);
   const [smartParkingFlowActive, setSmartParkingFlowActive] = useState(false);
   const [evChargingFlowActive, setEvChargingFlowActive] = useState(false);
   const [waterMeterFlowActive, setWaterMeterFlowActive] = useState(false);
+  const [hoardingCalculatorFlowActive, setHoardingCalculatorFlowActive] = useState(false);
   const [status, setStatus] = useState(t('status.ready', 'en'));
   /** Query-param deep links (`?grievance=` / `?application=`) — Master Sprint 5.4. */
   const [urlGrievanceRef, setUrlGrievanceRef] = useState<string | null>(null);
@@ -453,15 +471,21 @@ export default function HomePage(): JSX.Element {
         }
         return;
       }
-      const [appsRes, payRes] = await Promise.all([
+      const [appsRes, payRes, bookingsRes] = await Promise.all([
         fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
         fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/citizen/bookings?status=confirmed&limit=50`, {
+          headers: authHeaders(token, false),
+        }),
       ]);
       if (appsRes.ok) {
         setHubApplications((await appsRes.json()) as ApplicationSummary[]);
       }
       if (payRes.ok) {
         setHubPayments((await payRes.json()) as PaymentApiResponse[]);
+      }
+      if (bookingsRes.ok) {
+        setHubBookings((await bookingsRes.json()) as CitizenBookingListItem[]);
       }
     } catch {
       /* Ignore — user can Refresh hub if needed. */
@@ -516,6 +540,26 @@ export default function HomePage(): JSX.Element {
     const examples = fieldExamplesForSchema(selectedSchema.service_code, selectedSchema);
     return applyFieldExamplesToRenderPlan(plan, examples);
   }, [formValues, language, selectedSchema]);
+  const applyRenderPlan = useMemo(() => {
+    if (!renderPlan) {
+      return null;
+    }
+    return {
+      ...renderPlan,
+      nodes: renderPlan.nodes.filter((node) => node.id !== 'hoarding_calculator_snapshot'),
+    };
+  }, [renderPlan]);
+  const bookingRenderPlan = useMemo(() => {
+    if (!renderPlan) {
+      return null;
+    }
+    return {
+      ...renderPlan,
+      nodes: renderPlan.nodes.filter(
+        (node) => node.id !== 'hoarding_calculator_snapshot' && node.id !== 'led_booking_snapshot',
+      ),
+    };
+  }, [renderPlan]);
   const latestApplication = applications[0];
 
   useEffect(() => {
@@ -543,6 +587,28 @@ export default function HomePage(): JSX.Element {
     void refreshWorkspace();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedTenant?.code]);
+
+  useEffect(() => {
+    if (step !== 'hub' || hubTab !== 'applications' || hubApplicationsSubTab !== 'bookings' || !token) {
+      return;
+    }
+    void loadHubBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, hubTab, hubApplicationsSubTab, token]);
+
+  useEffect(() => {
+    if (
+      step !== 'workspace' ||
+      activeTab !== 'applications' ||
+      workspaceApplicationsSubTab !== 'bookings' ||
+      !token ||
+      !selectedTenant
+    ) {
+      return;
+    }
+    void loadBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, activeTab, workspaceApplicationsSubTab, token, selectedTenant?.code]);
 
   useEffect(() => {
     if (step !== 'hub' || !applicationDetail?.tenant_code) {
@@ -836,6 +902,7 @@ export default function HomePage(): JSX.Element {
     setActiveTab('home');
     setHubTab('home');
     setApplicationDetail(null);
+    setSelectedBooking(null);
     setSelectedService(null);
     setWorkspaceServiceCodesFilter(null);
     setStatus(t('status.ready', language));
@@ -847,6 +914,7 @@ export default function HomePage(): JSX.Element {
       setHubDashboard(null);
       setTenants([]);
       setHubApplications([]);
+      setHubBookings([]);
       setHubPayments([]);
       setHubTenantServiceMap({});
       return;
@@ -860,12 +928,16 @@ export default function HomePage(): JSX.Element {
         catalogueResponse,
         applicationsResponse,
         paymentsResponse,
+        bookingsResponse,
         prefsResponse,
       ] = await Promise.all([
         fetch(`${apiBaseUrl}/citizen/dashboard`, { headers: authHeaders(token, false) }),
         fetch(`${apiBaseUrl}/tenants`),
         fetch(`${apiBaseUrl}/applications`, { headers: authHeaders(token, false) }),
         fetch(`${apiBaseUrl}/payments`, { headers: authHeaders(token, false) }),
+        fetch(`${apiBaseUrl}/citizen/bookings?status=confirmed&limit=50`, {
+          headers: authHeaders(token, false),
+        }),
         fetch(`${apiBaseUrl}/citizen/preferences`, { headers: authHeaders(token, false) }),
       ]);
 
@@ -909,6 +981,16 @@ export default function HomePage(): JSX.Element {
         }
       } else {
         setHubPayments([]);
+      }
+
+      if (bookingsResponse.ok) {
+        try {
+          setHubBookings((await bookingsResponse.json()) as CitizenBookingListItem[]);
+        } catch {
+          setHubBookings([]);
+        }
+      } else {
+        setHubBookings([]);
       }
 
       const pinnedCodesList =
@@ -965,6 +1047,7 @@ export default function HomePage(): JSX.Element {
       loadServices(selectedTenant.code),
       loadTenantBanners(selectedTenant.code),
       loadApplications(),
+      loadBookings(),
       loadPayments(),
       loadGrievanceCount(),
     ]);
@@ -1082,6 +1165,61 @@ export default function HomePage(): JSX.Element {
     }
   }
 
+  async function loadHubBookings(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    try {
+      setHubBookings(
+        await fetchCitizenBookings(apiBaseUrl, token, undefined, {
+          status: 'confirmed',
+          limit: 50,
+        }),
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to load bookings');
+    }
+  }
+
+  async function loadBookings(): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const scope = workspaceLoadScope();
+    if (!scope) {
+      setBookings([]);
+      return;
+    }
+    try {
+      setBookings(
+        await fetchCitizenBookings(apiBaseUrl, token, scope, {
+          status: 'confirmed',
+          limit: 50,
+        }),
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to load bookings');
+    }
+  }
+
+  function resolveHubBookingTheme(tenantCode: string): string {
+    return (
+      hubDashboard?.municipalities.find(
+        (bucket) => bucket.tenant_code?.toUpperCase() === tenantCode.toUpperCase(),
+      )?.theme_color ?? '#94a3b8'
+    );
+  }
+
+  function openBookingServicesTab(): void {
+    if (step === 'hub') {
+      setHubTab('services');
+      setStatus('Browse health, hall, and LED booking services.');
+      return;
+    }
+    setActiveTab('services');
+    setStatus('Browse health, hall, and LED booking services.');
+  }
+
   function isBookingService(service: ServiceSummary): boolean {
     return (
       service.code === 'community-hall' ||
@@ -1103,6 +1241,18 @@ export default function HomePage(): JSX.Element {
     return service.code === 'iot-water';
   }
 
+  function isAdHoardingService(service: ServiceSummary): boolean {
+    return service.code === 'ad-hoarding';
+  }
+
+  function isAdLedService(service: ServiceSummary): boolean {
+    return service.code === 'ad-led';
+  }
+
+  function isHealthFleetService(service: ServiceSummary): boolean {
+    return service.code === 'ambulance' || service.code === 'hearse';
+  }
+
   function startApplication(service: ServiceSummary): void {
     setSelectedService(service);
     setFormValues({});
@@ -1114,7 +1264,37 @@ export default function HomePage(): JSX.Element {
     setApplyDraftDocsReady(false);
     setApplyPendingPayment(null);
     setActiveTab('apply');
+    if (isAdHoardingService(service)) {
+      setHoardingCalculatorFlowActive(true);
+      setEvChargingFlowActive(false);
+      setSmartParkingFlowActive(false);
+      setBookingFlowActive(false);
+      setWaterMeterFlowActive(false);
+      setStatus(`Hoarding calculator — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
+    if (isAdLedService(service)) {
+      setBookingFlowActive(true);
+      setHealthBookingFlowActive(false);
+      setHoardingCalculatorFlowActive(false);
+      setEvChargingFlowActive(false);
+      setSmartParkingFlowActive(false);
+      setWaterMeterFlowActive(false);
+      setStatus(`LED board booking — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
+    if (isHealthFleetService(service)) {
+      setHealthBookingFlowActive(true);
+      setBookingFlowActive(false);
+      setHoardingCalculatorFlowActive(false);
+      setEvChargingFlowActive(false);
+      setSmartParkingFlowActive(false);
+      setWaterMeterFlowActive(false);
+      setStatus(`Health booking — ${service.name[language] ?? service.name.en}`);
+      return;
+    }
     if (isEvChargingService(service)) {
+      setHoardingCalculatorFlowActive(false);
       setEvChargingFlowActive(true);
       setSmartParkingFlowActive(false);
       setBookingFlowActive(false);
@@ -1124,6 +1304,7 @@ export default function HomePage(): JSX.Element {
     }
     if (isWaterMeterService(service)) {
       setWaterMeterFlowActive(true);
+      setHoardingCalculatorFlowActive(false);
       setEvChargingFlowActive(false);
       setSmartParkingFlowActive(false);
       setBookingFlowActive(false);
@@ -1132,6 +1313,7 @@ export default function HomePage(): JSX.Element {
     }
     if (isSmartParkingService(service)) {
       setSmartParkingFlowActive(true);
+      setHoardingCalculatorFlowActive(false);
       setEvChargingFlowActive(false);
       setBookingFlowActive(false);
       setWaterMeterFlowActive(false);
@@ -1140,6 +1322,8 @@ export default function HomePage(): JSX.Element {
     }
     if (isBookingService(service)) {
       setBookingFlowActive(true);
+      setHealthBookingFlowActive(false);
+      setHoardingCalculatorFlowActive(false);
       setSmartParkingFlowActive(false);
       setEvChargingFlowActive(false);
       setWaterMeterFlowActive(false);
@@ -1150,7 +1334,16 @@ export default function HomePage(): JSX.Element {
     setSmartParkingFlowActive(false);
     setEvChargingFlowActive(false);
     setWaterMeterFlowActive(false);
+    setHoardingCalculatorFlowActive(false);
     setStatus(`Applying for ${service.name[language] ?? service.name.en}`);
+  }
+
+  function continueHoardingApply(prefill: Record<string, string>): void {
+    setFormValues((current) => ({ ...current, ...prefill }));
+    setHoardingCalculatorFlowActive(false);
+    setApplyDraft(null);
+    setApplyDraftDocsReady(false);
+    setStatus('Complete the hoarding permission application form.');
   }
 
   function updateFormValue(fieldId: string, value: FormSubmissionValue | undefined): void {
@@ -2366,59 +2559,105 @@ export default function HomePage(): JSX.Element {
           )}
 
           {hubTab === 'applications' && (
-            <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <h3 className="text-xl font-bold">My Applications</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Hub read — aggregated across municipalities.
-                </p>
-                <div className="mt-4 space-y-3">
-                  {hubApplications.map((application) => {
-                    const stripe =
-                      hubDashboard?.municipalities.find(
-                        (bucket) =>
-                          bucket.tenant_code?.toUpperCase() ===
-                          application.tenant_code?.toUpperCase(),
-                      )?.theme_color ?? '#94a3b8';
-
-                    return (
-                      <ApplicationSummaryCard
-                        docketNo={application.docket_no}
-                        key={application.id}
-                        meta={application.service_name}
-                        onOpen={() =>
-                          void openApplication(
-                            application.docket_no,
-                            application.tenant_code ?? undefined,
-                          )
-                        }
-                        status={application.status_label}
-                        tenantCode={application.tenant_code ?? 'Unknown ULB'}
-                        themeColor={stripe}
-                      />
-                    );
-                  })}
-                  {hubApplications.length === 0 && (
-                    <p className="text-slate-600">No applications filed yet.</p>
-                  )}
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3 rounded-3xl bg-white p-5 shadow-sm">
+                <div>
+                  <h3 className="text-xl font-bold">{APPLICATIONS_BOOKINGS_NAV_LABEL}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Hub read — applications and confirmed bookings across municipalities.
+                  </p>
                 </div>
+                <SegmentedControl<ApplicationsSubTab>
+                  aria-label="Applications sub-tab"
+                  onChange={(next) => {
+                    setHubApplicationsSubTab(next);
+                    if (next === 'applications') {
+                      setSelectedBooking(null);
+                    }
+                  }}
+                  options={[
+                    { value: 'applications', label: 'My Applications' },
+                    { value: 'bookings', label: 'My Bookings' },
+                  ]}
+                  value={hubApplicationsSubTab}
+                />
               </div>
 
-              <ApplicationDetailPanel
-                apiBaseUrl={apiBaseUrl}
-                application={applicationDetail}
-                comment={comment}
-                paymentLine={detailPaymentLine}
-                scheduledApprovalFee={detailApprovalFeeHint}
-                onCancel={() => void cancelCurrentApplication()}
-                onCommentChange={setComment}
-                onInitiatePayment={initiateApplicationPayment}
-                onStubComplete={simulateStubSettlement}
-                onSubmitComment={addComment}
-                payments={hubPayments}
-                tenantScopeCode={dossierMunicipalityScope()}
-                token={token}
-              />
+              {hubApplicationsSubTab === 'applications' ? (
+                <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                  <div className="rounded-3xl bg-white p-5 shadow-sm">
+                    <h3 className="text-xl font-bold">My Applications</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Hub read — aggregated across municipalities.
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {hubApplications.map((application) => {
+                        const stripe =
+                          hubDashboard?.municipalities.find(
+                            (bucket) =>
+                              bucket.tenant_code?.toUpperCase() ===
+                              application.tenant_code?.toUpperCase(),
+                          )?.theme_color ?? '#94a3b8';
+
+                        return (
+                          <ApplicationSummaryCard
+                            docketNo={application.docket_no}
+                            key={application.id}
+                            meta={application.service_name}
+                            onOpen={() =>
+                              void openApplication(
+                                application.docket_no,
+                                application.tenant_code ?? undefined,
+                              )
+                            }
+                            status={application.status_label}
+                            tenantCode={application.tenant_code ?? 'Unknown ULB'}
+                            themeColor={stripe}
+                          />
+                        );
+                      })}
+                      {hubApplications.length === 0 && (
+                        <p className="text-slate-600">No applications filed yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <ApplicationDetailPanel
+                    apiBaseUrl={apiBaseUrl}
+                    application={applicationDetail}
+                    comment={comment}
+                    paymentLine={detailPaymentLine}
+                    scheduledApprovalFee={detailApprovalFeeHint}
+                    onCancel={() => void cancelCurrentApplication()}
+                    onCommentChange={setComment}
+                    onInitiatePayment={initiateApplicationPayment}
+                    onStubComplete={simulateStubSettlement}
+                    onSubmitComment={addComment}
+                    payments={hubPayments}
+                    tenantScopeCode={dossierMunicipalityScope()}
+                    token={token}
+                  />
+                </section>
+              ) : (
+                <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                  <MyBookingsPanel
+                    bookings={hubBookings}
+                    hubMode
+                    onBrowseServices={openBookingServicesTab}
+                    onSelect={setSelectedBooking}
+                    resolveThemeColor={resolveHubBookingTheme}
+                    selectedBookingId={selectedBooking?.id}
+                  />
+                  <BookingDetailPanel
+                    apiBaseUrl={apiBaseUrl}
+                    booking={selectedBooking}
+                    onBrowseServices={openBookingServicesTab}
+                    onStatus={setStatus}
+                    tenantScopeCode={selectedBooking?.tenant_code}
+                    token={token}
+                  />
+                </section>
+              )}
             </section>
           )}
 
@@ -2772,14 +3011,28 @@ export default function HomePage(): JSX.Element {
                   tenantCode={selectedTenant.code}
                   token={token}
                 />
+              ) : healthBookingFlowActive && token && selectedTenant && selectedService ? (
+                <HealthBookingsWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  language={language}
+                  linkedService={selectedService}
+                  onBack={() => {
+                    setHealthBookingFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('Health booking cancelled.');
+                  }}
+                  onStatus={setStatus}
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                />
               ) : bookingFlowActive && token && selectedTenant ? (
                 <BookingWorkspace
                   apiBaseUrl={apiBaseUrl}
                   applicationForm={
-                    selectedService && selectedSchema && renderPlan
+                    selectedService && selectedSchema && bookingRenderPlan
                       ? {
                           schema: selectedSchema,
-                          renderPlan,
+                          renderPlan: bookingRenderPlan,
                           values: formValues,
                           onChange: updateFormValue,
                           onFileBlob: (fieldId, file) => {
@@ -2803,14 +3056,39 @@ export default function HomePage(): JSX.Element {
                     setSmartParkingFlowActive(false);
                     setEvChargingFlowActive(false);
                     setWaterMeterFlowActive(false);
+                    setHoardingCalculatorFlowActive(false);
                     setActiveTab('services');
-                    setStatus('Booking cancelled.');
+                    setStatus(
+                      selectedService?.code === 'ad-led'
+                        ? 'LED booking cancelled.'
+                        : 'Booking cancelled.',
+                    );
                   }}
+                  onStatus={setStatus}
+                  prepareDraftDocuments={
+                    selectedSchema
+                      ? async (draftId) =>
+                          createDocumentIntents({ id: draftId } as ApplicationDetail, selectedSchema)
+                      : undefined
+                  }
+                  tenantCode={selectedTenant.code}
+                  token={token}
+                  variant={selectedService?.code === 'ad-led' ? 'led' : 'default'}
+                />
+              ) : hoardingCalculatorFlowActive && token && selectedTenant ? (
+                <HoardingCalculatorWorkspace
+                  apiBaseUrl={apiBaseUrl}
+                  onBack={() => {
+                    setHoardingCalculatorFlowActive(false);
+                    setActiveTab('services');
+                    setStatus('Hoarding calculator cancelled.');
+                  }}
+                  onContinue={continueHoardingApply}
                   onStatus={setStatus}
                   tenantCode={selectedTenant.code}
                   token={token}
                 />
-              ) : selectedService && selectedSchema && renderPlan ? (
+              ) : selectedService && selectedSchema && applyRenderPlan ? (
                 <form className="space-y-5" onSubmit={submitApplication}>
                   <div>
                     <p className="text-sm font-semibold uppercase text-brand">Apply</p>
@@ -2829,7 +3107,7 @@ export default function HomePage(): JSX.Element {
                   ) : null}
 
                   <DynamicFormFields
-                    nodes={renderPlan.nodes}
+                    nodes={applyRenderPlan.nodes}
                     values={formValues}
                     onChange={updateFormValue}
                     onFileBlob={(fieldId, file) => {
@@ -2941,8 +3219,33 @@ export default function HomePage(): JSX.Element {
                   ) : selectedService &&
                     inferPaymentSchedule(selectedService) === 'deferred_only' ? (
                     <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      No fee is collected at apply. You will pay after the ULB issues a payment link
-                      following approval.
+                      {selectedService.code === 'ad-hoarding' &&
+                      typeof formValues.hoarding_calculator_snapshot === 'string' ? (
+                        <>
+                          No fee at apply. After approval you will pay{' '}
+                          <strong>
+                            {formatInrFromPaise(
+                              (resolveFeeLineAmount(selectedService, 'approval') ?? 0) +
+                                (() => {
+                                  try {
+                                    const parsed = JSON.parse(
+                                      String(formValues.hoarding_calculator_snapshot),
+                                    ) as { tax_paise?: number };
+                                    return typeof parsed.tax_paise === 'number' ? parsed.tax_paise : 0;
+                                  } catch {
+                                    return 0;
+                                  }
+                                })(),
+                            )}
+                          </strong>{' '}
+                          (permission fee + hoarding tax from your calculator quote).
+                        </>
+                      ) : (
+                        <>
+                          No fee is collected at apply. You will pay after the ULB issues a payment
+                          link following approval.
+                        </>
+                      )}
                     </p>
                   ) : null}
 
@@ -2971,47 +3274,92 @@ export default function HomePage(): JSX.Element {
           )}
 
           {activeTab === 'applications' && (
-            <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <h3 className="text-xl font-bold">My Applications</h3>
-                <div className="mt-4 space-y-3">
-                  {applications.map((application) => (
-                    <ApplicationSummaryCard
-                      docketNo={application.docket_no}
-                      key={application.id}
-                      meta={application.service_name}
-                      onOpen={() =>
-                        void openApplication(
-                          application.docket_no,
-                          application.tenant_code ?? undefined,
-                        )
-                      }
-                      status={application.status_label}
-                      tenantCode={application.tenant_code ?? selectedTenant.code}
-                      themeColor={selectedTenant.theme_color}
-                    />
-                  ))}
-                  {applications.length === 0 && (
-                    <p className="text-slate-600">No applications yet.</p>
-                  )}
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3 rounded-3xl bg-white p-5 shadow-sm">
+                <div>
+                  <h3 className="text-xl font-bold">{APPLICATIONS_BOOKINGS_NAV_LABEL}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Workflow dockets and confirmed slot bookings for {selectedTenant.code}.
+                  </p>
                 </div>
+                <SegmentedControl<ApplicationsSubTab>
+                  aria-label="Applications sub-tab"
+                  onChange={(next) => {
+                    setWorkspaceApplicationsSubTab(next);
+                    if (next === 'applications') {
+                      setSelectedBooking(null);
+                    }
+                  }}
+                  options={[
+                    { value: 'applications', label: 'My Applications' },
+                    { value: 'bookings', label: 'My Bookings' },
+                  ]}
+                  value={workspaceApplicationsSubTab}
+                />
               </div>
 
-              <ApplicationDetailPanel
-                apiBaseUrl={apiBaseUrl}
-                application={applicationDetail}
-                comment={comment}
-                paymentLine={detailPaymentLine}
-                scheduledApprovalFee={detailApprovalFeeHint}
-                onCancel={() => void cancelCurrentApplication()}
-                onCommentChange={setComment}
-                onInitiatePayment={initiateApplicationPayment}
-                onStubComplete={simulateStubSettlement}
-                onSubmitComment={addComment}
-                payments={payments}
-                tenantScopeCode={dossierMunicipalityScope()}
-                token={token}
-              />
+              {workspaceApplicationsSubTab === 'applications' ? (
+                <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                  <div className="rounded-3xl bg-white p-5 shadow-sm">
+                    <h3 className="text-xl font-bold">My Applications</h3>
+                    <div className="mt-4 space-y-3">
+                      {applications.map((application) => (
+                        <ApplicationSummaryCard
+                          docketNo={application.docket_no}
+                          key={application.id}
+                          meta={application.service_name}
+                          onOpen={() =>
+                            void openApplication(
+                              application.docket_no,
+                              application.tenant_code ?? undefined,
+                            )
+                          }
+                          status={application.status_label}
+                          tenantCode={application.tenant_code ?? selectedTenant.code}
+                          themeColor={selectedTenant.theme_color}
+                        />
+                      ))}
+                      {applications.length === 0 && (
+                        <p className="text-slate-600">No applications yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <ApplicationDetailPanel
+                    apiBaseUrl={apiBaseUrl}
+                    application={applicationDetail}
+                    comment={comment}
+                    paymentLine={detailPaymentLine}
+                    scheduledApprovalFee={detailApprovalFeeHint}
+                    onCancel={() => void cancelCurrentApplication()}
+                    onCommentChange={setComment}
+                    onInitiatePayment={initiateApplicationPayment}
+                    onStubComplete={simulateStubSettlement}
+                    onSubmitComment={addComment}
+                    payments={payments}
+                    tenantScopeCode={dossierMunicipalityScope()}
+                    token={token}
+                  />
+                </section>
+              ) : (
+                <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                  <MyBookingsPanel
+                    bookings={bookings}
+                    onBrowseServices={openBookingServicesTab}
+                    onSelect={setSelectedBooking}
+                    resolveThemeColor={() => selectedTenant.theme_color}
+                    selectedBookingId={selectedBooking?.id}
+                  />
+                  <BookingDetailPanel
+                    apiBaseUrl={apiBaseUrl}
+                    booking={selectedBooking}
+                    onBrowseServices={openBookingServicesTab}
+                    onStatus={setStatus}
+                    tenantScopeCode={selectedTenant.code}
+                    token={token}
+                  />
+                </section>
+              )}
             </section>
           )}
 
@@ -3171,7 +3519,7 @@ function citizenWorkspaceHubTabs(language: PwaLocaleCode): readonly HubNavItem<H
     { id: 'shortcuts', label: 'Shortcuts', icon: 'grid' },
     { id: 'services', label: 'Services', icon: 'clipboard-list' },
     { id: 'apply', label: 'Apply', icon: 'file-text' },
-    { id: 'applications', label: 'Applications', icon: 'inbox' },
+    { id: 'applications', label: APPLICATIONS_BOOKINGS_NAV_LABEL, icon: 'inbox' },
     { id: 'payments', label: 'Payments', icon: 'credit-card' },
     { id: 'grievances', label: t('grievance.nav', language), icon: 'megaphone' },
   ];
@@ -3184,7 +3532,7 @@ function municipalityWorkspaceTabs(
     { id: 'home', label: 'Home', icon: 'home' },
     { id: 'services', label: 'Services', icon: 'clipboard-list' },
     { id: 'apply', label: 'Apply', icon: 'file-text' },
-    { id: 'applications', label: 'Applications', icon: 'inbox' },
+    { id: 'applications', label: APPLICATIONS_BOOKINGS_NAV_LABEL, icon: 'inbox' },
     { id: 'payments', label: 'Payments', icon: 'credit-card' },
     { id: 'grievances', label: t('grievance.nav', language), icon: 'megaphone' },
   ];

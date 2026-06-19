@@ -133,6 +133,23 @@ export function feeLineAmountPaise(
   return preview;
 }
 
+/** Prefer application settlement amount when desk/citizen collects a computed total (e.g. hoarding tax + permission fee). */
+export function resolvePayableFeeLineAmountPaise(
+  payment: ResolvedServicePaymentConfig,
+  feeCode: FeeLineCode,
+  settlement: FeeSettlementSnapshot,
+): number {
+  const line = settlement[feeCode];
+  if (
+    typeof line?.amount_paise === 'number' &&
+    Number.isInteger(line.amount_paise) &&
+    line.amount_paise > 0
+  ) {
+    return line.amount_paise;
+  }
+  return feeLineAmountPaise(payment, feeCode);
+}
+
 export function submitRequiresApplicationFee(schedule: PaymentSchedule): boolean {
   return schedule === 'upfront_only' || schedule === 'upfront_and_deferred';
 }

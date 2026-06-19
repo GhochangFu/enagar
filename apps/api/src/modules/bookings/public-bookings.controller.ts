@@ -4,7 +4,11 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/auth/public.decorator';
 
 import { BookingsService } from './bookings.service';
-import { BookingAssetSlotsQueryDto, BookingListAssetsQueryDto } from './dto/bookings.dto';
+import {
+  BookingAssetSlotsQueryDto,
+  BookingFleetAvailabilityQueryDto,
+  BookingListAssetsQueryDto,
+} from './dto/bookings.dto';
 
 @ApiTags('bookings')
 @Public()
@@ -30,6 +34,20 @@ export class PublicBookingsController {
       query.from,
       query.to,
       query.service_code,
+    );
+  }
+
+  @Get('fleet-availability')
+  @ApiOperation({
+    summary:
+      'Pooled slot grid for health fleet services (ambulance/hearse) with available_units count (Sprint 8.5E)',
+  })
+  listFleetAvailability(@Query() query: BookingFleetAvailabilityQueryDto) {
+    return this.bookings.listFleetAvailability(
+      query.tenant_code,
+      query.service_code,
+      query.from,
+      query.to,
     );
   }
 }
