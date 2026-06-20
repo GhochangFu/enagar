@@ -13,8 +13,10 @@ import {
   Icon,
   KpiCard,
   PageHeader,
+  PaginationBar,
   SegmentedControl,
   ToastProvider,
+  useClientPagination,
   useToast,
 } from '@enagar/ui';
 import Link from 'next/link';
@@ -146,11 +148,24 @@ function RentalAssetsContent() {
   // mutates (upload / review) and calls onDocumentsChanged.
   const loadDocuments = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/rental-assets/documents`, { headers: authHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as Array<DocRow & { agreementId: string }>;
+      const allDocs: Array<DocRow & { agreementId: string }> = [];
+      let page = 1;
+      let total = 0;
+      do {
+        const res = await fetch(`${apiBase}/rental-assets/documents?page=${page}&pageSize=100`, {
+          headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as {
+          items: Array<DocRow & { agreementId: string }>;
+          total: number;
+        };
+        allDocs.push(...data.items);
+        total = data.total;
+        page += 1;
+      } while (allDocs.length < total);
       const grouped: Record<string, DocRow[]> = {};
-      for (const doc of data) {
+      for (const doc of allDocs) {
         const key = doc.agreementId;
         (grouped[key] ??= []).push({
           id: doc.id,
@@ -216,6 +231,8 @@ function RentalAssetsContent() {
       return true;
     });
   }, [assets, statusFilter, typeFilter, search]);
+
+  const assetsPagination = useClientPagination(filtered, { pageSize: 25 });
 
   const typeOptions = useMemo(() => {
     const present = new Set(assets.map((a) => a.assetType));
@@ -367,7 +384,7 @@ function RentalAssetsContent() {
                 </DataTableCell>
               </DataTableRow>
             ) : (
-              filtered.map((asset) => {
+              assetsPagination.pageItems.map((asset) => {
                 const activeLease = asset.agreements?.[0] ?? null;
                 return (
                   <DataTableRow key={asset.id} className="hover:bg-canvas/60">
@@ -475,15 +492,14 @@ function RentalAssetsContent() {
         </DataTable>
 
         {!isLoading && filtered.length > 0 ? (
-          <div className="flex items-center justify-between border-t border-warm-border bg-canvas/40 px-4 py-2 text-xs text-ink-muted">
-            <span>
-              Showing {filtered.length} of {assets.length} asset{assets.length === 1 ? '' : 's'}
-            </span>
-            <span className="flex items-center gap-1">
-              <Icon name="filter" size={11} />
-              {statusFilter !== 'ALL' || typeFilter !== 'ALL' || search ? 'Filtered' : 'No filters'}
-            </span>
-          </div>
+          <PaginationBar
+            page={assetsPagination.page}
+            totalPages={assetsPagination.totalPages}
+            totalItems={assetsPagination.totalItems}
+            pageSize={assetsPagination.pageSize}
+            onPageChange={assetsPagination.setPage}
+            onPageSizeChange={assetsPagination.setPageSize}
+          />
         ) : null}
       </Card>
 

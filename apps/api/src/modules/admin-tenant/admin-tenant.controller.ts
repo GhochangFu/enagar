@@ -102,6 +102,54 @@ export class AdminTenantController {
     return this.adminTenant.getBookingSummary(principal);
   }
 
+  @Get('dashboard/payment-summary')
+  @ApiOperation({ summary: 'Tenant payment summary for dashboard' })
+  getPaymentSummary(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
+    return this.adminTenant.getPaymentSummary(principal);
+  }
+
+  @Get('payments')
+  @ApiOperation({ summary: 'Tenant payment ledger with filters' })
+  listPayments(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.adminTenant.listPayments(principal, {
+      status,
+      source,
+      from,
+      to,
+      q,
+      limit,
+      cursor,
+    });
+  }
+
+  @Get('payments/breakdown')
+  @ApiOperation({ summary: 'Tenant payment aggregates by source, status, or service' })
+  getPaymentBreakdown(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Query('group') group?: string,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminTenant.getPaymentBreakdown(principal, {
+      group,
+      status,
+      source,
+      from,
+      to,
+    });
+  }
+
   @Get('desk/me')
   @ApiOperation({ summary: 'Current Tenant Desk operator profile and role scope' })
   getDeskMe(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
@@ -119,8 +167,17 @@ export class AdminTenantController {
   listDeskApplications(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Query('queue') queue?: string,
+    @Query('dept') dept?: string,
+    @Query('department_id') departmentId?: string,
+    @Query('page') page?: string,
+    @Query('page_size') pageSize?: string,
   ) {
-    return this.adminTenant.listDeskApplications(principal, queue ?? 'my');
+    return this.adminTenant.listDeskApplications(principal, queue ?? 'my', {
+      dept,
+      department_id: departmentId,
+      page,
+      page_size: pageSize,
+    });
   }
 
   @Get('desk/applications/:docketNo')
@@ -175,8 +232,13 @@ export class AdminTenantController {
   listDeskGrievances(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Query('queue') queue?: string,
+    @Query('page') page?: string,
+    @Query('page_size') pageSize?: string,
   ) {
-    return this.adminTenant.listDeskGrievances(principal, queue ?? 'my');
+    return this.adminTenant.listDeskGrievances(principal, queue ?? 'my', {
+      page,
+      page_size: pageSize,
+    });
   }
 
   @Get('desk/grievances/:grievanceId')

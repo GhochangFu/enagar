@@ -159,7 +159,7 @@ export class RentalDocumentsController {
   ) {
     assertTenantPortalStaff(principal);
     if (!principal.tenantId) throw new BadRequestException('Tenant id is required');
-    return this.service.listDocuments(principal.tenantId, query.status);
+    return this.service.listDocuments(principal.tenantId, query);
   }
 
   @Post('rental-assets/agreements/:agreementId/documents/:documentId/review')

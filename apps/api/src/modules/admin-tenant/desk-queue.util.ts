@@ -26,5 +26,5 @@ export function deskMyQueueWhereClause(
       pendingRole: { in: roles },
     });
   }
-  return or.length > 0 ? or : [{ id: '__no_match__' }];
+  return or.length > 0 ? or : [{ id: { in: [] } }];
 }

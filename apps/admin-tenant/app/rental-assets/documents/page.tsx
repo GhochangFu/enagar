@@ -12,12 +12,13 @@ import {
   DataTableRow,
   Icon,
   PageHeader,
+  PaginationBar,
   SegmentedControl,
   ToastProvider,
   useToast,
 } from '@enagar/ui';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useTenantAdminSession } from '../../../components/tenant-admin-session';
 
@@ -34,6 +35,8 @@ interface ReviewQueueRow {
   reviewerNote?: string | null;
 }
 
+type StatusCounts = Record<DocStatus, number>;
+
 // Mirrors the API-side assertTenantPortalStaff gate for approve / reject.
 const REVIEWER_ROLES = new Set(['tenant_admin', 'municipality_admin', 'state_admin']);
 
@@ -47,6 +50,12 @@ const STATUS_TONE: Record<DocStatus, 'warning' | 'success' | 'danger' | 'neutral
   PENDING_REVIEW: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
+};
+
+const EMPTY_COUNTS: StatusCounts = {
+  PENDING_REVIEW: 0,
+  APPROVED: 0,
+  REJECTED: 0,
 };
 
 // RentalAsset.name is a Json column in the schema; it can be a plain string
@@ -67,7 +76,11 @@ function DocumentsReviewContent() {
   const { token, apiBase, me } = useTenantAdminSession();
   const { toast } = useToast();
   const router = useRouter();
-  const [allRows, setAllRows] = useState<ReviewQueueRow[]>([]);
+  const [rows, setRows] = useState<ReviewQueueRow[]>([]);
+  const [statusCounts, setStatusCounts] = useState<StatusCounts>(EMPTY_COUNTS);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<DocStatus>('PENDING_REVIEW');
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
@@ -95,21 +108,32 @@ function DocumentsReviewContent() {
   const loadDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${apiBase}/rental-assets/documents`, {
+      const params = new URLSearchParams({
+        status: statusFilter,
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      const res = await fetch(`${apiBase}/rental-assets/documents?${params.toString()}`, {
         headers: authHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as Array<{
-        id: string;
-        status: DocStatus;
-        fileName: string;
-        uploadedAt: string;
-        agreementId: string;
-        reviewerNote?: string | null;
-        agreement?: { lessorName?: string; asset?: { name?: unknown } };
-      }>;
-      setAllRows(
-        data.map((d) => ({
+      const data = (await res.json()) as {
+        items: Array<{
+          id: string;
+          status: DocStatus;
+          fileName: string;
+          uploadedAt: string;
+          agreementId: string;
+          reviewerNote?: string | null;
+          agreement?: { lessorName?: string; asset?: { name?: unknown } };
+        }>;
+        total: number;
+        page: number;
+        page_size: number;
+        status_counts: StatusCounts;
+      };
+      setRows(
+        data.items.map((d) => ({
           id: d.id,
           status: d.status,
           fileName: d.fileName,
@@ -120,32 +144,25 @@ function DocumentsReviewContent() {
           reviewerNote: d.reviewerNote ?? null,
         })),
       );
+      setTotal(data.total);
+      setStatusCounts(data.status_counts ?? EMPTY_COUNTS);
     } catch (error) {
       console.error('Failed to fetch review queue', error);
       toast('Could not load the document review queue.', 'danger');
     } finally {
       setIsLoading(false);
     }
-  }, [apiBase, authHeaders, toast]);
+  }, [apiBase, authHeaders, page, pageSize, statusFilter, toast]);
 
   useEffect(() => {
     void loadDocuments();
   }, [loadDocuments]);
 
-  const counts = useMemo(() => {
-    const c: Record<DocStatus, number> = {
-      PENDING_REVIEW: 0,
-      APPROVED: 0,
-      REJECTED: 0,
-    };
-    for (const r of allRows) c[r.status] += 1;
-    return c;
-  }, [allRows]);
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, pageSize]);
 
-  const rows = useMemo(
-    () => allRows.filter((r) => r.status === statusFilter),
-    [allRows, statusFilter],
-  );
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   async function reviewDocument(
     docId: string,
@@ -203,9 +220,9 @@ function DocumentsReviewContent() {
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as DocStatus)}
             options={[
-              { value: 'PENDING_REVIEW', label: `Pending (${counts.PENDING_REVIEW})` },
-              { value: 'APPROVED', label: `Approved (${counts.APPROVED})` },
-              { value: 'REJECTED', label: `Rejected (${counts.REJECTED})` },
+              { value: 'PENDING_REVIEW', label: `Pending (${statusCounts.PENDING_REVIEW})` },
+              { value: 'APPROVED', label: `Approved (${statusCounts.APPROVED})` },
+              { value: 'REJECTED', label: `Rejected (${statusCounts.REJECTED})` },
             ]}
           />
           <div className="flex items-center gap-2 text-xs text-ink-muted">
@@ -317,18 +334,15 @@ function DocumentsReviewContent() {
           </DataTableBody>
         </DataTable>
 
-        {!isLoading && rows.length > 0 ? (
-          <div className="flex items-center justify-between border-t border-warm-border bg-canvas/40 px-4 py-2 text-xs text-ink-muted">
-            <span>
-              Showing {rows.length} {STATUS_LABELS[statusFilter].toLowerCase()} document
-              {rows.length === 1 ? '' : 's'}
-            </span>
-            <span>
-              {canReview
-                ? 'Click a row to open the lease detail modal.'
-                : 'You do not have permission to review documents.'}
-            </span>
-          </div>
+        {!isLoading && total > 0 ? (
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalItems={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         ) : null}
       </Card>
 

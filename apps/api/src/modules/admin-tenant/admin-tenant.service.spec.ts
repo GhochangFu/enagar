@@ -290,10 +290,7 @@ describe('AdminTenantService', () => {
     };
     const prisma = {
       bookingReservation: {
-        findMany: jest
-          .fn()
-          .mockResolvedValueOnce([periodRow])
-          .mockResolvedValueOnce([periodRow]),
+        findMany: jest.fn().mockResolvedValueOnce([periodRow]).mockResolvedValueOnce([periodRow]),
       },
     } as unknown as import('../../common/database/prisma.service').PrismaService;
 
@@ -1335,5 +1332,113 @@ describe('AdminTenantService', () => {
     expect(result.errors).toHaveLength(0);
     expect(result.previews).toHaveLength(2);
     expect(stubKeycloakProvisioner.provisionTenantStaff).not.toHaveBeenCalled();
+  });
+
+  it('getPaymentSummary aggregates settled, pending, and failed counts by source', async () => {
+    const settledAt = new Date();
+    const prisma = {
+      payment: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'pay-1',
+            amountPaise: 50000,
+            currency: 'INR',
+            status: 'settled',
+            method: 'upi',
+            gateway: 'stub',
+            feeCode: 'application',
+            createdAt: settledAt,
+            settledAt,
+            citizenSubject: 'citizen-1',
+            applicationId: 'app-1',
+            bookingReservationId: null,
+            leaseInvoiceId: null,
+            evSessionId: null,
+            waterMeterRechargeId: null,
+            application: { docketNo: 'DOC-1', serviceCode: 'birth-cert' },
+            bookingReservation: null,
+            leaseInvoice: null,
+            receipt: { serviceCode: 'birth-cert' },
+          },
+          {
+            id: 'pay-2',
+            amountPaise: 10000,
+            currency: 'INR',
+            status: 'requires_action',
+            method: 'upi',
+            gateway: 'stub',
+            feeCode: 'booking',
+            createdAt: settledAt,
+            settledAt: null,
+            citizenSubject: 'citizen-2',
+            applicationId: null,
+            bookingReservationId: 'book-1',
+            leaseInvoiceId: null,
+            evSessionId: null,
+            waterMeterRechargeId: null,
+            application: null,
+            bookingReservation: { bookingNo: 'BK-1', id: 'book-1', docketNo: null },
+            leaseInvoice: null,
+            receipt: null,
+          },
+        ]),
+      },
+    } as unknown as import('../../common/database/prisma.service').PrismaService;
+
+    const service = new AdminTenantService(
+      prisma,
+      new ObjectStorageService(),
+      stubPaymentsService,
+      stubWorkOrdersService,
+      stubPostApprovalExecution,
+      stubKeycloakProvisioner,
+    );
+
+    const summary = await service.getPaymentSummary(staffPrincipal);
+    expect(summary.totals.settled_count).toBe(1);
+    expect(summary.totals.settled_amount_paise).toBe(50000);
+    expect(summary.totals.pending_count).toBe(1);
+    expect(summary.by_source.find((row) => row.source === 'application')?.count).toBe(1);
+  });
+
+  it('listDeskApplications filters by department codes when provided', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const prisma = {
+      application: { findMany, count },
+      tenantDepartment: {
+        findMany: jest.fn().mockResolvedValue([{ id: '10000000-0000-4000-8000-000000000301' }]),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          userDesignations: [],
+        }),
+      },
+    } as unknown as import('../../common/database/prisma.service').PrismaService;
+
+    const service = new AdminTenantService(
+      prisma,
+      new ObjectStorageService(),
+      stubPaymentsService,
+      stubWorkOrdersService,
+      stubPostApprovalExecution,
+      stubKeycloakProvisioner,
+    );
+
+    await service.listDeskApplications(
+      { ...staffPrincipal, roles: ['municipality_admin'] },
+      'all',
+      { dept: 'health,pwd' },
+    );
+
+    expect(prisma.tenantDepartment.findMany).toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          service: { departmentId: { in: ['10000000-0000-4000-8000-000000000301'] } },
+        }),
+      }),
+    );
   });
 });

@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/database/prisma.service';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 
+import type { ListDocumentsQueryDto } from './dto/list-documents.dto';
 import type { Prisma, LeaseAgreementDocumentStatus } from '../../generated/prisma';
 
 export interface UploadedFile {
@@ -27,6 +28,25 @@ export interface ReviewDocumentInput {
   decision: 'APPROVE' | 'REJECT';
   note?: string;
 }
+
+export type TenantDocumentsPage = {
+  items: Array<{
+    id: string;
+    status: LeaseAgreementDocumentStatus;
+    fileName: string;
+    uploadedAt: Date;
+    agreementId: string;
+    reviewerNote: string | null;
+    agreement: {
+      lessorName: string;
+      asset: { id: string; name: unknown };
+    };
+  }>;
+  total: number;
+  page: number;
+  page_size: number;
+  status_counts: Record<LeaseAgreementDocumentStatus, number>;
+};
 
 @Injectable()
 export class RentalDocumentsService {
@@ -92,14 +112,46 @@ export class RentalDocumentsService {
     });
   }
 
-  async listDocuments(tenantId: string, status?: LeaseAgreementDocumentStatus) {
-    return this.prisma.leaseAgreementDocument.findMany({
-      where: { tenantId, ...(status ? { status } : {}) },
-      orderBy: { uploadedAt: 'desc' },
-      include: {
-        agreement: { include: { asset: { select: { id: true, name: true } } } },
-      },
-    });
+  async listDocuments(
+    tenantId: string,
+    query: ListDocumentsQueryDto,
+  ): Promise<TenantDocumentsPage> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 25;
+    const where: Prisma.LeaseAgreementDocumentWhereInput = {
+      tenantId,
+      ...(query.status ? { status: query.status } : {}),
+    };
+    const include = {
+      agreement: { include: { asset: { select: { id: true, name: true } } } },
+    } as const;
+
+    const [items, total, grouped] = await Promise.all([
+      this.prisma.leaseAgreementDocument.findMany({
+        where,
+        orderBy: { uploadedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include,
+      }),
+      this.prisma.leaseAgreementDocument.count({ where }),
+      this.prisma.leaseAgreementDocument.groupBy({
+        by: ['status'],
+        where: { tenantId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const status_counts: Record<LeaseAgreementDocumentStatus, number> = {
+      PENDING_REVIEW: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+    };
+    for (const row of grouped) {
+      status_counts[row.status] = row._count._all;
+    }
+
+    return { items, total, page, page_size: pageSize, status_counts };
   }
 
   async reviewDocument(input: ReviewDocumentInput) {

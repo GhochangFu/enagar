@@ -7,6 +7,7 @@ describe('loadStaffDesignationContext', () => {
     const prisma = {
       user: {
         findFirst: jest.fn().mockResolvedValue({
+          id: 'user-1',
           userDesignations: [
             {
               designation: {
@@ -36,6 +37,7 @@ describe('loadStaffDesignationContext', () => {
       expiresAt: new Date(),
     });
 
+    expect(context.userId).toBe('user-1');
     expect(context.codes).toEqual(['hoarding_clerk', 'pwd_executive_engineer']);
     expect(context.capabilities[1]).toMatchObject({
       code: 'pwd_executive_engineer',
@@ -55,6 +57,6 @@ describe('loadStaffDesignationContext', () => {
         roles: ['tenant_clerk'],
         expiresAt: new Date(),
       }),
-    ).resolves.toEqual({ codes: [], capabilities: [] });
+    ).resolves.toEqual({ userId: null, codes: [], capabilities: [] });
   });
 });

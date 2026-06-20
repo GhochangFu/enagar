@@ -14,12 +14,16 @@ import type { JSX } from 'react';
 
 export function DashboardTrendsChart({
   rows,
+  dataKey = 'submitted',
+  label = 'Count',
 }: {
-  rows: Array<{ date: string; submitted: number }>;
+  rows: Array<{ date: string; submitted?: number; settled?: number; amount_paise?: number }>;
+  dataKey?: 'submitted' | 'settled' | 'amount_paise';
+  label?: string;
 }): JSX.Element {
   const data = rows.map((row) => ({
     date: row.date.slice(5),
-    submitted: row.submitted,
+    value: row[dataKey] ?? 0,
   }));
 
   if (!data.length) {
@@ -57,7 +61,8 @@ export function DashboardTrendsChart({
           />
           <Line
             type="monotone"
-            dataKey="submitted"
+            dataKey="value"
+            name={label}
             stroke="rgb(var(--brand-rgb))"
             strokeWidth={2}
             dot={false}

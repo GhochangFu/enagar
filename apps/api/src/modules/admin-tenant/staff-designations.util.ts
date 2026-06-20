@@ -3,6 +3,7 @@ import type { PrismaService } from '../../common/database/prisma.service';
 import type { DesignationCapability } from '@enagar/workflow';
 
 export type StaffDesignationContext = {
+  userId: string | null;
   codes: string[];
   capabilities: DesignationCapability[];
 };
@@ -40,7 +41,7 @@ export async function loadStaffDesignationContext(
     },
   });
   if (!user) {
-    return { codes: [], capabilities: [] };
+    return { userId: null, codes: [], capabilities: [] };
   }
 
   const codes: string[] = [];
@@ -56,5 +57,5 @@ export async function loadStaffDesignationContext(
       can_reject_municipal: row.designation.canRejectMunicipal,
     });
   }
-  return { codes, capabilities };
+  return { userId: user.id, codes, capabilities };
 }

@@ -70,6 +70,10 @@ import {
 } from '../work-orders/work-orders.service';
 
 import {
+  buildTenantBookingSummary,
+  type TenantAdminBookingSummary,
+} from './admin-tenant-booking-summary.util';
+import {
   assertCode,
   assertLocaleLabel,
   assertValidDocumentChecklist,
@@ -94,10 +98,6 @@ import {
   assertValidTariffCategory,
   calculateFeePreview,
 } from './admin-tenant-config.contracts';
-import {
-  buildTenantBookingSummary,
-  type TenantAdminBookingSummary,
-} from './admin-tenant-booking-summary.util';
 import { applyBocTransitionPayload, deskSnapshotForAllowedTransition } from './boc-desk.util';
 import { deskApplicationInMyQueue, deskMyQueueWhereClause } from './desk-queue.util';
 import {
@@ -185,6 +185,44 @@ export type TenantAdminDashboardDeep = {
     open_applications: number;
     recent_submissions_30d: number;
   }>;
+};
+
+export type TenantAdminPaymentSource = 'application' | 'booking' | 'rental' | 'ev' | 'water';
+
+export type TenantAdminPaymentSummary = {
+  period_days: number;
+  totals: {
+    settled_count: number;
+    settled_amount_paise: number;
+    pending_count: number;
+    failed_count: number;
+  };
+  by_source: Array<{ source: TenantAdminPaymentSource; count: number; amount_paise: number }>;
+  trends_30d: Array<{ date: string; settled: number; amount_paise: number }>;
+};
+
+export type TenantAdminPaymentLedgerRow = {
+  id: string;
+  amount_paise: number;
+  currency: string;
+  status: string;
+  method: string;
+  gateway: string;
+  fee_code: string;
+  created_at: string;
+  settled_at: string | null;
+  source: TenantAdminPaymentSource;
+  reference: string;
+  service_code: string | null;
+  citizen_subject: string;
+  deep_link: string | null;
+};
+
+export type TenantAdminPaymentBreakdownRow = {
+  key: string;
+  label: string;
+  count: number;
+  amount_paise: number;
 };
 
 export type TenantAdminAddressImportResult = {
@@ -506,6 +544,13 @@ export type TenantDeskSummary = {
   grievances_sla_breached: number;
 };
 
+export type TenantDeskInboxPage<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type TenantDeskApplicationListItem = {
   id: string;
   docket_no: string;
@@ -544,6 +589,9 @@ export type TenantDeskApplicationListItem = {
   };
   submitted_at: string;
   updated_at: string | null;
+  department_id: string | null;
+  department_code: string | null;
+  department_name: string | null;
 };
 
 export type TenantDeskAllowedTransition = {
@@ -751,6 +799,139 @@ export class AdminTenantService {
     ]);
 
     return buildTenantBookingSummary(periodRows, recentRows, periodDays);
+  }
+
+  async getPaymentSummary(principal: AuthenticatedPrincipal): Promise<TenantAdminPaymentSummary> {
+    assertTenantPortalStaff(principal);
+    const periodDays = 30;
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
+
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        tenantId: principal.tenantId,
+        createdAt: { gte: periodStart },
+      },
+      select: tenantAdminPaymentSelect(),
+    });
+
+    const settled = rows.filter((row) => row.status === 'settled');
+    const pending = rows.filter((row) => row.status === 'requires_action');
+    const failed = rows.filter((row) => row.status === 'failed');
+
+    const bySourceMap = new Map<
+      TenantAdminPaymentSource,
+      { count: number; amount_paise: number }
+    >();
+    for (const source of PAYMENT_SOURCES) {
+      bySourceMap.set(source, { count: 0, amount_paise: 0 });
+    }
+    for (const row of settled) {
+      const source = derivePaymentSource(row);
+      const current = bySourceMap.get(source)!;
+      current.count += 1;
+      current.amount_paise += row.amountPaise;
+      bySourceMap.set(source, current);
+    }
+
+    return {
+      period_days: periodDays,
+      totals: {
+        settled_count: settled.length,
+        settled_amount_paise: settled.reduce((sum, row) => sum + row.amountPaise, 0),
+        pending_count: pending.length,
+        failed_count: failed.length,
+      },
+      by_source: PAYMENT_SOURCES.map((source) => ({
+        source,
+        count: bySourceMap.get(source)!.count,
+        amount_paise: bySourceMap.get(source)!.amount_paise,
+      })),
+      trends_30d: bucketPayments(
+        settled.map((row) => ({ settledAt: row.settledAt, amountPaise: row.amountPaise })),
+        periodStart,
+        now,
+      ),
+    };
+  }
+
+  async listPayments(
+    principal: AuthenticatedPrincipal,
+    filters: {
+      status?: string;
+      source?: string;
+      from?: string;
+      to?: string;
+      q?: string;
+      limit?: string;
+      cursor?: string;
+    },
+  ): Promise<{ items: TenantAdminPaymentLedgerRow[]; next_cursor: string | null }> {
+    assertTenantPortalStaff(principal);
+    const limit = Math.min(Math.max(Number.parseInt(filters.limit ?? '50', 10) || 50, 1), 200);
+    const where = buildTenantPaymentWhere(principal.tenantId, filters);
+    const rows = await this.prisma.payment.findMany({
+      where,
+      select: tenantAdminPaymentSelect(),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      items: page.map((row) => toTenantPaymentLedgerRow(row)),
+      next_cursor: hasMore ? page[page.length - 1]!.id : null,
+    };
+  }
+
+  async getPaymentBreakdown(
+    principal: AuthenticatedPrincipal,
+    filters: { group?: string; from?: string; to?: string; status?: string; source?: string },
+  ): Promise<TenantAdminPaymentBreakdownRow[]> {
+    assertTenantPortalStaff(principal);
+    const group =
+      filters.group === 'status' || filters.group === 'service' ? filters.group : 'source';
+    const where = buildTenantPaymentWhere(principal.tenantId, filters);
+    const rows = await this.prisma.payment.findMany({
+      where,
+      select: tenantAdminPaymentSelect(),
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+
+    const buckets = new Map<string, { label: string; count: number; amount_paise: number }>();
+    for (const row of rows) {
+      let key: string;
+      let label: string;
+      if (group === 'status') {
+        key = row.status;
+        label = row.status;
+      } else if (group === 'service') {
+        const ledger = toTenantPaymentLedgerRow(row);
+        key = ledger.service_code ?? 'unknown';
+        label = ledger.service_code ?? 'Unknown service';
+      } else {
+        const source = derivePaymentSource(row);
+        key = source;
+        label = paymentSourceLabel(source);
+      }
+      const current = buckets.get(key) ?? { label, count: 0, amount_paise: 0 };
+      current.count += 1;
+      if (row.status === 'settled') {
+        current.amount_paise += row.amountPaise;
+      }
+      buckets.set(key, current);
+    }
+
+    return [...buckets.entries()]
+      .map(([key, value]) => ({
+        key,
+        label: value.label,
+        count: value.count,
+        amount_paise: value.amount_paise,
+      }))
+      .sort((left, right) => right.amount_paise - left.amount_paise || right.count - left.count);
   }
 
   async getDashboardDeep(principal: AuthenticatedPrincipal): Promise<TenantAdminDashboardDeep> {
@@ -1165,23 +1346,14 @@ export class AdminTenantService {
     );
     const rows = await this.prisma.payment.findMany({
       where,
-      select: {
-        gatewayOrderId: true,
-        gatewayPaymentId: true,
-        amountPaise: true,
-        currency: true,
-        method: true,
-        status: true,
-        gateway: true,
-        createdAt: true,
-        settledAt: true,
-        application: { select: { docketNo: true, serviceCode: true } },
-      },
+      select: tenantAdminPaymentSelect(),
       orderBy: { createdAt: 'desc' },
       take: 5000,
     });
     return toCsv(
       [
+        'source',
+        'reference',
         'docket_no',
         'service_code',
         'gateway_order_id',
@@ -1194,19 +1366,24 @@ export class AdminTenantService {
         'created_at',
         'settled_at',
       ],
-      rows.map((row) => [
-        row.application?.docketNo ?? '',
-        row.application?.serviceCode ?? '',
-        row.gatewayOrderId,
-        row.gatewayPaymentId ?? '',
-        row.amountPaise,
-        row.currency,
-        row.method,
-        row.status,
-        row.gateway,
-        row.createdAt.toISOString(),
-        row.settledAt?.toISOString() ?? '',
-      ]),
+      rows.map((row) => {
+        const ledger = toTenantPaymentLedgerRow(row);
+        return [
+          ledger.source,
+          ledger.reference,
+          row.application?.docketNo ?? '',
+          ledger.service_code ?? '',
+          row.gatewayOrderId,
+          row.gatewayPaymentId ?? '',
+          row.amountPaise,
+          row.currency,
+          row.method,
+          row.status,
+          row.gateway,
+          row.createdAt.toISOString(),
+          row.settledAt?.toISOString() ?? '',
+        ];
+      }),
     );
   }
 
@@ -3471,62 +3648,133 @@ export class AdminTenantService {
   async getDeskSummary(principal: AuthenticatedPrincipal): Promise<TenantDeskSummary> {
     assertDeskAccess(principal);
     const admin = hasDeskAdminRole(principal.roles);
-    const [myApplications, allApplications, myGrievances, allGrievances] = await Promise.all([
-      this.listDeskApplications(principal, 'my'),
-      admin ? this.listDeskApplications(principal, 'all') : Promise.resolve([]),
-      this.listDeskGrievances(principal, 'my'),
-      admin ? this.listDeskGrievances(principal, 'all') : Promise.resolve([]),
+    const roles = normalizeDeskRoles(principal.roles);
+    const designations = await loadStaffDesignationContext(this.prisma, principal);
+    const terminalApp = ['closed', 'cancelled'];
+    const terminalGrievance = ['resolved', 'closed'];
+
+    const appMyWhere: Prisma.ApplicationWhereInput = {
+      tenantId: principal.tenantId,
+      NOT: { status: { in: terminalApp } },
+      OR: deskMyQueueWhereClause(roles, designations.codes),
+    };
+    const appAllWhere: Prisma.ApplicationWhereInput = {
+      tenantId: principal.tenantId,
+      NOT: { status: { in: terminalApp } },
+    };
+    const grievanceOpenWhere: Prisma.GrievanceWhereInput = {
+      tenantId: principal.tenantId,
+      NOT: { status: { in: terminalGrievance } },
+    };
+    const grievanceMyWhere: Prisma.GrievanceWhereInput = {
+      ...grievanceOpenWhere,
+      OR: deskGrievanceMyQueueWhereClause(principal, roles, designations.userId),
+    };
+    const grievanceBreachedWhere: Prisma.GrievanceWhereInput = {
+      ...grievanceOpenWhere,
+      slaBreachedAt: { not: null },
+    };
+
+    const [
+      applications_my_queue,
+      applications_all_open,
+      grievances_my_queue,
+      grievances_all_open,
+      grievances_sla_breached,
+    ] = await Promise.all([
+      roles.length > 0 || designations.codes.length > 0
+        ? this.prisma.application.count({ where: appMyWhere })
+        : Promise.resolve(0),
+      admin
+        ? this.prisma.application.count({ where: appAllWhere })
+        : this.prisma.application.count({ where: appMyWhere }),
+      this.prisma.grievance.count({ where: grievanceMyWhere }),
+      admin
+        ? this.prisma.grievance.count({ where: grievanceOpenWhere })
+        : this.prisma.grievance.count({ where: grievanceMyWhere }),
+      this.prisma.grievance.count({
+        where: admin ? grievanceBreachedWhere : { AND: [grievanceMyWhere, grievanceBreachedWhere] },
+      }),
     ]);
 
     return {
-      applications_my_queue: myApplications.length,
-      applications_all_open: admin ? allApplications.length : myApplications.length,
-      grievances_my_queue: myGrievances.length,
-      grievances_all_open: admin ? allGrievances.length : myGrievances.length,
-      grievances_sla_breached: (admin ? allGrievances : myGrievances).filter(
-        (row) => row.sla_breached_at,
-      ).length,
+      applications_my_queue,
+      applications_all_open,
+      grievances_my_queue,
+      grievances_all_open,
+      grievances_sla_breached,
     };
   }
 
   async listDeskApplications(
     principal: AuthenticatedPrincipal,
     queue = 'my',
-  ): Promise<TenantDeskApplicationListItem[]> {
+    filters: {
+      dept?: string;
+      department_id?: string;
+      page?: string;
+      page_size?: string;
+    } = {},
+  ): Promise<TenantDeskInboxPage<TenantDeskApplicationListItem>> {
     assertDeskAccess(principal);
     if (queue === 'all' && !hasDeskAdminRole(principal.roles)) {
       throw new ForbiddenException('Only municipality admins can view all open applications');
     }
+    const { page, pageSize } = parseDeskInboxPagination(filters.page, filters.page_size);
+    const departmentIds = await resolveDeskDepartmentIds(
+      this.prisma,
+      principal.tenantId,
+      parseDeptCodesFromQuery(filters.dept),
+      filters.department_id,
+    );
     const roles = normalizeDeskRoles(principal.roles);
     const designations = await loadStaffDesignationContext(this.prisma, principal);
     if (queue === 'my' && roles.length === 0 && designations.codes.length === 0) {
-      return [];
+      return { items: [], total: 0, page, page_size: pageSize };
     }
-    const rows = await this.prisma.application.findMany({
-      where: {
-        tenantId: principal.tenantId,
-        NOT: { status: { in: ['closed', 'cancelled'] } },
-        ...(queue === 'my' ? { OR: deskMyQueueWhereClause(roles, designations.codes) } : {}),
-      },
-      select: {
-        id: true,
-        docketNo: true,
-        serviceCode: true,
-        status: true,
-        statusLabel: true,
-        pendingRole: true,
-        pendingDesignation: true,
-        paymentStatus: true,
-        submittedAt: true,
-        updatedAt: true,
-        runtimeSnapshot: true,
-        service: { select: { name: true } },
-      },
-      orderBy: [{ updatedAt: 'desc' }, { submittedAt: 'desc' }],
-      take: 200,
-    });
+    if (departmentIds && departmentIds.length === 0) {
+      return { items: [], total: 0, page, page_size: pageSize };
+    }
+
+    const where: Prisma.ApplicationWhereInput = {
+      tenantId: principal.tenantId,
+      NOT: { status: { in: ['closed', 'cancelled'] } },
+      ...(queue === 'my' ? { OR: deskMyQueueWhereClause(roles, designations.codes) } : {}),
+      ...(departmentIds?.length ? { service: { departmentId: { in: departmentIds } } } : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+      this.prisma.application.count({ where }),
+      this.prisma.application.findMany({
+        where,
+        select: {
+          id: true,
+          docketNo: true,
+          serviceCode: true,
+          status: true,
+          statusLabel: true,
+          pendingRole: true,
+          pendingDesignation: true,
+          paymentStatus: true,
+          submittedAt: true,
+          updatedAt: true,
+          runtimeSnapshot: true,
+          service: {
+            select: {
+              name: true,
+              department: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { submittedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
     const items = rows.map((row) => toDeskApplicationListItem(row));
-    return attachPendingAtLabels(this.prisma, principal.tenantId, items);
+    const labeled = await attachPendingAtLabels(this.prisma, principal.tenantId, items);
+    return { items: labeled, total, page, page_size: pageSize };
   }
 
   async getDeskApplication(
@@ -3555,6 +3803,7 @@ export class AdminTenantService {
             name: true,
             overrideConfig: true,
             effectiveFeeConfig: true,
+            department: { select: { id: true, code: true, name: true } },
           },
         },
       },
@@ -3913,24 +4162,42 @@ export class AdminTenantService {
   async listDeskGrievances(
     principal: AuthenticatedPrincipal,
     queue = 'my',
-  ): Promise<TenantDeskGrievanceListItem[]> {
+    filters: { page?: string; page_size?: string } = {},
+  ): Promise<TenantDeskInboxPage<TenantDeskGrievanceListItem>> {
     assertDeskAccess(principal);
     if (queue === 'all' && !hasDeskAdminRole(principal.roles)) {
       throw new ForbiddenException('Only municipality admins can view all grievances');
     }
-    const rows = await this.prisma.grievance.findMany({
-      where: {
-        tenantId: principal.tenantId,
-        NOT: { status: { in: ['resolved', 'closed'] } },
-        ...(queue === 'breached' ? { slaBreachedAt: { not: null } } : {}),
-      },
-      orderBy: [{ slaBreachedAt: 'asc' }, { updatedAt: 'desc' }],
-      take: 200,
-    });
+    const { page, pageSize } = parseDeskInboxPagination(filters.page, filters.page_size);
+    const roles = normalizeDeskRoles(principal.roles);
+    const designations = await loadStaffDesignationContext(this.prisma, principal);
+    const terminalGrievance = ['resolved', 'closed'];
+
+    const where: Prisma.GrievanceWhereInput = {
+      tenantId: principal.tenantId,
+      NOT: { status: { in: terminalGrievance } },
+      ...(queue === 'breached' ? { slaBreachedAt: { not: null } } : {}),
+      ...(queue === 'my'
+        ? { OR: deskGrievanceMyQueueWhereClause(principal, roles, designations.userId) }
+        : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+      this.prisma.grievance.count({ where }),
+      this.prisma.grievance.findMany({
+        where,
+        orderBy: [{ slaBreachedAt: 'asc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
     const labelMaps = await this.loadGrievanceLabelMaps(principal.tenantId);
-    return rows
-      .map((row) => toDeskGrievanceListItem(row, labelMaps))
-      .filter((row) => queue !== 'my' || deskGrievanceMatchesMyQueue(principal, row));
+    return {
+      items: rows.map((row) => toDeskGrievanceListItem(row, labelMaps)),
+      total,
+      page,
+      page_size: pageSize,
+    };
   }
 
   async getDeskGrievance(
@@ -4582,7 +4849,10 @@ function toDeskApplicationListItem(row: {
   submittedAt: Date;
   updatedAt?: Date;
   runtimeSnapshot: Prisma.JsonValue;
-  service: { name: Prisma.JsonValue };
+  service: {
+    name: Prisma.JsonValue;
+    department?: { id: string; code: string; name: Prisma.JsonValue } | null;
+  };
 }): TenantDeskApplicationListItem {
   const snapshot = toApplicationSnapshot(row.runtimeSnapshot);
   const feeSettlement = coerceFeeSettlementSnapshot(snapshot.fee_settlement);
@@ -4619,6 +4889,9 @@ function toDeskApplicationListItem(row: {
         ? snapshot.submitted_at
         : row.submittedAt.toISOString(),
     updated_at: row.updatedAt?.toISOString() ?? null,
+    department_id: row.service.department?.id ?? null,
+    department_code: row.service.department?.code ?? null,
+    department_name: row.service.department ? labelFromJson(row.service.department.name).en : null,
   };
 }
 
@@ -4719,16 +4992,65 @@ function toDeskGrievanceListItem(
   };
 }
 
-function deskGrievanceMatchesMyQueue(
+function deskGrievanceMyQueueWhereClause(
   principal: AuthenticatedPrincipal,
-  row: TenantDeskGrievanceListItem,
-): boolean {
-  const roles = normalizeDeskRoles(principal.roles);
-  return Boolean(
-    (row.routed_role_code && roles.includes(row.routed_role_code)) ||
-    row.assigned_to_user_id === principal.subject ||
-    (row.sla_breached_at && hasDeskAdminRole(principal.roles)),
-  );
+  roles: string[],
+  staffUserId: string | null,
+): Prisma.GrievanceWhereInput[] {
+  const clauses: Prisma.GrievanceWhereInput[] = [];
+  if (roles.length > 0) {
+    clauses.push({ routedRoleCode: { in: roles } });
+  }
+  if (staffUserId) {
+    clauses.push({ assignedToUserId: staffUserId });
+  }
+  if (hasDeskAdminRole(principal.roles)) {
+    clauses.push({ slaBreachedAt: { not: null } });
+  }
+  return clauses.length > 0 ? clauses : [{ id: { in: [] } }];
+}
+
+function parseDeptCodesFromQuery(dept?: string): string[] {
+  if (!dept?.trim()) {
+    return [];
+  }
+  return dept
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseDeskInboxPagination(
+  pageRaw?: string,
+  pageSizeRaw?: string,
+): { page: number; pageSize: number } {
+  const page = Math.max(Number.parseInt(pageRaw ?? '1', 10) || 1, 1);
+  const pageSize = Math.min(Math.max(Number.parseInt(pageSizeRaw ?? '25', 10) || 25, 1), 100);
+  return { page, pageSize };
+}
+
+async function resolveDeskDepartmentIds(
+  prisma: import('../../common/database/prisma.service').PrismaService,
+  tenantId: string,
+  deptCodes: string[],
+  legacyDepartmentId?: string,
+): Promise<string[] | undefined> {
+  if (legacyDepartmentId) {
+    assertUuid(legacyDepartmentId, 'department_id');
+    return [legacyDepartmentId];
+  }
+  if (!deptCodes.length) {
+    return undefined;
+  }
+  const rows = await prisma.tenantDepartment.findMany({
+    where: {
+      tenantId,
+      isActive: true,
+      code: { in: deptCodes },
+    },
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
 }
 
 function nextGrievanceStatuses(status: GrievanceStatus): GrievanceStatus[] {
@@ -5241,6 +5563,170 @@ function previewFeeRule(value: Prisma.JsonValue): number | null {
   }
 }
 
+const PAYMENT_SOURCES: TenantAdminPaymentSource[] = [
+  'application',
+  'booking',
+  'rental',
+  'ev',
+  'water',
+];
+
+function tenantAdminPaymentSelect() {
+  return {
+    id: true,
+    amountPaise: true,
+    currency: true,
+    status: true,
+    method: true,
+    gateway: true,
+    gatewayOrderId: true,
+    gatewayPaymentId: true,
+    feeCode: true,
+    createdAt: true,
+    settledAt: true,
+    citizenSubject: true,
+    applicationId: true,
+    bookingReservationId: true,
+    leaseInvoiceId: true,
+    evSessionId: true,
+    waterMeterRechargeId: true,
+    application: { select: { docketNo: true, serviceCode: true } },
+    bookingReservation: { select: { bookingNo: true, id: true, docketNo: true } },
+    leaseInvoice: { select: { invoiceNo: true, id: true } },
+    receipt: { select: { serviceCode: true } },
+  } satisfies Prisma.PaymentSelect;
+}
+
+type TenantAdminPaymentRow = Prisma.PaymentGetPayload<{
+  select: ReturnType<typeof tenantAdminPaymentSelect>;
+}>;
+
+function derivePaymentSource(row: TenantAdminPaymentRow): TenantAdminPaymentSource {
+  if (row.applicationId) return 'application';
+  if (row.bookingReservationId) return 'booking';
+  if (row.leaseInvoiceId) return 'rental';
+  if (row.evSessionId) return 'ev';
+  if (row.waterMeterRechargeId) return 'water';
+  return 'application';
+}
+
+function paymentSourceLabel(source: TenantAdminPaymentSource): string {
+  switch (source) {
+    case 'application':
+      return 'Application';
+    case 'booking':
+      return 'Booking';
+    case 'rental':
+      return 'Rental';
+    case 'ev':
+      return 'EV Charging';
+    case 'water':
+      return 'Water meter';
+    default:
+      return source;
+  }
+}
+
+function toTenantPaymentLedgerRow(row: TenantAdminPaymentRow): TenantAdminPaymentLedgerRow {
+  const source = derivePaymentSource(row);
+  let reference = row.gatewayOrderId;
+  const serviceCode = row.application?.serviceCode ?? row.receipt?.serviceCode ?? null;
+  let deepLink: string | null = null;
+
+  if (source === 'application' && row.application?.docketNo) {
+    reference = row.application.docketNo;
+    deepLink = `/dashboard/desk?docket=${encodeURIComponent(row.application.docketNo)}`;
+  } else if (source === 'booking') {
+    reference =
+      row.bookingReservation?.bookingNo ??
+      row.bookingReservation?.docketNo ??
+      row.bookingReservation?.id.slice(0, 8) ??
+      reference;
+    if (row.bookingReservation?.id) {
+      deepLink = `/dashboard/bookings?booking=${encodeURIComponent(row.bookingReservation.id)}`;
+    }
+  } else if (source === 'rental' && row.leaseInvoice) {
+    reference = row.leaseInvoice.invoiceNo;
+    deepLink = `/rental-assets/invoices?invoice=${encodeURIComponent(row.leaseInvoice.id)}`;
+  } else if (source === 'ev' && row.evSessionId) {
+    reference = row.evSessionId.slice(0, 8);
+    deepLink = `/dashboard/operations?section=ev-charging`;
+  } else if (source === 'water' && row.waterMeterRechargeId) {
+    reference = row.waterMeterRechargeId.slice(0, 8);
+    deepLink = `/dashboard/operations?section=iot-water`;
+  }
+
+  return {
+    id: row.id,
+    amount_paise: row.amountPaise,
+    currency: row.currency,
+    status: row.status,
+    method: row.method,
+    gateway: row.gateway,
+    fee_code: row.feeCode,
+    created_at: row.createdAt.toISOString(),
+    settled_at: row.settledAt?.toISOString() ?? null,
+    source,
+    reference,
+    service_code: serviceCode,
+    citizen_subject: row.citizenSubject,
+    deep_link: deepLink,
+  };
+}
+
+function buildTenantPaymentWhere(
+  tenantId: string,
+  filters: {
+    status?: string;
+    source?: string;
+    from?: string;
+    to?: string;
+    q?: string;
+  },
+): Prisma.PaymentWhereInput {
+  let where = withDateRange<Prisma.PaymentWhereInput>({ tenantId }, 'createdAt', filters);
+
+  if (filters.status === 'settled' || filters.status === 'failed') {
+    where = { ...where, status: filters.status };
+  } else if (filters.status === 'pending') {
+    where = { ...where, status: 'requires_action' };
+  }
+
+  const source = filters.source as TenantAdminPaymentSource | undefined;
+  if (source && PAYMENT_SOURCES.includes(source)) {
+    const sourceWhere: Prisma.PaymentWhereInput =
+      source === 'application'
+        ? { applicationId: { not: null } }
+        : source === 'booking'
+          ? { bookingReservationId: { not: null } }
+          : source === 'rental'
+            ? { leaseInvoiceId: { not: null } }
+            : source === 'ev'
+              ? { evSessionId: { not: null } }
+              : { waterMeterRechargeId: { not: null } };
+    where = { AND: [where, sourceWhere] };
+  }
+
+  const q = filters.q?.trim();
+  if (q) {
+    where = {
+      AND: [
+        where,
+        {
+          OR: [
+            { gatewayOrderId: { contains: q, mode: 'insensitive' } },
+            { application: { docketNo: { contains: q, mode: 'insensitive' } } },
+            { bookingReservation: { bookingNo: { contains: q, mode: 'insensitive' } } },
+            { leaseInvoice: { invoiceNo: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+      ],
+    };
+  }
+
+  return where;
+}
+
 function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -5566,7 +6052,18 @@ function assertBookingStatus(value: unknown): asserts value is string {
 }
 
 function assertBookableAssetType(value: unknown): asserts value is string {
-  if (!['HALL', 'AUDITORIUM', 'GROUND', 'EQUIPMENT', 'PARKING_ZONE', 'LED_BOARD', 'AMBULANCE', 'HEARSE'].includes(String(value))) {
+  if (
+    ![
+      'HALL',
+      'AUDITORIUM',
+      'GROUND',
+      'EQUIPMENT',
+      'PARKING_ZONE',
+      'LED_BOARD',
+      'AMBULANCE',
+      'HEARSE',
+    ].includes(String(value))
+  ) {
     throw new BadRequestException('Unsupported bookable asset_type');
   }
 }

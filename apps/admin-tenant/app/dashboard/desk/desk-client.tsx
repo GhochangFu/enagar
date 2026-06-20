@@ -1,8 +1,18 @@
 'use client';
 
-import { AlertBanner, Button, KpiCard, PageHeader, SegmentedControl } from '@enagar/ui';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import {
+  AlertBanner,
+  Badge,
+  Button,
+  KpiCard,
+  PageHeader,
+  PaginationBar,
+  SegmentedControl,
+} from '@enagar/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { DeptMultiSelect } from '../../../components/dept-multi-select';
 import { DeskApplicationDocumentsPanel } from '../../../components/desk-application-documents-panel';
 import { DeskGrievanceEvidencePanel } from '../../../components/desk-grievance-evidence-panel';
 import { DeskGrievanceLocationMap } from '../../../components/desk-grievance-location-map';
@@ -12,6 +22,13 @@ import {
   locationSummaryWithoutCoords,
   parseGrievanceLocationPin,
 } from '../../../lib/grievance-location';
+
+type DeskInboxPage<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};
 
 type DeskSummary = {
   applications_my_queue: number;
@@ -67,6 +84,9 @@ type ApplicationRow = {
     total_approval_paise: number;
   };
   submitted_at: string;
+  department_id?: string | null;
+  department_code?: string | null;
+  department_name?: string | null;
 };
 
 type AllowedTransition = {
@@ -371,8 +391,8 @@ function DeskHoardingQuotePanel({
       </dl>
       {approvalFee ? (
         <p className="mt-3 text-sm font-semibold text-ink-primary">
-          Approval payment due: {formatInrFromPaise(approvalFee.base_permission_fee_paise)} permission
-          fee + {formatInrFromPaise(approvalFee.hoarding_tax_paise)} hoarding tax ={' '}
+          Approval payment due: {formatInrFromPaise(approvalFee.base_permission_fee_paise)}{' '}
+          permission fee + {formatInrFromPaise(approvalFee.hoarding_tax_paise)} hoarding tax ={' '}
           {formatInrFromPaise(approvalFee.total_approval_paise)} total
         </p>
       ) : (
@@ -555,8 +575,17 @@ function FormDataSummary({ data }: { data: unknown }): JSX.Element {
 
 export default function DeskClient(): JSX.Element {
   const { token, apiBase, me, refreshMe } = useTenantAdminSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<string | null>(null);
   const [summary, setSummary] = useState<DeskSummary | null>(null);
+  type DepartmentRow = {
+    id: string;
+    code: string;
+    name: unknown;
+    is_active: boolean;
+  };
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [tab, setTab] = useState<'applications' | 'grievances'>('applications');
   const [appDetailTab, setAppDetailTab] = useState<'summary' | 'form' | 'documents' | 'timeline'>(
     'summary',
@@ -565,6 +594,12 @@ export default function DeskClient(): JSX.Element {
   const [grievanceQueue, setGrievanceQueue] = useState<'my' | 'all' | 'breached'>('my');
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [grievances, setGrievances] = useState<GrievanceRow[]>([]);
+  const [appInboxTotal, setAppInboxTotal] = useState(0);
+  const [grievanceInboxTotal, setGrievanceInboxTotal] = useState(0);
+  const [appPage, setAppPage] = useState(1);
+  const [appPageSize, setAppPageSize] = useState(25);
+  const [grievancePage, setGrievancePage] = useState(1);
+  const [grievancePageSize, setGrievancePageSize] = useState(25);
   const [applicationDetail, setApplicationDetail] = useState<ApplicationDetail | null>(null);
   const [grievanceDetail, setGrievanceDetail] = useState<GrievanceDetail | null>(null);
   const [comment, setComment] = useState('');
@@ -572,6 +607,29 @@ export default function DeskClient(): JSX.Element {
   const [bocResolutionNumber, setBocResolutionNumber] = useState('');
   const [bocResolutionDate, setBocResolutionDate] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
+
+  function pickDeptLabel(json: unknown): string {
+    if (typeof json === 'string' && json.trim()) return json;
+    if (json && typeof json === 'object' && !Array.isArray(json)) {
+      const rec = json as Record<string, unknown>;
+      for (const key of ['en', 'bn', 'hi']) {
+        const v = rec[key];
+        if (typeof v === 'string' && v.trim()) return v;
+      }
+    }
+    return '—';
+  }
+
+  const selectedDeptCodes = useMemo(() => {
+    const raw = searchParams.get('dept');
+    if (!raw) return [];
+    return raw
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }, [searchParams]);
+
+  const deptCodesKey = selectedDeptCodes.join(',');
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -585,36 +643,94 @@ export default function DeskClient(): JSX.Element {
     if (!token) return;
     setStatus(null);
     try {
+      const deptQuery = selectedDeptCodes.length
+        ? `&dept=${encodeURIComponent(selectedDeptCodes.join(','))}`
+        : '';
       const [summaryRes, appRes, grievanceRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/desk/inbox/summary`, {
           cache: 'no-store',
           headers: authHeaders(),
         }),
-        fetch(`${apiBase}/admin/tenant/desk/inbox/applications?queue=${appQueue}`, {
-          cache: 'no-store',
-          headers: authHeaders(),
-        }),
-        fetch(`${apiBase}/admin/tenant/desk/inbox/grievances?queue=${grievanceQueue}`, {
-          cache: 'no-store',
-          headers: authHeaders(),
-        }),
+        fetch(
+          `${apiBase}/admin/tenant/desk/inbox/applications?queue=${appQueue}&page=${appPage}&page_size=${appPageSize}${deptQuery}`,
+          {
+            cache: 'no-store',
+            headers: authHeaders(),
+          },
+        ),
+        fetch(
+          `${apiBase}/admin/tenant/desk/inbox/grievances?queue=${grievanceQueue}&page=${grievancePage}&page_size=${grievancePageSize}`,
+          {
+            cache: 'no-store',
+            headers: authHeaders(),
+          },
+        ),
       ]);
       if (!summaryRes.ok || !appRes.ok || !grievanceRes.ok) {
         setStatus(`Desk API error (${summaryRes.status}/${appRes.status}/${grievanceRes.status}).`);
         return;
       }
       setSummary((await summaryRes.json()) as DeskSummary);
-      setApplications((await appRes.json()) as ApplicationRow[]);
-      setGrievances((await grievanceRes.json()) as GrievanceRow[]);
+      const appJson = (await appRes.json()) as DeskInboxPage<ApplicationRow>;
+      const grievanceJson = (await grievanceRes.json()) as DeskInboxPage<GrievanceRow>;
+      setApplications(appJson.items);
+      setAppInboxTotal(appJson.total);
+      setGrievances(grievanceJson.items);
+      setGrievanceInboxTotal(grievanceJson.total);
       await refreshMe();
     } catch {
       setStatus('Network error loading Desk.');
     }
-  }, [apiBase, appQueue, authHeaders, grievanceQueue, refreshMe, token]);
+  }, [
+    apiBase,
+    appPage,
+    appPageSize,
+    appQueue,
+    authHeaders,
+    grievancePage,
+    grievancePageSize,
+    grievanceQueue,
+    refreshMe,
+    selectedDeptCodes,
+    token,
+  ]);
+
+  useEffect(() => {
+    if (!token) return;
+    void fetch(`${apiBase}/admin/tenant/org/departments`, { headers: authHeaders() })
+      .then(async (res) => {
+        if (res.ok) {
+          setDepartments((await res.json()) as DepartmentRow[]);
+        }
+      })
+      .catch(() => undefined);
+  }, [apiBase, authHeaders, token]);
 
   useEffect(() => {
     void loadDesk();
   }, [loadDesk]);
+
+  useEffect(() => {
+    setAppPage(1);
+  }, [appQueue, deptCodesKey]);
+
+  useEffect(() => {
+    setGrievancePage(1);
+  }, [grievanceQueue]);
+
+  function setSelectedDeptCodes(codes: string[]): void {
+    const params = new URLSearchParams(searchParams.toString());
+    if (codes.length) {
+      params.set('dept', codes.join(','));
+    } else {
+      params.delete('dept');
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/desk?${qs}` : '/dashboard/desk');
+  }
+
+  const appTotalPages = Math.max(1, Math.ceil(appInboxTotal / appPageSize));
+  const grievanceTotalPages = Math.max(1, Math.ceil(grievanceInboxTotal / grievancePageSize));
 
   useEffect(() => {
     if (typeof window === 'undefined' || !token) return;
@@ -850,7 +966,19 @@ export default function DeskClient(): JSX.Element {
               options={me?.is_admin ? ['my', 'all'] : ['my']}
               onChange={(next) => setAppQueue(next as 'my' | 'all')}
             />
-            <ul className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto">
+            <div className="mt-4">
+              <DeptMultiSelect
+                departments={departments
+                  .filter((d) => d.is_active)
+                  .map((d) => ({
+                    code: d.code,
+                    label: pickDeptLabel(d.name),
+                  }))}
+                selectedCodes={selectedDeptCodes}
+                onChange={setSelectedDeptCodes}
+              />
+            </div>
+            <ul className="mt-4 space-y-3">
               {applications.map((row) => (
                 <li key={row.id}>
                   <button
@@ -863,9 +991,14 @@ export default function DeskClient(): JSX.Element {
                         : 'border-warm-border bg-surface hover:bg-brand-muted/20',
                     ].join(' ')}
                   >
-                    <p className="font-mono text-xs font-semibold text-ink-primary">
-                      {row.docket_no}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-mono text-xs font-semibold text-ink-primary">
+                        {row.docket_no}
+                      </p>
+                      {row.department_code ? (
+                        <Badge tone="neutral">{row.department_code}</Badge>
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-sm text-ink-primary">{row.service_name}</p>
                     <p className="mt-1 text-xs text-ink-secondary">
                       {row.current_stage} · Pending at{' '}
@@ -878,6 +1011,17 @@ export default function DeskClient(): JSX.Element {
                 <li className="text-sm text-ink-secondary">No applications.</li>
               ) : null}
             </ul>
+            <PaginationBar
+              page={appPage}
+              totalPages={appTotalPages}
+              totalItems={appInboxTotal}
+              pageSize={appPageSize}
+              onPageChange={setAppPage}
+              onPageSizeChange={(size) => {
+                setAppPageSize(size);
+                setAppPage(1);
+              }}
+            />
           </Panel>
 
           <Panel title="Application detail">
@@ -1008,6 +1152,17 @@ export default function DeskClient(): JSX.Element {
                 <li className="text-sm text-ink-secondary">No grievances.</li>
               ) : null}
             </ul>
+            <PaginationBar
+              page={grievancePage}
+              totalPages={grievanceTotalPages}
+              totalItems={grievanceInboxTotal}
+              pageSize={grievancePageSize}
+              onPageChange={setGrievancePage}
+              onPageSizeChange={(size) => {
+                setGrievancePageSize(size);
+                setGrievancePage(1);
+              }}
+            />
           </Panel>
 
           <Panel title="Grievance detail">

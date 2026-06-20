@@ -1,30 +1,19 @@
 'use client';
 
-import {
-  AlertBanner,
-  Badge,
-  Button,
-  Card,
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableElement,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRow,
-  KpiCard,
-  PageHeader,
-  useToast,
-} from '@enagar/ui';
+import { AlertBanner, Badge, Button, Card, KpiCard, PageHeader, useToast } from '@enagar/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
-import { DashboardTrendsChart } from '../../components/dashboard-trends-chart';
 import {
   BookingSummaryPanel,
   type BookingSummaryResponse,
 } from '../../components/booking-summary-panel';
+import { DashboardTrendsChart } from '../../components/dashboard-trends-chart';
+import {
+  PaymentSummaryPanel,
+  type PaymentSummaryResponse,
+} from '../../components/payment-summary-panel';
 import { useTenantAdminSession } from '../../components/tenant-admin-session';
 
 import type { Route } from 'next';
@@ -37,7 +26,6 @@ type DashboardSnapshot = {
   grievances_open: number;
   grievances_sla_breached_open: number;
   citizens_registered: number;
-  payments_settled_last_30_days: number;
 };
 
 type DashboardDeep = {
@@ -70,16 +58,6 @@ type DashboardDeep = {
   }>;
 };
 
-type ServiceRow = {
-  id: string;
-  code: string;
-  name: unknown;
-  description: unknown;
-  is_active: boolean;
-  effective_sla_days: number | null;
-  updated_at: string;
-};
-
 function pickLabel(json: unknown): string {
   if (typeof json === 'string') {
     return json;
@@ -107,9 +85,7 @@ export default function DashboardClient(): JSX.Element {
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [dashboardDeep, setDashboardDeep] = useState<DashboardDeep | null>(null);
   const [bookingSummary, setBookingSummary] = useState<BookingSummaryResponse | null>(null);
-  const [services, setServices] = useState<ServiceRow[]>([]);
-  const [slaDrafts, setSlaDrafts] = useState<Record<string, string>>({});
-  const [tableQuery, setTableQuery] = useState('');
+  const [paymentSummary, setPaymentSummary] = useState<PaymentSummaryResponse | null>(null);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({
@@ -124,18 +100,18 @@ export default function DashboardClient(): JSX.Element {
       return;
     }
     try {
-      const [dashRes, deepRes, bookingSummaryRes, svcRes] = await Promise.all([
+      const [dashRes, deepRes, bookingSummaryRes, paymentSummaryRes] = await Promise.all([
         fetch(`${apiBase}/admin/tenant/dashboard`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/dashboard/deep`, { headers: authHeaders() }),
         fetch(`${apiBase}/admin/tenant/dashboard/booking-summary`, { headers: authHeaders() }),
-        fetch(`${apiBase}/admin/tenant/services`, { headers: authHeaders() }),
+        fetch(`${apiBase}/admin/tenant/dashboard/payment-summary`, { headers: authHeaders() }),
       ]);
-      if (!dashRes.ok || !deepRes.ok || !bookingSummaryRes.ok || !svcRes.ok) {
+      if (!dashRes.ok || !deepRes.ok || !bookingSummaryRes.ok || !paymentSummaryRes.ok) {
         if (
           dashRes.status === 403 ||
           deepRes.status === 403 ||
           bookingSummaryRes.status === 403 ||
-          svcRes.status === 403
+          paymentSummaryRes.status === 403
         ) {
           const deskRes = await fetch(`${apiBase}/admin/tenant/desk/me`, {
             headers: authHeaders(),
@@ -152,19 +128,11 @@ export default function DashboardClient(): JSX.Element {
       const dashJson = (await dashRes.json()) as DashboardSnapshot;
       const deepJson = (await deepRes.json()) as DashboardDeep;
       const bookingSummaryJson = (await bookingSummaryRes.json()) as BookingSummaryResponse;
-      const svcJson = (await svcRes.json()) as ServiceRow[];
+      const paymentSummaryJson = (await paymentSummaryRes.json()) as PaymentSummaryResponse;
       setDashboard(dashJson);
       setDashboardDeep(deepJson);
       setBookingSummary(bookingSummaryJson);
-      setServices(svcJson);
-      const drafts: Record<string, string> = {};
-      for (const row of svcJson) {
-        drafts[row.id] =
-          row.effective_sla_days === null || row.effective_sla_days === undefined
-            ? ''
-            : String(row.effective_sla_days);
-      }
-      setSlaDrafts(drafts);
+      setPaymentSummary(paymentSummaryJson);
     } catch {
       toast('Network error loading dashboard.', 'danger');
     }
@@ -173,26 +141,6 @@ export default function DashboardClient(): JSX.Element {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
-
-  async function patchService(serviceId: string, body: Record<string, unknown>): Promise<void> {
-    if (!token) {
-      return;
-    }
-    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      toast(`Save failed (${res.status}): ${errText.slice(0, 180)}`, 'danger');
-      await loadAll();
-      return;
-    }
-    const updated = (await res.json()) as ServiceRow;
-    setServices((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-    toast('Service updated.', 'success');
-  }
 
   async function downloadExport(kind: string): Promise<void> {
     if (!token) {
@@ -222,21 +170,13 @@ export default function DashboardClient(): JSX.Element {
     (dashboard?.grievances_sla_breached_open ?? 0) +
     (dashboardDeep?.breached_applications.length ?? 0);
 
-  const filteredServices = services.filter((row) => {
-    const q = tableQuery.trim().toLowerCase();
-    if (!q) return true;
-    return row.code.toLowerCase().includes(q) || pickLabel(row.name).toLowerCase().includes(q);
-  });
-
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <PageHeader
         eyebrow="Tenant Admin"
         title="Dashboard"
         subtitle={
-          dashboard?.tenant_code
-            ? `Municipality ${dashboard.tenant_code}`
-            : 'Service catalogue and municipality KPIs'
+          dashboard?.tenant_code ? `Municipality ${dashboard.tenant_code}` : 'Municipality overview'
         }
         actions={
           <Button type="button" variant="secondary" onClick={() => void loadAll()}>
@@ -263,7 +203,7 @@ export default function DashboardClient(): JSX.Element {
       ) : null}
 
       {dashboard ? (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Applications (total)" value={dashboard.applications_total} />
           <KpiCard label="Applications (open)" value={dashboard.applications_open} />
           <KpiCard label="Citizens registered" value={dashboard.citizens_registered} />
@@ -273,13 +213,15 @@ export default function DashboardClient(): JSX.Element {
             value={dashboard.grievances_sla_breached_open}
             accent="danger"
           />
-          <KpiCard label="Payments settled (30d)" value={dashboard.payments_settled_last_30_days} />
         </section>
       ) : (
         <p className="text-ink-secondary">Loading KPIs…</p>
       )}
 
-      <BookingSummaryPanel summary={bookingSummary} />
+      <section className="grid gap-6 xl:grid-cols-2">
+        <PaymentSummaryPanel summary={paymentSummary} />
+        <BookingSummaryPanel summary={bookingSummary} variant="summary" />
+      </section>
 
       {dashboardDeep ? (
         <section className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
@@ -356,97 +298,6 @@ export default function DashboardClient(): JSX.Element {
           />
         </section>
       ) : null}
-
-      <section>
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-4">
-          <h2 className="text-xl font-semibold text-ink-primary">Service catalogue</h2>
-          <p className="text-xs text-ink-secondary">Published services for this municipality</p>
-        </div>
-
-        <DataTable
-          toolbar={
-            <input
-              type="search"
-              value={tableQuery}
-              onChange={(event) => setTableQuery(event.target.value)}
-              placeholder="Search services…"
-              className="w-full max-w-xs rounded-xl border border-warm-border bg-surface px-3 py-2 text-sm text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 md:max-w-sm"
-            />
-          }
-        >
-          <DataTableElement>
-            <DataTableHead>
-              <tr>
-                <DataTableHeaderCell>Active</DataTableHeaderCell>
-                <DataTableHeaderCell>Code</DataTableHeaderCell>
-                <DataTableHeaderCell>Name</DataTableHeaderCell>
-                <DataTableHeaderCell>SLA days</DataTableHeaderCell>
-                <DataTableHeaderCell>Updated</DataTableHeaderCell>
-                <DataTableHeaderCell>Designer</DataTableHeaderCell>
-              </tr>
-            </DataTableHead>
-            <DataTableBody>
-              {filteredServices.map((row) => (
-                <DataTableRow key={row.id}>
-                  <DataTableCell>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-warm-border"
-                      checked={row.is_active}
-                      onChange={(e) => {
-                        const next = e.target.checked;
-                        setServices((prev) =>
-                          prev.map((r) => (r.id === row.id ? { ...r, is_active: next } : r)),
-                        );
-                        void patchService(row.id, { is_active: next });
-                      }}
-                    />
-                  </DataTableCell>
-                  <DataTableCell className="font-mono text-xs">{row.code}</DataTableCell>
-                  <DataTableCell className="max-w-xs truncate">{pickLabel(row.name)}</DataTableCell>
-                  <DataTableCell>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        className="w-24 rounded-lg border border-warm-border px-2 py-1.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-                        value={slaDrafts[row.id] ?? ''}
-                        onChange={(e) => setSlaDrafts((d) => ({ ...d, [row.id]: e.target.value }))}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          const raw = slaDrafts[row.id]?.trim() ?? '';
-                          const n = raw === '' ? undefined : Number.parseInt(raw, 10);
-                          if (n === undefined || Number.isNaN(n) || n < 0) {
-                            toast('SLA days must be a non-negative integer.', 'warning');
-                            return;
-                          }
-                          void patchService(row.id, { effective_sla_days: n });
-                        }}
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </DataTableCell>
-                  <DataTableCell className="whitespace-nowrap text-xs text-ink-secondary">
-                    {new Date(row.updated_at).toLocaleString()}
-                  </DataTableCell>
-                  <DataTableCell>
-                    <Link
-                      href={`/dashboard/services/${row.id}`}
-                      className="inline-flex rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-brand-hover"
-                    >
-                      Configure
-                    </Link>
-                  </DataTableCell>
-                </DataTableRow>
-              ))}
-            </DataTableBody>
-          </DataTableElement>
-        </DataTable>
-      </section>
     </div>
   );
 }

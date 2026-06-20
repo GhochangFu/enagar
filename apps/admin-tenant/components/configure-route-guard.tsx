@@ -13,7 +13,12 @@ function isConfigurePath(pathname: string): boolean {
     pathname.startsWith('/dashboard/masters/') ||
     pathname === '/dashboard/operations' ||
     pathname.startsWith('/dashboard/operations/') ||
-    pathname.startsWith('/dashboard/services/')
+    pathname === '/dashboard/services' ||
+    pathname.startsWith('/dashboard/services/') ||
+    pathname === '/dashboard/payments' ||
+    pathname.startsWith('/dashboard/payments/') ||
+    pathname === '/dashboard/bookings' ||
+    pathname.startsWith('/dashboard/bookings/')
   );
 }
 

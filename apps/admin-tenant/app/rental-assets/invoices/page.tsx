@@ -13,8 +13,10 @@ import {
   Icon,
   KpiCard,
   PageHeader,
+  PaginationBar,
   SegmentedControl,
   ToastProvider,
+  useClientPagination,
   useToast,
 } from '@enagar/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -99,6 +101,8 @@ function InvoicesContent() {
       lessorOptions: Array.from(lessorSet).sort((a, b) => a.localeCompare(b)),
     };
   }, [rows]);
+
+  const invoicesPagination = useClientPagination(rows, { pageSize: 25 });
 
   const handleRunScheduler = useCallback(async (): Promise<void> => {
     if (runningScheduler) return;
@@ -306,7 +310,7 @@ function InvoicesContent() {
                 </DataTableCell>
               </DataTableRow>
             ) : (
-              rows.map((r) => {
+              invoicesPagination.pageItems.map((r) => {
                 const latestPaid = r.payments.find((p) => isPaymentSettled(p)) ?? null;
                 const total = r.amountPaise + r.lateFeePaise;
                 const isPayable = r.status === 'PENDING' || r.status === 'OVERDUE';
@@ -413,15 +417,14 @@ function InvoicesContent() {
         </DataTable>
 
         {!loading && rows.length > 0 ? (
-          <div className="flex items-center justify-between border-t border-warm-border bg-canvas/40 px-4 py-2 text-xs text-ink-muted">
-            <span>
-              Showing {rows.length} invoice{rows.length === 1 ? '' : 's'}
-            </span>
-            <span className="flex items-center gap-1">
-              <Icon name="filter" size={11} />
-              {status !== 'ALL' || assetId || lessorName ? 'Filtered' : 'No filters'}
-            </span>
-          </div>
+          <PaginationBar
+            page={invoicesPagination.page}
+            totalPages={invoicesPagination.totalPages}
+            totalItems={invoicesPagination.totalItems}
+            pageSize={invoicesPagination.pageSize}
+            onPageChange={invoicesPagination.setPage}
+            onPageSizeChange={invoicesPagination.setPageSize}
+          />
         ) : null}
       </Card>
 

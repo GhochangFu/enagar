@@ -11,6 +11,8 @@ import {
   DataTableHeaderCell,
   DataTableRow,
   KpiCard,
+  PaginationBar,
+  useClientPagination,
 } from '@enagar/ui';
 import Link from 'next/link';
 
@@ -83,10 +85,7 @@ function statusLabel(status: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
 
-function assetTypeCount(
-  summary: BookingSummaryResponse,
-  assetType: string,
-): number {
+function assetTypeCount(summary: BookingSummaryResponse, assetType: string): number {
   const row = summary.by_asset_type.find(
     (entry) => entry.asset_type.toUpperCase() === assetType.toUpperCase(),
   );
@@ -98,9 +97,13 @@ function assetTypeCount(
 
 export function BookingSummaryPanel({
   summary,
+  variant = 'full',
 }: {
   summary: BookingSummaryResponse | null;
+  variant?: 'summary' | 'full';
 }): JSX.Element {
+  const recentPagination = useClientPagination(summary?.recent ?? [], { pageSize: 25 });
+
   if (!summary) {
     return (
       <Card>
@@ -110,8 +113,8 @@ export function BookingSummaryPanel({
     );
   }
 
-  const operationsHref = (bookingId: string): Route =>
-    `/dashboard/operations?section=bookings&booking=${encodeURIComponent(bookingId)}` as Route;
+  const bookingsHref = (bookingId: string): Route =>
+    `/dashboard/bookings?booking=${encodeURIComponent(bookingId)}` as Route;
 
   return (
     <Card>
@@ -124,9 +127,9 @@ export function BookingSummaryPanel({
         </div>
         <Link
           className="text-sm font-semibold text-brand hover:underline"
-          href="/dashboard/operations?section=bookings"
+          href="/dashboard/bookings"
         >
-          Open Operations →
+          View all bookings →
         </Link>
       </div>
 
@@ -139,59 +142,71 @@ export function BookingSummaryPanel({
         <KpiCard label="LED" value={assetTypeCount(summary, 'LED_BOARD')} />
       </section>
 
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-ink-primary">Recent bookings</h3>
-        <DataTable className="mt-3">
-          <DataTableElement>
-            <DataTableHead>
-              <tr>
-                <DataTableHeaderCell>Booking no</DataTableHeaderCell>
-                <DataTableHeaderCell>Service</DataTableHeaderCell>
-                <DataTableHeaderCell>Asset</DataTableHeaderCell>
-                <DataTableHeaderCell>Slot</DataTableHeaderCell>
-                <DataTableHeaderCell>Status</DataTableHeaderCell>
-                <DataTableHeaderCell>Holder</DataTableHeaderCell>
-              </tr>
-            </DataTableHead>
-            <DataTableBody>
-              {summary.recent.length ? (
-                summary.recent.map((row) => (
-                  <DataTableRow key={row.id}>
-                    <DataTableCell>
-                      <Link
-                        className="font-mono text-sm font-semibold text-brand hover:underline"
-                        href={operationsHref(row.id)}
-                      >
-                        {row.booking_no ?? row.id.slice(0, 8)}
-                      </Link>
+      {variant === 'full' ? (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-ink-primary">Recent bookings</h3>
+          <DataTable className="mt-3">
+            <DataTableElement>
+              <DataTableHead>
+                <tr>
+                  <DataTableHeaderCell>Booking no</DataTableHeaderCell>
+                  <DataTableHeaderCell>Service</DataTableHeaderCell>
+                  <DataTableHeaderCell>Asset</DataTableHeaderCell>
+                  <DataTableHeaderCell>Slot</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell>Holder</DataTableHeaderCell>
+                </tr>
+              </DataTableHead>
+              <DataTableBody>
+                {recentPagination.pageItems.length ? (
+                  recentPagination.pageItems.map((row) => (
+                    <DataTableRow key={row.id}>
+                      <DataTableCell>
+                        <Link
+                          className="font-mono text-sm font-semibold text-brand hover:underline"
+                          href={bookingsHref(row.id)}
+                        >
+                          {row.booking_no ?? row.id.slice(0, 8)}
+                        </Link>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>{serviceLabel(row.service_code, row.asset_type)}</span>
+                          {row.emergency ? <Badge tone="warning">Emergency</Badge> : null}
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="font-mono text-xs">{row.asset_code}</span>
+                      </DataTableCell>
+                      <DataTableCell className="text-sm">
+                        {formatSlotIst(row.starts_at, row.ends_at)}
+                      </DataTableCell>
+                      <DataTableCell>{statusLabel(row.status)}</DataTableCell>
+                      <DataTableCell>{row.holder_name}</DataTableCell>
+                    </DataTableRow>
+                  ))
+                ) : (
+                  <DataTableRow>
+                    <DataTableCell colSpan={6}>
+                      <span className="text-sm text-ink-secondary">No bookings yet.</span>
                     </DataTableCell>
-                    <DataTableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{serviceLabel(row.service_code, row.asset_type)}</span>
-                        {row.emergency ? <Badge tone="warning">Emergency</Badge> : null}
-                      </div>
-                    </DataTableCell>
-                    <DataTableCell>
-                      <span className="font-mono text-xs">{row.asset_code}</span>
-                    </DataTableCell>
-                    <DataTableCell className="text-sm">
-                      {formatSlotIst(row.starts_at, row.ends_at)}
-                    </DataTableCell>
-                    <DataTableCell>{statusLabel(row.status)}</DataTableCell>
-                    <DataTableCell>{row.holder_name}</DataTableCell>
                   </DataTableRow>
-                ))
-              ) : (
-                <DataTableRow>
-                  <DataTableCell colSpan={6}>
-                    <span className="text-sm text-ink-secondary">No bookings yet.</span>
-                  </DataTableCell>
-                </DataTableRow>
-              )}
-            </DataTableBody>
-          </DataTableElement>
-        </DataTable>
-      </div>
+                )}
+              </DataTableBody>
+            </DataTableElement>
+          </DataTable>
+          {summary.recent.length > 0 ? (
+            <PaginationBar
+              page={recentPagination.page}
+              totalPages={recentPagination.totalPages}
+              totalItems={recentPagination.totalItems}
+              pageSize={recentPagination.pageSize}
+              onPageChange={recentPagination.setPage}
+              onPageSizeChange={recentPagination.setPageSize}
+            />
+          ) : null}
+        </div>
+      ) : null}
     </Card>
   );
 }

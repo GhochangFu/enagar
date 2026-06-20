@@ -20,6 +20,8 @@ export {
 export { Icon, type IconName, type IconProps } from './components/Icon';
 export { KpiCard, type KpiCardAccent, type KpiCardProps } from './components/KpiCard';
 export { PageHeader, type PageHeaderProps } from './components/PageHeader';
+export { PaginationBar, type PaginationBarProps } from './components/PaginationBar';
+export { useClientPagination, type UseClientPaginationResult } from './hooks/useClientPagination';
 export {
   SegmentedControl,
   type SegmentedControlProps,

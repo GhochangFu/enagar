@@ -13,6 +13,8 @@ describe('RentalDocumentsService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+      count: jest.Mock;
+      groupBy: jest.Mock;
     };
     leaseAgreement: {
       findFirst: jest.Mock;
@@ -37,6 +39,8 @@ describe('RentalDocumentsService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        count: jest.fn(),
+        groupBy: jest.fn(),
       },
       leaseAgreement: {
         findFirst: jest.fn().mockResolvedValue({ id: 'a1', tenantId: 't1' }),
@@ -72,6 +76,29 @@ describe('RentalDocumentsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({ status: 'PENDING_REVIEW', agreementId: 'a1' }),
       }),
+    );
+  });
+
+  it('listDocuments returns a paginated page with status counts', async () => {
+    prisma.leaseAgreementDocument.findMany.mockResolvedValue([
+      { id: 'd1', status: 'PENDING_REVIEW' },
+    ]);
+    prisma.leaseAgreementDocument.count.mockResolvedValue(1);
+    prisma.leaseAgreementDocument.groupBy.mockResolvedValue([
+      { status: 'PENDING_REVIEW', _count: { _all: 1 } },
+    ]);
+    const out = await service.listDocuments('t1', {
+      page: 1,
+      pageSize: 25,
+      status: 'PENDING_REVIEW',
+    });
+    expect(out.items).toHaveLength(1);
+    expect(out.total).toBe(1);
+    expect(out.page).toBe(1);
+    expect(out.page_size).toBe(25);
+    expect(out.status_counts.PENDING_REVIEW).toBe(1);
+    expect(prisma.leaseAgreementDocument.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 25 }),
     );
   });
 

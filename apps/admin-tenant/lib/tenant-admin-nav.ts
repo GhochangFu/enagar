@@ -27,6 +27,31 @@ export const TENANT_ADMIN_NAV: TenantAdminNavItem[] = [
     match: (pathname) => pathname.startsWith('/dashboard/desk'),
   },
   {
+    id: 'service-catalogue',
+    label: 'Service Catalogue',
+    href: '/dashboard/services',
+    icon: 'grid',
+    adminOnly: true,
+    match: (pathname) =>
+      pathname === '/dashboard/services' || pathname.startsWith('/dashboard/services/'),
+  },
+  {
+    id: 'payments',
+    label: 'Payments',
+    href: '/dashboard/payments',
+    icon: 'receipt',
+    adminOnly: true,
+    match: (pathname) => pathname.startsWith('/dashboard/payments'),
+  },
+  {
+    id: 'bookings',
+    label: 'Bookings',
+    href: '/dashboard/bookings',
+    icon: 'calendar',
+    adminOnly: true,
+    match: (pathname) => pathname.startsWith('/dashboard/bookings'),
+  },
+  {
     id: 'masters',
     label: 'Masters',
     href: '/dashboard/masters',
