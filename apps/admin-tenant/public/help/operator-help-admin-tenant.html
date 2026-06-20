@@ -18,7 +18,7 @@
             id="help-search"
             class="help-search"
             type="search"
-            placeholder="Try: form, desk, fee, publish…"
+            placeholder="Try: form, desk, payments, bookings…"
             autocomplete="off"
           />
           <p id="search-hit-count" class="search-hit-count" aria-live="polite"></p>
@@ -28,7 +28,11 @@
             <li><a href="#welcome">Welcome</a></li>
             <li><a href="#sign-in">Sign in &amp; menu</a></li>
             <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#service-catalogue">Service Catalogue</a></li>
+            <li><a href="#payments">Payments</a></li>
+            <li><a href="#bookings">Bookings</a></li>
             <li><a href="#desk">Desk — daily work</a></li>
+            <li><a href="#rental-assets">Rental assets</a></li>
             <li><a href="#masters">Master data</a></li>
             <li><a href="#operations">Operations settings</a></li>
             <li><a href="#bookings-ops">Bookable facilities</a></li>
@@ -73,7 +77,8 @@
             <ul>
               <li>
                 <strong>ULB administrator</strong> — sets up services, master lists, fees, and
-                staff. Uses Dashboard, Masters, Operations, and service setup.
+                staff. Uses Dashboard (overview), Service Catalogue, Payments, Bookings, Masters,
+                Operations, and Rental Assets.
               </li>
               <li>
                 <strong>Desk officer</strong> — opens applications and grievances and moves them
@@ -113,12 +118,13 @@
           <figure class="screenshot">
             <img
               src="assets/screenshots/tenant-menu.png"
-              alt="ULB Admin Dashboard with left menu, summary cards, and service catalogue table"
+              alt="ULB Admin sign-in screen with left navigation menu"
               loading="lazy"
             />
             <figcaption>
-              <strong>Dashboard.</strong> Left menu (Dashboard, Desk, Masters, Operations), summary
-              cards, and the service table with <strong>Configure</strong> for each service.
+              <strong>Left menu.</strong> Dashboard (overview), Desk, Service Catalogue, Payments,
+              Bookings, Masters, Operations, and Rental Assets. The home Dashboard no longer shows
+              the full service table — open <strong>Service Catalogue</strong> for that.
             </figcaption>
           </figure>
           <table class="help-table">
@@ -133,12 +139,29 @@
               <tr>
                 <td>Dashboard</td>
                 <td>ULB administrator</td>
-                <td>See totals, late cases, and open service setup</td>
+                <td>Overview KPIs, payment &amp; booking summaries, trends, SLA breach links</td>
               </tr>
               <tr>
                 <td>Desk</td>
                 <td>Everyone</td>
                 <td>Work on citizen applications and grievances</td>
+              </tr>
+              <tr>
+                <td>Service Catalogue</td>
+                <td>ULB administrator</td>
+                <td>
+                  Turn services on/off, set SLA days, open <strong>Configure</strong> for forms
+                </td>
+              </tr>
+              <tr>
+                <td>Payments</td>
+                <td>ULB administrator</td>
+                <td>Unified payment ledger — applications, bookings, rental, EV, water</td>
+              </tr>
+              <tr>
+                <td>Bookings</td>
+                <td>ULB administrator</td>
+                <td>Booking KPIs, recent reservations table, availability calendar</td>
               </tr>
               <tr>
                 <td>Masters</td>
@@ -148,7 +171,12 @@
               <tr>
                 <td>Operations</td>
                 <td>ULB administrator</td>
-                <td>Banners, phone number on app, SMS text, staff names</td>
+                <td>Banners, phone number on app, SMS text, staff, bookable assets</td>
+              </tr>
+              <tr>
+                <td>Rental Assets / Invoices / Documents</td>
+                <td>ULB administrator</td>
+                <td>Market stalls, hoardings, lease agreements, rent invoices, document review</td>
               </tr>
             </tbody>
           </table>
@@ -161,12 +189,13 @@
         <section
           id="dashboard"
           class="help-section"
-          data-search="dashboard summary numbers chart export excel CSV service list active SLA configure"
+          data-search="dashboard summary numbers chart export excel CSV payment booking overview KPI trends SLA breach"
         >
           <h2>Dashboard</h2>
           <p>
-            The Dashboard shows <strong>how busy your municipality is</strong> and which services
-            need attention.
+            The Dashboard is an <strong>overview only</strong> — it shows how busy your municipality
+            is and highlights overdue work. Detailed lists (services, payments, bookings) live on
+            their own pages in the left menu.
           </p>
           <h3>Summary cards (top)</h3>
           <ul>
@@ -181,20 +210,55 @@
               <strong>Grievances</strong> — complaints still open;
               <strong>SLA breached</strong> means the complaint is overdue.
             </li>
-            <li>
-              <strong>Payments settled</strong> — money successfully collected in the last 30 days.
-            </li>
           </ul>
           <p>
             If something is overdue, a <strong>yellow warning</strong> appears with a link — click
             it to open <strong>Desk</strong>.
           </p>
-          <h3>Download reports</h3>
+          <h3>Payment &amp; Booking summaries</h3>
+          <p>Two panels sit below the KPI cards:</p>
+          <ul>
+            <li>
+              <strong>Payment Summary</strong> — settled amount (last 30 days), counts by source
+              (application, booking, rental, EV, water), and a link to the full
+              <strong>Payments</strong> page.
+            </li>
+            <li>
+              <strong>Booking Summary</strong> — upcoming reservations and recent activity, with a
+              link to the full <strong>Bookings</strong> page.
+            </li>
+          </ul>
+          <h3>Trends, workload, and SLA lists</h3>
+          <p>Further down you may see:</p>
+          <ul>
+            <li>
+              <strong>30-day trends</strong> chart (applications submitted) and
+              <strong>CSV</strong> export buttons for applications, payments, and grievances.
+            </li>
+            <li>
+              <strong>Top active workload</strong> — services with the most open applications
+              (read-only; use <strong>Service Catalogue</strong> to change settings).
+            </li>
+            <li>
+              <strong>Breached applications</strong> and <strong>Breached grievances</strong> —
+              click a row to open that case in Desk.
+            </li>
+          </ul>
           <p>
-            Buttons such as <strong>CSV applications</strong> download a spreadsheet you can open in
-            Excel. Use this for monthly reports.
+            Use <strong>Refresh data</strong> (top right) after a busy day to reload all panels.
           </p>
-          <h3>Service list (bottom table)</h3>
+        </section>
+
+        <section
+          id="service-catalogue"
+          class="help-section"
+          data-search="service catalogue active SLA configure search pagination table list"
+        >
+          <h2>Service Catalogue</h2>
+          <p>
+            Open <strong>Service Catalogue</strong> in the left menu (or from Dashboard links) to
+            manage every citizen service your ULB offers.
+          </p>
           <table class="help-table">
             <thead>
               <tr>
@@ -203,6 +267,10 @@
               </tr>
             </thead>
             <tbody>
+              <tr>
+                <td>Search box</td>
+                <td>Filter by service name or code.</td>
+              </tr>
               <tr>
                 <td>Active tick box</td>
                 <td>
@@ -226,12 +294,85 @@
               </tr>
             </tbody>
           </table>
+          <p>
+            Long lists are split into pages — use <strong>Previous</strong> / <strong>Next</strong>
+            and the page-size control at the bottom of the table.
+          </p>
+        </section>
+
+        <section
+          id="payments"
+          class="help-section"
+          data-search="payments ledger settled pending failed application booking rental EV water filter cursor pagination"
+        >
+          <h2>Payments</h2>
+          <p>
+            The <strong>Payments</strong> page shows money collected across all channels — not only
+            service applications.
+          </p>
+          <h3>Summary panel</h3>
+          <p>
+            At the top, the same payment KPIs as on the Dashboard (30-day settled total and counts
+            by source).
+          </p>
+          <h3>Tabs</h3>
+          <ul>
+            <li>
+              <strong>Ledger</strong> — every payment row with date, amount, status, method,
+              citizen, and a deep link to the related application or booking when available.
+            </li>
+            <li>
+              <strong>By source</strong> — totals grouped by application, booking, rental, EV,
+              water.
+            </li>
+            <li>
+              <strong>By service</strong> — totals grouped by service code (application fees).
+            </li>
+            <li><strong>Trends</strong> — chart of settled payments over the last 30 days.</li>
+          </ul>
+          <h3>Filters</h3>
+          <p>
+            On the Ledger tab, use chip filters for <strong>source</strong> (All, Application,
+            Booking, Rental, EV, Water) and <strong>status</strong> (All, Settled, Pending, Failed).
+          </p>
+          <h3>Moving through the ledger</h3>
+          <p>
+            The ledger loads in batches. Use <strong>Previous</strong> and <strong>Next</strong> at
+            the bottom to move between batches (cursor paging). Breakdown tables on other tabs use
+            standard page numbers when the list is long.
+          </p>
+        </section>
+
+        <section
+          id="bookings"
+          class="help-section"
+          data-search="bookings calendar reservations assets hall LED health availability pagination"
+        >
+          <h2>Bookings</h2>
+          <p>
+            The <strong>Bookings</strong> page is the drill-down for hall, LED board, and
+            health-fleet reservations.
+          </p>
+          <ul>
+            <li>
+              <strong>Booking Summary</strong> — full KPI cards and a paginated table of recent
+              reservations (filter by asset type where shown).
+            </li>
+            <li>
+              <strong>Availability calendar</strong> — see blocked slots and confirmed bookings per
+              asset; filter by asset type or a specific asset.
+            </li>
+          </ul>
+          <p>
+            To create assets, edit availability blocks, or run LED/health workflows, go to
+            <strong>Operations → Bookings</strong> (link at the bottom of this page).
+          </p>
         </section>
 
         <section
           id="desk"
           class="help-section"
-          data-search="desk queue application grievance forward return reject comment document payment work order"
+          data-search="desk queue application grievance forward return reject comment document payment work order department filter pagination"
         >
           <h2>Desk — daily work</h2>
           <p>
@@ -250,6 +391,21 @@
               buttons.
             </figcaption>
           </figure>
+          <h3>Application inbox</h3>
+          <p>
+            At the top of the applications list you can switch between
+            <strong>My queue</strong> (files waiting on you) and <strong>All queues</strong> (every
+            open file in the municipality).
+          </p>
+          <p>
+            <strong>Department filter</strong> — use the dropdown to limit the list to one or more
+            departments (Health, Licence, etc.). Leave it empty to see all departments. Your choice
+            is remembered in the page address so you can bookmark a filtered view.
+          </p>
+          <p>
+            Long inboxes are paginated — use <strong>Previous</strong> / <strong>Next</strong> and
+            the rows-per-page control at the bottom of the list.
+          </p>
           <h3>Working on an application</h3>
           <ol class="help-steps">
             <li>
@@ -304,8 +460,52 @@
           </p>
           <h3>Grievances (complaints)</h3>
           <p>
-            Switch to the grievance tab in Desk. You can assign the complaint to a colleague, change
-            status, and view photos or map location if the citizen attached them.
+            Switch to the grievance tab in Desk. Choose <strong>My queue</strong>,
+            <strong>All queues</strong>, or <strong>SLA breached</strong>. The grievance list also
+            paginates when there are many open complaints.
+          </p>
+          <p>
+            You can assign the complaint to a colleague, change status, and view photos or map
+            location if the citizen attached them.
+          </p>
+        </section>
+
+        <section
+          id="rental-assets"
+          class="help-section"
+          data-search="rental assets market stall hoarding lease invoice document pagination"
+        >
+          <h2>Rental assets</h2>
+          <p>
+            Use the <strong>Rental Assets</strong> section in the left menu for market stalls,
+            hoardings, and similar leased property (separate from hall/LED bookings).
+          </p>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Page</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Rental Assets</td>
+                <td>Asset register, active leases, and lease actions</td>
+              </tr>
+              <tr>
+                <td>Invoices</td>
+                <td>Rent invoices — issue, record payment, track overdue</td>
+              </tr>
+              <tr>
+                <td>Documents</td>
+                <td>Uploaded lease agreements and supporting files for review</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Asset and invoice tables paginate when the list is long. The documents page loads in
+            pages from the server — use <strong>Previous</strong> / <strong>Next</strong> there as
+            well.
           </p>
         </section>
 
@@ -330,11 +530,12 @@
             Wards, localities, and pincodes citizens choose from. You can upload a spreadsheet — use
             <strong>dry run</strong> first to check errors before saving.
           </p>
-          <h3>Service catalogue</h3>
+          <h3>Service catalogue (Masters)</h3>
           <p>
-            Lists all services in your municipality. Note whether a service came from
-            <strong>State template</strong> or was created locally. Link each service to the correct
-            <strong>department</strong>.
+            Inside Masters, this list shows metadata for every service (State template vs local).
+            Link each service to the correct <strong>department</strong>. To turn a service on/off,
+            set SLA days, or open <strong>Configure</strong>, use the main
+            <strong>Service Catalogue</strong> item in the left menu instead.
           </p>
           <h3>Departments &amp; designations</h3>
           <p>
@@ -468,7 +669,8 @@
           <h3 id="advertising-health-ops">Advertising &amp; health fleet (Sprint 8.5)</h3>
           <p>
             <strong>Who can use this:</strong> ULB administrators. Citizens use
-            <strong>Services</strong> or <strong>Applications / Bookings</strong> in the citizen app.
+            <strong>Services</strong> or <strong>Applications / Bookings</strong> in the citizen
+            app.
           </p>
           <h4>Hoarding rate matrix</h4>
           <ol class="help-steps">
@@ -507,24 +709,26 @@
           <ol class="help-steps">
             <li>
               Seed or create <strong>AMBULANCE</strong> and <strong>HEARSE</strong> bookable assets
-              under Operations → Bookings. Map them to <em>ambulance</em> / <em>hearse</em> services.
+              under Operations → Bookings. Map them to <em>ambulance</em> /
+              <em>hearse</em> services.
             </li>
             <li>
               Citizens see a <strong>pooled calendar</strong> (unit count, not vehicle names). The
               system auto-assigns a free unit on hold.
             </li>
             <li>
-              <strong>Emergency ambulance:</strong> citizen declares emergency → <strong>₹0</strong>
-              rent, max <strong>2 bookings per citizen per day</strong>; audit metadata stored on the
-              reservation. Ops should review flagged emergency rows.
+              <strong>Emergency ambulance:</strong> citizen declares emergency →
+              <strong>₹0</strong> rent, max <strong>2 bookings per citizen per day</strong>; audit
+              metadata stored on the reservation. Ops should review flagged emergency rows.
             </li>
             <li>
               <strong>Hearse BPL:</strong> citizen may declare BPL; desk verifies documents before
               rent waiver. Crematorium booking is deferred — not in this release.
             </li>
             <li>
-              The dashboard <strong>Booking Summary</strong> shows counts and recent rows for hall,
-              LED, ambulance, and hearse together.
+              The <strong>Bookings</strong> page (left menu) and the dashboard
+              <strong>Booking Summary</strong> panel show counts and recent rows for hall, LED,
+              ambulance, and hearse together.
             </li>
           </ol>
 
@@ -594,7 +798,7 @@
           <h2>Setting up a service</h2>
           <ol class="help-steps">
             <li>
-              Go to <strong>Dashboard</strong> → find the service in the table → click
+              Go to <strong>Service Catalogue</strong> → find the service in the table → click
               <span class="btn-label">Configure</span>.
             </li>
             <li>
@@ -1145,6 +1349,16 @@
               Ready-made service from the state government library — you can adjust it for your
               town.
             </dd>
+            <dt>Service Catalogue</dt>
+            <dd>
+              Left-menu page to activate services, set SLA days, and open Configure — moved off the
+              Dashboard overview.
+            </dd>
+            <dt>Payment ledger</dt>
+            <dd>
+              Unified list of settled and pending payments (applications, bookings, rental, EV,
+              water) on the Payments page.
+            </dd>
             <dt>Bookable asset</dt>
             <dd>
               A hall, ground, or facility with hourly slots (code, rates, open hours). Created in
@@ -1196,6 +1410,13 @@
                 <td>Publish fails</td>
                 <td>
                   Save first; read error text; call IT if it mentions “workflow” or “validation”.
+                </td>
+              </tr>
+              <tr>
+                <td>Table shows only 25 rows</td>
+                <td>
+                  Use <strong>Next</strong> at the bottom of the table, or open the dedicated page
+                  (Service Catalogue, Payments, Bookings, Desk inbox, Rental) for the full list.
                 </td>
               </tr>
               <tr>
