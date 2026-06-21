@@ -1,7 +1,11 @@
 import type { FormImportJob } from '../../generated/prisma';
-import type { FormImportJobRecord } from '@enagar/forms/form-import';
+import type { FormImportJobRecord, FormImportProposal } from '@enagar/forms/form-import';
 
 export function mapFormImportJobRow(row: FormImportJob): FormImportJobRecord {
+  const proposal = row.proposalJson
+    ? (row.proposalJson as unknown as FormImportProposal)
+    : undefined;
+
   return {
     job_id: row.id,
     scope: row.scope as FormImportJobRecord['scope'],
@@ -10,14 +14,10 @@ export function mapFormImportJobRow(row: FormImportJob): FormImportJobRecord {
     status: row.status as FormImportJobRecord['status'],
     source_filename: row.sourceFilename,
     source_kind: (row.sourceKind as FormImportJobRecord['source_kind']) ?? undefined,
-    extraction_mode: row.proposalJson
-      ? ((row.proposalJson as FormImportJobRecord['proposal'])?.extraction_mode ?? undefined)
-      : undefined,
+    extraction_mode: proposal?.extraction_mode,
     source_storage_key: row.sourceStorageKey ?? undefined,
     overall_confidence: row.overallConfidence ?? undefined,
-    proposal: row.proposalJson
-      ? (row.proposalJson as unknown as FormImportJobRecord['proposal'])
-      : undefined,
+    proposal,
     proposed_schema: row.proposedSchemaJson
       ? (row.proposedSchemaJson as unknown as FormImportJobRecord['proposed_schema'])
       : undefined,
