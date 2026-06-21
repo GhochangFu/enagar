@@ -81,6 +81,7 @@ Word/PDF auto-translation remains **out of scope** for EN-26; operators edit lab
 ### Neutral / follow-ups
 
 - EN-28 implements HTTP contract; EN-29 shared types; EN-32 wires Excel extractor.
+- EN-50 adds layout-style Excel heuristics — see [ADR-0015](./ADR-0015-excel-layout-heuristic-import.md).
 - EN-46 adds draft metadata audit if sponsor confirms.
 
 ## Compliance / verification

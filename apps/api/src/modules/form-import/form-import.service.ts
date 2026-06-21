@@ -4,6 +4,7 @@ import {
   assessImportProposalApplyability,
   importProposalToFormSchema,
   type FormImportJobRecord,
+  type FormImportSourceKind,
 } from '@enagar/forms/form-import';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
@@ -16,6 +17,11 @@ import {
   extractFormImportProposalFromExcel,
   isExcelUpload,
 } from './extractors/excel-form-import.extractor';
+import {
+  WordFormImportError,
+  extractFormImportProposalFromWord,
+  isWordUpload,
+} from './extractors/word-form-import.extractor';
 
 import type { FormImportJobResponseDto, FormImportUploadedFile } from './dto/form-import.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -36,7 +42,7 @@ export class FormImportService {
     file: FormImportUploadedFile,
   ): Promise<FormImportJobResponseDto> {
     assertTenantPortalStaff(principal);
-    return this.runSyncExcelImport({
+    return this.runSyncImport({
       scope: 'tenant',
       tenantId: principal.tenantId,
       serviceId,
@@ -69,7 +75,7 @@ export class FormImportService {
     file: FormImportUploadedFile,
   ): Promise<FormImportJobResponseDto> {
     assertStateAdmin(principal);
-    return this.runSyncExcelImport({
+    return this.runSyncImport({
       scope: 'state',
       serviceCode,
       file,
@@ -95,7 +101,7 @@ export class FormImportService {
     return this.getJob('state', jobId, undefined, serviceCode);
   }
 
-  private async runSyncExcelImport(input: {
+  private async runSyncImport(input: {
     scope: 'tenant' | 'state';
     tenantId?: string;
     serviceId?: string;
@@ -106,16 +112,13 @@ export class FormImportService {
     if (!input.file?.buffer?.length) {
       throw new BadRequestException('file upload is required');
     }
-    if (!isExcelUpload(input.file)) {
-      throw new BadRequestException('Only Excel (.xlsx) import is supported in this slice');
-    }
 
     const now = new Date().toISOString();
     const jobId = randomUUID();
 
     try {
       const serviceCode = await input.loader();
-      const proposal = extractFormImportProposalFromExcel(input.file, serviceCode);
+      const { proposal, sourceKind } = await this.extractProposal(input.file, serviceCode);
       const applyability = assessImportProposalApplyability(proposal);
       const proposed_schema = importProposalToFormSchema(proposal, {
         service_code: serviceCode,
@@ -129,7 +132,7 @@ export class FormImportService {
         service_id: input.serviceId,
         status: applyability.ok ? 'completed' : 'rejected',
         source_filename: input.file.originalname,
-        source_kind: 'excel',
+        source_kind: sourceKind,
         overall_confidence: proposal.overall_confidence,
         proposal,
         proposed_schema,
@@ -142,11 +145,33 @@ export class FormImportService {
       this.jobs.set(this.jobKey(input.scope, jobId), job);
       return this.toResponse(job);
     } catch (error) {
-      if (error instanceof ExcelFormImportError) {
+      if (error instanceof ExcelFormImportError || error instanceof WordFormImportError) {
         throw new BadRequestException(error.message);
       }
       throw error;
     }
+  }
+
+  private async extractProposal(
+    file: FormImportUploadedFile,
+    serviceCode: string,
+  ): Promise<{
+    proposal: Awaited<ReturnType<typeof extractFormImportProposalFromExcel>>;
+    sourceKind: FormImportSourceKind;
+  }> {
+    if (isExcelUpload(file)) {
+      return {
+        proposal: extractFormImportProposalFromExcel(file, serviceCode),
+        sourceKind: 'excel',
+      };
+    }
+    if (isWordUpload(file)) {
+      return {
+        proposal: await extractFormImportProposalFromWord(file, serviceCode),
+        sourceKind: 'word',
+      };
+    }
+    throw new BadRequestException('Supported formats: Excel (.xlsx) and Word (.docx)');
   }
 
   private getJob(

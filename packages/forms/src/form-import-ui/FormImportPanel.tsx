@@ -61,7 +61,7 @@ export function FormImportPanel({
 
   async function uploadFile(file: File): Promise<void> {
     setBusy(true);
-    onStatus?.('Uploading Excel template…');
+    onStatus?.('Uploading form file…');
     try {
       const body = new FormData();
       body.append('file', file);
@@ -160,16 +160,17 @@ export function FormImportPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Form import</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">Import from Excel</h2>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Import from Excel or Word</h2>
           <p className="text-xs text-slate-500">
-            Upload a `.xlsx` template, review proposed fields, then apply to the current draft.
+            Upload a structured `.xlsx` or `.docx` template, review proposed fields, then apply to
+            the current draft.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,.docx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];

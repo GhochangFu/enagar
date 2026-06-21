@@ -21,15 +21,18 @@ Extractors and UI land in EN-30+. Phase 0 locks decisions, shared types, and HTT
 
 ## Supported sources (roadmap)
 
-| Phase | Format        | Status |
-| ----- | ------------- | ------ |
-| 1     | Excel `.xlsx` | EN-30+ |
-| 2     | Word `.docx`  | EN-37+ |
-| 3     | PDF           | EN-39+ |
+| Phase | Format                           | Status                                                                                                                           |
+| ----- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Excel column template `.xlsx`    | EN-30+ (shipped)                                                                                                                 |
+| 2     | Word table template `.docx`      | EN-37+ (shipped)                                                                                                                 |
+| 1b    | Excel layout / grid form `.xlsx` | [EN-50](https://ghochangfu.atlassian.net/browse/EN-50) (backlog) — [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md) |
+| 3     | PDF                              | EN-39+                                                                                                                           |
 
 Handwritten scans are rejected (EN-41).
 
-See [form-import-excel-template.md](./form-import-excel-template.md) for the EN-30 column spec and sample fixtures.
+- Structured Excel template: [form-import-excel-template.md](./form-import-excel-template.md)
+- Structured Word template: [form-import-word-template.md](./form-import-word-template.md)
+- Layout-style fixtures (messy ULB forms): [form-import-excel-layout-fixtures.md](./form-import-excel-layout-fixtures.md)
 
 ## Explicitly out of scope (EN-26)
 
