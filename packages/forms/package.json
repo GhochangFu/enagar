@@ -13,7 +13,8 @@
     "./upload": "./src/application-document-upload.ts",
     "./web": "./src/web/DynamicFormFields.tsx",
     "./builder": "./src/builder/index.ts",
-    "./form-import": "./src/form-import/index.ts"
+    "./form-import": "./src/form-import/index.ts",
+    "./form-import-ui": "./src/form-import-ui/index.ts"
   },
   "typesVersions": {
     "*": {
@@ -31,6 +32,9 @@
       ],
       "form-import": [
         "src/form-import/index.ts"
+      ],
+      "form-import-ui": [
+        "src/form-import-ui/index.ts"
       ],
       "*": [
         "src/index.ts"

@@ -1,5 +1,6 @@
 export { FORM_IMPORT_POLICY, type FormImportApplyMode } from './policy.js';
 export {
+  applyImportProposalToDraft,
   assessImportProposalApplyability,
   computeOverallImportConfidence,
   importCandidateToFormField,

@@ -946,7 +946,7 @@ export class AdminTenantController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('serviceId') serviceId: string,
     @UploadedFile() file: FormImportUploadedFile,
-  ): FormImportJobResponseDto {
+  ): Promise<FormImportJobResponseDto> {
     return this.formImport.createTenantImportJob(principal, serviceId, file);
   }
 
@@ -958,7 +958,7 @@ export class AdminTenantController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('serviceId') serviceId: string,
     @Param('jobId') jobId: string,
-  ): FormImportJobResponseDto {
+  ): Promise<FormImportJobResponseDto> {
     return this.formImport.getTenantImportJob(principal, serviceId, jobId);
   }
 

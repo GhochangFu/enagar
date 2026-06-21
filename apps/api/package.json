@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "test:e2e": "jest --config test/jest-e2e.json --passWithNoTests",
+    "fixtures:form-import": "node scripts/generate-form-import-fixtures.mjs",
     "clean": "rimraf dist .turbo .tsbuildinfo"
   },
   "dependencies": {
@@ -51,7 +52,8 @@
     "pino-pretty": "^11.2.2",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@enagar/config": "workspace:*",

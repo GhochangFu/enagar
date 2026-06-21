@@ -217,7 +217,7 @@ export class AdminStateController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('code') code: string,
     @UploadedFile() file: FormImportUploadedFile,
-  ): FormImportJobResponseDto {
+  ): Promise<FormImportJobResponseDto> {
     return this.formImport.createStateImportJob(principal, code, file);
   }
 
@@ -227,7 +227,7 @@ export class AdminStateController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('code') code: string,
     @Param('jobId') jobId: string,
-  ): FormImportJobResponseDto {
+  ): Promise<FormImportJobResponseDto> {
     return this.formImport.getStateImportJob(principal, code, jobId);
   }
 

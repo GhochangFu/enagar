@@ -29,6 +29,8 @@ Extractors and UI land in EN-30+. Phase 0 locks decisions, shared types, and HTT
 
 Handwritten scans are rejected (EN-41).
 
+See [form-import-excel-template.md](./form-import-excel-template.md) for the EN-30 column spec and sample fixtures.
+
 ## Explicitly out of scope (EN-26)
 
 Auto-publish, auto `show_if` / cross-field rules, separate import studio, table/repeater field type, LLM vision OCR, Word/PDF auto-translation.

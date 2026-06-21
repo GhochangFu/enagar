@@ -150,6 +150,23 @@ export function validateImportProposalSchema(
   return validateFormSchema(importProposalToFormSchema(proposal, context));
 }
 
+/** Replace draft fields with accepted import candidates; preserve title/description/rules (ADR-0014). */
+export function applyImportProposalToDraft(
+  existing: EnagarFormSchema,
+  proposal: FormImportProposal,
+): EnagarFormSchema {
+  const imported = importProposalToFormSchema(proposal, {
+    service_code: existing.service_code,
+    version: existing.version,
+    title: existing.title,
+    description: existing.description,
+  });
+  return {
+    ...existing,
+    fields: imported.fields,
+  };
+}
+
 function toFormOptions(candidate: FormImportFieldCandidate): FormOption[] {
   if (!candidate.options?.length) {
     return [

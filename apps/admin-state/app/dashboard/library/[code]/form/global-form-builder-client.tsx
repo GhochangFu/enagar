@@ -19,6 +19,7 @@ import {
   nextSequence,
   pretty,
 } from '@enagar/forms/builder';
+import { FormImportPanel } from '@enagar/forms/form-import-ui';
 import { Button, PageHeader } from '@enagar/ui';
 import Link from 'next/link';
 import { type DragEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -86,6 +87,13 @@ export function GlobalFormBuilderClient({ code }: { code: string }): JSX.Element
     },
     [apiBase, auth],
   );
+
+  const uploadAuthHeaders = useCallback((): HeadersInit => {
+    if (!auth) {
+      return {};
+    }
+    return { Authorization: `Bearer ${auth.access_token}` };
+  }, [auth]);
 
   const loadTemplate = useCallback(async (): Promise<void> => {
     if (!auth) {
@@ -264,6 +272,17 @@ export function GlobalFormBuilderClient({ code }: { code: string }): JSX.Element
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
+          <FormImportPanel
+            uploadPath={`${apiBase}/admin/state/global-service-library/${code}/form-import`}
+            getAuthHeaders={uploadAuthHeaders}
+            draftSchema={parsedForm.schema}
+            onApply={(schema) => {
+              setFormText(pretty({ ...schema, service_code: code }));
+              setSelectedFieldId(null);
+              setStatus('Imported fields applied to draft. Save form template when ready.');
+            }}
+            onStatus={setStatus}
+          />
           <FormSchemaBuilder
             schema={parsedForm.schema}
             valid={parsedForm.validation.ok}

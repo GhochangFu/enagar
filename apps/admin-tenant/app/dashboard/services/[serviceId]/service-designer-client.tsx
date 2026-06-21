@@ -20,6 +20,7 @@ import {
   pretty,
   slugify,
 } from '@enagar/forms/builder';
+import { FormImportPanel } from '@enagar/forms/form-import-ui';
 import { Button, PageHeader } from '@enagar/ui';
 import {
   validateWorkflowDefinition,
@@ -314,6 +315,13 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
     (): HeadersInit => ({
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
+    }),
+    [token],
+  );
+
+  const uploadAuthHeaders = useCallback(
+    (): HeadersInit => ({
+      authorization: `Bearer ${token}`,
     }),
     [token],
   );
@@ -914,6 +922,16 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
+          <FormImportPanel
+            uploadPath={`${apiBase}/admin/tenant/services/${serviceId}/form-import`}
+            getAuthHeaders={uploadAuthHeaders}
+            draftSchema={parsedForm.schema}
+            onApply={(schema) => {
+              setFormText(pretty(schema));
+              setSelectedFieldId(null);
+            }}
+            onStatus={setStatus}
+          />
           <FormSchemaBuilder
             schema={parsedForm.schema}
             valid={parsedForm.validation.ok}

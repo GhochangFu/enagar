@@ -1,4 +1,4 @@
-import type { EnagarFormField, FormFieldType, LocaleMap } from '../index.js';
+import type { EnagarFormField, EnagarFormSchema, FormFieldType, LocaleMap } from '../index.js';
 
 export const FORM_IMPORT_SOURCE_KINDS = [
   'excel',
@@ -82,6 +82,7 @@ export interface FormImportJobRecord {
   source_storage_key?: string;
   overall_confidence?: number;
   proposal?: FormImportProposal;
+  proposed_schema?: EnagarFormSchema;
   rejection_reason?: string;
   source_preview?: string;
   created_at: string;

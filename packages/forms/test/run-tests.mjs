@@ -6,6 +6,7 @@ import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js'
 import {
   FORM_IMPORT_POLICY,
   assessImportProposalApplyability,
+  applyImportProposalToDraft,
   importProposalToFormSchema,
   validateImportProposalSchema,
 } from '../dist/form-import/index.js';
@@ -517,4 +518,31 @@ test('EN-29 maps import candidates to a valid EnagarFormSchema', () => {
   const applyability = assessImportProposalApplyability(proposal);
   assert.equal(applyability.ok, true);
   assert.equal(FORM_IMPORT_POLICY.apply_mode, 'replace');
+});
+
+test('EN-35 applyImportProposalToDraft preserves title and replaces fields', () => {
+  const existing = createBlankFormSchemaDraft('birth-certificate', { en: 'Birth certificate' }, 4);
+  const proposal = {
+    source_kind: 'excel',
+    source_filename: 'birth-cert-template.xlsx',
+    service_code: 'birth-certificate',
+    overall_confidence: 0.95,
+    fields: [
+      {
+        candidate_id: 'c1',
+        field_id: 'child_name',
+        type: 'text',
+        label: { en: 'Child name' },
+        required: true,
+        confidence: 0.95,
+        disposition: 'accepted',
+      },
+    ],
+  };
+
+  const next = applyImportProposalToDraft(existing, proposal);
+  assert.equal(next.title.en, 'Birth certificate');
+  assert.equal(next.version, 4);
+  assert.equal(next.fields.length, 1);
+  assert.equal(next.fields[0].id, 'child_name');
 });

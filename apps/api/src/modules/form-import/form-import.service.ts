@@ -1,61 +1,195 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
+import {
+  assessImportProposalApplyability,
+  importProposalToFormSchema,
+  type FormImportJobRecord,
+} from '@enagar/forms/form-import';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+
+import { PrismaService } from '../../common/database/prisma.service';
 import { assertStateAdmin } from '../admin-state/admin-state.contracts';
 import { assertTenantPortalStaff } from '../admin-tenant/tenant-admin-portal-roles';
+
+import {
+  ExcelFormImportError,
+  extractFormImportProposalFromExcel,
+  isExcelUpload,
+} from './extractors/excel-form-import.extractor';
 
 import type { FormImportJobResponseDto, FormImportUploadedFile } from './dto/form-import.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 
-/**
- * Form-import orchestration (EN-28 contract). Extractors and persistence land in EN-32+ / EN-45.
- */
+type StoredImportJob = FormImportJobRecord & {
+  tenant_id?: string;
+};
+
 @Injectable()
 export class FormImportService {
-  createTenantImportJob(
-    _principal: AuthenticatedPrincipal,
-    _serviceId: string,
-    _file: FormImportUploadedFile,
-  ): FormImportJobResponseDto {
-    assertTenantPortalStaff(_principal);
-    throw new NotImplementedException({
-      message: 'Tenant form import is not wired yet. See EN-32 (Excel sync API).',
-      follow_up_ticket: 'EN-32',
+  private readonly jobs = new Map<string, StoredImportJob>();
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createTenantImportJob(
+    principal: AuthenticatedPrincipal,
+    serviceId: string,
+    file: FormImportUploadedFile,
+  ): Promise<FormImportJobResponseDto> {
+    assertTenantPortalStaff(principal);
+    return this.runSyncExcelImport({
+      scope: 'tenant',
+      tenantId: principal.tenantId,
+      serviceId,
+      file,
+      loader: async () => {
+        const service = await this.prisma.tenantService.findFirst({
+          where: { id: serviceId, tenantId: principal.tenantId },
+          select: { id: true, code: true },
+        });
+        if (!service) {
+          throw new NotFoundException('Tenant service not found');
+        }
+        return service.code;
+      },
     });
   }
 
-  getTenantImportJob(
-    _principal: AuthenticatedPrincipal,
-    _serviceId: string,
-    _jobId: string,
-  ): FormImportJobResponseDto {
-    assertTenantPortalStaff(_principal);
-    throw new NotImplementedException({
-      message: 'Tenant form import job lookup is not wired yet. See EN-45 (job persistence).',
-      follow_up_ticket: 'EN-45',
+  async getTenantImportJob(
+    principal: AuthenticatedPrincipal,
+    serviceId: string,
+    jobId: string,
+  ): Promise<FormImportJobResponseDto> {
+    assertTenantPortalStaff(principal);
+    return this.getJob('tenant', jobId, principal.tenantId, serviceId);
+  }
+
+  async createStateImportJob(
+    principal: AuthenticatedPrincipal,
+    serviceCode: string,
+    file: FormImportUploadedFile,
+  ): Promise<FormImportJobResponseDto> {
+    assertStateAdmin(principal);
+    return this.runSyncExcelImport({
+      scope: 'state',
+      serviceCode,
+      file,
+      loader: async () => {
+        const row = await this.prisma.globalService.findUnique({
+          where: { code: serviceCode },
+          select: { code: true },
+        });
+        if (!row) {
+          throw new NotFoundException(`Global service template "${serviceCode}" not found`);
+        }
+        return row.code;
+      },
     });
   }
 
-  createStateImportJob(
-    _principal: AuthenticatedPrincipal,
-    _serviceCode: string,
-    _file: FormImportUploadedFile,
-  ): FormImportJobResponseDto {
-    assertStateAdmin(_principal);
-    throw new NotImplementedException({
-      message: 'State global form import is not wired yet. See EN-32 (Excel sync API).',
-      follow_up_ticket: 'EN-32',
-    });
+  async getStateImportJob(
+    principal: AuthenticatedPrincipal,
+    serviceCode: string,
+    jobId: string,
+  ): Promise<FormImportJobResponseDto> {
+    assertStateAdmin(principal);
+    return this.getJob('state', jobId, undefined, serviceCode);
   }
 
-  getStateImportJob(
-    _principal: AuthenticatedPrincipal,
-    _serviceCode: string,
-    _jobId: string,
+  private async runSyncExcelImport(input: {
+    scope: 'tenant' | 'state';
+    tenantId?: string;
+    serviceId?: string;
+    serviceCode?: string;
+    file: FormImportUploadedFile;
+    loader: () => Promise<string>;
+  }): Promise<FormImportJobResponseDto> {
+    if (!input.file?.buffer?.length) {
+      throw new BadRequestException('file upload is required');
+    }
+    if (!isExcelUpload(input.file)) {
+      throw new BadRequestException('Only Excel (.xlsx) import is supported in this slice');
+    }
+
+    const now = new Date().toISOString();
+    const jobId = randomUUID();
+
+    try {
+      const serviceCode = await input.loader();
+      const proposal = extractFormImportProposalFromExcel(input.file, serviceCode);
+      const applyability = assessImportProposalApplyability(proposal);
+      const proposed_schema = importProposalToFormSchema(proposal, {
+        service_code: serviceCode,
+        version: 1,
+      });
+
+      const job: StoredImportJob = {
+        job_id: jobId,
+        scope: input.scope,
+        service_code: serviceCode,
+        service_id: input.serviceId,
+        status: applyability.ok ? 'completed' : 'rejected',
+        source_filename: input.file.originalname,
+        source_kind: 'excel',
+        overall_confidence: proposal.overall_confidence,
+        proposal,
+        proposed_schema,
+        rejection_reason: applyability.ok ? undefined : applyability.reasons.join('; '),
+        created_at: now,
+        updated_at: now,
+        tenant_id: input.tenantId,
+      };
+
+      this.jobs.set(this.jobKey(input.scope, jobId), job);
+      return this.toResponse(job);
+    } catch (error) {
+      if (error instanceof ExcelFormImportError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  private getJob(
+    scope: 'tenant' | 'state',
+    jobId: string,
+    tenantId: string | undefined,
+    resourceKey: string,
   ): FormImportJobResponseDto {
-    assertStateAdmin(_principal);
-    throw new NotImplementedException({
-      message: 'State form import job lookup is not wired yet. See EN-45 (job persistence).',
-      follow_up_ticket: 'EN-45',
-    });
+    const job = this.jobs.get(this.jobKey(scope, jobId));
+    if (!job) {
+      throw new NotFoundException('Form import job not found');
+    }
+    if (scope === 'tenant') {
+      if (job.tenant_id !== tenantId || job.service_id !== resourceKey) {
+        throw new NotFoundException('Form import job not found');
+      }
+    } else if (job.service_code !== resourceKey) {
+      throw new NotFoundException('Form import job not found');
+    }
+    return this.toResponse(job);
+  }
+
+  private jobKey(scope: 'tenant' | 'state', jobId: string): string {
+    return `${scope}:${jobId}`;
+  }
+
+  private toResponse(job: StoredImportJob): FormImportJobResponseDto {
+    return {
+      job_id: job.job_id,
+      scope: job.scope,
+      service_code: job.service_code,
+      service_id: job.service_id,
+      status: job.status,
+      source_filename: job.source_filename,
+      source_kind: job.source_kind,
+      source_storage_key: job.source_storage_key,
+      overall_confidence: job.overall_confidence,
+      proposal: job.proposal,
+      proposed_schema: job.proposed_schema,
+      rejection_reason: job.rejection_reason,
+      source_preview: job.source_preview,
+      created_at: job.created_at,
+      updated_at: job.updated_at,
+    };
   }
 }
