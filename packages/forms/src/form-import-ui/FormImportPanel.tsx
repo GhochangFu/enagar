@@ -59,6 +59,32 @@ export function FormImportPanel({
     });
   }, [draftSchema, proposal]);
 
+  async function pollJob(jobId: string): Promise<FormImportJobRecord> {
+    const pollUrl = `${uploadPath.replace(/\/$/, '')}/${jobId}`;
+    const headers = getAuthHeaders();
+    const maxAttempts = 60;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const response = await fetch(pollUrl, { headers });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text.slice(0, 240) || `Poll failed (${response.status})`);
+      }
+      const payload = (await response.json()) as FormImportJobRecord;
+      if (
+        payload.status === 'completed' ||
+        payload.status === 'rejected' ||
+        payload.status === 'failed'
+      ) {
+        return payload;
+      }
+      onStatus?.(
+        payload.status === 'processing' ? 'Extracting form fields…' : 'Import queued — processing…',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    throw new Error('Import timed out — try again or check worker status.');
+  }
+
   async function uploadFile(file: File): Promise<void> {
     setBusy(true);
     onStatus?.('Uploading form file…');
@@ -75,12 +101,19 @@ export function FormImportPanel({
         const text = await response.text().catch(() => '');
         throw new Error(text.slice(0, 240) || `Upload failed (${response.status})`);
       }
-      const payload = (await response.json()) as FormImportJobRecord;
+      let payload = (await response.json()) as FormImportJobRecord;
+      if (payload.status === 'pending' || payload.status === 'processing') {
+        payload = await pollJob(payload.job_id);
+      }
       setJob(payload);
       if (payload.proposal) {
         setProposal(cloneProposal(payload.proposal));
       } else {
         setProposal(null);
+      }
+      if (payload.status === 'failed') {
+        onStatus?.(payload.rejection_reason ?? 'Import failed.');
+        return;
       }
       onStatus?.(
         payload.status === 'completed'

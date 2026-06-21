@@ -1,0 +1,38 @@
+{
+  "name": "@enagar/form-import-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "BullMQ worker — async municipal form-import extraction (EN-44).",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/run-tests.mjs",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1051.0",
+    "@enagar/forms": "workspace:^",
+    "bullmq": "^5.34.0",
+    "fast-xml-parser": "^5.9.3",
+    "ioredis": "^5.4.1",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.20.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@enagar/config": "workspace:*",
+    "@types/node": "^20.16.10",
+    "@types/pg": "^8.11.10",
+    "eslint": "^8.57.1",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  }
+}

@@ -27,9 +27,10 @@ describe('EN-26 Phase 1 — Excel MVP (EN-30–EN-36)', () => {
     ).toContain('FormImportPanel');
   });
 
-  it('wires sync Excel extraction in the API module (EN-31–EN-32)', () => {
+  it('wires Excel extraction in the API processor (EN-31–EN-32)', () => {
+    const processor = readRepo('apps/api/src/modules/form-import/form-import-job.processor.ts');
+    expect(processor).toContain('extractFormImportProposalFromExcel');
     const service = readRepo('apps/api/src/modules/form-import/form-import.service.ts');
-    expect(service).toContain('extractFormImportProposalFromExcel');
     expect(service).not.toContain('NotImplementedException');
     expect(
       readRepo('apps/api/src/modules/form-import/extractors/excel-form-import.extractor.ts'),

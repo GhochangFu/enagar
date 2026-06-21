@@ -123,6 +123,7 @@ model Tenant {
   roleStageMaps            RoleStageMap[]
   designationStageMaps     DesignationStageMap[]
   serviceFormVersions      ServiceFormVersion[]
+  formImportJobs           FormImportJob[]
   services                 TenantService[]
   userRoles                UserRole[]
   users                    User[]
@@ -724,6 +725,7 @@ model TenantService {
   revenueHead         RevenueHead?          @relation(fields: [revenueHeadId], references: [id], onDelete: SetNull)
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   workflows           Workflow[]
+  formImportJobs      FormImportJob[]
 
   @@unique([tenantId, code])
   @@index([tenantId, categoryId, isActive])
@@ -1813,4 +1815,32 @@ model WaterMeterRecharge {
   @@index([tenantId, accountId, createdAt(sort: Desc)])
   @@index([tenantId, status, createdAt])
   @@map("water_meter_recharges")
+}
+
+/// EN-45 — async form-import jobs (tenant + state admin scopes).
+model FormImportJob {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope              String         @db.VarChar(20)
+  tenantId           String?        @map("tenant_id") @db.Uuid
+  serviceId          String?        @map("service_id") @db.Uuid
+  serviceCode        String         @map("service_code") @db.VarChar(80)
+  status             String         @default("pending") @db.VarChar(30)
+  sourceFilename     String         @map("source_filename") @db.VarChar(500)
+  sourceMimeType     String         @map("source_mime_type") @db.VarChar(200)
+  sourceKind         String?        @map("source_kind") @db.VarChar(30)
+  sourceStorageKey   String?        @map("source_storage_key") @db.VarChar(1000)
+  overallConfidence  Float?         @map("overall_confidence")
+  proposalJson       Json?          @map("proposal_json")
+  proposedSchemaJson Json?          @map("proposed_schema_json")
+  rejectionReason    String?        @map("rejection_reason")
+  errorMessage       String?        @map("error_message")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant             Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantService      TenantService? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, serviceId, createdAt(sort: Desc)])
+  @@index([scope, serviceCode, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("form_import_jobs")
 }

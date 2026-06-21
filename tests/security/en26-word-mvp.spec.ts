@@ -16,7 +16,7 @@ describe('EN-26 Phase 2 — Word MVP (EN-37–EN-38)', () => {
   it('ships Word-aware import UI for both portals (EN-38)', () => {
     const panel = readRepo('packages/forms/src/form-import-ui/FormImportPanel.tsx');
     expect(panel).toContain('.docx');
-    expect(panel).toContain('Import from Excel or Word');
+    expect(panel).toContain('Import from Excel, Word, or PDF');
     expect(
       readRepo('apps/admin-tenant/app/dashboard/services/[serviceId]/service-designer-client.tsx'),
     ).toContain('FormImportPanel');
@@ -25,10 +25,10 @@ describe('EN-26 Phase 2 — Word MVP (EN-37–EN-38)', () => {
     ).toContain('FormImportPanel');
   });
 
-  it('wires sync Word extraction in the API module (EN-37–EN-38)', () => {
-    const service = readRepo('apps/api/src/modules/form-import/form-import.service.ts');
-    expect(service).toContain('extractFormImportProposalFromWord');
-    expect(service).toContain('isWordUpload');
+  it('wires Word extraction in the API processor (EN-37–EN-38)', () => {
+    const processor = readRepo('apps/api/src/modules/form-import/form-import-job.processor.ts');
+    expect(processor).toContain('extractFormImportProposalFromWord');
+    expect(processor).toContain('isWordUpload');
     expect(
       readRepo('apps/api/src/modules/form-import/extractors/word-form-import.extractor.ts'),
     ).toContain('parseFormImportProposalFromTableRows');

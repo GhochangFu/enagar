@@ -1,45 +1,37 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  assessImportProposalApplyability,
-  importProposalToFormSchema,
-  type FormImportJobRecord,
-  type FormImportSourceKind,
-} from '@enagar/forms/form-import';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../common/database/prisma.service';
+import { isFormImportQueueEnabled } from '../../common/form-import/form-import.config';
+import { FormImportQueueService } from '../../common/form-import/form-import.queue';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { assertStateAdmin } from '../admin-state/admin-state.contracts';
 import { assertTenantPortalStaff } from '../admin-tenant/tenant-admin-portal-roles';
 
 import {
-  ExcelFormImportError,
-  extractFormImportProposalFromExcel,
-  isExcelUpload,
-} from './extractors/excel-form-import.extractor';
+  completeFormImportFromProposal,
+  extractFormImportFromUpload,
+  isFormImportExtractionError,
+  UnsupportedFormImportFormatError,
+} from './form-import-job.processor';
 import {
-  PdfFormImportError,
-  extractFormImportProposalFromPdf,
-  isPdfUpload,
-} from './extractors/pdf-form-import.extractor';
-import {
-  WordFormImportError,
-  extractFormImportProposalFromWord,
-  isWordUpload,
-} from './extractors/word-form-import.extractor';
+  buildStateFormImportObjectKey,
+  buildTenantFormImportObjectKey,
+} from './form-import-storage';
+import { mapFormImportJobRow } from './form-import.mapper';
 
 import type { FormImportJobResponseDto, FormImportUploadedFile } from './dto/form-import.dto';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
-
-type StoredImportJob = FormImportJobRecord & {
-  tenant_id?: string;
-};
+import type { Prisma } from '../../generated/prisma';
 
 @Injectable()
 export class FormImportService {
-  private readonly jobs = new Map<string, StoredImportJob>();
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly objectStorage: ObjectStorageService,
+    private readonly formImportQueue: FormImportQueueService,
+  ) {}
 
   async createTenantImportJob(
     principal: AuthenticatedPrincipal,
@@ -47,21 +39,26 @@ export class FormImportService {
     file: FormImportUploadedFile,
   ): Promise<FormImportJobResponseDto> {
     assertTenantPortalStaff(principal);
-    return this.runSyncImport({
+    const service = await this.prisma.tenantService.findFirst({
+      where: { id: serviceId, tenantId: principal.tenantId },
+      select: { id: true, code: true },
+    });
+    if (!service) {
+      throw new NotFoundException('Tenant service not found');
+    }
+
+    const tenantCode = principal.tenantCode?.trim();
+    if (!tenantCode) {
+      throw new BadRequestException('Tenant code is required for form import uploads');
+    }
+
+    return this.createImportJob({
       scope: 'tenant',
       tenantId: principal.tenantId,
-      serviceId,
+      tenantCode,
+      serviceId: service.id,
+      serviceCode: service.code,
       file,
-      loader: async () => {
-        const service = await this.prisma.tenantService.findFirst({
-          where: { id: serviceId, tenantId: principal.tenantId },
-          select: { id: true, code: true },
-        });
-        if (!service) {
-          throw new NotFoundException('Tenant service not found');
-        }
-        return service.code;
-      },
     });
   }
 
@@ -80,20 +77,18 @@ export class FormImportService {
     file: FormImportUploadedFile,
   ): Promise<FormImportJobResponseDto> {
     assertStateAdmin(principal);
-    return this.runSyncImport({
+    const row = await this.prisma.globalService.findUnique({
+      where: { code: serviceCode },
+      select: { code: true },
+    });
+    if (!row) {
+      throw new NotFoundException(`Global service template "${serviceCode}" not found`);
+    }
+
+    return this.createImportJob({
       scope: 'state',
-      serviceCode,
+      serviceCode: row.code,
       file,
-      loader: async () => {
-        const row = await this.prisma.globalService.findUnique({
-          where: { code: serviceCode },
-          select: { code: true },
-        });
-        if (!row) {
-          throw new NotFoundException(`Global service template "${serviceCode}" not found`);
-        }
-        return row.code;
-      },
     });
   }
 
@@ -106,131 +101,134 @@ export class FormImportService {
     return this.getJob('state', jobId, undefined, serviceCode);
   }
 
-  private async runSyncImport(input: {
+  private async createImportJob(input: {
     scope: 'tenant' | 'state';
     tenantId?: string;
+    tenantCode?: string;
     serviceId?: string;
-    serviceCode?: string;
+    serviceCode: string;
     file: FormImportUploadedFile;
-    loader: () => Promise<string>;
   }): Promise<FormImportJobResponseDto> {
     if (!input.file?.buffer?.length) {
       throw new BadRequestException('file upload is required');
     }
 
-    const now = new Date().toISOString();
     const jobId = randomUUID();
+    const sourceStorageKey =
+      input.scope === 'tenant'
+        ? buildTenantFormImportObjectKey(
+            input.tenantCode!,
+            input.serviceId!,
+            input.file.originalname,
+            jobId,
+          )
+        : buildStateFormImportObjectKey(input.serviceCode, input.file.originalname, jobId);
+
+    if (input.scope === 'tenant') {
+      this.objectStorage.assertTenantObjectKey(sourceStorageKey, input.tenantCode!);
+    } else {
+      this.objectStorage.assertSafeObjectKey(sourceStorageKey);
+    }
+
+    await this.objectStorage.putObject(
+      sourceStorageKey,
+      input.file.buffer,
+      input.file.mimetype || 'application/octet-stream',
+    );
+
+    const row = await this.prisma.formImportJob.create({
+      data: {
+        id: jobId,
+        scope: input.scope,
+        tenantId: input.tenantId,
+        serviceId: input.serviceId,
+        serviceCode: input.serviceCode,
+        status: 'pending',
+        sourceFilename: input.file.originalname,
+        sourceMimeType: input.file.mimetype || 'application/octet-stream',
+        sourceStorageKey,
+      },
+    });
+
+    if (isFormImportQueueEnabled()) {
+      await this.formImportQueue.enqueueImport(jobId);
+      return mapFormImportJobRow(row);
+    }
+
+    return this.processImportJobInline(jobId, input.file);
+  }
+
+  /** Dev/CI fallback when Redis or durable object storage is unavailable. */
+  private async processImportJobInline(
+    jobId: string,
+    file: FormImportUploadedFile,
+  ): Promise<FormImportJobResponseDto> {
+    const row = await this.prisma.formImportJob.findUnique({ where: { id: jobId } });
+    if (!row) {
+      throw new NotFoundException('Form import job not found');
+    }
+
+    await this.prisma.formImportJob.update({
+      where: { id: jobId },
+      data: { status: 'processing' },
+    });
 
     try {
-      const serviceCode = await input.loader();
-      const { proposal, sourceKind } = await this.extractProposal(input.file, serviceCode);
-      const applyability = assessImportProposalApplyability(proposal);
-      const proposed_schema = importProposalToFormSchema(proposal, {
-        service_code: serviceCode,
-        version: 1,
+      const extraction = await extractFormImportFromUpload(file, row.serviceCode);
+      const completion = completeFormImportFromProposal(
+        extraction.proposal,
+        extraction.sourceKind,
+        row.serviceCode,
+      );
+
+      const updated = await this.prisma.formImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: completion.status,
+          sourceKind: completion.sourceKind,
+          overallConfidence: completion.overallConfidence,
+          proposalJson: completion.proposal as unknown as Prisma.InputJsonValue,
+          proposedSchemaJson: completion.proposed_schema as unknown as Prisma.InputJsonValue,
+          rejectionReason: completion.rejectionReason,
+          errorMessage: null,
+        },
       });
-
-      const job: StoredImportJob = {
-        job_id: jobId,
-        scope: input.scope,
-        service_code: serviceCode,
-        service_id: input.serviceId,
-        status: applyability.ok ? 'completed' : 'rejected',
-        source_filename: input.file.originalname,
-        source_kind: sourceKind,
-        overall_confidence: proposal.overall_confidence,
-        proposal,
-        proposed_schema,
-        rejection_reason: applyability.ok ? undefined : applyability.reasons.join('; '),
-        created_at: now,
-        updated_at: now,
-        tenant_id: input.tenantId,
-      };
-
-      this.jobs.set(this.jobKey(input.scope, jobId), job);
-      return this.toResponse(job);
+      return mapFormImportJobRow(updated);
     } catch (error) {
-      if (
-        error instanceof ExcelFormImportError ||
-        error instanceof WordFormImportError ||
-        error instanceof PdfFormImportError
-      ) {
+      if (isFormImportExtractionError(error) || error instanceof UnsupportedFormImportFormatError) {
+        await this.prisma.formImportJob.delete({ where: { id: jobId } }).catch(() => undefined);
         throw new BadRequestException(error.message);
       }
-      throw error;
+
+      const message = error instanceof Error ? error.message : 'Form import failed';
+      const failed = await this.prisma.formImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'failed',
+          errorMessage: message,
+        },
+      });
+      return mapFormImportJobRow(failed);
     }
   }
 
-  private async extractProposal(
-    file: FormImportUploadedFile,
-    serviceCode: string,
-  ): Promise<{
-    proposal: Awaited<ReturnType<typeof extractFormImportProposalFromExcel>>;
-    sourceKind: FormImportSourceKind;
-  }> {
-    if (isExcelUpload(file)) {
-      return {
-        proposal: extractFormImportProposalFromExcel(file, serviceCode),
-        sourceKind: 'excel',
-      };
-    }
-    if (isWordUpload(file)) {
-      return {
-        proposal: await extractFormImportProposalFromWord(file, serviceCode),
-        sourceKind: 'word',
-      };
-    }
-    if (isPdfUpload(file)) {
-      const proposal = await extractFormImportProposalFromPdf(file, serviceCode);
-      return {
-        proposal,
-        sourceKind: proposal.source_kind ?? 'pdf_digital',
-      };
-    }
-    throw new BadRequestException('Supported formats: Excel (.xlsx), Word (.docx), and PDF (.pdf)');
-  }
-
-  private getJob(
+  private async getJob(
     scope: 'tenant' | 'state',
     jobId: string,
     tenantId: string | undefined,
     resourceKey: string,
-  ): FormImportJobResponseDto {
-    const job = this.jobs.get(this.jobKey(scope, jobId));
-    if (!job) {
+  ): Promise<FormImportJobResponseDto> {
+    const row = await this.prisma.formImportJob.findUnique({ where: { id: jobId } });
+    if (!row || row.scope !== scope) {
       throw new NotFoundException('Form import job not found');
     }
     if (scope === 'tenant') {
-      if (job.tenant_id !== tenantId || job.service_id !== resourceKey) {
+      if (row.tenantId !== tenantId || row.serviceId !== resourceKey) {
         throw new NotFoundException('Form import job not found');
       }
-    } else if (job.service_code !== resourceKey) {
+    } else if (row.serviceCode !== resourceKey) {
       throw new NotFoundException('Form import job not found');
     }
-    return this.toResponse(job);
-  }
-
-  private jobKey(scope: 'tenant' | 'state', jobId: string): string {
-    return `${scope}:${jobId}`;
-  }
-
-  private toResponse(job: StoredImportJob): FormImportJobResponseDto {
-    return {
-      job_id: job.job_id,
-      scope: job.scope,
-      service_code: job.service_code,
-      service_id: job.service_id,
-      status: job.status,
-      source_filename: job.source_filename,
-      source_kind: job.source_kind,
-      source_storage_key: job.source_storage_key,
-      overall_confidence: job.overall_confidence,
-      proposal: job.proposal,
-      proposed_schema: job.proposed_schema,
-      rejection_reason: job.rejection_reason,
-      source_preview: job.source_preview,
-      created_at: job.created_at,
-      updated_at: job.updated_at,
-    };
+    return mapFormImportJobRow(row);
   }
 }

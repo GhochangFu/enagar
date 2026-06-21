@@ -21,9 +21,9 @@ describe('EN-26 Phase 3 — PDF MVP (EN-39–EN-42)', () => {
     expect(panel).toContain('Excel, Word, or PDF');
   });
 
-  it('wires PDF extraction modes in the API module (EN-39–EN-42)', () => {
-    const service = readRepo('apps/api/src/modules/form-import/form-import.service.ts');
-    expect(service).toContain('extractFormImportProposalFromPdf');
+  it('wires PDF extraction modes in the API processor (EN-39–EN-42)', () => {
+    const processor = readRepo('apps/api/src/modules/form-import/form-import-job.processor.ts');
+    expect(processor).toContain('extractFormImportProposalFromPdf');
     expect(
       readRepo('apps/api/src/modules/form-import/extractors/pdf-acroform.extractor.ts'),
     ).toContain('pdf_acroform');

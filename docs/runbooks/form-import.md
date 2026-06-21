@@ -23,12 +23,28 @@ Extractors and UI land in EN-30+. Phase 0 locks decisions, shared types, and HTT
 
 | Phase | Format                           | Status                                                                                                                           |
 | ----- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 4     | Async queue + object storage     | EN-43–EN-45 (shipped) — `form-import` BullMQ worker when `REDIS_URL` + MinIO enabled; inline fallback in dev/CI                  |
 | 1     | Excel column template `.xlsx`    | EN-30+ (shipped)                                                                                                                 |
 | 2     | Word table template `.docx`      | EN-37+ (shipped)                                                                                                                 |
 | 1b    | Excel layout / grid form `.xlsx` | [EN-50](https://ghochangfu.atlassian.net/browse/EN-50) (backlog) — [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md) |
 | 3     | PDF (AcroForm / digital / OCR)   | EN-39+ (shipped)                                                                                                                 |
 
 Handwritten scans are rejected (EN-41).
+
+## Async processing (EN-43–EN-45)
+
+1. API stores the uploaded source file in object storage (`source_storage_key` on the job).
+2. Job row is created in Postgres (`form_import_jobs`) with status `pending`.
+3. When `REDIS_URL` is set and `OBJECT_STORAGE_DISABLED` is not `true`, the API enqueues BullMQ job `form-import` and returns `pending`; run `pnpm --filter @enagar/form-import-worker dev` to process.
+4. Otherwise (typical local dev / CI), the API processes inline and returns `completed` / `rejected` on the POST response.
+5. Portals poll `GET …/form-import/:jobId` while status is `pending` or `processing`.
+
+Object key prefixes:
+
+| Scope  | Prefix                               |
+| ------ | ------------------------------------ |
+| Tenant | `tenants/{tenantCode}/form-import/…` |
+| State  | `state/form-import/{serviceCode}/…`  |
 
 - Structured Excel template: [form-import-excel-template.md](./form-import-excel-template.md)
 - Structured Word template: [form-import-word-template.md](./form-import-word-template.md)
