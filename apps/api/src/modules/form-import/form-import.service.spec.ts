@@ -24,6 +24,24 @@ const pdfFixturePath = join(
 );
 
 describe('FormImportService (EN-26 async import)', () => {
+  const envSnapshot = {
+    redis: process.env.REDIS_URL,
+    storage: process.env.OBJECT_STORAGE_DISABLED,
+  };
+
+  afterEach(() => {
+    if (envSnapshot.redis === undefined) {
+      delete process.env.REDIS_URL;
+    } else {
+      process.env.REDIS_URL = envSnapshot.redis;
+    }
+    if (envSnapshot.storage === undefined) {
+      delete process.env.OBJECT_STORAGE_DISABLED;
+    } else {
+      process.env.OBJECT_STORAGE_DISABLED = envSnapshot.storage;
+    }
+  });
+
   const excelUpload: FormImportUploadedFile = {
     originalname: 'birth-certificate-template.xlsx',
     mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -189,8 +207,6 @@ describe('FormImportService (EN-26 async import)', () => {
   });
 
   it('returns pending when async queue is enabled', async () => {
-    const previousRedis = process.env.REDIS_URL;
-    const previousStorage = process.env.OBJECT_STORAGE_DISABLED;
     process.env.REDIS_URL = 'redis://127.0.0.1:6379';
     process.env.OBJECT_STORAGE_DISABLED = 'false';
 
@@ -207,9 +223,6 @@ describe('FormImportService (EN-26 async import)', () => {
 
     expect(job.status).toBe('pending');
     expect(enqueueImport).toHaveBeenCalledWith(job.job_id);
-
-    process.env.REDIS_URL = previousRedis;
-    process.env.OBJECT_STORAGE_DISABLED = previousStorage;
   });
 
   it('denies cross-tenant job lookup', async () => {
@@ -246,5 +259,60 @@ describe('FormImportService (EN-26 async import)', () => {
         buffer: Buffer.alloc(0),
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('denies cross-service tenant job lookup (EN-48)', async () => {
+    const store = mockJobStore();
+    const prisma = {
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'svc-1', code: 'birth-certificate' }),
+      },
+      ...store,
+    };
+    const service = createService(prisma);
+    const job = await service.createTenantImportJob(tenantStaff, 'svc-1', excelUpload);
+
+    await expect(service.getTenantImportJob(tenantStaff, 'svc-other', job.job_id)).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('denies state job lookup for the wrong service code (EN-48)', async () => {
+    const store = mockJobStore();
+    const prisma = {
+      globalService: {
+        findUnique: jest.fn().mockResolvedValue({ code: 'birth-certificate' }),
+      },
+      ...store,
+    };
+    const service = createService(prisma);
+    const job = await service.createStateImportJob(stateAdmin, 'birth-certificate', excelUpload);
+
+    await expect(
+      service.getStateImportJob(stateAdmin, 'trade-licence', job.job_id),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('stores layout extraction_mode on Excel layout imports (EN-50 regression)', async () => {
+    const layoutFixturePath = join(
+      __dirname,
+      '../../../test/fixtures/form-import/birth-certificate-layout-form.xlsx',
+    );
+    const store = mockJobStore();
+    const prisma = {
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'svc-1', code: 'birth-certificate' }),
+      },
+      ...store,
+    };
+    const service = createService(prisma);
+    const job = await service.createTenantImportJob(tenantStaff, 'svc-1', {
+      ...excelUpload,
+      originalname: 'birth-certificate-layout-form.xlsx',
+      buffer: readFileSync(layoutFixturePath),
+    });
+
+    expect(job.extraction_mode).toBe('layout');
+    expect(job.status).toBe('completed');
   });
 });

@@ -39,6 +39,7 @@
             <li><a href="#smart-city-ops">Smart city services</a></li>
             <li><a href="#service-setup">Setting up a service</a></li>
             <li><a href="#forms">Building the application form</a></li>
+            <li><a href="#form-import">Importing a form from Excel, Word, or PDF</a></li>
             <li><a href="#workflows">Setting up approval steps</a></li>
             <li><a href="#fees-docs">Fees &amp; documents</a></li>
             <li><a href="#words">Words we use</a></li>
@@ -1148,6 +1149,76 @@
 }</pre
             >
           </details>
+        </section>
+
+        <section
+          id="form-import"
+          class="help-section"
+          data-search="import form excel xlsx word docx pdf upload draft apply confidence layout scan handwritten EN-26"
+        >
+          <h2>Importing a form from Excel, Word, or PDF</h2>
+          <p>
+            If you already have the application form in a spreadsheet or document, you can
+            <strong>upload it</strong> instead of typing every question by hand. The system proposes
+            fields for you to review — it does <strong>not</strong> publish automatically.
+          </p>
+          <div class="help-card tip">
+            <strong>Where:</strong> Service Catalogue → open your service → form builder area →
+            <strong>Import form</strong> panel at the bottom of the page.
+          </div>
+          <h3>What you can upload</h3>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>File type</th>
+                <th>Use when</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Excel <code>.xlsx</code> (column table)</td>
+                <td>One row per field with columns for key, label, type — most accurate</td>
+              </tr>
+              <tr>
+                <td>Excel <code>.xlsx</code> (grid / layout)</td>
+                <td>
+                  Your paper form layout in cells; a yellow banner warns you to check carefully
+                </td>
+              </tr>
+              <tr>
+                <td>Word <code>.docx</code> (table)</td>
+                <td>Form is a Word table with field definitions</td>
+              </tr>
+              <tr>
+                <td>PDF (fillable or typed text)</td>
+                <td>Official PDF with form fields or clear typed labels</td>
+              </tr>
+              <tr>
+                <td>Handwritten scan</td>
+                <td><strong>Not supported</strong> — use Excel or rebuild in the builder</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Steps</h3>
+          <ol class="help-steps">
+            <li>Choose your file and click <strong>Upload and analyse</strong>.</li>
+            <li>
+              Wait until status shows <strong>Completed</strong> (large files may show Pending
+              briefly).
+            </li>
+            <li>Review the proposed fields — uncheck wrong rows; fix labels if needed.</li>
+            <li>Click <strong>Apply to draft</strong> only when you agree with the list.</li>
+            <li>Open the form builder: add sections, Bangla/Hindi labels, and validation rules.</li>
+            <li><strong>Save</strong> and <strong>Publish</strong> after your own review.</li>
+          </ol>
+          <div class="help-card warn">
+            <strong>Apply is blocked</strong> when confidence is too low. Either improve the source
+            file or add fields manually in the builder.
+          </div>
+          <p>
+            Full checklist and troubleshooting:
+            <code>docs/runbooks/form-import-operator-guide.md</code> (for IT staff).
+          </p>
         </section>
 
         <section

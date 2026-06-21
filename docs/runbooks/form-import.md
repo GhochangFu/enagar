@@ -31,6 +31,22 @@ Extractors and UI land in EN-30+. Phase 0 locks decisions, shared types, and HTT
 
 Handwritten scans are rejected (EN-41).
 
+## Phase 5 — Hardening (EN-46–EN-49) — shipped
+
+| Ticket | Scope                                                    | Status                                                                                                        |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| EN-46  | Optional draft metadata link to source file              | **Skipped** — ADR-0014 / EN-27 defer to MVP+; job-level `source_storage_key` audit remains                    |
+| EN-47  | API unit tests for extractors, parser, processor, mapper | Shipped — `apps/api/src/modules/form-import/**/*.spec.ts`                                                     |
+| EN-48  | Security / tenant isolation tests                        | Shipped — `form-import.service.spec.ts`, `tests/security/en26-form-import-isolation.spec.ts`                  |
+| EN-49  | Operator documentation                                   | Shipped — [form-import-operator-guide.md](./form-import-operator-guide.md), tenant + state operator help HTML |
+
+Run tests:
+
+```bash
+pnpm --filter @enagar/api exec jest src/modules/form-import --passWithNoTests
+pnpm test:security -- --testPathPattern=en26-form-import
+```
+
 ## Async processing (EN-43–EN-45)
 
 1. API stores the uploaded source file in object storage (`source_storage_key` on the job).
