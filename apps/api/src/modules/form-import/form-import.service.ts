@@ -18,6 +18,11 @@ import {
   isExcelUpload,
 } from './extractors/excel-form-import.extractor';
 import {
+  PdfFormImportError,
+  extractFormImportProposalFromPdf,
+  isPdfUpload,
+} from './extractors/pdf-form-import.extractor';
+import {
   WordFormImportError,
   extractFormImportProposalFromWord,
   isWordUpload,
@@ -145,7 +150,11 @@ export class FormImportService {
       this.jobs.set(this.jobKey(input.scope, jobId), job);
       return this.toResponse(job);
     } catch (error) {
-      if (error instanceof ExcelFormImportError || error instanceof WordFormImportError) {
+      if (
+        error instanceof ExcelFormImportError ||
+        error instanceof WordFormImportError ||
+        error instanceof PdfFormImportError
+      ) {
         throw new BadRequestException(error.message);
       }
       throw error;
@@ -171,7 +180,14 @@ export class FormImportService {
         sourceKind: 'word',
       };
     }
-    throw new BadRequestException('Supported formats: Excel (.xlsx) and Word (.docx)');
+    if (isPdfUpload(file)) {
+      const proposal = await extractFormImportProposalFromPdf(file, serviceCode);
+      return {
+        proposal,
+        sourceKind: proposal.source_kind ?? 'pdf_digital',
+      };
+    }
+    throw new BadRequestException('Supported formats: Excel (.xlsx), Word (.docx), and PDF (.pdf)');
   }
 
   private getJob(

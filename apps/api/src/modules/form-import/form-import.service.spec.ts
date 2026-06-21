@@ -16,6 +16,10 @@ const wordFixturePath = join(
   __dirname,
   '../../../test/fixtures/form-import/birth-certificate-template.docx',
 );
+const pdfFixturePath = join(
+  __dirname,
+  '../../../test/fixtures/form-import/birth-certificate-acroform.pdf',
+);
 
 describe('FormImportService (EN-32 sync import API)', () => {
   const excelUpload: FormImportUploadedFile = {
@@ -30,6 +34,13 @@ describe('FormImportService (EN-32 sync import API)', () => {
     mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     size: 1,
     buffer: readFileSync(wordFixturePath),
+  };
+
+  const pdfUpload: FormImportUploadedFile = {
+    originalname: 'birth-certificate-acroform.pdf',
+    mimetype: 'application/pdf',
+    size: 1,
+    buffer: readFileSync(pdfFixturePath),
   };
 
   const tenantStaff: AuthenticatedPrincipal = {
@@ -89,6 +100,19 @@ describe('FormImportService (EN-32 sync import API)', () => {
     expect(job.status).toBe('completed');
     expect(job.source_kind).toBe('word');
     expect(job.proposal?.source_kind).toBe('word');
+  });
+
+  it('creates a completed tenant import job from PDF AcroForm', async () => {
+    const prisma = {
+      tenantService: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'svc-1', code: 'birth-certificate' }),
+      },
+    };
+    const service = new FormImportService(prisma as never);
+    const job = await service.createTenantImportJob(tenantStaff, 'svc-1', pdfUpload);
+
+    expect(job.status).toBe('completed');
+    expect(job.source_kind).toBe('pdf_acroform');
   });
 
   it('denies cross-tenant job lookup', async () => {

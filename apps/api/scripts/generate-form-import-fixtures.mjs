@@ -140,3 +140,71 @@ for (const [filename, spec] of Object.entries(layoutForms)) {
 for (const [filename, spec] of Object.entries(wordTemplates)) {
   await writeDocx(filename, spec.title, spec.rows);
 }
+
+const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+
+async function writeAcroformPdf(filename, fields) {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const form = pdfDoc.getForm();
+  let y = 720;
+
+  page.drawText('Birth Certificate Application', { x: 50, y: 760, size: 16, font });
+
+  for (const field of fields) {
+    page.drawText(`${field.label}:`, { x: 50, y, size: 11, font });
+    if (field.type === 'text') {
+      const textField = form.createTextField(field.id);
+      textField.addToPage(page, { x: 200, y: y - 4, width: 280, height: 18 });
+    } else if (field.type === 'radio') {
+      const radio = form.createRadioGroup(field.id);
+      for (const option of field.options) {
+        radio.addOptionToPage(option, page, { x: 200, y, width: 18, height: 18 });
+        page.drawText(option, { x: 220, y, size: 10, font });
+      }
+    }
+    y -= 36;
+  }
+
+  writeTarget(filename, Buffer.from(await pdfDoc.save()));
+}
+
+async function writeDigitalTextPdf(filename, lines) {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  let y = 760;
+  for (const line of lines) {
+    page.drawText(line, { x: 50, y, size: 11, font, color: rgb(0, 0, 0) });
+    y -= 24;
+  }
+  writeTarget(filename, Buffer.from(await pdfDoc.save()));
+}
+
+async function writeBlankPdf(filename) {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.addPage([612, 792]);
+  writeTarget(filename, Buffer.from(await pdfDoc.save()));
+}
+
+await writeAcroformPdf('birth-certificate-acroform.pdf', [
+  { id: 'applicant_name', label: 'Applicant name', type: 'text' },
+  { id: 'date_of_birth', label: 'Date of birth', type: 'text' },
+  {
+    id: 'gender',
+    label: 'Gender',
+    type: 'radio',
+    options: ['Male', 'Female', 'Other'],
+  },
+]);
+
+await writeDigitalTextPdf('birth-certificate-digital-text.pdf', [
+  'Birth Certificate Application',
+  'APPLICANT DETAILS',
+  'Applicant name: ____________________',
+  'Date of birth: ____________________',
+  'Gender: [ ] Male   [ ] Female   [ ] Other',
+]);
+
+await writeBlankPdf('handwritten-scan-placeholder.pdf');

@@ -160,17 +160,19 @@ export function FormImportPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Form import</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">Import from Excel or Word</h2>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">
+            Import from Excel, Word, or PDF
+          </h2>
           <p className="text-xs text-slate-500">
-            Upload a structured `.xlsx` or `.docx` template, review proposed fields, then apply to
-            the current draft.
+            Upload a structured template or municipal PDF, review proposed fields, then apply to the
+            current draft.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,.docx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".xlsx,.docx,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -195,6 +197,19 @@ export function FormImportPanel({
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {job.rejection_reason}
         </p>
+      ) : null}
+
+      {proposal?.warnings?.length ? (
+        <div className="mt-4 space-y-2">
+          {proposal.warnings.map((warning) => (
+            <p
+              key={warning}
+              className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950"
+            >
+              {warning}
+            </p>
+          ))}
+        </div>
       ) : null}
 
       {proposal ? (
