@@ -3,5 +3,16 @@
 -- Prisma client maps the model field to the snake_case column name `event_type`
 -- (the schema now declares `@map("event_type")`). Rename the column to match
 -- the schema so Prisma can address it correctly.
-ALTER TABLE "lease_agreement_document_events"
-  RENAME COLUMN "eventType" TO "event_type";
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'lease_agreement_document_events'
+      AND column_name = 'eventType'
+  ) THEN
+    ALTER TABLE "lease_agreement_document_events"
+      RENAME COLUMN "eventType" TO "event_type";
+  END IF;
+END $$;
