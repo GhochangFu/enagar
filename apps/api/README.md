@@ -93,6 +93,10 @@ If you still see Prisma errors like **`public.citizens` does not exist**:
 
 3. If the log shows the **wrong** `db=` or host, something in your shell or IDE still sets **`DATABASE_URL`** (IDE env wins over `infrastructure/.env`). Temporarily **`Remove-Item Env:DATABASE_URL`** in PowerShell for that session, or fix/remove the conflicting user-level env var — then restart the API.
 
+### Booking payments fail after stub “Pay”
+
+If ambulance/hearse (or hall) booking shows **“Rent payment must be settled before confirming…”** after a successful stub payment, the API is probably using the in-memory payment store. Set **`PAYMENT_STORE_PROVIDER=postgres`** in `infrastructure/.env` (included in `.env.example` by default) and restart **`pnpm --filter @enagar/api dev`**.
+
 ### Object storage & upload smoke (programme 6.25–6.30)
 
 **Prerequisites:** `pnpm infra:up`, `OBJECT_STORAGE_DISABLED=false` in `infrastructure/.env`, `pnpm infra:minio-cors`, migrations + `pnpm db:seed`, Keycloak dummy users (`pnpm infra:seed-keycloak-users`).

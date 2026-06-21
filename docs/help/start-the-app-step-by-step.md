@@ -59,6 +59,8 @@ cp infrastructure/.env.example infrastructure/.env
 
 For a first run you can **leave the defaults** in `infrastructure/.env`. You only need to edit things like API keys if you use features that need them (for example the AI chatbot).
 
+**Booking payments (ambulance, hearse, hall):** `.env.example` sets `PAYMENT_STORE_PROVIDER=postgres` so stub payments are stored in Postgres and hold confirmation can find them. If you copied `.env` before this default existed, add that line and **restart the API**.
+
 ---
 
 ## Step 5 — Start Postgres, Keycloak, and the rest (Docker)

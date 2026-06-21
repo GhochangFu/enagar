@@ -125,6 +125,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full picture.
 # 1. Configure environment
 cp infrastructure/.env.example infrastructure/.env
 # Edit infrastructure/.env: passwords, LLM_PROVIDER, OPENAI_API_KEY / GEMINI_API_KEY
+# Defaults include PAYMENT_STORE_PROVIDER=postgres (required for booking stub payments).
 
 # 2. Start the default stack (Postgres, Redis, MinIO, Keycloak, Qdrant, Meilisearch, Mailhog)
 pnpm infra:up
