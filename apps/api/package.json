@@ -6,7 +6,7 @@
   "license": "AGPL-3.0-or-later",
   "type": "commonjs",
   "scripts": {
-    "dev": "nest start --watch",
+    "dev": "pnpm --filter @enagar/forms build && nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
     "lint": "eslint src",
