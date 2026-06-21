@@ -1,5 +1,12 @@
 import {
+  ExcelLayoutFormImportError,
+  extractFormImportProposalFromExcelLayout,
+  readExcelWorkbookSheet,
+} from './excel-layout-form-import.extractor';
+import {
   FormImportTableError,
+  isFormImportTableHeaderRow,
+  isPartialFormImportTableHeader,
   parseFormImportProposalFromTableRows,
 } from './form-import-table.parser';
 
@@ -39,40 +46,35 @@ export function extractFormImportProposalFromExcel(
   }
 
   try {
-    const rows = parseWorkbookRows(file.buffer);
-    return parseFormImportProposalFromTableRows(rows, {
-      sourceKind: 'excel',
-      sourceFilename: file.originalname,
-      serviceCode,
-      confidence: 0.95,
-      candidatePrefix: 'excel',
-      sourceHintPrefix: 'row',
-    });
+    const sheet = readExcelWorkbookSheet(file.buffer);
+    if (isFormImportTableHeaderRow(sheet.rows[0])) {
+      const proposal = parseFormImportProposalFromTableRows(sheet.rows, {
+        sourceKind: 'excel',
+        sourceFilename: file.originalname,
+        serviceCode,
+        confidence: 0.95,
+        candidatePrefix: 'excel',
+        sourceHintPrefix: 'row',
+      });
+      return { ...proposal, extraction_mode: 'table' };
+    }
+
+    if (isPartialFormImportTableHeader(sheet.rows[0])) {
+      parseFormImportProposalFromTableRows(sheet.rows, {
+        sourceKind: 'excel',
+        sourceFilename: file.originalname,
+        serviceCode,
+        confidence: 0.95,
+        candidatePrefix: 'excel',
+        sourceHintPrefix: 'row',
+      });
+    }
+
+    return extractFormImportProposalFromExcelLayout(file, serviceCode, sheet);
   } catch (error) {
-    if (error instanceof FormImportTableError) {
+    if (error instanceof FormImportTableError || error instanceof ExcelLayoutFormImportError) {
       throw new ExcelFormImportError(error.message);
     }
     throw error;
   }
-}
-
-function parseWorkbookRows(buffer: Buffer): string[][] {
-  // Lazy require keeps jest mocking straightforward and avoids ESM friction in Nest build.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const XLSX = require('xlsx') as typeof import('xlsx');
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) {
-    throw new ExcelFormImportError('Excel workbook has no sheets');
-  }
-  const sheet = workbook.Sheets[sheetName];
-  if (!sheet) {
-    throw new ExcelFormImportError('Excel workbook sheet could not be read');
-  }
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-    header: 1,
-    raw: false,
-    defval: '',
-  }) as string[][];
-  return rows.map((row) => row.map((cell) => String(cell ?? '').trim()));
 }

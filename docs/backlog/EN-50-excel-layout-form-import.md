@@ -1,7 +1,7 @@
 # EN-50 — Excel layout heuristic import
 
 **Type:** Follow-up to **EN-26 Phase 1** (EN-30–EN-36 structured Excel MVP)  
-**Status:** Backlog  
+**Status:** Shipped  
 **Parent:** [EN-26](https://ghochangfu.atlassian.net/browse/EN-26) · **Jira:** [EN-50](https://ghochangfu.atlassian.net/browse/EN-50)  
 **Policy:** [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md)  
 **Portals:** Tenant Admin + State Admin (no new UI; extend `FormImportPanel` banner)  

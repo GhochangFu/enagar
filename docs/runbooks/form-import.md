@@ -21,13 +21,13 @@ Extractors and UI land in EN-30+. Phase 0 locks decisions, shared types, and HTT
 
 ## Supported sources (roadmap)
 
-| Phase | Format                           | Status                                                                                                                           |
-| ----- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 4     | Async queue + object storage     | EN-43–EN-45 (shipped) — `form-import` BullMQ worker when `REDIS_URL` + MinIO enabled; inline fallback in dev/CI                  |
-| 1     | Excel column template `.xlsx`    | EN-30+ (shipped)                                                                                                                 |
-| 2     | Word table template `.docx`      | EN-37+ (shipped)                                                                                                                 |
-| 1b    | Excel layout / grid form `.xlsx` | [EN-50](https://ghochangfu.atlassian.net/browse/EN-50) (backlog) — [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md) |
-| 3     | PDF (AcroForm / digital / OCR)   | EN-39+ (shipped)                                                                                                                 |
+| Phase | Format                           | Status                                                                                                          |
+| ----- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 4     | Async queue + object storage     | EN-43–EN-45 (shipped) — `form-import` BullMQ worker when `REDIS_URL` + MinIO enabled; inline fallback in dev/CI |
+| 1     | Excel column template `.xlsx`    | EN-30+ (shipped)                                                                                                |
+| 2     | Word table template `.docx`      | EN-37+ (shipped)                                                                                                |
+| 1b    | Excel layout / grid form `.xlsx` | EN-50 (shipped) — [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md)                                 |
+| 3     | PDF (AcroForm / digital / OCR)   | EN-39+ (shipped)                                                                                                |
 
 Handwritten scans are rejected (EN-41).
 

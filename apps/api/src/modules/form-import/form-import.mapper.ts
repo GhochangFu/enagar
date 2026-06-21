@@ -10,6 +10,9 @@ export function mapFormImportJobRow(row: FormImportJob): FormImportJobRecord {
     status: row.status as FormImportJobRecord['status'],
     source_filename: row.sourceFilename,
     source_kind: (row.sourceKind as FormImportJobRecord['source_kind']) ?? undefined,
+    extraction_mode: row.proposalJson
+      ? ((row.proposalJson as FormImportJobRecord['proposal'])?.extraction_mode ?? undefined)
+      : undefined,
     source_storage_key: row.sourceStorageKey ?? undefined,
     overall_confidence: row.overallConfidence ?? undefined,
     proposal: row.proposalJson

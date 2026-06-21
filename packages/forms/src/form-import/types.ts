@@ -10,6 +10,10 @@ export const FORM_IMPORT_SOURCE_KINDS = [
 
 export type FormImportSourceKind = (typeof FORM_IMPORT_SOURCE_KINDS)[number];
 
+export const FORM_IMPORT_EXTRACTION_MODES = ['table', 'layout'] as const;
+
+export type FormImportExtractionMode = (typeof FORM_IMPORT_EXTRACTION_MODES)[number];
+
 export const FORM_IMPORT_JOB_STATUSES = [
   'pending',
   'processing',
@@ -62,6 +66,8 @@ export interface FormImportProposal {
   service_code: string;
   overall_confidence: number;
   fields: FormImportFieldCandidate[];
+  /** Excel only — table template vs layout heuristics (EN-50). */
+  extraction_mode?: FormImportExtractionMode;
   warnings?: string[];
   rejection_reason?: string;
 }
@@ -79,6 +85,7 @@ export interface FormImportJobRecord {
   status: FormImportJobStatus;
   source_filename: string;
   source_kind?: FormImportSourceKind;
+  extraction_mode?: FormImportExtractionMode;
   source_storage_key?: string;
   overall_confidence?: number;
   proposal?: FormImportProposal;

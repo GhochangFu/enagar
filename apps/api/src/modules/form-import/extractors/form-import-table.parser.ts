@@ -27,6 +27,22 @@ export interface FormImportTableParseOptions {
   sourceHintPrefix: string;
 }
 
+export function isFormImportTableHeaderRow(headerRow: string[] | undefined): boolean {
+  if (!headerRow?.length) {
+    return false;
+  }
+  const header = normalizeHeaderRow(headerRow);
+  return FORM_IMPORT_TABLE_REQUIRED_COLUMNS.every((column) => header.includes(column));
+}
+
+/** Header mentions field_id but is missing required table columns — fail as table mode, not layout. */
+export function isPartialFormImportTableHeader(headerRow: string[] | undefined): boolean {
+  if (!headerRow?.length || isFormImportTableHeaderRow(headerRow)) {
+    return false;
+  }
+  return normalizeHeaderRow(headerRow).includes('field_id');
+}
+
 export function parseFormImportProposalFromTableRows(
   rows: string[][],
   options: FormImportTableParseOptions,

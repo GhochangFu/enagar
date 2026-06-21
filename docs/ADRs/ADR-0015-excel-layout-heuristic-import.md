@@ -2,7 +2,7 @@
 
 | Field               | Value                                                                        |
 | ------------------- | ---------------------------------------------------------------------------- |
-| **Status**          | Proposed (2026-06-21)                                                        |
+| **Status**          | Accepted (2026-06-21)                                                        |
 | **Date**            | 2026-06-21                                                                   |
 | **Decision-makers** | Project Technical Lead (engineering default pending sponsor override)        |
 | **Related**         | EN-26, EN-50, ADR-0014, `docs/runbooks/form-import-excel-layout-fixtures.md` |

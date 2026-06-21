@@ -25,6 +25,7 @@ describe('excel-form-import.extractor (EN-31)', () => {
     );
 
     expect(proposal.source_kind).toBe('excel');
+    expect(proposal.extraction_mode).toBe('table');
     expect(proposal.fields.length).toBeGreaterThanOrEqual(3);
     expect(proposal.fields.some((field) => field.field_id === 'applicant_name')).toBe(true);
     expect(proposal.overall_confidence).toBeGreaterThanOrEqual(0.5);
@@ -43,6 +44,23 @@ describe('excel-form-import.extractor (EN-31)', () => {
 
     const tradeType = proposal.fields.find((field) => field.field_id === 'trade_type');
     expect(tradeType?.options?.length).toBeGreaterThan(1);
+    expect(proposal.extraction_mode).toBe('table');
+  });
+
+  it('parses birth-certificate-layout-form.xlsx in layout mode (EN-50)', () => {
+    const proposal = extractFormImportProposalFromExcel(
+      {
+        originalname: 'birth-certificate-layout-form.xlsx',
+        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: 1,
+        buffer: readFixture('birth-certificate-layout-form.xlsx'),
+      },
+      'birth-certificate',
+    );
+
+    expect(proposal.extraction_mode).toBe('layout');
+    expect(proposal.fields.some((field) => field.field_id === 'applicant_name')).toBe(true);
+    expect(proposal.fields.every((field) => field.confidence >= 0.65)).toBe(true);
   });
 
   it('rejects workbooks missing required columns', () => {

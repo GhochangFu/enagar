@@ -2,6 +2,7 @@ import {
   FORM_IMPORT_JOB_STATUSES,
   FORM_IMPORT_SCOPES,
   FORM_IMPORT_SOURCE_KINDS,
+  FORM_IMPORT_EXTRACTION_MODES,
   type FormImportJobRecord,
   type FormImportProposal,
 } from '@enagar/forms/form-import';
@@ -68,6 +69,14 @@ export class FormImportJobResponseDto implements FormImportJobRecord {
   @IsOptional()
   @IsIn([...FORM_IMPORT_SOURCE_KINDS])
   source_kind?: FormImportJobRecord['source_kind'];
+
+  @ApiPropertyOptional({
+    enum: FORM_IMPORT_EXTRACTION_MODES,
+    description: 'Excel table vs layout (EN-50)',
+  })
+  @IsOptional()
+  @IsIn([...FORM_IMPORT_EXTRACTION_MODES])
+  extraction_mode?: FormImportJobRecord['extraction_mode'];
 
   @ApiPropertyOptional({ description: 'Object storage key when source file is persisted' })
   @IsOptional()

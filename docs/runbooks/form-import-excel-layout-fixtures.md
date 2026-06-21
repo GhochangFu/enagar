@@ -2,7 +2,7 @@
 
 Parent: [form-import.md](./form-import.md) · Policy: [ADR-0015](../ADRs/ADR-0015-excel-layout-heuristic-import.md) · Ticket: [EN-50](../backlog/EN-50-excel-layout-form-import.md)
 
-These workbooks simulate **real ULB “Excel forms”** — not the structured column template in [form-import-excel-template.md](./form-import-excel-template.md). They are used to test and demo the **layout heuristic extractor** (EN-50). Until EN-50 ships, uploading them fails with `Missing required column: field_id`.
+These workbooks simulate **real ULB “Excel forms”** — not the structured column template in [form-import-excel-template.md](./form-import-excel-template.md). They are used to test and demo the **layout heuristic extractor** (EN-50).
 
 ## Files
 

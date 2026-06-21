@@ -10,11 +10,13 @@ export {
 } from './proposal-to-schema.js';
 export {
   FORM_IMPORT_FIELD_DISPOSITIONS,
+  FORM_IMPORT_EXTRACTION_MODES,
   FORM_IMPORT_JOB_STATUSES,
   FORM_IMPORT_SCOPES,
   FORM_IMPORT_SOURCE_KINDS,
   type FormImportApplyability,
   type FormImportChoiceOptionCandidate,
+  type FormImportExtractionMode,
   type FormImportFieldCandidate,
   type FormImportFieldDisposition,
   type FormImportJobRecord,

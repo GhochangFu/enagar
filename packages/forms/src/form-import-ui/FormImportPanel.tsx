@@ -232,6 +232,12 @@ export function FormImportPanel({
         </p>
       ) : null}
 
+      {proposal?.extraction_mode === 'layout' ? (
+        <p className="mt-4 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+          Detected Excel form layout — check field types before Apply.
+        </p>
+      ) : null}
+
       {proposal?.warnings?.length ? (
         <div className="mt-4 space-y-2">
           {proposal.warnings.map((warning) => (
