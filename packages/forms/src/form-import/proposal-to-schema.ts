@@ -40,11 +40,11 @@ export function assessImportProposalApplyability(
   proposal: FormImportProposal,
   policy = FORM_IMPORT_POLICY,
 ): FormImportApplyability {
-  const reasons: string[] = [];
-
   if (proposal.rejection_reason?.trim()) {
-    reasons.push(proposal.rejection_reason.trim());
+    return { ok: false, reasons: [proposal.rejection_reason.trim()] };
   }
+
+  const reasons: string[] = [];
 
   const overall = computeOverallImportConfidence(proposal.fields);
   if (overall < policy.min_overall_confidence) {

@@ -49,7 +49,7 @@ export async function extractFormImportProposalFromPdf(
     }
 
     const digitalText = await extractDigitalTextFromPdf(file.buffer);
-    if (digitalText.length >= PDF_DIGITAL_TEXT_MIN_CHARS) {
+    if (digitalText.length > 0) {
       const digitalProposal = extractDigitalTextProposal(file, serviceCode, digitalText);
       if (digitalProposal) {
         return digitalProposal;
@@ -58,7 +58,10 @@ export async function extractFormImportProposalFromPdf(
 
     let ocrText = '';
     let ocrConfidence = 0;
-    if (shouldAttemptOcr(digitalText.length)) {
+    const shouldRunOcr =
+      shouldAttemptOcr(digitalText.length) ||
+      (digitalText.length >= PDF_DIGITAL_TEXT_MIN_CHARS && digitalText.length > 0);
+    if (shouldRunOcr) {
       const ocr = await extractOcrTextFromPdf(file.buffer);
       ocrText = ocr.text;
       ocrConfidence = ocr.confidence;

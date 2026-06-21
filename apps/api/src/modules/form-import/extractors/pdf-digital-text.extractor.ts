@@ -12,14 +12,24 @@ export class PdfDigitalTextImportError extends Error {
 }
 
 export async function extractDigitalTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse') as (data: Buffer) => Promise<{ text?: string }>;
-    const parsed = await pdfParse(buffer);
-    return (parsed.text ?? '').trim();
-  } catch {
-    return '';
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require('pdf-parse') as (data: Buffer) => Promise<{ text?: string }>;
+  // pdf-parse/pdf.js rejects some Buffer views under ts-node; copy before parsing.
+  const pdfData = Buffer.from(buffer);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const parsed = await pdfParse(pdfData);
+      const text = (parsed.text ?? '').trim();
+      if (text.length > 0) {
+        return text;
+      }
+    } catch {
+      // pdf.js occasionally fails on the first parse in dev — retry once.
+    }
   }
+
+  return '';
 }
 
 export function extractDigitalTextProposal(

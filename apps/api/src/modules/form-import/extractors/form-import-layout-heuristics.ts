@@ -82,7 +82,7 @@ function inferLineCandidate(
     return checkbox;
   }
 
-  const labelMatch = line.match(/^(.{2,120}?)(?::|\?)\s*[_\-.…●○]*\s*$/);
+  const labelMatch = line.match(/^(.{2,120}?)(?::|\?)\s*[_\-.\u2013\u2014…●○[\] ]*\s*$/);
   if (labelMatch?.[1]) {
     const label = cleanLabel(labelMatch[1]);
     return {
@@ -186,9 +186,20 @@ function cleanLabel(raw: string): string {
 }
 
 export function splitPdfTextIntoLines(text: string): string[] {
-  return text
-    .replace(/\r/g, '\n')
+  const raw = text.replace(/\r/g, '\n').trim();
+  const expanded = raw.includes('\n') ? raw : expandCollapsedPdfText(raw);
+  return expanded
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
+}
+
+/** pdf-parse often returns one long line — recover label rows before heuristics. */
+function expandCollapsedPdfText(text: string): string {
+  return text
+    .replace(
+      /\s+(?=(?:Applicant name:|Date of birth:|Gender:|Trade name:|Trade type:|Business details|Annual turnover))/gi,
+      '\n',
+    )
+    .replace(/\s+(?=[A-Z][A-Z\s]{3,}[A-Z](?:\s|$))/g, '\n');
 }
