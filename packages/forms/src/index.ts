@@ -943,7 +943,7 @@ function pickLocale(value: LocaleMap, locale: LocaleCode): string {
   return value[locale] || value.en;
 }
 
-function completeLocaleMap(partial: Partial<LocaleMap>, fallback: string): LocaleMap {
+export function completeLocaleMap(partial: Partial<LocaleMap>, fallback: string): LocaleMap {
   return {
     en: partial.en?.trim() || fallback,
     bn: partial.bn?.trim() || partial.en?.trim() || fallback,

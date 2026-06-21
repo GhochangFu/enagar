@@ -9,12 +9,20 @@ import {
   Put,
   Query,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
 import { BookingsService } from '../bookings/bookings.service';
 import { BookingCancelDto } from '../bookings/dto/bookings.dto';
+import {
+  FormImportJobResponseDto,
+  type FormImportUploadedFile,
+} from '../form-import/dto/form-import.dto';
+import { FormImportService } from '../form-import/form-import.service';
 
 import { AdminTenantGrievanceConfigService } from './admin-tenant-grievance-config.service';
 import { AdminTenantGrievanceGovernanceService } from './admin-tenant-grievance-governance.service';
@@ -78,6 +86,7 @@ import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 export class AdminTenantController {
   constructor(
     private readonly adminTenant: AdminTenantService,
+    private readonly formImport: FormImportService,
     private readonly bookings: BookingsService,
     private readonly grievanceConfig: AdminTenantGrievanceConfigService,
     private readonly grievanceGovernance: AdminTenantGrievanceGovernanceService,
@@ -914,6 +923,43 @@ export class AdminTenantController {
     @Param('serviceId') serviceId: string,
   ) {
     return this.adminTenant.resyncFormDraftFromGlobal(principal, serviceId);
+  }
+
+  @Post('services/:serviceId/form-import')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload a municipal form file and enqueue a form-import job (EN-26)',
+    description:
+      'Phase 0 contract stub — returns 501 until EN-32 wires Excel extraction. Proposal includes per-field confidence and optional proposed_schema preview.',
+  })
+  createFormImportJob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceId') serviceId: string,
+    @UploadedFile() file: FormImportUploadedFile,
+  ): FormImportJobResponseDto {
+    return this.formImport.createTenantImportJob(principal, serviceId, file);
+  }
+
+  @Get('services/:serviceId/form-import/:jobId')
+  @ApiOperation({
+    summary: 'Poll a tenant form-import job for status and proposed schema (EN-26)',
+  })
+  getFormImportJob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('serviceId') serviceId: string,
+    @Param('jobId') jobId: string,
+  ): FormImportJobResponseDto {
+    return this.formImport.getTenantImportJob(principal, serviceId, jobId);
   }
 
   @Patch('services/:serviceId/workflow-draft')

@@ -4,6 +4,12 @@ import { test } from 'node:test';
 
 import { birthCertificateSchema, tradeLicenceSchema } from '../dist/fixtures.js';
 import {
+  FORM_IMPORT_POLICY,
+  assessImportProposalApplyability,
+  importProposalToFormSchema,
+  validateImportProposalSchema,
+} from '../dist/form-import/index.js';
+import {
   MOBILE_GRIEVANCE_DRAFT_SCHEMA,
   assertValidFormSchema,
   createBlankFormSchemaDraft,
@@ -456,4 +462,59 @@ test('rejects invalid cross_field_rules during schema validation', () => {
     duplicateIds.issues.map((entry) => entry.message).join('\n'),
     /duplicate cross-field rule id/,
   );
+});
+
+test('EN-29 maps import candidates to a valid EnagarFormSchema', () => {
+  const proposal = {
+    source_kind: 'excel',
+    source_filename: 'birth-cert-template.xlsx',
+    service_code: 'birth-certificate',
+    overall_confidence: 0.92,
+    fields: [
+      {
+        candidate_id: 'c1',
+        field_id: 'applicant-section',
+        type: 'section',
+        label: { en: 'Applicant details', bn: 'আবেদনকারী', hi: 'आवेदक' },
+        confidence: 1,
+        disposition: 'accepted',
+      },
+      {
+        candidate_id: 'c2',
+        field_id: 'applicant_name',
+        type: 'text',
+        label: { en: 'Applicant name' },
+        required: true,
+        confidence: 0.9,
+        disposition: 'accepted',
+      },
+      {
+        candidate_id: 'c3',
+        field_id: 'ignored_field',
+        type: 'text',
+        label: { en: 'Ignored' },
+        confidence: 0.2,
+        disposition: 'rejected',
+      },
+    ],
+  };
+
+  const schema = importProposalToFormSchema(proposal, {
+    service_code: 'birth-certificate',
+    version: 2,
+    title: { en: 'Birth certificate application' },
+  });
+
+  assert.equal(schema.service_code, 'birth-certificate');
+  assert.equal(schema.version, 2);
+  assert.equal(schema.fields.length, 2);
+  assert.equal(schema.fields[1].label.bn, 'Applicant name');
+  assert.equal(
+    validateImportProposalSchema(proposal, { service_code: 'birth-certificate', version: 2 }).ok,
+    true,
+  );
+
+  const applyability = assessImportProposalApplyability(proposal);
+  assert.equal(applyability.ok, true);
+  assert.equal(FORM_IMPORT_POLICY.apply_mode, 'replace');
 });

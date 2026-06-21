@@ -1,7 +1,24 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
+import {
+  FormImportJobResponseDto,
+  type FormImportUploadedFile,
+} from '../form-import/dto/form-import.dto';
+import { FormImportService } from '../form-import/form-import.service';
 
 import { AdminStateGrievanceLibraryService } from './admin-state-grievance-library.service';
 import { AdminStateService } from './admin-state.service';
@@ -29,6 +46,7 @@ export class AdminStateController {
   constructor(
     private readonly adminState: AdminStateService,
     private readonly grievanceLibrary: AdminStateGrievanceLibraryService,
+    private readonly formImport: FormImportService,
   ) {}
 
   @Get('analytics')
@@ -176,6 +194,41 @@ export class AdminStateController {
     @Body() dto: GlobalServiceLifecycleDto,
   ) {
     return this.adminState.updateGlobalServiceLifecycle(principal, dto);
+  }
+
+  @Post('global-service-library/:code/form-import')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload a municipal form file for a global service template import job (EN-26)',
+    description:
+      'Phase 0 contract stub — returns 501 until EN-32 wires Excel extraction. Same proposal shape as tenant form-import.',
+  })
+  createGlobalFormImportJob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @UploadedFile() file: FormImportUploadedFile,
+  ): FormImportJobResponseDto {
+    return this.formImport.createStateImportJob(principal, code, file);
+  }
+
+  @Get('global-service-library/:code/form-import/:jobId')
+  @ApiOperation({ summary: 'Poll a state global form-import job (EN-26)' })
+  getGlobalFormImportJob(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Param('jobId') jobId: string,
+  ): FormImportJobResponseDto {
+    return this.formImport.getStateImportJob(principal, code, jobId);
   }
 
   @Get('integrations')
