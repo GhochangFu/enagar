@@ -537,7 +537,7 @@ node scripts/smoke-service-setup-assistant.mjs
 | Sprint    | Jira  | Phases                               | Duration  |
 | --------- | ----- | ------------------------------------ | --------- |
 | **SSA-0** | EN-52 | Phase 0 — ADR & archetype catalog    | 3–5 days  |
-| SSA-1     | EN-52 | Phase 1 — Foundation                 | 2 weeks   |
+| SSA-1     | EN-53 | Phase 1 — Foundation                 | 2 weeks   |
 | SSA-2     | EN-52 | Phase 2 — Form step                  | 2 weeks   |
 | SSA-3     | EN-52 | Phase 3 — Workflow step              | 2 weeks   |
 | SSA-4     | EN-52 | Phase 4 + Phase 5 — Payment & review | 2 weeks   |

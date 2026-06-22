@@ -23,5 +23,6 @@ import { AdminTenantService } from './admin-tenant.service';
     AdminTenantOrgService,
     KeycloakAdminProvisionerService,
   ],
+  exports: [AdminTenantService],
 })
 export class AdminTenantModule {}

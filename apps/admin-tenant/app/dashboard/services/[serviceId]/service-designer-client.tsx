@@ -905,12 +905,20 @@ export default function ServiceDesignerClient({ serviceId }: { serviceId: string
         title={pickLabel(designer.service.name)}
         subtitle={`Service code ${designer.service.code}`}
         actions={
-          <Link
-            href={'/dashboard' as Route}
-            className="text-sm font-medium text-brand hover:underline"
-          >
-            Back to catalogue
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/dashboard/services/${serviceId}/setup-assistant` as Route}
+              className="text-sm font-medium text-brand hover:underline"
+            >
+              Open Setup Assistant
+            </Link>
+            <Link
+              href={'/dashboard' as Route}
+              className="text-sm font-medium text-brand hover:underline"
+            >
+              Back to catalogue
+            </Link>
+          </div>
         }
       />
 

@@ -28,6 +28,7 @@ import { LeaseReceiptsModule } from './modules/lease-receipts/lease-receipts.mod
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RentalAssetsModule } from './modules/rental-assets/rental-assets.module';
 import { RentalDocumentsModule } from './modules/rental-documents/rental-documents.module';
+import { ServiceSetupAssistantModule } from './modules/service-setup-assistant/service-setup-assistant.module';
 import { ServicesModule } from './modules/services/services.module';
 import { SmartParkingModule } from './modules/smart-parking/smart-parking.module';
 import { TenantConfigModule } from './modules/tenant-config/tenant-config.module';
@@ -91,6 +92,7 @@ import { WaterMeterModule } from './modules/water-meter/water-meter.module';
     EvChargingModule,
     WaterMeterModule,
     ServicesModule,
+    ServiceSetupAssistantModule,
     TenantConfigModule,
     TenantsModule,
     TransparencyModule,

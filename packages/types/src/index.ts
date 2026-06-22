@@ -6,3 +6,4 @@
 export * from './tenant.js';
 export * from './llm.js';
 export * from './chatbot.js';
+export * from './service-setup-assistant.js';

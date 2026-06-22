@@ -94,6 +94,9 @@ model Tenant {
   chatbotSessions          ChatbotSession[]
   chatbotConsents          ChatbotConsent[]
   chatbotFeedback          ChatbotFeedback[]
+  serviceSetupSessions     ServiceSetupSession[]
+  serviceSetupMessages     ServiceSetupMessage[]
+  serviceSetupAuditLogs    ServiceSetupAuditLog[]
   impersonationTokens      ImpersonationToken[]
   staffInvites             StaffInvite[]
   applicationComments      ApplicationComment[]
@@ -585,6 +588,67 @@ model ChatbotFeedback {
   @@map("chatbot_feedback")
 }
 
+model ServiceSetupSession {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  serviceId         String?               @map("service_id") @db.Uuid
+  globalServiceCode String?               @map("global_service_code") @db.VarChar(80)
+  staffSubjectId    String                @map("staff_subject_id") @db.VarChar(255)
+  scope             String                @db.VarChar(20)
+  currentStep       Int                   @default(1) @map("current_step")
+  archetype         String?               @db.VarChar(80)
+  requirementsJson  Json?                 @map("requirements_json")
+  stepCompletion    Json                  @default(dbgenerated("'{}'::jsonb")) @map("step_completion")
+  status            String                @default("active") @db.VarChar(20)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  service           TenantService?        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  messages          ServiceSetupMessage[]
+  auditLogs         ServiceSetupAuditLog[]
+
+  @@index([tenantId, serviceId])
+  @@index([staffSubjectId])
+  @@map("service_setup_sessions")
+}
+
+model ServiceSetupMessage {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String              @map("tenant_id") @db.Uuid
+  sessionId String              @map("session_id") @db.Uuid
+  role      String              @db.VarChar(20)
+  content   String
+  toolCalls Json?               @map("tool_calls")
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session   ServiceSetupSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("service_setup_messages")
+}
+
+model ServiceSetupAuditLog {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String              @map("session_id") @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  staffSubjectId String             @map("staff_subject_id") @db.VarChar(255)
+  toolName      String              @map("tool_name") @db.VarChar(120)
+  step          Int
+  success       Boolean
+  inputSummary  Json?               @map("input_summary")
+  errorMessage  String?             @map("error_message")
+  inputTokens   Int?                @map("input_tokens")
+  outputTokens  Int?                @map("output_tokens")
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  session       ServiceSetupSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([sessionId, createdAt])
+  @@map("service_setup_audit_logs")
+}
+
 model ImpersonationToken {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   targetTenantId String    @map("target_tenant_id") @db.Uuid
@@ -726,6 +790,7 @@ model TenantService {
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   workflows           Workflow[]
   formImportJobs      FormImportJob[]
+  setupSessions       ServiceSetupSession[]
 
   @@unique([tenantId, code])
   @@index([tenantId, categoryId, isActive])
