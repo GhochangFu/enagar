@@ -16,6 +16,12 @@ type CreateSessionInput = {
   scope: SetupAssistantScope;
 };
 
+type CreateStateFormSessionInput = {
+  tenantId: string;
+  globalServiceCode: string;
+  staffSubjectId: string;
+};
+
 @Injectable()
 export class SetupSessionService {
   constructor(private readonly prisma: PrismaService) {}
@@ -32,6 +38,40 @@ export class SetupSessionService {
       },
     });
     return this.toDto(row);
+  }
+
+  async createStateFormSession(input: CreateStateFormSessionInput): Promise<SetupSessionDto> {
+    const row = await this.prisma.serviceSetupSession.create({
+      data: {
+        tenantId: input.tenantId,
+        globalServiceCode: input.globalServiceCode,
+        staffSubjectId: input.staffSubjectId,
+        scope: 'form',
+        currentStep: 2,
+        status: 'active',
+      },
+    });
+    return this.toDto(row);
+  }
+
+  async markStepComplete(
+    sessionId: string,
+    tenantId: string,
+    staffSubjectId: string,
+    step: SetupAssistantStep,
+  ): Promise<SetupSessionDto> {
+    const row = await this.assertSessionAccess(sessionId, tenantId, staffSubjectId);
+    const raw = row.stepCompletion;
+    const stepCompletion =
+      raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? { ...(raw as Record<string, boolean>) }
+        : {};
+    stepCompletion[String(step)] = true;
+    const updated = await this.prisma.serviceSetupSession.update({
+      where: { id: sessionId },
+      data: { stepCompletion },
+    });
+    return this.toDto(updated);
   }
 
   async getSession(

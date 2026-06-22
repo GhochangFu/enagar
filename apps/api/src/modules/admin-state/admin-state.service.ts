@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { validateFormSchema } from '@enagar/forms';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SignJWT } from 'jose';
 
@@ -744,6 +745,54 @@ export class AdminStateService {
           ? ['Template is deprecated; publish creates a new review point for tenants.']
           : ['Publishing does not mutate tenant overrides automatically.'],
     };
+  }
+
+  async getGlobalServiceTemplate(
+    principal: AuthenticatedPrincipal,
+    code: string,
+  ): Promise<StateGlobalServiceTemplateRow> {
+    assertStateAdmin(principal);
+    assertTemplateCode(code);
+    const row = await this.prisma.globalService.findUnique({
+      where: { code },
+      include: { category: true, _count: { select: { tenantServices: true } } },
+    });
+    if (!row) {
+      throw new NotFoundException('Global service template not found');
+    }
+    return toGlobalServiceTemplateRow(row);
+  }
+
+  async patchGlobalFormSchema(
+    principal: AuthenticatedPrincipal,
+    code: string,
+    formSchema: Record<string, unknown>,
+  ): Promise<StateGlobalServiceTemplateRow> {
+    assertStateAdmin(principal);
+    assertTemplateCode(code);
+    if (typeof formSchema.service_code === 'string' && formSchema.service_code !== code) {
+      throw new BadRequestException('Form schema service_code must match the global template code');
+    }
+    const validation = validateFormSchema(formSchema as never);
+    if (!validation.ok) {
+      throw new BadRequestException({
+        message: 'Form schema is invalid',
+        issues: validation.issues,
+      });
+    }
+
+    const row = await this.prisma.globalService.update({
+      where: { code },
+      data: {
+        formSchema: formSchema as Prisma.InputJsonValue,
+        libraryVersion: { increment: 1 },
+      },
+      include: { category: true, _count: { select: { tenantServices: true } } },
+    });
+    await this.audit(principal, 'global_library.patch_form_schema', null, code, {
+      library_version: row.libraryVersion,
+    });
+    return toGlobalServiceTemplateRow(row);
   }
 
   async upsertGlobalServiceTemplate(

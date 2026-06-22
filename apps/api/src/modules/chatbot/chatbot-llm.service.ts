@@ -139,6 +139,90 @@ export class ChatbotLlmService {
    * restores placeholders in model output. Persists audit on completion (7.2).
    * On transport failure, retries once with {@link resolveFallbackProviderName} (7.3).
    */
+  assertSetupAssistantDpaAllows(chatbot?: TenantConfig['chatbot']): void {
+    if (chatbot?.dpa_signed === true) {
+      return;
+    }
+    if (
+      process.env.SETUP_ASSISTANT_SKIP_DPA_DEV === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Setup Assistant LLM calls are blocked until tenants.config.chatbot.dpa_signed is true',
+    );
+  }
+
+  /**
+   * Streams from the active provider for staff setup assistant (ADR-0016 DPA policy).
+   */
+  async *streamForSetupAssistant(
+    req: LLMRequest,
+    outbound: StreamAuditContext,
+  ): AsyncIterable<LLMStreamChunk> {
+    const { chatbot } = await this.resolveTenantChatbotConfigById(req.tenantId);
+    this.assertSetupAssistantDpaAllows(chatbot);
+
+    const primaryName = this.resolveProviderName(chatbot);
+    const fallbackName = this.resolveFallbackProviderName(primaryName, chatbot);
+    const started = Date.now();
+    const queryHash = hashRedactedQuery(outbound.redactedUserText);
+
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+    let usedProvider = this.createProvider(primaryName, chatbot?.model);
+
+    const attemptStream = async function* (provider: ILLMProvider): AsyncGenerator<LLMStreamChunk> {
+      for await (const chunk of provider.stream(req)) {
+        yield chunk;
+      }
+    };
+
+    try {
+      for await (const chunk of this.collectStream(attemptStream(usedProvider), outbound)) {
+        if (chunk.done) {
+          inputTokens = chunk.inputTokens;
+          outputTokens = chunk.outputTokens;
+          yield { ...chunk, delta: '' };
+          break;
+        }
+        if (chunk.delta) {
+          yield chunk;
+        }
+      }
+    } catch (primaryError) {
+      if (!fallbackName) {
+        throw primaryError;
+      }
+      usedProvider = this.createProvider(fallbackName, chatbot?.model);
+      for await (const chunk of this.collectStream(attemptStream(usedProvider), outbound)) {
+        if (chunk.done) {
+          inputTokens = chunk.inputTokens;
+          outputTokens = chunk.outputTokens;
+          yield { ...chunk, delta: '' };
+          break;
+        }
+        if (chunk.delta) {
+          yield chunk;
+        }
+      }
+    }
+
+    await this.audit.record({
+      tenantId: req.tenantId,
+      citizenId: req.citizenId,
+      sessionId: req.sessionId,
+      provider: usedProvider.name,
+      model: usedProvider.model,
+      inputTokens,
+      outputTokens,
+      latencyMs: Date.now() - started,
+      redactionCount: outbound.redactionCount,
+      queryHash,
+    });
+  }
+
   async *streamWithAudit(
     req: LLMRequest,
     outbound: StreamAuditContext,

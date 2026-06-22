@@ -1,3 +1,7 @@
+jest.mock('../admin-state/admin-state.service', () => ({
+  AdminStateService: jest.fn(),
+}));
+
 import { createBlankFormSchemaDraft } from '@enagar/forms';
 import { createLinearWorkflowDraft } from '@enagar/workflow';
 
@@ -21,7 +25,7 @@ describe('ReadinessChecklistService', () => {
       }),
     };
 
-    const service = new ReadinessChecklistService(adminTenant as never);
+    const service = new ReadinessChecklistService(adminTenant as never, {} as never);
     const result = await service.forService('tenant-1', 'service-1');
     const formItem = result.items.find((item) => item.key === 'form_draft_valid');
     expect(formItem?.status).toBe('red');
@@ -49,7 +53,7 @@ describe('ReadinessChecklistService', () => {
       }),
     };
 
-    const service = new ReadinessChecklistService(adminTenant as never);
+    const service = new ReadinessChecklistService(adminTenant as never, {} as never);
     const result = await service.forService('tenant-1', 'service-1');
     expect(result.ready_to_publish).toBe(true);
   });

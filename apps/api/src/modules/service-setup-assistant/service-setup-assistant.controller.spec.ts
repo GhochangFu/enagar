@@ -1,3 +1,7 @@
+jest.mock('../admin-state/admin-state.service', () => ({
+  AdminStateService: jest.fn(),
+}));
+
 import { ServiceSetupAssistantController } from './service-setup-assistant.controller';
 
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
@@ -24,12 +28,16 @@ describe('ServiceSetupAssistantController', () => {
     const readiness = {
       forService: jest.fn(),
     };
+    const assistant = {
+      streamTenantMessage: jest.fn(),
+    };
     const controller = new ServiceSetupAssistantController(
       adminTenant as never,
       sessions as never,
       readiness as never,
+      assistant as never,
     );
-    return { controller, adminTenant, sessions, readiness };
+    return { controller, adminTenant, sessions, readiness, assistant };
   }
 
   it('createSession delegates with scoped inputs', async () => {

@@ -2,8 +2,10 @@ import { validateFormSchema } from '@enagar/forms';
 import { validateWorkflowDefinition } from '@enagar/workflow';
 import { Injectable } from '@nestjs/common';
 
+import { AdminStateService } from '../admin-state/admin-state.service';
 import { AdminTenantService } from '../admin-tenant/admin-tenant.service';
 
+import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { SetupReadinessChecklist, SetupReadinessItem } from '@enagar/types';
 
 type ServiceConfigShape = {
@@ -15,7 +17,10 @@ type ServiceConfigShape = {
 
 @Injectable()
 export class ReadinessChecklistService {
-  constructor(private readonly adminTenant: AdminTenantService) {}
+  constructor(
+    private readonly adminTenant: AdminTenantService,
+    private readonly adminState: AdminStateService,
+  ) {}
 
   async forService(tenantId: string, serviceId: string): Promise<SetupReadinessChecklist> {
     const principal = {
@@ -93,6 +98,36 @@ export class ReadinessChecklistService {
     return {
       items,
       ready_to_publish: readyToPublish,
+    };
+  }
+
+  async forGlobalTemplate(
+    principal: AuthenticatedPrincipal,
+    code: string,
+  ): Promise<SetupReadinessChecklist> {
+    const template = await this.adminState.getGlobalServiceTemplate(principal, code);
+    const formValid =
+      template.has_usable_form_schema && validateFormSchema(template.form_schema as never).ok;
+    const items: SetupReadinessItem[] = [
+      {
+        key: 'form_draft_valid',
+        label: 'Global form template is valid',
+        status: formValid ? 'green' : template.form_schema ? 'amber' : 'red',
+        message: formValid ? undefined : 'Fix or create a valid global form schema',
+      },
+      {
+        key: 'form_published',
+        label: 'Template lifecycle is published',
+        status: template.lifecycle_status === 'published' ? 'green' : 'amber',
+        message:
+          template.lifecycle_status === 'published'
+            ? undefined
+            : 'Publish template from State library when ready',
+      },
+    ];
+    return {
+      items,
+      ready_to_publish: formValid && template.lifecycle_status === 'published',
     };
   }
 

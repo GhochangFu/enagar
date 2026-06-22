@@ -21,6 +21,7 @@ import {
 } from '@enagar/forms/builder';
 import { FormImportPanel } from '@enagar/forms/form-import-ui';
 import { Button, PageHeader } from '@enagar/ui';
+import { type Route } from 'next';
 import Link from 'next/link';
 import { type DragEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -255,12 +256,20 @@ export function GlobalFormBuilderClient({ code }: { code: string }): JSX.Element
         title={pickLabel(template.name)}
         subtitle={`Template ${template.code} · ${template.lifecycle_status} · v${template.library_version}`}
         actions={
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-platform-accent hover:underline"
-          >
-            Back to dashboard
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/dashboard/library/${code}/form/setup-assistant` as Route}
+              className="text-sm font-medium text-platform-accent hover:underline"
+            >
+              Open Setup Assistant
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm font-medium text-platform-accent hover:underline"
+            >
+              Back to dashboard
+            </Link>
+          </div>
         }
       />
 

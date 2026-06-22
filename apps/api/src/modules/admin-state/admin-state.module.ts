@@ -16,5 +16,6 @@ import { AdminStateService } from './admin-state.service';
     AdminStateGrievanceLibraryService,
     KeycloakAdminProvisionerService,
   ],
+  exports: [AdminStateService],
 })
 export class AdminStateModule {}

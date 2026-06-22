@@ -2,8 +2,8 @@ import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Res } fr
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentPrincipal } from '../../common/auth/current-principal.decorator';
-import { AdminTenantService } from '../admin-tenant/admin-tenant.service';
-import { assertTenantPortalStaff } from '../admin-tenant/tenant-admin-portal-roles';
+import { assertStateAdmin } from '../admin-state/admin-state.contracts';
+import { AdminStateService } from '../admin-state/admin-state.service';
 
 import { SetupAssistantMessageDto } from './dto/message.dto';
 import { CreateSetupSessionDto, PatchSetupSessionStepDto } from './dto/session.dto';
@@ -17,40 +17,39 @@ import type { Response } from 'express';
 
 @ApiTags('service-setup-assistant')
 @ApiBearerAuth()
-@Controller('admin/tenant/services/:serviceId/setup-assistant')
-export class ServiceSetupAssistantController {
+@Controller('admin/state/global-service-library/:code/setup-assistant')
+export class StateFormAssistantController {
   constructor(
-    private readonly adminTenant: AdminTenantService,
+    private readonly adminState: AdminStateService,
     private readonly sessions: SetupSessionService,
     private readonly readiness: ReadinessChecklistService,
     private readonly assistant: ServiceSetupAssistantService,
   ) {}
 
   @Post('sessions')
-  @ApiOperation({ summary: 'Create setup-assistant session for a tenant service' })
+  @ApiOperation({ summary: 'Create state form setup-assistant session' })
   async createSession(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Param('serviceId') serviceId: string,
-    @Body() dto: CreateSetupSessionDto,
+    @Param('code') code: string,
+    @Body() _dto: CreateSetupSessionDto,
   ) {
-    assertTenantPortalStaff(principal);
-    await this.adminTenant.getServiceDesigner(principal, serviceId);
-    return this.sessions.createSession({
+    assertStateAdmin(principal);
+    await this.adminState.getGlobalServiceTemplate(principal, code);
+    return this.sessions.createStateFormSession({
       tenantId: principal.tenantId,
-      serviceId,
+      globalServiceCode: code,
       staffSubjectId: principal.subject,
-      scope: dto.scope,
     });
   }
 
   @Get('sessions/:sessionId')
-  @ApiOperation({ summary: 'Get setup-assistant session state' })
+  @ApiOperation({ summary: 'Get state form setup-assistant session' })
   async getSession(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Param('serviceId') serviceId: string,
+    @Param('code') code: string,
     @Param('sessionId') sessionId: string,
   ) {
-    assertTenantPortalStaff(principal);
+    assertStateAdmin(principal);
     const session = await this.sessions.getSession(
       sessionId,
       principal.tenantId,
@@ -61,29 +60,29 @@ export class ServiceSetupAssistantController {
       principal.tenantId,
       principal.subject,
     );
-    if (raw.serviceId !== serviceId) {
-      throw new ForbiddenException('Session does not belong to this service');
+    if (raw.globalServiceCode !== code) {
+      throw new ForbiddenException('Session does not belong to this global template');
     }
-    const checklist = await this.readiness.forService(principal.tenantId, serviceId);
+    const checklist = await this.readiness.forGlobalTemplate(principal, code);
     return { session, checklist };
   }
 
   @Patch('sessions/:sessionId/step')
-  @ApiOperation({ summary: 'Update setup-assistant current step' })
+  @ApiOperation({ summary: 'Update setup-assistant current step (form scope)' })
   async patchSessionStep(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Param('serviceId') serviceId: string,
+    @Param('code') code: string,
     @Param('sessionId') sessionId: string,
     @Body() dto: PatchSetupSessionStepDto,
   ) {
-    assertTenantPortalStaff(principal);
+    assertStateAdmin(principal);
     const raw = await this.sessions.assertSessionAccess(
       sessionId,
       principal.tenantId,
       principal.subject,
     );
-    if (raw.serviceId !== serviceId) {
-      throw new ForbiddenException('Session does not belong to this service');
+    if (raw.globalServiceCode !== code) {
+      throw new ForbiddenException('Session does not belong to this global template');
     }
     return this.sessions.setCurrentStep(
       sessionId,
@@ -94,28 +93,25 @@ export class ServiceSetupAssistantController {
   }
 
   @Get('readiness')
-  @ApiOperation({ summary: 'Readiness checklist for service setup layers' })
-  getReadiness(
-    @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Param('serviceId') serviceId: string,
-  ) {
-    assertTenantPortalStaff(principal);
-    return this.readiness.forService(principal.tenantId, serviceId);
+  @ApiOperation({ summary: 'Readiness checklist for global form template' })
+  getReadiness(@CurrentPrincipal() principal: AuthenticatedPrincipal, @Param('code') code: string) {
+    assertStateAdmin(principal);
+    return this.readiness.forGlobalTemplate(principal, code);
   }
 
   @Post('sessions/:sessionId/message')
-  @ApiOperation({ summary: 'Setup assistant chat message (SSE stream)' })
+  @ApiOperation({ summary: 'State form setup assistant chat (SSE)' })
   async postMessage(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Param('serviceId') serviceId: string,
+    @Param('code') code: string,
     @Param('sessionId') sessionId: string,
     @Body() dto: SetupAssistantMessageDto,
     @Res() res: Response,
   ): Promise<void> {
-    assertTenantPortalStaff(principal);
+    assertStateAdmin(principal);
     await streamSetupAssistantSse(
       res,
-      this.assistant.streamTenantMessage(principal, serviceId, sessionId, dto.message),
+      this.assistant.streamStateMessage(principal, code, sessionId, dto.message),
     );
   }
 }
