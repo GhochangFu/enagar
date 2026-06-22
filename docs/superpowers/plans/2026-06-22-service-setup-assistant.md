@@ -256,7 +256,9 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 
 ---
 
-## Phase 2 — Form step (tenant + state)
+## Phase 2 — Form step (tenant + state) ✅ **Done** ([EN-58](https://ghochangfu.atlassian.net/browse/EN-58))
+
+**Detail plan:** [`docs/superpowers/plans/2026-06-22-ssa-2-en-58.md`](2026-06-22-ssa-2-en-58.md) · Completed 2026-06-22
 
 ### Task 2.1: Tool registry foundation
 
@@ -265,11 +267,11 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/api/src/modules/service-setup-assistant/tools/tool-registry.ts`
 - Create: `apps/api/src/modules/service-setup-assistant/tools/tool.types.ts`
 
-- [ ] **Step 1: Define `SetupToolContext`** — `{ session, tenantId, serviceId?, globalServiceCode?, step }`
+- [x] **Step 1: Define `SetupToolContext`** — `{ session, tenantId, serviceId?, globalServiceCode?, step }`
 
-- [ ] **Step 2: Define `SetupToolDefinition`** — `{ name, description, parameters: zodSchema, execute(ctx, args) }`
+- [x] **Step 2: Define `SetupToolDefinition`** — `{ name, description, parameters: zodSchema, execute(ctx, args) }`
 
-- [ ] **Step 3: `getToolsForStep(scope, step)`** — returns allowed tool names only
+- [x] **Step 3: `getToolsForStep(scope, step)`** — returns allowed tool names only
 
 ---
 
@@ -280,13 +282,13 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/api/src/modules/service-setup-assistant/tools/tenant-form.tools.ts`
 - Create: `apps/api/src/modules/service-setup-assistant/tools/tenant-form.tools.spec.ts`
 
-- [ ] **Step 1: `applyFormDraft`** — load current draft, merge proposed schema, `validateFormSchema`, call same logic as `AdminTenantService.patchFormDraft`
+- [x] **Step 1: `applyFormDraft`** — load current draft, merge proposed schema, `validateFormSchema`, call same logic as `AdminTenantService.patchFormDraft`
 
-- [ ] **Step 2: `loadGlobalTemplate`** — reuse designer's global template resolution
+- [x] **Step 2: `loadGlobalTemplate`** — reuse designer's global template resolution
 
-- [ ] **Step 3: `proposeFormFields`** — returns merged schema in memory; does not persist until `applyFormDraft`
+- [x] **Step 3: `proposeFormFields`** — merge fields into draft, normalize LLM payloads, auto-save when valid
 
-- [ ] **Step 4: Tests** — invalid schema rejected; valid schema persists; wrong `service_code` rejected
+- [x] **Step 4: Tests** — invalid schema rejected; valid schema persists; wrong `service_code` rejected
 
 ---
 
@@ -297,11 +299,11 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/api/src/modules/service-setup-assistant/tools/state-global-form.tools.ts`
 - Create: `apps/api/src/modules/service-setup-assistant/state-form-assistant.controller.ts`
 
-- [ ] **Step 1: `applyGlobalFormSchema`** — validate + `AdminStateService` patch `form_schema`
+- [x] **Step 1: `applyGlobalFormSchema`** — validate + `AdminStateService` patch `form_schema`
 
-- [ ] **Step 2: Routes under `admin/state/global-service-library/:code/setup-assistant/*`**
+- [x] **Step 2: Routes under `admin/state/global-service-library/:code/setup-assistant/*`**
 
-- [ ] **Step 3: State admin auth guards** — existing state admin decorator/guard
+- [x] **Step 3: State admin auth guards** — existing state admin decorator/guard
 
 ---
 
@@ -314,17 +316,17 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/api/src/modules/service-setup-assistant/prompts/system-state-form.md`
 - Modify: `apps/api/src/modules/service-setup-assistant/service-setup-assistant.controller.ts`
 
-- [ ] **Step 1: `POST .../message` SSE endpoint** — mirror `chatbot.service.ts` event shape using `SetupAssistantSseEvent`
+- [x] **Step 1: `POST .../message` SSE endpoint** — mirror `chatbot.service.ts` event shape using `SetupAssistantSseEvent`
 
-- [ ] **Step 2: Inject `ChatbotLlmService`** — reuse provider resolution; skip DPA check for staff-only module OR require same `dpa_signed` (decide in ADR; default: reuse with `SETUP_ASSISTANT_SKIP_DPA_DEV`)
+- [x] **Step 2: Inject `ChatbotLlmService`** — reuse provider resolution; skip DPA check for staff-only module OR require same `dpa_signed` (decide in ADR; default: reuse with `SETUP_ASSISTANT_SKIP_DPA_DEV`)
 
-- [ ] **Step 3: Tool-call loop** — parse JSON tool calls from model response (start with structured JSON mode, not OpenAI native tools, to match existing patterns)
+- [x] **Step 3: Tool-call loop** — parse JSON tool calls from model response (start with structured JSON mode, not OpenAI native tools, to match existing patterns)
 
-- [ ] **Step 4: On successful mutating tool → emit `draft_updated`**
+- [x] **Step 4: On successful mutating tool → emit `draft_updated`**
 
-- [ ] **Step 5: Persist messages to `service_setup_messages` + audit to `service_setup_audit_logs`**
+- [x] **Step 5: Persist messages to `service_setup_messages` + audit to `service_setup_audit_logs`**
 
-- [ ] **Step 6: Integration test with mocked `ILLMProvider` returning `applyFormDraft` call**
+- [x] **Step 6: Integration test with mocked `ILLMProvider` returning `applyFormDraft` call**
 
 ---
 
@@ -337,13 +339,13 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/admin-state/app/dashboard/library/[code]/form/setup-assistant/state-form-assistant-client.tsx`
 - Modify: `global-form-builder-client.tsx` (link to assistant)
 
-- [ ] **Step 1: SSE client** — reuse pattern from `apps/citizen-pwa/lib/chatbot-api.ts` adapted for admin bearer token
+- [x] **Step 1: SSE client** — reuse pattern from `apps/citizen-pwa/lib/chatbot-api.ts` adapted for admin bearer token
 
-- [ ] **Step 2: Form preview** — embed `FormCitizenPreview` / `FormSchemaBuilder` read-only; refresh on `draft_updated`
+- [x] **Step 2: Form preview** — embed `FormCitizenPreview` / `FormSchemaBuilder` read-only; refresh on `draft_updated`
 
-- [ ] \*\*Step 3: Mark step 2 complete in session when `form_draft_valid` is green
+- [x] **Step 3: Mark step 2 complete in session when `form_draft_valid` is green**
 
-**Exit Phase 2:** Form-only scope works E2E for tenant + state with mocked LLM in CI; manual test with real LLM locally.
+**Exit Phase 2:** ✅ Form-only scope works E2E for tenant + state with mocked LLM in CI; manual test with real LLM locally.
 
 ---
 
@@ -534,16 +536,18 @@ node scripts/smoke-service-setup-assistant.mjs
 
 ## Suggested sprint mapping
 
-| Sprint    | Jira  | Phases                               | Duration  |
-| --------- | ----- | ------------------------------------ | --------- |
-| **SSA-0** | EN-52 | Phase 0 — ADR & archetype catalog    | 3–5 days  |
-| SSA-1     | EN-53 | Phase 1 — Foundation                 | 2 weeks   |
-| SSA-2     | EN-58 | Phase 2 — Form step                  | 2 weeks   |
-| SSA-3     | EN-52 | Phase 3 — Workflow step              | 2 weeks   |
-| SSA-4     | EN-52 | Phase 4 + Phase 5 — Payment & review | 2 weeks   |
-| SSA-5     | EN-52 | Phase 6 — Hardening & launch         | 1–2 weeks |
+| Sprint    | Jira  | Phases                               | Duration  | Status   |
+| --------- | ----- | ------------------------------------ | --------- | -------- |
+| **SSA-0** | EN-52 | Phase 0 — ADR & archetype catalog    | 3–5 days  | Done     |
+| SSA-1     | EN-53 | Phase 1 — Foundation                 | 2 weeks   | Done     |
+| SSA-2     | EN-58 | Phase 2 — Form step                  | 2 weeks   | **Done** |
+| SSA-3     | EN-54 | Phase 3 — Workflow step              | 2 weeks   | To Do    |
+| SSA-4     | EN-55 | Phase 4 + Phase 5 — Payment & review | 2 weeks   | To Do    |
+| SSA-5     | EN-56 | Phase 6 — Hardening & launch         | 1–2 weeks | To Do    |
 
 **SSA-0 detail:** [`docs/superpowers/plans/2026-06-22-ssa-0-en-52.md`](2026-06-22-ssa-0-en-52.md)
+
+**SSA-2 detail:** [`docs/superpowers/plans/2026-06-22-ssa-2-en-58.md`](2026-06-22-ssa-2-en-58.md) · **Done** 2026-06-22
 
 **Total:** ~9–10 weeks sequential; Phase 2 state form track can parallel Phase 3 prep.
 
