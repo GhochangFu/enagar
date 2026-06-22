@@ -42,4 +42,4 @@ export const FORM_TOOL_RETRY_USER_MESSAGE =
   'Apply the form change I requested using proposeFormFields. Reply with ONLY a fenced JSON block: {"tool_calls":[{"name":"proposeFormFields","arguments":{"fields":[...]}}]}. Use ids and referenceField from the current form fields in the system prompt.';
 
 export const WORKFLOW_TOOL_RETRY_USER_MESSAGE =
-  'Apply the workflow change I requested using mergeWorkflowDraft (shorthand: stage_code, stage_name, stage_type/owner_role, insert_before/insert_after), applyWorkflowTemplate, or replaceWorkflowDraft. Reply with ONLY a fenced JSON block. Example merge: {"tool_calls":[{"name":"mergeWorkflowDraft","arguments":{"stage_code":"tenant-verification","stage_name":"Tenant Admin Verification","stage_type":"tenant_admin","insert_before":"approved"}}]}.';
+  'Apply the workflow change I requested using mergeWorkflowDraft. To add: stage_code, stage_name, stage_type, insert_before/insert_after. To remove: remove_stage_code only. Reply with ONLY a fenced JSON block. Remove example: {"tool_calls":[{"name":"mergeWorkflowDraft","arguments":{"remove_stage_code":"tenant-verification"}}]}.';

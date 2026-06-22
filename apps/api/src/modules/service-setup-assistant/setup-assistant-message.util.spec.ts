@@ -14,7 +14,7 @@ describe('setup-assistant-message.util', () => {
 
   it('provides a tool retry instruction', () => {
     expect(FORM_TOOL_RETRY_USER_MESSAGE).toContain('proposeFormFields');
-    expect(WORKFLOW_TOOL_RETRY_USER_MESSAGE).toContain('applyWorkflowTemplate');
+    expect(WORKFLOW_TOOL_RETRY_USER_MESSAGE).toContain('remove_stage_code');
   });
 
   it('detects workflow edit requests', () => {

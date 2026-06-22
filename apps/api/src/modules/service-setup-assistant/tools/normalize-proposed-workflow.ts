@@ -19,6 +19,18 @@ const ROLE_ALIASES: Record<string, WorkflowRole> = {
 
 const SKIP_REDIRECT_VERBS = new Set(['reject', 'cancel', 'withdraw', 'return']);
 
+function transitionFromVerbKey(transition: WorkflowTransition): string {
+  return `${transition.from}|${transition.verb}`.toLowerCase();
+}
+
+function dedupeTransitionsByFromVerb(transitions: WorkflowTransition[]): WorkflowTransition[] {
+  const byKey = new Map<string, WorkflowTransition>();
+  for (const transition of transitions) {
+    byKey.set(transitionFromVerbKey(transition), transition);
+  }
+  return Array.from(byKey.values());
+}
+
 function slugifyStageCode(value: string): string {
   return value
     .trim()
@@ -129,6 +141,9 @@ function resolveInsertPosition(
 
   const nonTerminal = base.stages.filter((item) => !item.terminal);
   const anchor = nonTerminal[nonTerminal.length - 1] ?? base.stages[0];
+  if (!anchor) {
+    throw new Error('workflow must have at least one stage');
+  }
   return { kind: 'after', stageCode: anchor.code };
 }
 
@@ -153,6 +168,11 @@ export function insertWorkflowStage(
 
   if (!stageOrder.includes(newStage.code)) {
     stageOrder.splice(insertIndex, 0, newStage.code);
+  } else {
+    const currentIndex = stageOrder.indexOf(newStage.code);
+    stageOrder.splice(currentIndex, 1);
+    const adjustedIndex = currentIndex < insertIndex ? Math.max(0, insertIndex - 1) : insertIndex;
+    stageOrder.splice(adjustedIndex, 0, newStage.code);
   }
 
   let transitions: WorkflowTransition[];
@@ -204,8 +224,82 @@ export function insertWorkflowStage(
   return {
     ...base,
     stages: stageOrder.map((code) => stageByCode.get(code)!),
-    transitions,
+    transitions: dedupeTransitionsByFromVerb(transitions),
   };
+}
+
+export function removeWorkflowStage(
+  base: WorkflowDefinition,
+  stageReference: string,
+): WorkflowDefinition {
+  const removedCode =
+    resolveStageReference(base, stageReference) ??
+    slugifyStageCode(parseStageReferenceArg(stageReference));
+  if (!base.stages.some((stage) => stage.code === removedCode)) {
+    const available = base.stages.map((stage) => stage.code).join(', ');
+    throw new Error(`Stage not found: ${stageReference}. Current stages: ${available}`);
+  }
+
+  const stages = base.stages.filter((stage) => stage.code !== removedCode);
+  const incoming = base.transitions.filter((transition) => transition.to === removedCode);
+  const outgoingForward = base.transitions.filter(
+    (transition) =>
+      transition.from === removedCode && !SKIP_REDIRECT_VERBS.has(transition.verb.toLowerCase()),
+  );
+  const rest = base.transitions.filter(
+    (transition) => transition.from !== removedCode && transition.to !== removedCode,
+  );
+
+  const bridges: WorkflowTransition[] = [];
+  for (const incomingTransition of incoming) {
+    for (const outgoingTransition of outgoingForward) {
+      bridges.push({
+        from: incomingTransition.from,
+        to: outgoingTransition.to,
+        verb: incomingTransition.verb,
+        actor_role: incomingTransition.actor_role,
+        actor_designation: incomingTransition.actor_designation,
+        guard: incomingTransition.guard,
+        requires_comment: incomingTransition.requires_comment,
+        effects: incomingTransition.effects ?? outgoingTransition.effects,
+      });
+    }
+  }
+
+  return {
+    ...base,
+    stages,
+    transitions: dedupeTransitionsByFromVerb([...rest, ...bridges]),
+  };
+}
+
+function parseStageReferenceArg(value: string): string {
+  const trimmed = value.trim();
+  const paren = /\(([^)]+)\)\s*$/.exec(trimmed);
+  if (paren?.[1]?.trim()) {
+    return paren[1].trim();
+  }
+  return trimmed;
+}
+
+function resolveRemoveStageCode(args: Record<string, unknown>): string | null {
+  if (typeof args.remove_stage_code === 'string' && args.remove_stage_code.trim()) {
+    return parseStageReferenceArg(args.remove_stage_code);
+  }
+  if (typeof args.remove_stage === 'string' && args.remove_stage.trim()) {
+    return parseStageReferenceArg(args.remove_stage);
+  }
+  if (args.remove === true || args.action === 'remove' || args.operation === 'remove') {
+    const code = args.stage_code ?? args.stageCode;
+    if (typeof code === 'string' && code.trim()) {
+      return parseStageReferenceArg(code);
+    }
+  }
+  return null;
+}
+
+export function hasRemoveStageArgs(args: Record<string, unknown>): boolean {
+  return resolveRemoveStageCode(args) !== null;
 }
 
 /** Coerce LLM shorthand merge args into a workflow patch or full inserted draft. */
@@ -222,8 +316,12 @@ export function normalizeMergeWorkflowArgs(
       )
       .filter((stage): stage is WorkflowStage => stage !== null);
     if (stages.length === 1) {
-      const position = resolveInsertPosition(args, base, stages[0]);
-      return insertWorkflowStage(base, stages[0], position);
+      const singleStage = stages[0];
+      if (!singleStage) {
+        throw new Error('workflow must be an object');
+      }
+      const position = resolveInsertPosition(args, base, singleStage);
+      return insertWorkflowStage(base, singleStage, position);
     }
     return {
       code: base.code,
@@ -243,7 +341,7 @@ export function normalizeMergeWorkflowArgs(
   return insertWorkflowStage(base, stage, position);
 }
 
-function hasShorthandStageArgs(args: Record<string, unknown>): boolean {
+export function hasShorthandStageArgs(args: Record<string, unknown>): boolean {
   return (
     typeof args.stage_code === 'string' ||
     typeof args.stageCode === 'string' ||
@@ -261,6 +359,11 @@ export function resolveMergedWorkflow(
   base: WorkflowDefinition,
   merge: (base: WorkflowDefinition, patch: WorkflowDefinition) => WorkflowDefinition,
 ): WorkflowDefinition {
+  const removeCode = resolveRemoveStageCode(args);
+  if (removeCode) {
+    return removeWorkflowStage(base, removeCode);
+  }
+
   if (hasShorthandStageArgs(args)) {
     return normalizeMergeWorkflowArgs(args, base);
   }

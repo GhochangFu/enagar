@@ -3,6 +3,7 @@ import { createLinearWorkflowDraft } from '@enagar/workflow';
 import {
   insertWorkflowStage,
   normalizeMergeWorkflowArgs,
+  removeWorkflowStage,
   resolveStageReference,
 } from './normalize-proposed-workflow';
 
@@ -74,5 +75,70 @@ describe('normalize-proposed-workflow', () => {
     expect(merged.transitions.some((t) => t.from === 'clerk-review' && t.to === 'approved')).toBe(
       true,
     );
+  });
+
+  it('removeWorkflowStage bridges neighbors and drops removed stage', () => {
+    const withVerification = normalizeMergeWorkflowArgs(
+      {
+        stage_code: 'tenant-verification',
+        stage_name: 'Tenant Admin Verification',
+        stage_type: 'tenant_admin',
+        insert_before: 'approved',
+      },
+      base,
+    );
+
+    const merged = removeWorkflowStage(withVerification, 'tenant-verification');
+
+    expect(merged.stages.map((stage) => stage.code)).toEqual(['submitted', 'approved', 'closed']);
+    expect(merged.transitions.some((t) => t.from === 'submitted' && t.to === 'approved')).toBe(
+      true,
+    );
+    expect(merged.transitions.some((t) => t.to === 'tenant-verification')).toBe(false);
+    expect(merged.transitions.some((t) => t.from === 'tenant-verification')).toBe(false);
+  });
+
+  it('removeWorkflowStage resolves label with code in parentheses', () => {
+    const withVerification = normalizeMergeWorkflowArgs(
+      {
+        stage_code: 'tenant-verification',
+        stage_name: 'Tenant Admin Verification',
+        stage_type: 'tenant_admin',
+        insert_before: 'approved',
+      },
+      base,
+    );
+
+    const merged = removeWorkflowStage(
+      withVerification,
+      'Tenant Admin Verification (tenant-verification)',
+    );
+
+    expect(merged.stages.map((stage) => stage.code)).not.toContain('tenant-verification');
+  });
+
+  it('dedupes transitions when re-inserting an existing stage', () => {
+    const withVerification = normalizeMergeWorkflowArgs(
+      {
+        stage_code: 'tenant-verification',
+        stage_name: 'Tenant Admin Verification',
+        stage_type: 'tenant_admin',
+        insert_before: 'approved',
+      },
+      base,
+    );
+
+    const merged = normalizeMergeWorkflowArgs(
+      {
+        stage_code: 'tenant-verification',
+        stage_name: 'Tenant Admin Verification',
+        stage_type: 'tenant_admin',
+        insert_after: 'submitted',
+      },
+      withVerification,
+    );
+
+    const keys = merged.transitions.map((t) => `${t.from}|${t.verb}`.toLowerCase());
+    expect(keys.length).toBe(new Set(keys).size);
   });
 });
