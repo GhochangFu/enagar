@@ -3,8 +3,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { AdminStateService } from '../../admin-state/admin-state.service';
 
+import { insertProposedFields, normalizeLlmProposedFields } from './normalize-proposed-fields';
+
 import type { SetupToolContext, SetupToolDefinition, SetupToolResult } from './tool.types';
-import type { EnagarFormField, EnagarFormSchema } from '@enagar/forms';
+import type { EnagarFormSchema } from '@enagar/forms';
 
 function asFormSchema(value: unknown, label: string): EnagarFormSchema {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -13,19 +15,11 @@ function asFormSchema(value: unknown, label: string): EnagarFormSchema {
   return value as EnagarFormSchema;
 }
 
-function asFormFields(value: unknown): EnagarFormField[] {
+function asRawFieldList(value: unknown): unknown[] {
   if (!Array.isArray(value)) {
     throw new BadRequestException('fields must be an array');
   }
-  return value as EnagarFormField[];
-}
-
-function mergeFormFields(base: EnagarFormSchema, fields: EnagarFormField[]): EnagarFormSchema {
-  const byId = new Map(base.fields.map((field) => [field.id, field]));
-  for (const field of fields) {
-    byId.set(field.id, field);
-  }
-  return { ...base, fields: Array.from(byId.values()) };
+  return value;
 }
 
 @Injectable()
@@ -87,7 +81,7 @@ export class StateGlobalFormTools {
       throw new BadRequestException('State form tools require globalServiceCode');
     }
 
-    const fields = asFormFields(args.fields);
+    const rawFields = asRawFieldList(args.fields);
     const template = await this.adminState.getGlobalServiceTemplate(ctx.principal, code);
     const title =
       template.name && typeof template.name === 'object' && !Array.isArray(template.name)
@@ -96,7 +90,11 @@ export class StateGlobalFormTools {
     const base = this.isUsable(template.form_schema)
       ? (template.form_schema as unknown as EnagarFormSchema)
       : createBlankFormSchemaDraft(code, { en: title });
-    const merged = mergeFormFields(base, fields);
+    const inserts = normalizeLlmProposedFields(rawFields, base.fields);
+    const merged: EnagarFormSchema = {
+      ...base,
+      fields: insertProposedFields(base.fields, inserts),
+    };
     const validation = validateFormSchema(merged);
     if (!validation.ok) {
       return {
@@ -108,7 +106,7 @@ export class StateGlobalFormTools {
 
     return {
       success: true,
-      summary: `Proposed ${fields.length} field(s); ${merged.fields.length} total fields in preview.`,
+      summary: `Proposed ${inserts.length} field(s); ${merged.fields.length} total fields in preview.`,
       data: { form_schema: merged, field_count: merged.fields.length },
     };
   }

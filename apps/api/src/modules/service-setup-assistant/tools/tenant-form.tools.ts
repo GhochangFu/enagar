@@ -8,8 +8,14 @@ import {
 } from '../../admin-state/tenant-service-onboarding-forms';
 import { AdminTenantService } from '../../admin-tenant/admin-tenant.service';
 
+import {
+  insertProposedFields,
+  normalizeLlmProposedFields,
+  summarizeFieldChanges,
+} from './normalize-proposed-fields';
+
 import type { SetupToolContext, SetupToolDefinition, SetupToolResult } from './tool.types';
-import type { EnagarFormField, EnagarFormSchema } from '@enagar/forms';
+import type { EnagarFormSchema } from '@enagar/forms';
 
 function asFormSchema(value: unknown, label: string): EnagarFormSchema {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -18,19 +24,11 @@ function asFormSchema(value: unknown, label: string): EnagarFormSchema {
   return value as EnagarFormSchema;
 }
 
-function asFormFields(value: unknown): EnagarFormField[] {
+function asRawFieldList(value: unknown): unknown[] {
   if (!Array.isArray(value)) {
     throw new BadRequestException('fields must be an array');
   }
-  return value as EnagarFormField[];
-}
-
-function mergeFormFields(base: EnagarFormSchema, fields: EnagarFormField[]): EnagarFormSchema {
-  const byId = new Map(base.fields.map((field) => [field.id, field]));
-  for (const field of fields) {
-    byId.set(field.id, field);
-  }
-  return { ...base, fields: Array.from(byId.values()) };
+  return value;
 }
 
 @Injectable()
@@ -55,8 +53,7 @@ export class TenantFormTools {
       },
       {
         name: 'proposeFormFields',
-        description:
-          'Merge proposed fields into the current draft schema in memory only; does not persist.',
+        description: 'Merge proposed fields into the current draft schema and save when valid.',
         execute: (ctx, args) => this.proposeFormFields(ctx, args),
       },
     ];
@@ -141,7 +138,7 @@ export class TenantFormTools {
       throw new BadRequestException('Tenant form tools require serviceId');
     }
 
-    const fields = asFormFields(args.fields);
+    const rawFields = asRawFieldList(args.fields);
     const designer = await this.adminTenant.getServiceDesigner(ctx.principal, serviceId);
     const serviceCode = designer.service.code;
     const baseSchema = designer.form_draft?.form_schema;
@@ -149,7 +146,11 @@ export class TenantFormTools {
       baseSchema && typeof baseSchema === 'object' && !Array.isArray(baseSchema)
         ? (baseSchema as unknown as EnagarFormSchema)
         : createBlankFormSchemaDraft(serviceCode, designer.service.name as { en?: string });
-    const merged = mergeFormFields(base, fields);
+    const inserts = normalizeLlmProposedFields(rawFields, base.fields);
+    const merged: EnagarFormSchema = {
+      ...base,
+      fields: insertProposedFields(base.fields, inserts),
+    };
     const validation = validateFormSchema(merged);
     if (!validation.ok) {
       return {
@@ -159,9 +160,28 @@ export class TenantFormTools {
       };
     }
 
+    await this.adminTenant.saveFormDraft(ctx.principal, serviceId, {
+      form_schema: merged,
+      ui_schema: {},
+    });
+
+    const changeSummary = summarizeFieldChanges(base.fields, inserts);
+    const parts: string[] = [];
+    if (changeSummary.added > 0) {
+      parts.push(`added ${changeSummary.added}`);
+    }
+    if (changeSummary.moved > 0) {
+      parts.push(`moved ${changeSummary.moved}`);
+    }
+    if (changeSummary.updated > 0) {
+      parts.push(`updated ${changeSummary.updated}`);
+    }
+    const actionLabel = parts.length > 0 ? parts.join(', ') : `saved ${inserts.length} field(s)`;
+
     return {
       success: true,
-      summary: `Proposed ${fields.length} field(s); ${merged.fields.length} total fields in preview.`,
+      summary: `Form draft ${actionLabel} (${merged.fields.length} total fields).`,
+      draftUpdated: 'form',
       data: { form_schema: merged, field_count: merged.fields.length },
     };
   }

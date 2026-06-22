@@ -42,14 +42,16 @@ describe('TenantFormTools', () => {
     );
   });
 
-  it('proposeFormFields returns merged preview without persisting', async () => {
+  it('proposeFormFields normalizes LLM-shaped fields and saves draft', async () => {
     const schema = createBlankFormSchemaDraft('svc', { en: 'Test' });
     const adminTenant = {
       getServiceDesigner: jest.fn().mockResolvedValue({
         service: { code: 'svc', name: { en: 'Test' } },
         form_draft: { form_schema: schema },
       }),
-      saveFormDraft: jest.fn(),
+      saveFormDraft: jest.fn().mockResolvedValue({
+        form_schema: schema,
+      }),
     };
     const prisma = { tenantService: { findFirst: jest.fn() } };
     const tools = new TenantFormTools(adminTenant as never, prisma as never);
@@ -58,18 +60,21 @@ describe('TenantFormTools', () => {
     const result = await propose.execute(baseCtx, {
       fields: [
         {
-          id: 'business_name',
-          type: 'text',
-          label: { en: 'Business name', bn: 'ব্যবসার নাম', hi: 'व्यवसाय का नाम' },
-          required: true,
-          min_length: 2,
-          max_length: 120,
+          type: 'Text',
+          label: "Guardian's Name",
+          position: 'after',
+          referenceField: 'Applicant name',
         },
       ],
     });
 
     expect(result.success).toBe(true);
-    expect(adminTenant.saveFormDraft).not.toHaveBeenCalled();
-    expect((result.data as { field_count: number }).field_count).toBeGreaterThan(0);
+    expect(result.draftUpdated).toBe('form');
+    expect(adminTenant.saveFormDraft).toHaveBeenCalledTimes(1);
+    const saved = adminTenant.saveFormDraft.mock.calls[0]![2] as {
+      form_schema: { fields: { id: string }[] };
+    };
+    const applicantIdx = saved.form_schema.fields.findIndex((f) => f.id === 'applicant_name');
+    expect(saved.form_schema.fields[applicantIdx + 1]?.id).toBe('guardians_name');
   });
 });

@@ -4,6 +4,9 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": false,
-    "assets": [{ "include": "generated/**/*", "watchAssets": true }]
+    "assets": [
+      { "include": "generated/**/*", "watchAssets": true },
+      { "include": "modules/service-setup-assistant/prompts/**/*", "watchAssets": true }
+    ]
   }
 }

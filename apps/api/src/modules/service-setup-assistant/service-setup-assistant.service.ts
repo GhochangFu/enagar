@@ -9,13 +9,20 @@ import { AdminTenantService } from '../admin-tenant/admin-tenant.service';
 import { ChatbotLlmService } from '../chatbot/chatbot-llm.service';
 
 import { ReadinessChecklistService } from './readiness-checklist.service';
+import {
+  FORM_TOOL_RETRY_USER_MESSAGE,
+  looksLikeFormFieldEditRequest,
+} from './setup-assistant-message.util';
 import { SetupSessionService } from './setup-session.service';
+import { formatFormFieldsForPrompt } from './tools/normalize-proposed-fields';
 import { parseToolCallsFromAssistantText } from './tools/tool-call-parser';
 import { SetupToolRegistry } from './tools/tool-registry';
 
+import type { StreamAuditContext } from '../chatbot/chatbot-llm.service';
 import type { SetupToolContext, SetupToolPersona } from './tools/tool.types';
 import type { AuthenticatedPrincipal } from '../../common/auth/jwt-claims';
 import type { Prisma } from '../../generated/prisma';
+import type { EnagarFormField } from '@enagar/forms';
 import type {
   SetupAssistantScope,
   SetupAssistantSseEvent,
@@ -113,6 +120,10 @@ export class ServiceSetupAssistantService {
       step,
     };
 
+    const outbound = this.llm.prepareOutboundText(sanitized);
+    const history = await this.loadHistory(input.sessionId);
+    const messages = [...history, { role: 'user' as const, content: outbound.redactedUserText }];
+
     await this.prisma.serviceSetupMessage.create({
       data: {
         tenantId: input.principal.tenantId,
@@ -122,33 +133,11 @@ export class ServiceSetupAssistantService {
       },
     });
 
-    const history = await this.loadHistory(input.sessionId);
     const systemPrompt = await this.buildSystemPrompt(input, step, scope);
-    const outbound = this.llm.prepareOutboundText(sanitized);
-    const messages = [...history, { role: 'user' as const, content: outbound.redactedUserText }];
 
     let assistantText = '';
     try {
-      for await (const chunk of this.llm.streamForSetupAssistant(
-        {
-          systemPrompt,
-          messages,
-          maxTokens: Number(process.env.SETUP_ASSISTANT_MAX_TOKENS ?? 2048),
-          temperature: Number(process.env.SETUP_ASSISTANT_TEMPERATURE ?? 0.2),
-          tenantId: input.principal.tenantId,
-          citizenId: null,
-          sessionId: input.sessionId,
-        },
-        outbound,
-      )) {
-        if (chunk.done) {
-          break;
-        }
-        if (chunk.delta) {
-          assistantText += chunk.delta;
-          yield { type: 'token', delta: chunk.delta };
-        }
-      }
+      assistantText = yield* this.streamAssistantReply(input, systemPrompt, messages, outbound);
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : 'LLM stream failed';
       this.log.warn(`setup-assistant stream error session=${input.sessionId}: ${errMessage}`);
@@ -156,11 +145,38 @@ export class ServiceSetupAssistantService {
       return;
     }
 
-    const { displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText);
+    let { displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText);
+
+    if (toolCalls.length === 0 && looksLikeFormFieldEditRequest(sanitized)) {
+      this.log.log(`setup-assistant retrying missing tool_calls session=${input.sessionId}`);
+      const retryOutbound = this.llm.prepareOutboundText(FORM_TOOL_RETRY_USER_MESSAGE);
+      const retryMessages = [
+        ...messages,
+        {
+          role: 'assistant' as const,
+          content: displayText || assistantText.trim() || 'Understood.',
+        },
+        { role: 'user' as const, content: retryOutbound.redactedUserText },
+      ];
+      try {
+        const retryText = yield* this.streamAssistantReply(
+          input,
+          systemPrompt,
+          retryMessages,
+          retryOutbound,
+        );
+        assistantText = retryText;
+        ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
+      } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
+        this.log.warn(`setup-assistant retry error session=${input.sessionId}: ${errMessage}`);
+      }
+    }
+
     const toolCallPayload =
       toolCalls.length > 0 ? (toolCalls as unknown as Prisma.InputJsonValue) : undefined;
 
-    await this.prisma.serviceSetupMessage.create({
+    const assistantRow = await this.prisma.serviceSetupMessage.create({
       data: {
         tenantId: input.principal.tenantId,
         sessionId: input.sessionId,
@@ -180,6 +196,7 @@ export class ServiceSetupAssistantService {
       scope,
     };
 
+    const toolSummaries: string[] = [];
     for (const call of toolCalls) {
       let result;
       try {
@@ -208,6 +225,7 @@ export class ServiceSetupAssistantService {
         success: result.success,
         summary: result.summary,
       };
+      toolSummaries.push(`${call.name}: ${result.success ? 'OK' : 'Failed'} — ${result.summary}`);
 
       if (result.success && result.draftUpdated) {
         yield { type: 'draft_updated', layer: result.draftUpdated };
@@ -215,7 +233,47 @@ export class ServiceSetupAssistantService {
       }
     }
 
+    if (toolSummaries.length > 0) {
+      const enriched = [displayText || assistantText.trim(), ...toolSummaries]
+        .filter((line) => line.length > 0)
+        .join('\n\n');
+      await this.prisma.serviceSetupMessage.update({
+        where: { id: assistantRow.id },
+        data: { content: enriched },
+      });
+    }
+
     yield { type: 'done' };
+  }
+
+  private async *streamAssistantReply(
+    input: StreamMessageInput,
+    systemPrompt: string,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    outbound: StreamAuditContext,
+  ): AsyncGenerator<SetupAssistantSseEvent, string> {
+    let assistantText = '';
+    for await (const chunk of this.llm.streamForSetupAssistant(
+      {
+        systemPrompt,
+        messages,
+        maxTokens: Number(process.env.SETUP_ASSISTANT_MAX_TOKENS ?? 2048),
+        temperature: Number(process.env.SETUP_ASSISTANT_TEMPERATURE ?? 0.2),
+        tenantId: input.principal.tenantId,
+        citizenId: null,
+        sessionId: input.sessionId,
+      },
+      outbound,
+    )) {
+      if (chunk.done) {
+        break;
+      }
+      if (chunk.delta) {
+        assistantText += chunk.delta;
+        yield { type: 'token', delta: chunk.delta };
+      }
+    }
+    return assistantText;
   }
 
   private async maybeMarkFormStepComplete(
@@ -279,12 +337,21 @@ export class ServiceSetupAssistantService {
         throw new NotFoundException('serviceId required');
       }
       const designer = await this.adminTenant.getServiceDesigner(input.principal, input.serviceId);
+      const draftSchema = designer.form_draft?.form_schema;
+      const fields: EnagarFormField[] =
+        draftSchema &&
+        typeof draftSchema === 'object' &&
+        !Array.isArray(draftSchema) &&
+        Array.isArray((draftSchema as { fields?: unknown }).fields)
+          ? ((draftSchema as unknown as { fields: EnagarFormField[] }).fields ?? [])
+          : [];
       return this.renderPrompt('system-tenant-form.md', {
         TOOLS: tools,
         SERVICE_ID: input.serviceId,
         SERVICE_CODE: designer.service.code,
         SCOPE: scope,
         STEP: String(step),
+        CURRENT_FORM_FIELDS: formatFormFieldsForPrompt(fields),
       });
     }
 
