@@ -7,6 +7,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { AdminTenantService } from '../../admin-tenant/admin-tenant.service';
 
+import { resolveMergedWorkflow } from './normalize-proposed-workflow';
 import {
   bindWorkflowToService,
   formatWorkflowStagesForPrompt,
@@ -53,7 +54,8 @@ export class TenantWorkflowTools {
       },
       {
         name: 'mergeWorkflowDraft',
-        description: 'Merge stages and transitions into the current workflow draft by stage code.',
+        description:
+          'Merge stages and transitions into the current workflow draft. Accepts workflow object or shorthand: stage_code, stage_name, owner_role/stage_type, insert_before/insert_after.',
         execute: (ctx, args) => this.mergeWorkflowDraft(ctx, args),
       },
       {
@@ -101,10 +103,17 @@ export class TenantWorkflowTools {
     if (!serviceId) {
       throw new BadRequestException('Tenant workflow tools require serviceId');
     }
-    const patch = asWorkflowDefinition(args.workflow, 'workflow');
     const designer = await this.adminTenant.getServiceDesigner(ctx.principal, serviceId);
     const base = resolveBaseWorkflow(designer);
-    const merged = mergeWorkflowDraft(base, patch);
+
+    let merged: WorkflowDefinition;
+    try {
+      merged = resolveMergedWorkflow(args, base, mergeWorkflowDraft);
+    } catch {
+      const patch = asWorkflowDefinition(args.workflow, 'workflow');
+      merged = mergeWorkflowDraft(base, patch);
+    }
+
     return this.saveWorkflow(ctx, serviceId, merged, 'merged workflow draft');
   }
 

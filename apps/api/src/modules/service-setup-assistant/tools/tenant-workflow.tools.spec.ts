@@ -75,4 +75,35 @@ describe('TenantWorkflowTools', () => {
     expect(result.success).toBe(false);
     expect(adminTenant.saveWorkflowDraft).not.toHaveBeenCalled();
   });
+
+  it('mergeWorkflowDraft accepts flat LLM stage shorthand', async () => {
+    const base = createLinearWorkflowDraft('trade-licence', 1);
+    const adminTenant = {
+      getServiceDesigner: jest.fn().mockResolvedValue({
+        service: { code: 'trade-licence', name: { en: 'Trade licence' } },
+        workflow_pattern: 'cert-issuance',
+        workflow_draft: { definition: base, version: 1 },
+      }),
+      saveWorkflowDraft: jest.fn().mockResolvedValue({
+        definition: base,
+        version: 1,
+      }),
+    };
+    const tools = new TenantWorkflowTools(adminTenant as never);
+    const merge = tools.definitions().find((tool) => tool.name === 'mergeWorkflowDraft')!;
+
+    const result = await merge.execute(baseCtx, {
+      stage_code: 'tenant-verification',
+      stage_name: 'Tenant Admin Verification',
+      stage_type: 'tenant_admin',
+      insert_before: 'approved',
+    });
+
+    expect(result.success).toBe(true);
+    expect(adminTenant.saveWorkflowDraft).toHaveBeenCalledTimes(1);
+    const saved = adminTenant.saveWorkflowDraft.mock.calls[0]![2] as {
+      workflow: { stages: Array<{ code: string }> };
+    };
+    expect(saved.workflow.stages.map((stage) => stage.code)).toContain('tenant-verification');
+  });
 });

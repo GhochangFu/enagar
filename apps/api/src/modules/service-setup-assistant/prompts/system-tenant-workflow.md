@@ -63,6 +63,28 @@ When calling tools, end your reply with a single fenced JSON block:
 }
 ```
 
+### Example — add tenant admin verification before Approved
+
+Use flat shorthand (preferred for single stage) or a full `workflow` patch:
+
+```json
+{
+  "tool_calls": [
+    {
+      "name": "mergeWorkflowDraft",
+      "arguments": {
+        "stage_code": "tenant-verification",
+        "stage_name": "Tenant Admin Verification",
+        "stage_type": "tenant_admin",
+        "insert_before": "approved"
+      }
+    }
+  ]
+}
+```
+
+`stage_type` maps to `owner_role` (`tenant_admin`, `tenant_clerk`). Use `insert_before` or `insert_after` with a stage code or English label from the current workflow list.
+
 ## Context
 
 Service ID: {{SERVICE_ID}}
