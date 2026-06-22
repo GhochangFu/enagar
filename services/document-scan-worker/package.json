@@ -24,7 +24,7 @@
     "@enagar/config": "workspace:*",
     "@types/node": "^20.16.10",
     "@types/pg": "^8.11.10",
-    "eslint": "^8.57.1",
+    "eslint": "^10.5.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4"
