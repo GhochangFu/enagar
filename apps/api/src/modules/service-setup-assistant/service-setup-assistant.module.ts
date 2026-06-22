@@ -11,6 +11,7 @@ import { SetupSessionService } from './setup-session.service';
 import { StateFormAssistantController } from './state-form-assistant.controller';
 import { StateGlobalFormTools } from './tools/state-global-form.tools';
 import { TenantFormTools } from './tools/tenant-form.tools';
+import { TenantWorkflowTools } from './tools/tenant-workflow.tools';
 import { SetupToolRegistry } from './tools/tool-registry';
 
 @Module({
@@ -21,6 +22,7 @@ import { SetupToolRegistry } from './tools/tool-registry';
     ReadinessChecklistService,
     ServiceSetupAssistantService,
     TenantFormTools,
+    TenantWorkflowTools,
     StateGlobalFormTools,
     SetupToolRegistry,
   ],

@@ -1,6 +1,8 @@
 import {
   FORM_TOOL_RETRY_USER_MESSAGE,
   looksLikeFormFieldEditRequest,
+  looksLikeWorkflowEditRequest,
+  WORKFLOW_TOOL_RETRY_USER_MESSAGE,
 } from './setup-assistant-message.util';
 
 describe('setup-assistant-message.util', () => {
@@ -12,5 +14,12 @@ describe('setup-assistant-message.util', () => {
 
   it('provides a tool retry instruction', () => {
     expect(FORM_TOOL_RETRY_USER_MESSAGE).toContain('proposeFormFields');
+    expect(WORKFLOW_TOOL_RETRY_USER_MESSAGE).toContain('applyWorkflowTemplate');
+  });
+
+  it('detects workflow edit requests', () => {
+    expect(looksLikeWorkflowEditRequest('Apply linear approval workflow')).toBe(true);
+    expect(looksLikeWorkflowEditRequest('Add scrutiny stage after clerk')).toBe(true);
+    expect(looksLikeWorkflowEditRequest('What is a workflow?')).toBe(false);
   });
 });

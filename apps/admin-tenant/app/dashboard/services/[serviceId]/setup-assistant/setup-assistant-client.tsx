@@ -1,6 +1,6 @@
 'use client';
 
-import { validateFormSchema, type EnagarFormSchema, EnagarFormSchema } from '@enagar/forms';
+import { validateFormSchema, type EnagarFormSchema } from '@enagar/forms';
 import { FormCitizenPreview } from '@enagar/forms/builder';
 import { Button, PageHeader } from '@enagar/ui';
 import Link from 'next/link';
@@ -11,6 +11,7 @@ import { useTenantAdminSession } from '../../../../../components/tenant-admin-se
 import { postSetupAssistantMessage } from '../../../../../lib/setup-assistant-sse';
 
 import type { SetupAssistantScope, SetupSessionDto, SetupReadinessChecklist } from '@enagar/types';
+import type { WorkflowDefinition } from '@enagar/workflow';
 import type { Route } from 'next';
 
 const SCOPE_LABELS: Record<SetupAssistantScope, string> = {
@@ -49,6 +50,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [formPreview, setFormPreview] = useState<EnagarFormSchema | null>(null);
+  const [workflowPreview, setWorkflowPreview] = useState<WorkflowDefinition | null>(null);
   const formPreviewValid = useMemo(
     () => (formPreview ? validateFormSchema(formPreview).ok : false),
     [formPreview],
@@ -56,6 +58,8 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
 
   const activeSteps = useMemo(() => SCOPE_STEPS[session?.scope ?? scope], [scope, session?.scope]);
   const showFormStep = session?.current_step === 2;
+  const showWorkflowStep = session?.current_step === 3;
+  const showChatStep = showFormStep || showWorkflowStep;
 
   const loadReadiness = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -89,9 +93,11 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     const designer = (await res.json()) as {
       form_draft?: { form_schema?: EnagarFormSchema } | null;
       starter_form_schema?: EnagarFormSchema;
+      workflow_draft?: { definition?: WorkflowDefinition } | null;
     };
     const schema = designer.form_draft?.form_schema ?? designer.starter_form_schema ?? null;
     setFormPreview(schema);
+    setWorkflowPreview(designer.workflow_draft?.definition ?? null);
   }, [apiBase, serviceId, token]);
 
   useEffect(() => {
@@ -241,7 +247,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       <PageHeader
         eyebrow="Service setup assistant"
         title="Setup Assistant"
-        subtitle="Form step with AI chat and auto-save drafts (SSA-2)"
+        subtitle="AI-assisted form and workflow setup (SSA-2 / SSA-3)"
         actions={
           <Link
             href={`/dashboard/services/${serviceId}`}
@@ -302,7 +308,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
 
           <div className="mt-4 space-y-3 rounded-lg border border-warm-border bg-canvas p-4">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Chat {showFormStep ? '(form step)' : ''}
+              Chat {showFormStep ? '(form step)' : showWorkflowStep ? '(workflow step)' : ''}
             </h4>
             <div className="max-h-64 space-y-2 overflow-y-auto text-sm">
               {messages.map((message) => (
@@ -328,7 +334,11 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               ) : null}
               {messages.length === 0 && !streamingText ? (
                 <p className="text-ink-secondary">
-                  Start a session and ask the assistant to add or update form fields.
+                  {showFormStep
+                    ? 'Start a session and ask the assistant to add or update form fields.'
+                    : showWorkflowStep
+                      ? 'Ask the assistant to apply a workflow template (linear approval, scrutiny, or booking) or merge stages.'
+                      : 'Switch to form (step 2) or workflow (step 3) to use chat.'}
                 </p>
               ) : null}
             </div>
@@ -337,8 +347,14 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
                 className="flex-1 rounded-lg border border-warm-border bg-white px-3 py-2 text-sm"
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
-                placeholder="Describe the form changes you need…"
-                disabled={!session || chatBusy || !showFormStep}
+                placeholder={
+                  showFormStep
+                    ? 'Describe the form changes you need…'
+                    : showWorkflowStep
+                      ? 'Describe the workflow you need (e.g. apply linear approval)…'
+                      : 'Chat available on form or workflow step…'
+                }
+                disabled={!session || chatBusy || !showChatStep}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
@@ -349,7 +365,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               <Button
                 type="button"
                 variant="primary"
-                disabled={!session || chatBusy || !showFormStep || !chatInput.trim()}
+                disabled={!session || chatBusy || !showChatStep || !chatInput.trim()}
                 onClick={() => void sendChatMessage()}
               >
                 Send
@@ -370,6 +386,38 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
                   onChange={() => undefined}
                 />
               </div>
+            </div>
+          ) : null}
+
+          {showWorkflowStep ? (
+            <div className="mt-4 rounded-lg border border-warm-border bg-white p-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+                Workflow preview
+              </h4>
+              {workflowPreview?.stages?.length ? (
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink-primary">
+                  {workflowPreview.stages.map((stage) => (
+                    <li key={stage.code}>
+                      <span className="font-medium">{stage.label?.en ?? stage.code}</span>
+                      <span className="text-ink-secondary"> ({stage.code})</span>
+                      {stage.initial ? (
+                        <span className="ml-1 text-xs text-emerald-700">initial</span>
+                      ) : null}
+                      {stage.terminal ? (
+                        <span className="ml-1 text-xs text-amber-700">terminal</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-2 text-sm text-ink-secondary">No workflow draft yet.</p>
+              )}
+              {workflowPreview ? (
+                <p className="mt-2 text-xs text-ink-secondary">
+                  {workflowPreview.transitions.length} transition
+                  {workflowPreview.transitions.length === 1 ? '' : 's'}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </article>

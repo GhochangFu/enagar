@@ -359,15 +359,15 @@ Use `assertTenantPortalStaff` from `tenant-admin-portal-roles.ts`.
 - Create: `apps/api/src/modules/service-setup-assistant/tools/tenant-workflow.tools.spec.ts`
 - Create: `apps/api/src/modules/service-setup-assistant/prompts/system-tenant-workflow.md`
 
-- [ ] **Step 1: `replaceWorkflowDraft(definition)`** — full replacement after `validateWorkflowDefinition`
+- [x] **Step 1: `replaceWorkflowDraft(definition)`** — full replacement after `validateWorkflowDefinition`
 
-- [ ] **Step 2: `mergeWorkflowDraft(patch)`** — merge stages by `code`, add/remove transitions; revalidate
+- [x] **Step 2: `mergeWorkflowDraft(patch)`** — merge stages by `code`, add/remove transitions; revalidate
 
-- [ ] **Step 3: `applyWorkflowTemplate(templateId)`** — call existing template functions from `workflow-designer-templates.ts` (import via shared package or duplicate thin wrapper in API)
+- [x] **Step 3: `applyWorkflowTemplate(templateId)`** — `@enagar/workflow` templates (`linear_approval`, `scrutiny`, `booking`)
 
-- [ ] **Step 4: Prompt instructs model** — use `replaceWorkflowDraft` when user says "replace/start over/new template"; use `mergeWorkflowDraft` / `addWorkflowStage` for incremental edits
+- [x] **Step 4: Prompt instructs model** — use `replaceWorkflowDraft` when user says "replace/start over/new template"; use `mergeWorkflowDraft` for incremental edits
 
-- [ ] **Step 5: Tests**
+- [x] **Step 5: Tests**
 
 ```typescript
 it('mergeWorkflowDraft adds a stage without removing existing', async () => { ... });
@@ -382,13 +382,13 @@ it('replaceWorkflowDraft replaces all stages', async () => { ... });
 
 - Modify: `setup-assistant-client.tsx`
 
-- [ ] **Step 1: Workflow-only scope entry** (already in scope picker)
+- [x] **Step 1: Workflow-only scope entry** (already in scope picker)
 
-- [ ] **Step 2: Read-only workflow summary panel** — stage list + transition count (full xyflow optional v1.1)
+- [x] **Step 2: Read-only workflow summary panel** — stage list + transition count (full xyflow optional v1.1)
 
-- [ ] **Step 3: Refresh on `draft_updated` layer `workflow`**
+- [x] **Step 3: Refresh on `draft_updated` layer `workflow`**
 
-**Exit Phase 3:** Workflow-only regenerate works for `linear_approval` and `scrutiny` archetypes.
+**Exit Phase 3:** ✅ Workflow-only regenerate works for `linear_approval` and `scrutiny` archetypes.
 
 ---
 
@@ -541,13 +541,15 @@ node scripts/smoke-service-setup-assistant.mjs
 | **SSA-0** | EN-52 | Phase 0 — ADR & archetype catalog    | 3–5 days  | Done     |
 | SSA-1     | EN-53 | Phase 1 — Foundation                 | 2 weeks   | Done     |
 | SSA-2     | EN-58 | Phase 2 — Form step                  | 2 weeks   | **Done** |
-| SSA-3     | EN-54 | Phase 3 — Workflow step              | 2 weeks   | To Do    |
+| SSA-3     | EN-54 | Phase 3 — Workflow step              | 2 weeks   | **Done** |
 | SSA-4     | EN-55 | Phase 4 + Phase 5 — Payment & review | 2 weeks   | To Do    |
 | SSA-5     | EN-56 | Phase 6 — Hardening & launch         | 1–2 weeks | To Do    |
 
 **SSA-0 detail:** [`docs/superpowers/plans/2026-06-22-ssa-0-en-52.md`](2026-06-22-ssa-0-en-52.md)
 
 **SSA-2 detail:** [`docs/superpowers/plans/2026-06-22-ssa-2-en-58.md`](2026-06-22-ssa-2-en-58.md) · **Done** 2026-06-22
+
+**SSA-3 detail:** [`docs/superpowers/plans/2026-06-22-ssa-3-en-54.md`](2026-06-22-ssa-3-en-54.md) · **Done** 2026-06-22
 
 **Total:** ~9–10 weeks sequential; Phase 2 state form track can parallel Phase 3 prep.
 

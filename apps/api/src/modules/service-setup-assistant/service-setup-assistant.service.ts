@@ -12,11 +12,15 @@ import { ReadinessChecklistService } from './readiness-checklist.service';
 import {
   FORM_TOOL_RETRY_USER_MESSAGE,
   looksLikeFormFieldEditRequest,
+  looksLikeWorkflowEditRequest,
+  WORKFLOW_TOOL_RETRY_USER_MESSAGE,
 } from './setup-assistant-message.util';
 import { SetupSessionService } from './setup-session.service';
 import { formatFormFieldsForPrompt } from './tools/normalize-proposed-fields';
 import { parseToolCallsFromAssistantText } from './tools/tool-call-parser';
 import { SetupToolRegistry } from './tools/tool-registry';
+import { formatWorkflowStagesForPrompt } from './tools/workflow-merge.utils';
+import { listWorkflowTemplatesForPrompt } from './tools/workflow-setup-templates';
 
 import type { StreamAuditContext } from '../chatbot/chatbot-llm.service';
 import type { SetupToolContext, SetupToolPersona } from './tools/tool.types';
@@ -29,6 +33,7 @@ import type {
   SetupAssistantStep,
   SetupSessionDto,
 } from '@enagar/types';
+import type { WorkflowDefinition } from '@enagar/workflow';
 
 type StreamMessageInput = {
   principal: AuthenticatedPrincipal;
@@ -110,7 +115,13 @@ export class ServiceSetupAssistantService {
     const step = session.current_step as SetupAssistantStep;
     const scope = session.scope as SetupAssistantScope;
 
-    if (step !== 2) {
+    if (input.persona === 'tenant') {
+      if (step !== 2 && step !== 3) {
+        throw new BadRequestException(
+          'Message endpoint is only available on form (2) or workflow (3) steps',
+        );
+      }
+    } else if (step !== 2) {
       throw new BadRequestException('Message endpoint is only available on form step (2)');
     }
 
@@ -147,7 +158,7 @@ export class ServiceSetupAssistantService {
 
     let { displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText);
 
-    if (toolCalls.length === 0 && looksLikeFormFieldEditRequest(sanitized)) {
+    if (toolCalls.length === 0 && step === 2 && looksLikeFormFieldEditRequest(sanitized)) {
       this.log.log(`setup-assistant retrying missing tool_calls session=${input.sessionId}`);
       const retryOutbound = this.llm.prepareOutboundText(FORM_TOOL_RETRY_USER_MESSAGE);
       const retryMessages = [
@@ -170,6 +181,34 @@ export class ServiceSetupAssistantService {
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
         this.log.warn(`setup-assistant retry error session=${input.sessionId}: ${errMessage}`);
+      }
+    }
+
+    if (toolCalls.length === 0 && step === 3 && looksLikeWorkflowEditRequest(sanitized)) {
+      this.log.log(`setup-assistant workflow retry missing tool_calls session=${input.sessionId}`);
+      const retryOutbound = this.llm.prepareOutboundText(WORKFLOW_TOOL_RETRY_USER_MESSAGE);
+      const retryMessages = [
+        ...messages,
+        {
+          role: 'assistant' as const,
+          content: displayText || assistantText.trim() || 'Understood.',
+        },
+        { role: 'user' as const, content: retryOutbound.redactedUserText },
+      ];
+      try {
+        const retryText = yield* this.streamAssistantReply(
+          input,
+          systemPrompt,
+          retryMessages,
+          retryOutbound,
+        );
+        assistantText = retryText;
+        ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
+      } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
+        this.log.warn(
+          `setup-assistant workflow retry error session=${input.sessionId}: ${errMessage}`,
+        );
       }
     }
 
@@ -229,7 +268,7 @@ export class ServiceSetupAssistantService {
 
       if (result.success && result.draftUpdated) {
         yield { type: 'draft_updated', layer: result.draftUpdated };
-        await this.maybeMarkFormStepComplete(input, session);
+        await this.maybeMarkStepComplete(input, session, step);
       }
     }
 
@@ -276,26 +315,42 @@ export class ServiceSetupAssistantService {
     return assistantText;
   }
 
-  private async maybeMarkFormStepComplete(
+  private async maybeMarkStepComplete(
     input: StreamMessageInput,
     session: SetupSessionDto,
+    step: SetupAssistantStep,
   ): Promise<void> {
     if (input.persona === 'tenant' && input.serviceId) {
       const checklist = await this.readiness.forService(input.principal.tenantId, input.serviceId);
-      const formValid =
-        checklist.items.find((item) => item.key === 'form_draft_valid')?.status === 'green';
-      if (formValid) {
-        await this.sessions.markStepComplete(
-          session.id,
-          input.principal.tenantId,
-          input.principal.subject,
-          2,
-        );
+      if (step === 2) {
+        const formValid =
+          checklist.items.find((item) => item.key === 'form_draft_valid')?.status === 'green';
+        if (formValid) {
+          await this.sessions.markStepComplete(
+            session.id,
+            input.principal.tenantId,
+            input.principal.subject,
+            2,
+          );
+        }
+        return;
+      }
+      if (step === 3) {
+        const workflowValid =
+          checklist.items.find((item) => item.key === 'workflow_draft_valid')?.status === 'green';
+        if (workflowValid) {
+          await this.sessions.markStepComplete(
+            session.id,
+            input.principal.tenantId,
+            input.principal.subject,
+            3,
+          );
+        }
       }
       return;
     }
 
-    if (input.persona === 'state' && input.globalServiceCode) {
+    if (input.persona === 'state' && input.globalServiceCode && step === 2) {
       const template = await this.adminState.getGlobalServiceTemplate(
         input.principal,
         input.globalServiceCode,
@@ -337,6 +392,19 @@ export class ServiceSetupAssistantService {
         throw new NotFoundException('serviceId required');
       }
       const designer = await this.adminTenant.getServiceDesigner(input.principal, input.serviceId);
+      if (step === 3) {
+        const workflow = designer.workflow_draft?.definition as WorkflowDefinition | undefined;
+        return this.renderPrompt('system-tenant-workflow.md', {
+          TOOLS: tools,
+          SERVICE_ID: input.serviceId,
+          SERVICE_CODE: designer.service.code,
+          WORKFLOW_PATTERN: designer.workflow_pattern ?? 'cert-issuance',
+          SCOPE: scope,
+          STEP: String(step),
+          CURRENT_WORKFLOW_STAGES: formatWorkflowStagesForPrompt(workflow),
+          WORKFLOW_TEMPLATES: listWorkflowTemplatesForPrompt(),
+        });
+      }
       const draftSchema = designer.form_draft?.form_schema;
       const fields: EnagarFormField[] =
         draftSchema &&
