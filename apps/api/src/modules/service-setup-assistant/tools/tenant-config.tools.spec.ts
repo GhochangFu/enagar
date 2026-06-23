@@ -90,6 +90,47 @@ describe('TenantConfigTools', () => {
     );
   });
 
+  it('applyServiceConfig includes fee_lines when fee_rule and payment_schedule are both provided', async () => {
+    const adminTenant = {
+      listRevenueHeads: jest.fn().mockResolvedValue([{ code: 'cert-fee', is_active: true }]),
+      patchServiceConfig: jest.fn().mockResolvedValue({
+        fee_preview_paise: 100,
+        revenue_head: { code: 'cert-fee' },
+        required_documents: [{ code: 'aadhaar' }],
+      }),
+    };
+    const tools = new TenantConfigTools(adminTenant as never);
+    const apply = tools.definitions().find((tool) => tool.name === 'applyServiceConfig')!;
+
+    await apply.execute(baseCtx, {
+      fee_rule: { type: 'fixed', amount_paise: 100, currency: 'INR' },
+      payment_schedule: 'upfront_only',
+      revenue_head_code: 'cert-fee',
+      required_documents: [
+        {
+          code: 'aadhaar',
+          label: { en: 'Aadhaar' },
+          required: true,
+          accept: ['application/pdf'],
+          max_size_mb: 5,
+        },
+      ],
+    });
+
+    expect(adminTenant.patchServiceConfig).toHaveBeenCalledWith(
+      principal,
+      'svc-1',
+      expect.objectContaining({
+        payment_schedule: 'upfront_only',
+        fee_lines: expect.objectContaining({
+          application: expect.objectContaining({
+            rule: { type: 'fixed', amount_paise: 100, currency: 'INR' },
+          }),
+        }),
+      }),
+    );
+  });
+
   it('listRevenueHeads returns read-only data without draftUpdated', async () => {
     const adminTenant = {
       listRevenueHeads: jest

@@ -3,10 +3,13 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   assertValidDocumentChecklist,
   assertValidFeeRule,
+  legacyFeeRuleToFeeLine,
   normalizeDocumentChecklist,
   PAYMENT_SCHEDULES,
+  primaryFeeLineCode,
   type DocumentChecklistItem,
   type FeeRule,
+  type ServiceFeeLines,
   type PaymentSchedule,
 } from '../../admin-tenant/admin-tenant-config.contracts';
 import { AdminTenantService } from '../../admin-tenant/admin-tenant.service';
@@ -229,6 +232,14 @@ export class TenantConfigTools {
     }
     if (args.payment_schedule !== undefined) {
       patch.payment_schedule = asPaymentSchedule(args.payment_schedule);
+    }
+    if (patch.fee_rule && patch.payment_schedule && args.fee_lines === undefined) {
+      const feeRule = patch.fee_rule as FeeRule;
+      const primaryCode = primaryFeeLineCode(patch.payment_schedule);
+      const nextFeeLines: ServiceFeeLines = {
+        [primaryCode]: legacyFeeRuleToFeeLine(primaryCode, feeRule),
+      };
+      patch.fee_lines = nextFeeLines as unknown as Record<string, unknown>;
     }
     if (args.required_documents !== undefined) {
       patch.required_documents = asDocuments(args.required_documents);
