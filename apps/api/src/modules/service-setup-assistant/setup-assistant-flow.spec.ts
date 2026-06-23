@@ -1,9 +1,4 @@
-import {
-  areDraftLayersReady,
-  canSkipToReview,
-  nextStep,
-  previousStep,
-} from '@enagar/types/setup-assistant-flow';
+import { areDraftLayersReady, canSkipToReview, nextStep, previousStep } from '@enagar/types';
 
 describe('setup-assistant-flow', () => {
   it('nextStep skips completed layers in full scope', () => {

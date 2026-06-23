@@ -2,6 +2,7 @@
 
 import { validateFormSchema, type EnagarFormSchema } from '@enagar/forms';
 import { FormCitizenPreview } from '@enagar/forms/builder';
+import { stripToolCallMarkupFromAssistantText } from '@enagar/types';
 import {
   areDraftLayersReady,
   canSkipToReview,
@@ -11,7 +12,7 @@ import {
   SETUP_SCOPE_STEPS,
   stepLabel,
 } from '@enagar/types/setup-assistant-flow';
-import { Button, PageHeader } from '@enagar/ui';
+import { Button, PageHeader, cn } from '@enagar/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -19,7 +20,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTenantAdminSession } from '../../../../../components/tenant-admin-session';
 import { postSetupAssistantMessage } from '../../../../../lib/setup-assistant-sse';
 
-import type { SetupAssistantScope, SetupSessionDto, SetupReadinessChecklist } from '@enagar/types';
+import type {
+  ChecklistStatus,
+  SetupAssistantScope,
+  SetupSessionDto,
+  SetupReadinessChecklist,
+} from '@enagar/types';
 import type { WorkflowDefinition } from '@enagar/workflow';
 
 const SCOPE_LABELS: Record<SetupAssistantScope, string> = {
@@ -33,6 +39,56 @@ const SCOPE_LABELS: Record<SetupAssistantScope, string> = {
 import type { Route } from 'next';
 
 const SCOPE_STEPS = SETUP_SCOPE_STEPS;
+
+function readinessStatusLabel(status: ChecklistStatus): string {
+  switch (status) {
+    case 'green':
+      return 'Ready';
+    case 'amber':
+      return 'Needs attention';
+    case 'red':
+      return 'Blocked';
+  }
+}
+
+function readinessStatusCardClass(status: ChecklistStatus): string {
+  switch (status) {
+    case 'green':
+      return 'border-green-200 bg-green-50';
+    case 'amber':
+      return 'border-amber-200 bg-amber-50';
+    case 'red':
+      return 'border-red-200 bg-red-50';
+  }
+}
+
+function readinessStatusBadgeClass(status: ChecklistStatus): string {
+  switch (status) {
+    case 'green':
+      return 'bg-green-100 text-green-800 ring-green-200';
+    case 'amber':
+      return 'bg-amber-100 text-amber-900 ring-amber-200';
+    case 'red':
+      return 'bg-red-100 text-red-800 ring-red-200';
+  }
+}
+
+function readinessStatusDetailClass(status: ChecklistStatus): string {
+  switch (status) {
+    case 'green':
+      return 'text-green-800';
+    case 'amber':
+      return 'text-amber-900';
+    case 'red':
+      return 'text-red-800';
+  }
+}
+
+function readinessBooleanCardClass(ok: boolean): string {
+  return ok
+    ? 'border-green-200 bg-green-50 text-green-900'
+    : 'border-red-200 bg-red-50 text-red-900';
+}
 
 type ChatMessage = {
   id: string;
@@ -49,7 +105,7 @@ type ServiceConfigPreview = {
 };
 
 export default function SetupAssistantClient({ serviceId }: { serviceId: string }): JSX.Element {
-  const { token, apiBase } = useTenantAdminSession();
+  const { ensureFreshAuth } = useTenantAdminSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [scope, setScope] = useState<SetupAssistantScope>('full');
@@ -90,15 +146,21 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     ? canSkipToReview(session.scope, session.current_step, session.step_completion)
     : false;
 
+  const displayStreamingText = useMemo(
+    () => (streamingText ? stripToolCallMarkupFromAssistantText(streamingText) : ''),
+    [streamingText],
+  );
+
   const loadReadiness = useCallback(async (): Promise<void> => {
-    if (!token) {
+    const auth = await ensureFreshAuth();
+    if (!auth) {
       return;
     }
     const res = await fetch(
-      `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/readiness`,
+      `${auth.apiBase}/admin/tenant/services/${serviceId}/setup-assistant/readiness`,
       {
         cache: 'no-store',
-        headers: { authorization: `Bearer ${token}` },
+        headers: { authorization: `Bearer ${auth.token}` },
       },
     );
     if (!res.ok) {
@@ -106,17 +168,18 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       return;
     }
     setReadiness((await res.json()) as SetupReadinessChecklist);
-  }, [apiBase, serviceId, token]);
+  }, [ensureFreshAuth, serviceId]);
 
   const reloadSession = useCallback(async (): Promise<void> => {
-    if (!token || !session) {
+    const auth = await ensureFreshAuth();
+    if (!auth || !session) {
       return;
     }
     const res = await fetch(
-      `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}`,
+      `${auth.apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}`,
       {
         cache: 'no-store',
-        headers: { authorization: `Bearer ${token}` },
+        headers: { authorization: `Bearer ${auth.token}` },
       },
     );
     if (!res.ok) {
@@ -133,30 +196,32 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     } else {
       await loadReadiness();
     }
-  }, [apiBase, loadReadiness, serviceId, session, token]);
+  }, [ensureFreshAuth, loadReadiness, serviceId, session]);
 
   const loadConfigPreview = useCallback(async (): Promise<void> => {
-    if (!token) {
+    const auth = await ensureFreshAuth();
+    if (!auth) {
       return;
     }
-    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
+    const res = await fetch(`${auth.apiBase}/admin/tenant/services/${serviceId}/config`, {
       cache: 'no-store',
-      headers: { authorization: `Bearer ${token}` },
+      headers: { authorization: `Bearer ${auth.token}` },
     });
     if (!res.ok) {
       return;
     }
     const config = (await res.json()) as ServiceConfigPreview;
     setConfigPreview(config);
-  }, [apiBase, serviceId, token]);
+  }, [ensureFreshAuth, serviceId]);
 
   const loadFormPreview = useCallback(async (): Promise<void> => {
-    if (!token) {
+    const auth = await ensureFreshAuth();
+    if (!auth) {
       return;
     }
-    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/designer`, {
+    const res = await fetch(`${auth.apiBase}/admin/tenant/services/${serviceId}/designer`, {
       cache: 'no-store',
-      headers: { authorization: `Bearer ${token}` },
+      headers: { authorization: `Bearer ${auth.token}` },
     });
     if (!res.ok) {
       return;
@@ -169,7 +234,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     const schema = designer.form_draft?.form_schema ?? designer.starter_form_schema ?? null;
     setFormPreview(schema);
     setWorkflowPreview(designer.workflow_draft?.definition ?? null);
-  }, [apiBase, serviceId, token]);
+  }, [ensureFreshAuth, serviceId]);
 
   useEffect(() => {
     void loadReadiness();
@@ -179,15 +244,19 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId');
-    if (!sessionId || !token) {
+    if (!sessionId) {
       return;
     }
     const loadSession = async () => {
+      const auth = await ensureFreshAuth();
+      if (!auth) {
+        return;
+      }
       const res = await fetch(
-        `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${sessionId}`,
+        `${auth.apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${sessionId}`,
         {
           cache: 'no-store',
-          headers: { authorization: `Bearer ${token}` },
+          headers: { authorization: `Bearer ${auth.token}` },
         },
       );
       if (!res.ok) {
@@ -204,10 +273,11 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       }
     };
     void loadSession();
-  }, [apiBase, searchParams, serviceId, token]);
+  }, [ensureFreshAuth, searchParams, serviceId]);
 
   async function createSession(nextScope: SetupAssistantScope): Promise<void> {
-    if (!token) {
+    const auth = await ensureFreshAuth();
+    if (!auth) {
       return;
     }
     setLoading(true);
@@ -215,10 +285,10 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     setMessages([]);
     try {
       const res = await fetch(
-        `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions`,
+        `${auth.apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions`,
         {
           method: 'POST',
-          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          headers: { authorization: `Bearer ${auth.token}`, 'content-type': 'application/json' },
           body: JSON.stringify({ scope: nextScope }),
         },
       );
@@ -243,14 +313,15 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   }
 
   async function setCurrentStep(nextStep: number): Promise<void> {
-    if (!token || !session) {
+    const auth = await ensureFreshAuth();
+    if (!auth || !session) {
       return;
     }
     const res = await fetch(
-      `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}/step`,
+      `${auth.apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}/step`,
       {
         method: 'PATCH',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${auth.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ current_step: nextStep }),
       },
     );
@@ -295,7 +366,8 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   }
 
   async function sendChatMessage(): Promise<void> {
-    if (!token || !session || !chatInput.trim() || chatBusy) {
+    const auth = await ensureFreshAuth();
+    if (!auth || !session || !chatInput.trim() || chatBusy) {
       return;
     }
     const userText = chatInput.trim();
@@ -312,14 +384,14 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     let assistantContent = '';
     try {
       await postSetupAssistantMessage({
-        apiBase,
-        token,
+        apiBase: auth.apiBase,
+        token: auth.token,
         path: `/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}/message`,
         message: userText,
         onEvent: (event) => {
           if (event.type === 'token') {
             assistantContent += event.delta;
-            setStreamingText(assistantContent);
+            setStreamingText(stripToolCallMarkupFromAssistantText(assistantContent));
           }
           if (event.type === 'tool_result') {
             setStatus(`${event.name}: ${event.success ? 'OK' : 'Failed'} — ${event.summary}`);
@@ -342,7 +414,11 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       if (assistantContent.trim()) {
         setMessages((prev) => [
           ...prev,
-          { id: `assistant-${Date.now()}`, role: 'assistant', content: assistantContent.trim() },
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: stripToolCallMarkupFromAssistantText(assistantContent.trim()),
+          },
         ]);
       }
     } catch (error) {
@@ -452,13 +528,13 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
                   {message.content}
                 </p>
               ))}
-              {streamingText ? (
+              {displayStreamingText ? (
                 <p className="rounded-lg bg-brand/5 px-3 py-2 text-ink-primary">
                   <span className="font-medium">Assistant: </span>
-                  {streamingText}
+                  {displayStreamingText}
                 </p>
               ) : null}
-              {messages.length === 0 && !streamingText ? (
+              {messages.length === 0 && !displayStreamingText ? (
                 <p className="text-ink-secondary">
                   {showIntentStep
                     ? 'Describe the service purpose and approval pattern to classify the archetype.'
@@ -667,26 +743,53 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
         <article className="rounded-2xl border border-warm-border bg-white p-4">
           <h3 className="text-sm font-semibold text-ink-primary">Readiness</h3>
           {showReviewStep && readiness ? (
-            <div className="mt-2 space-y-1 rounded-lg border border-warm-border bg-canvas px-3 py-2 text-xs">
-              <p className="font-medium text-ink-primary">
-                Draft layers ready: {draftLayersReady ? 'Yes' : 'No'}
-              </p>
-              <p className="text-ink-secondary">
+            <div
+              className={cn(
+                'mt-2 space-y-1 rounded-lg border px-3 py-2 text-xs',
+                readinessBooleanCardClass(draftLayersReady),
+              )}
+            >
+              <p className="font-semibold">Draft layers ready: {draftLayersReady ? 'Yes' : 'No'}</p>
+              <p className={draftLayersReady ? 'text-green-800' : 'text-red-800'}>
                 Publish readiness requires valid drafts plus manual publish in Service Designer.
               </p>
             </div>
           ) : null}
           <ul className="mt-3 space-y-2">
             {(readiness?.items ?? []).map((item) => (
-              <li key={item.key} className="rounded-lg border border-warm-border px-3 py-2 text-xs">
-                <p className="font-medium text-ink-primary">{item.label}</p>
-                <p className="mt-1 text-ink-secondary">Status: {item.status}</p>
-                {item.message ? <p className="mt-1 text-ink-secondary">{item.message}</p> : null}
+              <li
+                key={item.key}
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-xs',
+                  readinessStatusCardClass(item.status),
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-ink-primary">{item.label}</p>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset',
+                      readinessStatusBadgeClass(item.status),
+                    )}
+                  >
+                    {readinessStatusLabel(item.status)}
+                  </span>
+                </div>
+                {item.message ? (
+                  <p className={cn('mt-1.5', readinessStatusDetailClass(item.status))}>
+                    {item.message}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
           {readiness ? (
-            <p className="mt-3 text-xs font-semibold text-ink-primary">
+            <p
+              className={cn(
+                'mt-3 rounded-lg border px-3 py-2 text-xs font-semibold',
+                readinessBooleanCardClass(readiness.ready_to_publish),
+              )}
+            >
               Ready to publish: {readiness.ready_to_publish ? 'Yes' : 'No'}
             </p>
           ) : null}

@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { clearStoredAuth, readStoredAuth } from '../lib/admin-auth';
+import { clearStoredAuth, ensureFreshAccessToken, readStoredAuth } from '../lib/admin-auth';
 import { publicEnv } from '../lib/env/public-env';
 import { normalizeApiBaseUrl } from '../lib/normalize-api-base';
 
@@ -30,6 +30,7 @@ type TenantAdminSessionValue = {
   loadingMe: boolean;
   meError: string | null;
   refreshMe: () => Promise<void>;
+  ensureFreshAuth: () => Promise<{ token: string; apiBase: string } | null>;
   logout: () => void;
 };
 
@@ -175,11 +176,26 @@ export function TenantAdminSessionProvider({
     window.location.assign('/api/admin-auth/logout');
   }, []);
 
+  const ensureFreshAuth = useCallback(async (): Promise<{
+    token: string;
+    apiBase: string;
+  } | null> => {
+    const fresh = await ensureFreshAccessToken();
+    if (!fresh) {
+      setBootState('redirect');
+      onUnauthorized();
+      return null;
+    }
+    setToken((current) => (current === fresh.token ? current : fresh.token));
+    setApiBase((current) => (current === fresh.apiBase ? current : fresh.apiBase));
+    return fresh;
+  }, [onUnauthorized]);
+
   return (
     <SessionGate bootState={bootState}>
       {bootState === 'ready' && token ? (
         <TenantAdminSessionContext.Provider
-          value={{ token, apiBase, me, loadingMe, meError, refreshMe, logout }}
+          value={{ token, apiBase, me, loadingMe, meError, refreshMe, ensureFreshAuth, logout }}
         >
           {meError ? (
             <div

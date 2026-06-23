@@ -42,7 +42,7 @@ export const FORM_TOOL_RETRY_USER_MESSAGE =
   'Apply the form change I requested using proposeFormFields. Reply with ONLY a fenced JSON block: {"tool_calls":[{"name":"proposeFormFields","arguments":{"fields":[...]}}]}. Use ids and referenceField from the current form fields in the system prompt.';
 
 export const WORKFLOW_TOOL_RETRY_USER_MESSAGE =
-  'Apply the workflow change I requested using mergeWorkflowDraft. To add: stage_code, stage_name, stage_type, insert_before/insert_after. To remove: remove_stage_code only. Reply with ONLY a fenced JSON block. Remove example: {"tool_calls":[{"name":"mergeWorkflowDraft","arguments":{"remove_stage_code":"tenant-verification"}}]}.';
+  'Apply the workflow change I requested. For templates use applyWorkflowTemplate with template_id (linear_approval, scrutiny, booking). For stage edits use mergeWorkflowDraft. Reply with ONLY a fenced JSON block. Template example: {"tool_calls":[{"name":"applyWorkflowTemplate","arguments":{"template_id":"linear_approval"}}]}.';
 
 /** Heuristic: staff message likely expects an intent tool call. */
 export function looksLikeIntentCaptureRequest(message: string): boolean {

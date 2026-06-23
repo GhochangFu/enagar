@@ -1,4 +1,4 @@
-// Keep in sync with packages/types/src/setup-assistant-tool-parser.ts (admin-tenant imports @enagar/types).
+// Keep in sync with apps/api/src/modules/service-setup-assistant/tools/tool-call-parser.ts
 export type ParsedToolCall = {
   name: string;
   arguments: Record<string, unknown>;

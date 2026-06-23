@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 type TokenJson = {
   access_token?: string;
   expires_in?: number;
+  refresh_token?: string;
 };
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const payload = {
     access_token: raw.access_token,
     expires_at: expiresAt,
+    refresh_token: raw.refresh_token,
     api_base_url: apiBaseUrl,
   };
   const serialized = JSON.stringify(payload);
