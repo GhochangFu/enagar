@@ -9,7 +9,10 @@ import { ServiceSetupAssistantController } from './service-setup-assistant.contr
 import { ServiceSetupAssistantService } from './service-setup-assistant.service';
 import { SetupSessionService } from './setup-session.service';
 import { StateFormAssistantController } from './state-form-assistant.controller';
+import { IntentTools } from './tools/intent.tools';
+import { ReviewTools } from './tools/review.tools';
 import { StateGlobalFormTools } from './tools/state-global-form.tools';
+import { TenantConfigTools } from './tools/tenant-config.tools';
 import { TenantFormTools } from './tools/tenant-form.tools';
 import { TenantWorkflowTools } from './tools/tenant-workflow.tools';
 import { SetupToolRegistry } from './tools/tool-registry';
@@ -23,6 +26,9 @@ import { SetupToolRegistry } from './tools/tool-registry';
     ServiceSetupAssistantService,
     TenantFormTools,
     TenantWorkflowTools,
+    TenantConfigTools,
+    IntentTools,
+    ReviewTools,
     StateGlobalFormTools,
     SetupToolRegistry,
   ],

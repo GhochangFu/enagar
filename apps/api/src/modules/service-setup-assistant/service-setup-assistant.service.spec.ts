@@ -197,4 +197,107 @@ describe('ServiceSetupAssistantService', () => {
       }),
     );
   });
+
+  it('streams step 4 config tool and emits draft_updated config', async () => {
+    const toolCallsBlock = `\n\n\`\`\`json\n{"tool_calls":[{"name":"applyServiceConfig","arguments":{"fee_rule":{"type":"fixed","amount_paise":5000}}}]}\n\`\`\``;
+    const prisma = {
+      serviceSetupMessage: {
+        create: jest.fn().mockResolvedValue({ id: 'assistant-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      serviceSetupAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+      serviceSetupSession: {
+        findUnique: jest.fn(),
+      },
+    };
+    const sessions = {
+      assertSessionAccess: jest.fn().mockResolvedValue({ serviceId: 'svc-1', scope: 'payment' }),
+      getSession: jest.fn().mockResolvedValue({
+        id: 'sess-1',
+        scope: 'payment',
+        current_step: 4,
+        archetype: null,
+        step_completion: {},
+        status: 'active',
+      }),
+      markStepComplete: jest.fn(),
+    };
+    const readiness = {
+      forService: jest.fn().mockResolvedValue({
+        items: [
+          { key: 'config_complete', status: 'green' },
+          { key: 'booking_assets', status: 'green' },
+        ],
+      }),
+    };
+    const adminTenant = {
+      getServiceDesigner: jest.fn().mockResolvedValue({
+        service: { code: 'SVC', name: { en: 'Test' } },
+        workflow_pattern: 'cert-issuance',
+      }),
+      getServiceConfig: jest.fn().mockResolvedValue({
+        fee_rule: { type: 'fixed', amount_paise: 5000 },
+        fee_preview_paise: 5000,
+        payment_schedule: 'upfront_only',
+        required_documents: [],
+        revenue_head: null,
+        boc_policy: null,
+        municipal_signoff_policy: null,
+        bookable_asset_codes: [],
+      }),
+      listRevenueHeads: jest.fn().mockResolvedValue([]),
+    };
+    const llm = {
+      prepareOutboundText: jest.fn().mockReturnValue({
+        redactedUserText: 'set fee',
+        redactionCount: 0,
+        restoreMap: {},
+      }),
+      streamForSetupAssistant: jest.fn(async function* () {
+        yield { delta: toolCallsBlock, done: false };
+        yield { delta: '', done: true };
+      }),
+    };
+    const tools = {
+      formatToolsForPrompt: jest.fn().mockReturnValue('- applyServiceConfig'),
+      executeTool: jest.fn().mockResolvedValue({
+        success: true,
+        summary: 'applied service configuration',
+        draftUpdated: 'config',
+      }),
+    };
+
+    const service = new ServiceSetupAssistantService(
+      prisma as never,
+      sessions as never,
+      readiness as never,
+      adminTenant as never,
+      {} as never,
+      llm as never,
+      tools as never,
+    );
+
+    const events = [];
+    for await (const event of service.streamTenantMessage(
+      principal,
+      'svc-1',
+      'sess-1',
+      'set a fixed fee of 50 rupees',
+    )) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'draft_updated' && event.layer === 'config')).toBe(
+      true,
+    );
+    expect(tools.executeTool).toHaveBeenCalledWith(
+      'tenant',
+      'applyServiceConfig',
+      expect.any(Object),
+      expect.objectContaining({ fee_rule: { type: 'fixed', amount_paise: 5000 } }),
+    );
+  });
 });

@@ -10,13 +10,18 @@ import { ChatbotLlmService } from '../chatbot/chatbot-llm.service';
 
 import { ReadinessChecklistService } from './readiness-checklist.service';
 import {
+  CONFIG_TOOL_RETRY_USER_MESSAGE,
   FORM_TOOL_RETRY_USER_MESSAGE,
+  INTENT_TOOL_RETRY_USER_MESSAGE,
+  looksLikeConfigEditRequest,
   looksLikeFormFieldEditRequest,
+  looksLikeIntentCaptureRequest,
   looksLikeWorkflowEditRequest,
   WORKFLOW_TOOL_RETRY_USER_MESSAGE,
 } from './setup-assistant-message.util';
 import { SetupSessionService } from './setup-session.service';
 import { formatFormFieldsForPrompt } from './tools/normalize-proposed-fields';
+import { TenantConfigTools } from './tools/tenant-config.tools';
 import { parseToolCallsFromAssistantText } from './tools/tool-call-parser';
 import { SetupToolRegistry } from './tools/tool-registry';
 import { formatWorkflowStagesForPrompt } from './tools/workflow-merge.utils';
@@ -116,10 +121,12 @@ export class ServiceSetupAssistantService {
     const scope = session.scope as SetupAssistantScope;
 
     if (input.persona === 'tenant') {
-      if (step !== 2 && step !== 3) {
-        throw new BadRequestException(
-          'Message endpoint is only available on form (2) or workflow (3) steps',
-        );
+      const chatSteps: SetupAssistantStep[] = [1, 2, 3, 4, 5];
+      if (!chatSteps.includes(step)) {
+        throw new BadRequestException('Message endpoint is not available on this step');
+      }
+      if (step === 1 && scope !== 'full') {
+        throw new BadRequestException('Intent step (1) is only available in full setup scope');
       }
     } else if (step !== 2) {
       throw new BadRequestException('Message endpoint is only available on form step (2)');
@@ -212,6 +219,62 @@ export class ServiceSetupAssistantService {
       }
     }
 
+    if (toolCalls.length === 0 && step === 1 && looksLikeIntentCaptureRequest(sanitized)) {
+      this.log.log(`setup-assistant intent retry missing tool_calls session=${input.sessionId}`);
+      const retryOutbound = this.llm.prepareOutboundText(INTENT_TOOL_RETRY_USER_MESSAGE);
+      const retryMessages = [
+        ...messages,
+        {
+          role: 'assistant' as const,
+          content: displayText || assistantText.trim() || 'Understood.',
+        },
+        { role: 'user' as const, content: retryOutbound.redactedUserText },
+      ];
+      try {
+        const retryText = yield* this.streamAssistantReply(
+          input,
+          systemPrompt,
+          retryMessages,
+          retryOutbound,
+        );
+        assistantText = retryText;
+        ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
+      } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
+        this.log.warn(
+          `setup-assistant intent retry error session=${input.sessionId}: ${errMessage}`,
+        );
+      }
+    }
+
+    if (toolCalls.length === 0 && step === 4 && looksLikeConfigEditRequest(sanitized)) {
+      this.log.log(`setup-assistant config retry missing tool_calls session=${input.sessionId}`);
+      const retryOutbound = this.llm.prepareOutboundText(CONFIG_TOOL_RETRY_USER_MESSAGE);
+      const retryMessages = [
+        ...messages,
+        {
+          role: 'assistant' as const,
+          content: displayText || assistantText.trim() || 'Understood.',
+        },
+        { role: 'user' as const, content: retryOutbound.redactedUserText },
+      ];
+      try {
+        const retryText = yield* this.streamAssistantReply(
+          input,
+          systemPrompt,
+          retryMessages,
+          retryOutbound,
+        );
+        assistantText = retryText;
+        ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
+      } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
+        this.log.warn(
+          `setup-assistant config retry error session=${input.sessionId}: ${errMessage}`,
+        );
+      }
+    }
+
     const toolCallPayload =
       toolCalls.length > 0 ? (toolCalls as unknown as Prisma.InputJsonValue) : undefined;
 
@@ -269,6 +332,8 @@ export class ServiceSetupAssistantService {
       if (result.success && result.draftUpdated) {
         yield { type: 'draft_updated', layer: result.draftUpdated };
         await this.maybeMarkStepComplete(input, session, step);
+      } else if (result.success && (step === 1 || step === 5)) {
+        await this.maybeMarkStepComplete(input, session, step);
       }
     }
 
@@ -321,6 +386,22 @@ export class ServiceSetupAssistantService {
     step: SetupAssistantStep,
   ): Promise<void> {
     if (input.persona === 'tenant' && input.serviceId) {
+      if (step === 1) {
+        const row = await this.prisma.serviceSetupSession.findUnique({
+          where: { id: session.id },
+          select: { archetype: true, requirementsJson: true },
+        });
+        if (row?.archetype && row.requirementsJson) {
+          await this.sessions.markStepComplete(
+            session.id,
+            input.principal.tenantId,
+            input.principal.subject,
+            1,
+          );
+        }
+        return;
+      }
+
       const checklist = await this.readiness.forService(input.principal.tenantId, input.serviceId);
       if (step === 2) {
         const formValid =
@@ -344,6 +425,41 @@ export class ServiceSetupAssistantService {
             input.principal.tenantId,
             input.principal.subject,
             3,
+          );
+        }
+        return;
+      }
+      if (step === 4) {
+        const configComplete =
+          checklist.items.find((item) => item.key === 'config_complete')?.status === 'green';
+        const bookingReady =
+          checklist.items.find((item) => item.key === 'booking_assets')?.status === 'green';
+        if (configComplete && bookingReady) {
+          await this.sessions.markStepComplete(
+            session.id,
+            input.principal.tenantId,
+            input.principal.subject,
+            4,
+          );
+        }
+        return;
+      }
+      if (step === 5) {
+        const draftKeys = [
+          'form_draft_valid',
+          'workflow_draft_valid',
+          'config_complete',
+          'booking_assets',
+        ];
+        const draftsReady = draftKeys.every(
+          (key) => checklist.items.find((item) => item.key === key)?.status === 'green',
+        );
+        if (draftsReady) {
+          await this.sessions.markStepComplete(
+            session.id,
+            input.principal.tenantId,
+            input.principal.subject,
+            5,
           );
         }
       }
@@ -392,6 +508,16 @@ export class ServiceSetupAssistantService {
         throw new NotFoundException('serviceId required');
       }
       const designer = await this.adminTenant.getServiceDesigner(input.principal, input.serviceId);
+      if (step === 1) {
+        return this.renderPrompt('system-tenant-intent.md', {
+          TOOLS: tools,
+          SERVICE_ID: input.serviceId,
+          SERVICE_CODE: designer.service.code,
+          WORKFLOW_PATTERN: designer.workflow_pattern ?? 'cert-issuance',
+          SCOPE: scope,
+          STEP: String(step),
+        });
+      }
       if (step === 3) {
         const workflow = designer.workflow_draft?.definition as WorkflowDefinition | undefined;
         return this.renderPrompt('system-tenant-workflow.md', {
@@ -403,6 +529,41 @@ export class ServiceSetupAssistantService {
           STEP: String(step),
           CURRENT_WORKFLOW_STAGES: formatWorkflowStagesForPrompt(workflow),
           WORKFLOW_TEMPLATES: listWorkflowTemplatesForPrompt(),
+        });
+      }
+      if (step === 4) {
+        const [config, revenueHeads] = await Promise.all([
+          this.adminTenant.getServiceConfig(input.principal, input.serviceId),
+          this.adminTenant.listRevenueHeads(input.principal),
+        ]);
+        return this.renderPrompt('system-tenant-payment.md', {
+          TOOLS: tools,
+          SERVICE_ID: input.serviceId,
+          SERVICE_CODE: designer.service.code,
+          WORKFLOW_PATTERN: designer.workflow_pattern ?? 'cert-issuance',
+          SCOPE: scope,
+          STEP: String(step),
+          REVENUE_HEADS: TenantConfigTools.formatRevenueHeadsForPrompt(revenueHeads),
+          CURRENT_CONFIG: TenantConfigTools.formatConfigForPrompt(config),
+        });
+      }
+      if (step === 5) {
+        const checklist = await this.readiness.forService(
+          input.principal.tenantId,
+          input.serviceId,
+        );
+        const summary = checklist.items
+          .map(
+            (item) => `- ${item.label}: ${item.status}${item.message ? ` — ${item.message}` : ''}`,
+          )
+          .join('\n');
+        return this.renderPrompt('system-tenant-review.md', {
+          TOOLS: tools,
+          SERVICE_ID: input.serviceId,
+          SERVICE_CODE: designer.service.code,
+          SCOPE: scope,
+          STEP: String(step),
+          READINESS_SUMMARY: summary || 'No checklist loaded yet.',
         });
       }
       const draftSchema = designer.form_draft?.form_schema;

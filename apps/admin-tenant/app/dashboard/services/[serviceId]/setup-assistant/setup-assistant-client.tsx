@@ -36,6 +36,14 @@ type ChatMessage = {
   content: string;
 };
 
+type ServiceConfigPreview = {
+  fee_preview_paise: number | null;
+  payment_schedule: string;
+  required_documents: unknown[];
+  revenue_head: { code: string } | null;
+  fee_rule: unknown;
+};
+
 export default function SetupAssistantClient({ serviceId }: { serviceId: string }): JSX.Element {
   const { token, apiBase } = useTenantAdminSession();
   const router = useRouter();
@@ -51,15 +59,20 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   const [streamingText, setStreamingText] = useState('');
   const [formPreview, setFormPreview] = useState<EnagarFormSchema | null>(null);
   const [workflowPreview, setWorkflowPreview] = useState<WorkflowDefinition | null>(null);
+  const [configPreview, setConfigPreview] = useState<ServiceConfigPreview | null>(null);
   const formPreviewValid = useMemo(
     () => (formPreview ? validateFormSchema(formPreview).ok : false),
     [formPreview],
   );
 
   const activeSteps = useMemo(() => SCOPE_STEPS[session?.scope ?? scope], [scope, session?.scope]);
+  const showIntentStep = session?.current_step === 1;
   const showFormStep = session?.current_step === 2;
   const showWorkflowStep = session?.current_step === 3;
-  const showChatStep = showFormStep || showWorkflowStep;
+  const showPaymentStep = session?.current_step === 4;
+  const showReviewStep = session?.current_step === 5;
+  const showChatStep =
+    showIntentStep || showFormStep || showWorkflowStep || showPaymentStep || showReviewStep;
 
   const loadReadiness = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -77,6 +90,21 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       return;
     }
     setReadiness((await res.json()) as SetupReadinessChecklist);
+  }, [apiBase, serviceId, token]);
+
+  const loadConfigPreview = useCallback(async (): Promise<void> => {
+    if (!token) {
+      return;
+    }
+    const res = await fetch(`${apiBase}/admin/tenant/services/${serviceId}/config`, {
+      cache: 'no-store',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      return;
+    }
+    const config = (await res.json()) as ServiceConfigPreview;
+    setConfigPreview(config);
   }, [apiBase, serviceId, token]);
 
   const loadFormPreview = useCallback(async (): Promise<void> => {
@@ -103,7 +131,8 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   useEffect(() => {
     void loadReadiness();
     void loadFormPreview();
-  }, [loadFormPreview, loadReadiness]);
+    void loadConfigPreview();
+  }, [loadConfigPreview, loadFormPreview, loadReadiness]);
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId');
@@ -164,6 +193,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       setStatus(`Session started in ${SCOPE_LABELS[nextScope]} scope.`);
       await loadReadiness();
       await loadFormPreview();
+      await loadConfigPreview();
     } finally {
       setLoading(false);
     }
@@ -222,6 +252,9 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
           if (event.type === 'draft_updated') {
             void loadFormPreview();
             void loadReadiness();
+            if (event.layer === 'config') {
+              void loadConfigPreview();
+            }
           }
           if (event.type === 'error') {
             setStatus(event.message);
@@ -247,7 +280,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       <PageHeader
         eyebrow="Service setup assistant"
         title="Setup Assistant"
-        subtitle="AI-assisted form and workflow setup (SSA-2 / SSA-3)"
+        subtitle="AI-assisted service setup (SSA-2 through SSA-4)"
         actions={
           <Link
             href={`/dashboard/services/${serviceId}`}
@@ -308,7 +341,18 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
 
           <div className="mt-4 space-y-3 rounded-lg border border-warm-border bg-canvas p-4">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-              Chat {showFormStep ? '(form step)' : showWorkflowStep ? '(workflow step)' : ''}
+              Chat{' '}
+              {showIntentStep
+                ? '(intent step)'
+                : showFormStep
+                  ? '(form step)'
+                  : showWorkflowStep
+                    ? '(workflow step)'
+                    : showPaymentStep
+                      ? '(payment step)'
+                      : showReviewStep
+                        ? '(review step)'
+                        : ''}
             </h4>
             <div className="max-h-64 space-y-2 overflow-y-auto text-sm">
               {messages.map((message) => (
@@ -334,11 +378,17 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               ) : null}
               {messages.length === 0 && !streamingText ? (
                 <p className="text-ink-secondary">
-                  {showFormStep
-                    ? 'Start a session and ask the assistant to add or update form fields.'
-                    : showWorkflowStep
-                      ? 'Ask the assistant to apply a workflow template (linear approval, scrutiny, or booking) or merge stages.'
-                      : 'Switch to form (step 2) or workflow (step 3) to use chat.'}
+                  {showIntentStep
+                    ? 'Describe the service purpose and approval pattern to classify the archetype.'
+                    : showFormStep
+                      ? 'Start a session and ask the assistant to add or update form fields.'
+                      : showWorkflowStep
+                        ? 'Ask the assistant to apply a workflow template (linear approval, scrutiny, or booking) or merge stages.'
+                        : showPaymentStep
+                          ? 'Ask the assistant to set fees, required documents, and revenue head mapping.'
+                          : showReviewStep
+                            ? 'Ask what is blocking publish or request a readiness summary.'
+                            : 'Switch to an active step to use chat.'}
                 </p>
               ) : null}
             </div>
@@ -348,11 +398,17 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 placeholder={
-                  showFormStep
-                    ? 'Describe the form changes you need…'
-                    : showWorkflowStep
-                      ? 'Describe the workflow you need (e.g. apply linear approval)…'
-                      : 'Chat available on form or workflow step…'
+                  showIntentStep
+                    ? 'Describe the service you are setting up…'
+                    : showFormStep
+                      ? 'Describe the form changes you need…'
+                      : showWorkflowStep
+                        ? 'Describe the workflow you need (e.g. apply linear approval)…'
+                        : showPaymentStep
+                          ? 'Describe fees, documents, and revenue mapping…'
+                          : showReviewStep
+                            ? 'Ask about publish readiness or blockers…'
+                            : 'Chat available on active wizard steps…'
                 }
                 disabled={!session || chatBusy || !showChatStep}
                 onKeyDown={(event) => {
@@ -420,6 +476,73 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               ) : null}
             </div>
           ) : null}
+          {showPaymentStep ? (
+            <div className="mt-4 rounded-lg border border-warm-border bg-white p-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+                Payment & documents
+              </h4>
+              {configPreview ? (
+                <dl className="mt-2 space-y-1 text-sm text-ink-primary">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-ink-secondary">Fee preview</dt>
+                    <dd>
+                      {configPreview.fee_preview_paise != null
+                        ? `₹${(configPreview.fee_preview_paise / 100).toFixed(2)}`
+                        : 'Not set'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-ink-secondary">Schedule</dt>
+                    <dd>{configPreview.payment_schedule}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-ink-secondary">Documents</dt>
+                    <dd>{configPreview.required_documents.length}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-ink-secondary">Revenue head</dt>
+                    <dd>{configPreview.revenue_head?.code ?? 'Not set'}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-2 text-sm text-ink-secondary">No config loaded yet.</p>
+              )}
+            </div>
+          ) : null}
+
+          {showReviewStep ? (
+            <div className="mt-4 rounded-lg border border-warm-border bg-white p-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+                Publish in Service Designer
+              </h4>
+              <ul className="mt-2 space-y-2 text-sm">
+                <li>
+                  <Link
+                    href={`/dashboard/services/${serviceId}#form` as Route}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Publish form draft
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href={`/dashboard/services/${serviceId}#workflow` as Route}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Publish workflow draft
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href={`/dashboard/services/${serviceId}#config` as Route}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Review service config
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
         </article>
 
         <article className="rounded-2xl border border-warm-border bg-white p-4">
@@ -437,6 +560,9 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
             <p className="mt-3 text-xs font-semibold text-ink-primary">
               Ready to publish: {readiness.ready_to_publish ? 'Yes' : 'No'}
             </p>
+          ) : null}
+          {showReviewStep && session?.archetype ? (
+            <p className="mt-2 text-xs text-ink-secondary">Archetype: {session.archetype}</p>
           ) : null}
         </article>
       </section>
