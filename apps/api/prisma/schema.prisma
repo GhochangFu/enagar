@@ -599,6 +599,7 @@ model ServiceSetupSession {
   archetype         String?               @db.VarChar(80)
   requirementsJson  Json?                 @map("requirements_json")
   stepCompletion    Json                  @default(dbgenerated("'{}'::jsonb")) @map("step_completion")
+  tokenUsageJson    Json?                 @map("token_usage_json")
   status            String                @default("active") @db.VarChar(20)
   createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)

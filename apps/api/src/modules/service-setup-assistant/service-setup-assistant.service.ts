@@ -8,6 +8,7 @@ import { AdminStateService } from '../admin-state/admin-state.service';
 import { AdminTenantService } from '../admin-tenant/admin-tenant.service';
 import { ChatbotLlmService } from '../chatbot/chatbot-llm.service';
 
+import { assertSetupAssistantInputAllowed } from './guardrails';
 import { ReadinessChecklistService } from './readiness-checklist.service';
 import {
   CONFIG_TOOL_RETRY_USER_MESSAGE,
@@ -20,6 +21,12 @@ import {
   WORKFLOW_TOOL_RETRY_USER_MESSAGE,
 } from './setup-assistant-message.util';
 import { SetupSessionService } from './setup-session.service';
+import {
+  accumulateTokenUsage,
+  isSessionOverTokenCap,
+  parseTokenUsageJson,
+  resolveSessionTokenCap,
+} from './token-budget';
 import { formatFormFieldsForPrompt } from './tools/normalize-proposed-fields';
 import { TenantConfigTools } from './tools/tenant-config.tools';
 import { parseToolCallsFromAssistantText } from './tools/tool-call-parser';
@@ -94,10 +101,7 @@ export class ServiceSetupAssistantService {
   }
 
   private async *streamMessage(input: StreamMessageInput): AsyncIterable<SetupAssistantSseEvent> {
-    const sanitized = input.message.trim();
-    if (!sanitized) {
-      throw new BadRequestException('message is required');
-    }
+    const sanitized = assertSetupAssistantInputAllowed(input.message);
 
     const raw = await this.sessions.assertSessionAccess(
       input.sessionId,
@@ -138,6 +142,16 @@ export class ServiceSetupAssistantService {
       step,
     };
 
+    const tokenCap = resolveSessionTokenCap();
+    const tokenUsage = parseTokenUsageJson(raw.tokenUsageJson);
+    if (isSessionOverTokenCap(tokenUsage, tokenCap)) {
+      yield {
+        type: 'error',
+        message: 'Session token budget exceeded. Start a new setup session to continue.',
+      };
+      return;
+    }
+
     const outbound = this.llm.prepareOutboundText(sanitized);
     const history = await this.loadHistory(input.sessionId);
     const messages = [...history, { role: 'user' as const, content: outbound.redactedUserText }];
@@ -155,7 +169,9 @@ export class ServiceSetupAssistantService {
 
     let assistantText = '';
     try {
-      assistantText = yield* this.streamAssistantReply(input, systemPrompt, messages, outbound);
+      const reply = yield* this.streamAssistantReply(input, systemPrompt, messages, outbound);
+      assistantText = reply.text;
+      await this.recordSessionTokenUsage(input.sessionId, reply.inputTokens, reply.outputTokens);
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : 'LLM stream failed';
       this.log.warn(`setup-assistant stream error session=${input.sessionId}: ${errMessage}`);
@@ -177,13 +193,18 @@ export class ServiceSetupAssistantService {
         { role: 'user' as const, content: retryOutbound.redactedUserText },
       ];
       try {
-        const retryText = yield* this.streamAssistantReply(
+        const retryReply = yield* this.streamAssistantReply(
           input,
           systemPrompt,
           retryMessages,
           retryOutbound,
         );
-        assistantText = retryText;
+        assistantText = retryReply.text;
+        await this.recordSessionTokenUsage(
+          input.sessionId,
+          retryReply.inputTokens,
+          retryReply.outputTokens,
+        );
         ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
@@ -203,13 +224,18 @@ export class ServiceSetupAssistantService {
         { role: 'user' as const, content: retryOutbound.redactedUserText },
       ];
       try {
-        const retryText = yield* this.streamAssistantReply(
+        const retryReply = yield* this.streamAssistantReply(
           input,
           systemPrompt,
           retryMessages,
           retryOutbound,
         );
-        assistantText = retryText;
+        assistantText = retryReply.text;
+        await this.recordSessionTokenUsage(
+          input.sessionId,
+          retryReply.inputTokens,
+          retryReply.outputTokens,
+        );
         ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
@@ -231,13 +257,18 @@ export class ServiceSetupAssistantService {
         { role: 'user' as const, content: retryOutbound.redactedUserText },
       ];
       try {
-        const retryText = yield* this.streamAssistantReply(
+        const retryReply = yield* this.streamAssistantReply(
           input,
           systemPrompt,
           retryMessages,
           retryOutbound,
         );
-        assistantText = retryText;
+        assistantText = retryReply.text;
+        await this.recordSessionTokenUsage(
+          input.sessionId,
+          retryReply.inputTokens,
+          retryReply.outputTokens,
+        );
         ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
@@ -259,13 +290,18 @@ export class ServiceSetupAssistantService {
         { role: 'user' as const, content: retryOutbound.redactedUserText },
       ];
       try {
-        const retryText = yield* this.streamAssistantReply(
+        const retryReply = yield* this.streamAssistantReply(
           input,
           systemPrompt,
           retryMessages,
           retryOutbound,
         );
-        assistantText = retryText;
+        assistantText = retryReply.text;
+        await this.recordSessionTokenUsage(
+          input.sessionId,
+          retryReply.inputTokens,
+          retryReply.outputTokens,
+        );
         ({ displayText, toolCalls } = parseToolCallsFromAssistantText(assistantText));
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : 'LLM retry stream failed';
@@ -355,8 +391,13 @@ export class ServiceSetupAssistantService {
     systemPrompt: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     outbound: StreamAuditContext,
-  ): AsyncGenerator<SetupAssistantSseEvent, string> {
+  ): AsyncGenerator<
+    SetupAssistantSseEvent,
+    { text: string; inputTokens?: number; outputTokens?: number }
+  > {
     let assistantText = '';
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
     for await (const chunk of this.llm.streamForSetupAssistant(
       {
         systemPrompt,
@@ -370,6 +411,8 @@ export class ServiceSetupAssistantService {
       outbound,
     )) {
       if (chunk.done) {
+        inputTokens = chunk.inputTokens;
+        outputTokens = chunk.outputTokens;
         break;
       }
       if (chunk.delta) {
@@ -377,7 +420,33 @@ export class ServiceSetupAssistantService {
         yield { type: 'token', delta: chunk.delta };
       }
     }
-    return assistantText;
+    return { text: assistantText, inputTokens, outputTokens };
+  }
+
+  private async recordSessionTokenUsage(
+    sessionId: string,
+    inputTokens?: number,
+    outputTokens?: number,
+  ): Promise<void> {
+    if (!Number.isFinite(inputTokens) && !Number.isFinite(outputTokens)) {
+      return;
+    }
+    const row = await this.prisma.serviceSetupSession.findUnique({
+      where: { id: sessionId },
+      select: { tokenUsageJson: true },
+    });
+    if (!row) {
+      return;
+    }
+    const usage = accumulateTokenUsage(
+      parseTokenUsageJson(row.tokenUsageJson),
+      inputTokens,
+      outputTokens,
+    );
+    await this.prisma.serviceSetupSession.update({
+      where: { id: sessionId },
+      data: { tokenUsageJson: usage as Prisma.InputJsonValue },
+    });
   }
 
   private async maybeMarkStepComplete(

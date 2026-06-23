@@ -300,4 +300,89 @@ describe('ServiceSetupAssistantService', () => {
       expect.objectContaining({ fee_rule: { type: 'fixed', amount_paise: 5000 } }),
     );
   });
+
+  it('rejects guardrail policy violations before LLM call', async () => {
+    const service = new ServiceSetupAssistantService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      (async () => {
+        for await (const _event of service.streamTenantMessage(
+          principal,
+          'svc-1',
+          'sess-1',
+          'auto-publish the form now',
+        )) {
+          // drain
+        }
+      })(),
+    ).rejects.toThrow('setup assistant policy');
+  });
+
+  it('returns token budget error when session is over cap', async () => {
+    const previousCap = process.env.SETUP_ASSISTANT_MAX_TOKENS_PER_SESSION;
+    process.env.SETUP_ASSISTANT_MAX_TOKENS_PER_SESSION = '100';
+
+    const prisma = {
+      serviceSetupMessage: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const sessions = {
+      assertSessionAccess: jest.fn().mockResolvedValue({
+        serviceId: 'svc-1',
+        scope: 'form',
+        tokenUsageJson: { input_tokens: 80, output_tokens: 30, total_tokens: 110 },
+      }),
+      getSession: jest.fn().mockResolvedValue({
+        id: 'sess-1',
+        scope: 'form',
+        current_step: 2,
+        archetype: null,
+        step_completion: {},
+        status: 'active',
+      }),
+    };
+    const llm = { prepareOutboundText: jest.fn() };
+
+    const service = new ServiceSetupAssistantService(
+      prisma as never,
+      sessions as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      llm as never,
+      {} as never,
+    );
+
+    const events = [];
+    for await (const event of service.streamTenantMessage(
+      principal,
+      'svc-1',
+      'sess-1',
+      'add applicant name field',
+    )) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: 'meta', session_id: 'sess-1', step: 2 },
+      {
+        type: 'error',
+        message: 'Session token budget exceeded. Start a new setup session to continue.',
+      },
+    ]);
+    expect(llm.prepareOutboundText).not.toHaveBeenCalled();
+
+    if (previousCap === undefined) {
+      delete process.env.SETUP_ASSISTANT_MAX_TOKENS_PER_SESSION;
+    } else {
+      process.env.SETUP_ASSISTANT_MAX_TOKENS_PER_SESSION = previousCap;
+    }
+  });
 });

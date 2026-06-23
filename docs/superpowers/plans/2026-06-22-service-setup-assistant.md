@@ -544,6 +544,7 @@ node scripts/smoke-service-setup-assistant.mjs
 | SSA-3     | EN-54 | Phase 3 — Workflow step              | 2 weeks   | **Done** |
 | SSA-4     | EN-55 | Phase 4 + Phase 5 — Payment & review | 2 weeks   | **Done** |
 | SSA-5     | EN-56 | Phase 5 — Full flow & review guide   | 1–2 weeks | **Done** |
+| SSA-6     | EN-57 | Phase 6 — Hardening & launch         | 1 week    | **Done** |
 
 **SSA-0 detail:** [`docs/superpowers/plans/2026-06-22-ssa-0-en-52.md`](2026-06-22-ssa-0-en-52.md)
 
@@ -554,6 +555,8 @@ node scripts/smoke-service-setup-assistant.mjs
 **SSA-4 detail:** [`docs/superpowers/plans/2026-06-22-ssa-4-en-55.md`](2026-06-22-ssa-4-en-55.md) · **Done** 2026-06-23
 
 **SSA-5 detail:** [`docs/superpowers/plans/2026-06-22-ssa-5-en-56.md`](2026-06-22-ssa-5-en-56.md) · **Done** 2026-06-23
+
+**SSA-6 detail:** [`docs/superpowers/plans/2026-06-23-ssa-6-en-57.md`](2026-06-23-ssa-6-en-57.md) · **Done** 2026-06-23
 
 **Total:** ~9–10 weeks sequential; Phase 2 state form track can parallel Phase 3 prep.
 
