@@ -10,7 +10,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./llm": "./src/llm.ts",
-    "./tenant": "./src/tenant.ts"
+    "./tenant": "./src/tenant.ts",
+    "./setup-assistant-flow": "./src/setup-assistant-flow.ts"
   },
   "scripts": {
     "lint": "eslint src",

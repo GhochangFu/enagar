@@ -2,6 +2,15 @@
 
 import { validateFormSchema, type EnagarFormSchema } from '@enagar/forms';
 import { FormCitizenPreview } from '@enagar/forms/builder';
+import {
+  areDraftLayersReady,
+  canSkipToReview,
+  formatStepProgress,
+  nextStep,
+  previousStep,
+  SETUP_SCOPE_STEPS,
+  stepLabel,
+} from '@enagar/types/setup-assistant-flow';
 import { Button, PageHeader } from '@enagar/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -12,7 +21,6 @@ import { postSetupAssistantMessage } from '../../../../../lib/setup-assistant-ss
 
 import type { SetupAssistantScope, SetupSessionDto, SetupReadinessChecklist } from '@enagar/types';
 import type { WorkflowDefinition } from '@enagar/workflow';
-import type { Route } from 'next';
 
 const SCOPE_LABELS: Record<SetupAssistantScope, string> = {
   full: 'Full setup',
@@ -22,13 +30,9 @@ const SCOPE_LABELS: Record<SetupAssistantScope, string> = {
   review: 'Review only',
 };
 
-const SCOPE_STEPS: Record<SetupAssistantScope, number[]> = {
-  full: [1, 2, 3, 4, 5],
-  form: [2, 5],
-  workflow: [3, 5],
-  payment: [4, 5],
-  review: [5],
-};
+import type { Route } from 'next';
+
+const SCOPE_STEPS = SETUP_SCOPE_STEPS;
 
 type ChatMessage = {
   id: string;
@@ -66,6 +70,10 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   );
 
   const activeSteps = useMemo(() => SCOPE_STEPS[session?.scope ?? scope], [scope, session?.scope]);
+  const draftLayersReady = useMemo(
+    () => (readiness ? areDraftLayersReady(readiness) : false),
+    [readiness],
+  );
   const showIntentStep = session?.current_step === 1;
   const showFormStep = session?.current_step === 2;
   const showWorkflowStep = session?.current_step === 3;
@@ -73,6 +81,14 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
   const showReviewStep = session?.current_step === 5;
   const showChatStep =
     showIntentStep || showFormStep || showWorkflowStep || showPaymentStep || showReviewStep;
+  const stepProgressLabel = session ? formatStepProgress(session) : null;
+  const canGoBack = session ? previousStep(session.scope, session.current_step) !== null : false;
+  const canGoNext = session
+    ? nextStep(session.scope, session.current_step, session.step_completion) !== null
+    : false;
+  const canSkipReview = session
+    ? canSkipToReview(session.scope, session.current_step, session.step_completion)
+    : false;
 
   const loadReadiness = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -91,6 +107,33 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     }
     setReadiness((await res.json()) as SetupReadinessChecklist);
   }, [apiBase, serviceId, token]);
+
+  const reloadSession = useCallback(async (): Promise<void> => {
+    if (!token || !session) {
+      return;
+    }
+    const res = await fetch(
+      `${apiBase}/admin/tenant/services/${serviceId}/setup-assistant/sessions/${session.id}`,
+      {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${token}` },
+      },
+    );
+    if (!res.ok) {
+      return;
+    }
+    const payload = (await res.json()) as
+      | SetupSessionDto
+      | { session: SetupSessionDto; checklist?: SetupReadinessChecklist };
+    const nextSession = 'session' in payload ? payload.session : payload;
+    setSession(nextSession);
+    setScope(nextSession.scope);
+    if ('session' in payload && payload.checklist) {
+      setReadiness(payload.checklist);
+    } else {
+      await loadReadiness();
+    }
+  }, [apiBase, loadReadiness, serviceId, session, token]);
 
   const loadConfigPreview = useCallback(async (): Promise<void> => {
     if (!token) {
@@ -219,6 +262,38 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
     setSession((await res.json()) as SetupSessionDto);
   }
 
+  async function goToStep(nextStepNumber: number): Promise<void> {
+    await setCurrentStep(nextStepNumber);
+    setMessages([]);
+  }
+
+  async function goBack(): Promise<void> {
+    if (!session) {
+      return;
+    }
+    const target = previousStep(session.scope, session.current_step);
+    if (target) {
+      await goToStep(target);
+    }
+  }
+
+  async function goNext(): Promise<void> {
+    if (!session) {
+      return;
+    }
+    const target = nextStep(session.scope, session.current_step, session.step_completion);
+    if (target) {
+      await goToStep(target);
+    }
+  }
+
+  async function skipToReview(): Promise<void> {
+    if (!session || !canSkipReview) {
+      return;
+    }
+    await goToStep(5);
+  }
+
   async function sendChatMessage(): Promise<void> {
     if (!token || !session || !chatInput.trim() || chatBusy) {
       return;
@@ -259,6 +334,9 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
           if (event.type === 'error') {
             setStatus(event.message);
           }
+          if (event.type === 'done') {
+            void reloadSession();
+          }
         },
       });
       if (assistantContent.trim()) {
@@ -280,7 +358,7 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       <PageHeader
         eyebrow="Service setup assistant"
         title="Setup Assistant"
-        subtitle="AI-assisted service setup (SSA-2 through SSA-4)"
+        subtitle="AI-assisted service setup — full flow wizard (SSA-5)"
         actions={
           <Link
             href={`/dashboard/services/${serviceId}`}
@@ -320,6 +398,9 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <article className="rounded-2xl border border-warm-border bg-white p-4">
           <h3 className="text-sm font-semibold text-ink-primary">Progress</h3>
+          {stepProgressLabel ? (
+            <p className="mt-1 text-xs text-ink-secondary">{stepProgressLabel}</p>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {activeSteps.map((step) => {
               const active = session?.current_step === step;
@@ -328,11 +409,12 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
                 <button
                   key={step}
                   type="button"
+                  title={stepLabel(step)}
                   className={`rounded-full px-3 py-1 text-xs ${active ? 'bg-brand text-white' : complete ? 'bg-emerald-100 text-emerald-900' : 'bg-canvas text-ink-primary'}`}
-                  onClick={() => void setCurrentStep(step)}
+                  onClick={() => void goToStep(step)}
                   disabled={!session}
                 >
-                  Step {step}
+                  {step}. {stepLabel(step).split(' ')[0]}
                   {complete ? ' ✓' : ''}
                 </button>
               );
@@ -450,6 +532,10 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
                 Workflow preview
               </h4>
+              <p className="mt-1 text-xs text-ink-secondary">
+                Workflow edits here only update the workflow draft. Form fields and payment settings
+                are preserved.
+              </p>
               {workflowPreview?.stages?.length ? (
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink-primary">
                   {workflowPreview.stages.map((stage) => (
@@ -543,10 +629,53 @@ export default function SetupAssistantClient({ serviceId }: { serviceId: string 
               </ul>
             </div>
           ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-warm-border pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!session || !canGoBack}
+              onClick={() => void goBack()}
+            >
+              Back step
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!session || !canGoNext}
+              onClick={() => void goNext()}
+            >
+              Next step
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!session || !canSkipReview}
+              onClick={() => void skipToReview()}
+            >
+              Skip to review
+            </Button>
+            <Link
+              href={`/dashboard/services/${serviceId}` as Route}
+              className="inline-flex items-center rounded-lg border border-warm-border bg-white px-3 py-2 text-xs font-medium text-brand hover:underline"
+            >
+              Open full designer
+            </Link>
+          </div>
         </article>
 
         <article className="rounded-2xl border border-warm-border bg-white p-4">
           <h3 className="text-sm font-semibold text-ink-primary">Readiness</h3>
+          {showReviewStep && readiness ? (
+            <div className="mt-2 space-y-1 rounded-lg border border-warm-border bg-canvas px-3 py-2 text-xs">
+              <p className="font-medium text-ink-primary">
+                Draft layers ready: {draftLayersReady ? 'Yes' : 'No'}
+              </p>
+              <p className="text-ink-secondary">
+                Publish readiness requires valid drafts plus manual publish in Service Designer.
+              </p>
+            </div>
+          ) : null}
           <ul className="mt-3 space-y-2">
             {(readiness?.items ?? []).map((item) => (
               <li key={item.key} className="rounded-lg border border-warm-border px-3 py-2 text-xs">
