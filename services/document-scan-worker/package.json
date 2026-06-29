@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@enagar/config": "workspace:*",
-    "@types/node": "^20.16.10",
+    "@types/node": "^26.0.1",
     "@types/pg": "^8.11.10",
     "eslint": "^8.57.1",
     "rimraf": "^6.0.1",
